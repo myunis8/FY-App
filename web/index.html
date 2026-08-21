@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Obras Eléctricas</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+:root{
+  --navy:#16283f; --navy-deep:#0e1c2e;
+  --paper:#f1f3f2; --panel:#fff; --line:#dde3e2;
+  --ink:#1c2733; --muted:#5b6b7a;
+  --amber:#e2a33d; --amber-deep:#c07f1f;
+  --copper:#b5651d; --copper-soft:#f4e3d3;
+  --slate-soft:#eef1f3;
+  --green:#2f7d5c; --green-soft:#dcefe4;
+  --danger:#b3432f; --danger-soft:#f8ded7;
+  --blue:#2b6ca3; --blue-soft:#dce9f3;
+  --radius:10px;
+  font-family:'IBM Plex Sans',system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink)}
+.display{font-family:'Space Grotesk',system-ui,sans-serif;letter-spacing:-.01em}
+.mono{font-family:'IBM Plex Mono',Consolas,monospace}
+button{font:inherit;cursor:pointer}
+input,select{font:inherit}
+
+/* ---------- barra superior ---------- */
+header{background:var(--navy);color:#fff;padding:14px 22px;display:flex;
+  align-items:center;gap:16px;flex-wrap:wrap}
+header h1{font-size:1.05rem;margin:0;font-weight:600}
+header .sub{font-size:.72rem;color:#9db2c7;margin-top:2px}
+.spacer{flex:1}
+.btn{border:1px solid var(--line);background:var(--panel);color:var(--ink);
+  padding:8px 14px;border-radius:var(--radius);font-size:.83rem;font-weight:500}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--amber);border-color:var(--amber-deep);color:#2a1e07;font-weight:600}
+.btn.ghost{background:transparent;border-color:#33506e;color:#cfe0f0}
+.btn.ghost:hover{border-color:#5b7fa5}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn.sm{padding:5px 10px;font-size:.76rem}
+
+/* ---------- estado de sync ---------- */
+#sync-estado{font-size:.75rem;color:#9db2c7;display:flex;align-items:center;gap:6px}
+.punto{width:8px;height:8px;border-radius:50%;background:#5b7fa5}
+.punto.ok{background:#57b183}.punto.mal{background:#d9705e}
+
+main{max-width:1180px;margin:0 auto;padding:26px 22px 60px}
+
+/* ---------- filtros ---------- */
+.filtros{display:flex;gap:10px;align-items:center;margin-bottom:20px;flex-wrap:wrap}
+.filtros input,.filtros select{padding:8px 11px;border:1px solid var(--line);
+  border-radius:var(--radius);background:var(--panel);color:var(--ink)}
+.filtros input{min-width:230px}
+.conteo{font-size:.78rem;color:var(--muted)}
+
+/* ---------- grilla ---------- */
+.grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(330px,1fr))}
+.obra{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+  padding:16px 17px;display:flex;flex-direction:column;gap:12px;text-align:left;
+  width:100%;transition:border-color .12s,transform .12s}
+.obra:hover{border-color:var(--copper);transform:translateY(-1px)}
+.obra .top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.obra h3{margin:0;font-size:1rem;font-weight:600;font-family:'Space Grotesk',sans-serif}
+.obra .cliente{font-size:.8rem;color:var(--muted);margin-top:2px}
+.chip{font-size:.68rem;padding:3px 8px;border-radius:99px;white-space:nowrap;font-weight:600}
+.chip.preliminar{background:var(--slate-soft);color:var(--muted)}
+.chip.aprobado{background:var(--blue-soft);color:var(--blue)}
+.chip.en_curso{background:var(--copper-soft);color:var(--copper)}
+.chip.realizado{background:var(--green-soft);color:var(--green)}
+.chip.pendiente{background:var(--danger-soft);color:var(--danger)}
+.chip.parcial{background:var(--copper-soft);color:var(--copper)}
+.chip.pagado{background:var(--green-soft);color:var(--green)}
+
+/* ---------- el elemento distintivo: la vía del proyecto ---------- */
+.via{display:grid;grid-template-columns:repeat(4,1fr);gap:3px}
+.tramo{height:5px;border-radius:2px;background:var(--slate-soft)}
+.tramo.hecho{background:var(--copper)}
+.via-rot{display:grid;grid-template-columns:repeat(4,1fr);gap:3px;
+  font-size:.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.via-rot span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.via-rot span.hecho{color:var(--copper);font-weight:600}
+
+.obra .pie{display:flex;justify-content:space-between;align-items:baseline;
+  font-size:.75rem;color:var(--muted);gap:10px}
+.total{font-family:'IBM Plex Mono',monospace;font-size:.92rem;color:var(--ink);font-weight:600}
+.solo-nube{font-size:.68rem;color:var(--blue);font-weight:600}
+
+/* ---------- vacío ---------- */
+.vacio{border:1px dashed var(--line);border-radius:var(--radius);padding:52px 26px;
+  text-align:center;background:var(--panel)}
+.vacio h2{font-family:'Space Grotesk',sans-serif;margin:0 0 8px;font-size:1.1rem}
+.vacio p{color:var(--muted);margin:0 0 18px;font-size:.88rem}
+
+/* ---------- overlays ---------- */
+.overlay{position:fixed;inset:0;background:rgba(14,28,46,.55);display:none;
+  align-items:center;justify-content:center;padding:20px;z-index:40}
+.overlay.abierto{display:flex}
+.caja{background:var(--panel);border-radius:14px;padding:24px;width:min(560px,100%);
+  max-height:88vh;overflow:auto}
+.caja h2{font-family:'Space Grotesk',sans-serif;margin:0 0 4px;font-size:1.08rem}
+.caja .ayuda{color:var(--muted);font-size:.82rem;margin:0 0 18px;line-height:1.5}
+.campo{margin-bottom:14px}
+.campo label{display:block;font-size:.78rem;font-weight:600;margin-bottom:5px}
+.campo input{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:8px}
+.campo .nota{font-size:.72rem;color:var(--muted);margin-top:5px;line-height:1.45}
+.acciones{display:flex;gap:9px;justify-content:flex-end;margin-top:20px}
+.aviso{padding:10px 12px;border-radius:8px;font-size:.8rem;margin-bottom:14px;display:none;line-height:1.45}
+.aviso.ok{background:var(--green-soft);color:var(--green);display:block}
+.aviso.mal{background:var(--danger-soft);color:var(--danger);display:block}
+
+/* ---------- detalle ---------- */
+.bloques{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin:6px 0 4px}
+.bloque{border:1px solid var(--line);border-radius:8px;padding:9px 11px;font-size:.78rem}
+.bloque b{display:block;font-size:.68rem;text-transform:uppercase;letter-spacing:.04em;
+  color:var(--muted);font-weight:600;margin-bottom:3px}
+
+.plano-fila{border:1px solid var(--line);border-radius:8px;padding:12px 13px;
+  margin-top:10px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.plano-fila .txt{flex:1;min-width:170px;font-size:.82rem}
+.plano-fila .txt b{display:block;font-size:.68rem;text-transform:uppercase;
+  letter-spacing:.04em;color:var(--muted);margin-bottom:3px}
+.plano-fila .nota{font-size:.74rem;color:var(--muted);margin-top:3px}
+#toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--navy-deep);
+  color:#fff;padding:11px 18px;border-radius:var(--radius);font-size:.83rem;display:none;z-index:60}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1 class="display">Obras Eléctricas</h1>
+    <div class="sub" id="hdr-sub">Cargando…</div>
+  </div>
+  <div class="spacer"></div>
+  <div id="sync-estado"><span class="punto" id="sync-punto"></span><span id="sync-texto">Sin configurar</span></div>
+  <button class="btn ghost" id="b-sync">Sincronizar</button>
+  <button class="btn ghost" id="b-config">Configuración</button>
+  <button class="btn primary" id="b-nueva">Nueva obra</button>
+</header>
+
+<main>
+  <div class="filtros">
+    <input id="f-buscar" placeholder="Buscar por obra o cliente" aria-label="Buscar">
+    <select id="f-estado" aria-label="Filtrar por estado">
+      <option value="">Todos los estados</option>
+      <option value="preliminar">Preliminar</option>
+      <option value="aprobado">Aprobado</option>
+      <option value="en_curso">En curso</option>
+      <option value="realizado">Realizado</option>
+    </select>
+    <select id="f-etapa" aria-label="Filtrar por etapa pendiente">
+      <option value="">Cualquier etapa</option>
+      <option value="extraido">Falta extraer el plano</option>
+      <option value="circuitosAsignados">Faltan circuitos</option>
+      <option value="canalizado">Falta canalizar</option>
+      <option value="presupuestado">Falta presupuestar</option>
+    </select>
+    <div class="spacer"></div>
+    <span class="conteo" id="conteo"></span>
+  </div>
+  <div id="lista"></div>
+</main>
+
+<!-- configuración -->
+<div class="overlay" id="ov-config">
+  <div class="caja">
+    <h2>Configuración</h2>
+    <p class="ayuda">El token se guarda en este equipo, nunca dentro del programa.
+      Usá un repositorio privado y un token con acceso sólo a ese repositorio.</p>
+    <div class="aviso" id="cfg-aviso"></div>
+    <div class="campo">
+      <label for="c-usuario">Tu nombre</label>
+      <input id="c-usuario" placeholder="Victor">
+      <div class="nota">Queda registrado en cada obra que guardás.</div>
+    </div>
+    <div class="campo">
+      <label for="c-repo">Repositorio</label>
+      <input id="c-repo" class="mono" placeholder="usuario/obras">
+      <div class="nota">Formato <span class="mono">usuario/repositorio</span>. Tiene que existir y ser privado.</div>
+    </div>
+    <div class="campo">
+      <label for="c-token">Token de acceso</label>
+      <input id="c-token" class="mono" type="password" placeholder="github_pat_…">
+      <div class="nota">Fine-grained, con permiso <b>Contents</b> sobre ese repositorio.
+        Lectura y escritura para vos, sólo lectura para quien únicamente consulta.</div>
+    </div>
+    <div class="campo">
+      <label for="c-rama">Rama</label>
+      <input id="c-rama" class="mono" placeholder="main">
+    </div>
+    <div class="acciones">
+      <button class="btn" id="c-cerrar">Cancelar</button>
+      <button class="btn" id="c-probar">Probar acceso</button>
+      <button class="btn primary" id="c-guardar">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- nueva obra -->
+<div class="overlay" id="ov-nueva">
+  <div class="caja" style="width:min(430px,100%)">
+    <h2>Nueva obra</h2>
+    <p class="ayuda">Después le cargás el plano y el resto de los datos.</p>
+    <div class="campo">
+      <label for="n-nombre">Nombre de la obra</label>
+      <input id="n-nombre" placeholder="Casa Jujuy">
+    </div>
+    <div class="campo">
+      <label for="n-cliente">Cliente</label>
+      <input id="n-cliente" placeholder="Opcional">
+    </div>
+    <div class="acciones">
+      <button class="btn" id="n-cerrar">Cancelar</button>
+      <button class="btn primary" id="n-crear">Crear</button>
+    </div>
+  </div>
+</div>
+
+<!-- detalle -->
+<div class="overlay" id="ov-detalle">
+  <div class="caja">
+    <h2 id="d-titulo">Obra</h2>
+    <p class="ayuda" id="d-sub"></p>
+    <div class="aviso" id="d-aviso"></div>
+    <div class="bloques" id="d-bloques"></div>
+    <div class="plano-fila" id="d-plano"></div>
+    <input type="file" id="d-archivo" accept="application/pdf,.pdf" hidden>
+    <p class="ayuda" style="margin-top:16px">Los módulos de extracción, circuitos,
+      canalización y presupuesto se enchufan acá.</p>
+    <div class="acciones">
+      <button class="btn" id="d-borrar" style="margin-right:auto;color:var(--danger)">Borrar</button>
+      <button class="btn" id="d-cerrar">Cerrar</button>
+      <button class="btn" id="d-bajar">Descargar obra.json</button>
+      <button class="btn primary" id="d-subir">Subir al repositorio</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const ETAPAS = [
+  ['extraido','Plano'], ['circuitosAsignados','Circuitos'],
+  ['canalizado','Canalización'], ['presupuestado','Presupuesto']
+];
+const ESTADOS = {preliminar:'Preliminar', aprobado:'Aprobado',
+                 en_curso:'En curso', realizado:'Realizado'};
+const PAGOS = {pendiente:'Pendiente', parcial:'Pago parcial', pagado:'Pagado'};
+
+let estadoApp = null, obras = [], obraAbierta = null;
+
+const $ = id => document.getElementById(id);
+const api = async (ruta, opts={}) => {
+  const r = await fetch(ruta, {headers:{'Content-Type':'application/json'}, ...opts});
+  const d = await r.json().catch(()=>({}));
+  if(!r.ok) throw Object.assign(new Error(d.error || 'Error inesperado'), d);
+  return d;
+};
+function toast(msg){
+  const t=$('toast'); t.textContent=msg; t.style.display='block';
+  clearTimeout(t._t); t._t=setTimeout(()=>t.style.display='none', 3200);
+}
+function plata(n){
+  return (n||0).toLocaleString('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0});
+}
+function cuando(ts){
+  if(!ts) return 'sin guardar';
+  const d=new Date(ts), hoy=new Date();
+  const dias=Math.floor((hoy-d)/86400000);
+  if(dias===0) return 'hoy';
+  if(dias===1) return 'ayer';
+  if(dias<30) return `hace ${dias} días`;
+  return d.toLocaleDateString('es-AR');
+}
+
+/* ---------------- estado y sincronización ---------------- */
+async function cargarEstado(){
+  estadoApp = await api('/api/estado');
+  const c = estadoApp.config;
+  $('hdr-sub').textContent = (c.usuario ? c.usuario+' · ' : '') + 'contrato v'+estadoApp.contrato;
+  pintarSync(estadoApp.listoParaSync ? 'listo' : 'sin-config');
+}
+function pintarSync(modo, texto){
+  const p=$('sync-punto'), t=$('sync-texto');
+  p.className='punto'+(modo==='ok'?' ok':modo==='mal'?' mal':'');
+  t.textContent = texto || {listo:'Listo para sincronizar', 'sin-config':'Sin configurar',
+    ok:'Al día', mal:'Con problemas', trabajando:'Sincronizando…'}[modo] || modo;
+  $('b-sync').disabled = (modo==='sin-config' || modo==='trabajando');
+}
+
+async function sincronizar(){
+  if(!estadoApp.listoParaSync){ abrirConfig(); return; }
+  pintarSync('trabajando');
+  try{
+    const r = await api('/api/sync/bajar', {method:'POST', body:'{}'});
+    await cargarObras();
+    pintarSync('ok', `Al día · ${r.enRepo} en el repositorio`);
+    if(!r.carpetaCreada)
+      toast('Conectado, pero en el repositorio todavía no hay ninguna obra subida');
+    else if(r.nuevas || r.actualizadas)
+      toast(`Bajadas ${r.nuevas} nuevas y ${r.actualizadas} actualizadas`);
+    else
+      toast('No había nada nuevo');
+  }catch(e){
+    pintarSync('mal', e.message);
+    toast(e.message);
+  }
+}
+
+/* ---------------- grilla ---------------- */
+async function cargarObras(){
+  obras = (await api('/api/obras')).obras;
+  render();
+}
+function filtrar(){
+  const q = $('f-buscar').value.trim().toLowerCase();
+  const est = $('f-estado').value, etapa = $('f-etapa').value;
+  return obras.filter(o=>{
+    if(q && !((o.nombre||'')+' '+(o.cliente||'')).toLowerCase().includes(q)) return false;
+    if(est && o.estado !== est) return false;
+    if(etapa && (o.progreso||{})[etapa]) return false;
+    return true;
+  });
+}
+function render(){
+  const cont = $('lista'), lista = filtrar();
+  $('conteo').textContent = obras.length
+    ? `${lista.length} de ${obras.length} obra${obras.length===1?'':'s'}` : '';
+  if(!obras.length){
+    cont.innerHTML = `<div class="vacio">
+      <h2>Todavía no hay obras</h2>
+      <p>Creá la primera, o traé las que ya estén en el repositorio.</p>
+      <button class="btn primary" onclick="document.getElementById('b-nueva').click()">Nueva obra</button>
+    </div>`;
+    return;
+  }
+  if(!lista.length){
+    cont.innerHTML = `<div class="vacio"><h2>Ninguna obra coincide</h2>
+      <p>Probá con otro texto o quitá los filtros.</p></div>`;
+    return;
+  }
+  cont.innerHTML = '<div class="grid">' + lista.map(tarjeta).join('') + '</div>';
+  cont.querySelectorAll('.obra').forEach(el =>
+    el.addEventListener('click', () => abrirDetalle(el.dataset.id)));
+}
+function tarjeta(o){
+  const p = o.progreso||{};
+  const via = ETAPAS.map(([k]) => `<div class="tramo${p[k]?' hecho':''}"></div>`).join('');
+  const rot = ETAPAS.map(([k,l]) => `<span class="${p[k]?'hecho':''}">${l}</span>`).join('');
+  const pago = o.pago||{};
+  const pagoTxt = pago.estado==='parcial' && pago.porcentaje
+    ? `Pago ${pago.porcentaje}%` : (PAGOS[pago.estado]||'Pendiente');
+  return `<button class="obra" data-id="${o.id}">
+    <div class="top">
+      <div>
+        <h3>${esc(o.nombre)}</h3>
+        ${o.cliente?`<div class="cliente">${esc(o.cliente)}</div>`:''}
+      </div>
+      <span class="chip ${o.estado}">${ESTADOS[o.estado]||o.estado}</span>
+    </div>
+    <div>
+      <div class="via">${via}</div>
+      <div class="via-rot" style="margin-top:5px">${rot}</div>
+    </div>
+    <div class="pie">
+      <span class="total">${o.total?plata(o.total):'—'}</span>
+      <span class="chip ${pago.estado||'pendiente'}">${pagoTxt}</span>
+    </div>
+    <div class="pie">
+      <span>${o.actualizadoPor?esc(o.actualizadoPor)+' · ':''}${cuando(o.actualizadoEl)}</span>
+      ${o.sincronizada?'':'<span class="solo-nube">sin subir</span>'}
+    </div>
+  </button>`;
+}
+const esc = s => (s==null?'':String(s)).replace(/[&<>"]/g,
+  c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ---------------- detalle ---------------- */
+async function abrirDetalle(id){
+  const r = obras.find(o=>o.id===id);
+  $('d-titulo').textContent = r.nombre;
+  $('d-sub').textContent = (r.cliente? r.cliente+' · ':'') +
+    (ESTADOS[r.estado]||'') + ' · última edición ' + cuando(r.actualizadoEl);
+  $('d-aviso').className='aviso';
+  $('d-bloques').innerHTML = '<div class="bloque">Cargando…</div>';
+  $('d-plano').innerHTML = '';
+  abrir('ov-detalle');
+  try{
+    obraAbierta = await api('/api/obras/'+id);
+  }catch(e){
+    obraAbierta = null;
+    $('d-bloques').innerHTML =
+      `<div class="bloque"><b>Sólo en el repositorio</b>Todavía no la bajaste a este equipo.</div>`;
+    try{
+      obraAbierta = (await api('/api/sync/traer/'+id, {method:'POST', body:'{}'})).obra;
+    }catch(e2){ mostrarAviso('d-aviso','mal', e2.message); return; }
+  }
+  pintarBloques(obraAbierta);
+  pintarPlano(obraAbierta);
+}
+function pintarBloques(obra){
+  const canal = obra.canalizacion||{};
+  const filas = [
+    ['Plano', obra.plano ? (obra.plano.escala?.nominal || 'cargado') : 'sin cargar'],
+    ['Ambientes', (obra.ambientes||[]).length],
+    ['Elementos', (obra.elementos||[]).length],
+    ['Circuitos', (obra.circuitos||[]).length],
+    ['Tableros', (obra.tableros||[]).length],
+    ['Tramos de caño', (canal.tramos||[]).length],
+    ['Ítems de presupuesto', (obra.presupuesto?.items||[]).length],
+    ['Avisos', (obra.validacion?.errores||[]).length + (obra.validacion?.advertencias||[]).length],
+  ];
+  $('d-bloques').innerHTML = filas.map(([k,v]) =>
+    `<div class="bloque"><b>${k}</b>${v}</div>`).join('');
+}
+function pintarPlano(obra){
+  const p = obra.plano, cont = $('d-plano');
+  if(!p){
+    cont.innerHTML = `<div class="txt"><b>Plano</b>Todavía no cargaste el PDF.
+      <div class="nota">Es el que te manda el arquitecto. La lectura automática
+      llega con el módulo de extracción; por ahora queda guardado junto a la obra.</div></div>
+      <button class="btn primary sm" id="p-cargar">Cargar PDF</button>`;
+  } else {
+    const mb = (p.tamanoBytes/1048576).toFixed(1);
+    cont.innerHTML = `<div class="txt"><b>Plano</b>${esc(p.archivo)}
+      <div class="nota">${mb} MB · cargado ${cuando(p.cargadoEl)}${
+        p.escala? ' · escala '+esc(p.escala.nominal) : ' · sin extraer'}</div></div>
+      <button class="btn sm" id="p-ver">Ver PDF</button>
+      <button class="btn sm" id="p-cargar">Reemplazar</button>
+      <button class="btn primary sm" id="p-revisar">${p.escala?'Revisar lectura':'Leer plano'}</button>`;
+    cont.querySelector('#p-ver').onclick = () =>
+      window.open('/api/obras/'+obra.obra.id+'/plano','_blank');
+    cont.querySelector('#p-revisar').onclick = () =>
+      location.href = '/revisor.html?obra=' + obra.obra.id;
+  }
+  cont.querySelector('#p-cargar').onclick = () => $('d-archivo').click();
+}
+$('d-archivo').onchange = async e => {
+  const f = e.target.files[0]; if(!f || !obraAbierta) return;
+  e.target.value = '';
+  try{
+    const r = await fetch('/api/obras/'+obraAbierta.obra.id+'/plano', {
+      method:'POST', body:f,
+      headers:{'X-Nombre-Archivo': encodeURIComponent(f.name)}});
+    const d = await r.json();
+    if(!r.ok) throw new Error(d.error||'No se pudo cargar');
+    obraAbierta.plano = d.plano;
+    pintarBloques(obraAbierta); pintarPlano(obraAbierta);
+    await cargarObras();
+    toast('Plano cargado');
+  }catch(err){ mostrarAviso('d-aviso','mal', err.message); }
+};
+
+function mostrarAviso(id, clase, msg){
+  const el=$(id); el.className='aviso '+clase; el.textContent=msg;
+}
+
+$('d-subir').onclick = async () => {
+  if(!obraAbierta) return;
+  const id = obraAbierta.obra.id;
+  try{
+    await api('/api/sync/subir/'+id, {method:'POST', body:'{}'});
+    mostrarAviso('d-aviso','ok','Subida al repositorio.');
+    await cargarObras();
+  }catch(e){
+    if(e.conflicto){
+      mostrarAviso('d-aviso','mal', e.message +
+        ' Bajala de nuevo, o subí igual y pisá lo que hay allá.');
+      if(confirm(e.message + '\n\n¿Subir igual y pisar la versión del repositorio?')){
+        await api('/api/sync/subir/'+id, {method:'POST', body:JSON.stringify({forzar:true})});
+        mostrarAviso('d-aviso','ok','Subida, pisando la versión anterior.');
+        await cargarObras();
+      }
+    } else mostrarAviso('d-aviso','mal', e.message);
+  }
+};
+$('d-bajar').onclick = () => {
+  if(!obraAbierta) return;
+  const b = new Blob([JSON.stringify(obraAbierta,null,2)],{type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(b);
+  a.download = (obraAbierta.obra.nombre||'obra').replace(/[^\w\- ]/g,'') + '.obra.json';
+  a.click(); URL.revokeObjectURL(a.href);
+};
+$('d-borrar').onclick = async () => {
+  if(!obraAbierta) return;
+  if(!confirm('¿Borrar esta obra de este equipo? Lo que esté en el repositorio no se toca.')) return;
+  await api('/api/obras/'+obraAbierta.obra.id, {method:'DELETE'});
+  cerrar('ov-detalle'); await cargarObras(); toast('Obra borrada de este equipo');
+};
+
+/* ---------------- configuración ---------------- */
+function abrirConfig(){
+  const c = estadoApp.config;
+  $('c-usuario').value=c.usuario||''; $('c-repo').value=c.repo||'';
+  $('c-rama').value=c.rama||'main'; $('c-token').value='';
+  $('c-token').placeholder = c.tokenCargado ? '•••••• (ya guardado)' : 'github_pat_…';
+  $('cfg-aviso').className='aviso';
+  abrir('ov-config');
+}
+function datosConfig(){
+  const d = {usuario:$('c-usuario').value.trim(), repo:$('c-repo').value.trim(),
+             rama:$('c-rama').value.trim()||'main'};
+  const t=$('c-token').value.trim(); if(t) d.token=t;
+  return d;
+}
+$('c-probar').onclick = async () => {
+  mostrarAviso('cfg-aviso','ok','Probando lectura y escritura…');
+  try{
+    const r = await api('/api/config/verificar',
+      {method:'POST', body:JSON.stringify({...datosConfig(), probarEscritura:true})});
+    if(r.puedeEscribir){
+      mostrarAviso('cfg-aviso','ok',
+        `Todo bien con ${r.repo}${r.privado?' (privado)':' — atención: el repositorio es público'}. ` +
+        `Podés leer y escribir.`);
+    } else {
+      mostrarAviso('cfg-aviso','mal',
+        `Podés leer ${r.repo} pero no escribir. ${r.motivo||''}`);
+    }
+  }catch(e){ mostrarAviso('cfg-aviso','mal', e.message); }
+};
+$('c-guardar').onclick = async () => {
+  await api('/api/config', {method:'POST', body:JSON.stringify(datosConfig())});
+  await cargarEstado(); cerrar('ov-config'); toast('Configuración guardada');
+};
+
+/* ---------------- nueva obra ---------------- */
+$('b-nueva').onclick = () => { $('n-nombre').value=''; $('n-cliente').value='';
+  abrir('ov-nueva'); $('n-nombre').focus(); };
+$('n-crear').onclick = async () => {
+  const nombre = $('n-nombre').value.trim();
+  if(!nombre){ $('n-nombre').focus(); return; }
+  await api('/api/obras', {method:'POST',
+    body:JSON.stringify({nombre, cliente:$('n-cliente').value.trim()})});
+  cerrar('ov-nueva'); await cargarObras(); toast('Obra creada');
+};
+
+/* ---------------- plomería de overlays ---------------- */
+function abrir(id){ $(id).classList.add('abierto'); }
+function cerrar(id){ $(id).classList.remove('abierto'); }
+$('b-config').onclick = abrirConfig;
+$('c-cerrar').onclick = () => cerrar('ov-config');
+$('n-cerrar').onclick = () => cerrar('ov-nueva');
+$('d-cerrar').onclick = () => cerrar('ov-detalle');
+$('b-sync').onclick = sincronizar;
+['f-buscar','f-estado','f-etapa'].forEach(id => $(id).addEventListener('input', render));
+document.addEventListener('keydown', e => {
+  if(e.key==='Escape') document.querySelectorAll('.overlay.abierto')
+    .forEach(o=>o.classList.remove('abierto'));
+});
+document.querySelectorAll('.overlay').forEach(o =>
+  o.addEventListener('click', e => { if(e.target===o) o.classList.remove('abierto'); }));
+
+(async function inicio(){
+  try{ await cargarEstado(); await cargarObras(); }
+  catch(e){ toast('No se pudo conectar con el programa. ¿Se cerró la ventana negra?'); }
+})();
+</script>
+</body>
+</html>

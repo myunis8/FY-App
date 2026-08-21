@@ -1,0 +1,20 @@
+# Compilación
+build/
+dist/
+*.spec.bak
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Datos locales: las obras y el token NO van al repositorio de código
+datos/
+*.obra.json
+config.json
+
+# Sistema
+.DS_Store
+Thumbs.db
+desktop.ini
