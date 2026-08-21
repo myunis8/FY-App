@@ -34,6 +34,10 @@ header .sub{font-size:.72rem;color:#9db2c7}
 .btn.ghost:hover{border-color:#5b7fa5}
 .btn.sm{padding:4px 9px;font-size:.75rem}
 .btn:disabled{opacity:.45;cursor:not-allowed}
+.herramientas{display:flex;gap:2px;background:#0e1c2e;border-radius:8px;padding:2px}
+.herramientas .btn{border:none;color:#cfe0f0;border-radius:6px}
+.herramientas .btn.activa{background:var(--amber);color:#2a1e07;font-weight:600}
+#lienzo.modo-individual #capa{cursor:pointer}
 
 #accion{display:none;background:var(--copper);color:#fff;padding:9px 18px;
   align-items:center;gap:12px;flex:0 0 auto;font-size:.84rem}
@@ -104,7 +108,14 @@ aside h2{font-family:'Space Grotesk',sans-serif;font-size:.82rem;margin:0 0 9px;
     <div class="sub" id="h-sub">Cargando…</div>
   </div>
   <div class="spacer"></div>
+  <div class="herramientas">
+    <button class="btn sm activa" id="h-zona">▭ Zona</button>
+    <button class="btn sm" id="h-individual">☞ Individual</button>
+  </div>
+  <button class="btn ghost" id="b-deshacer" title="Ctrl+Z" disabled>↶ Deshacer</button>
+  <button class="btn ghost" id="b-rehacer" title="Ctrl+Y" disabled>↷ Rehacer</button>
   <button class="btn ghost" id="b-agregar-el">Agregar elemento</button>
+  <button class="btn ghost" onclick="location.href='/tablero.html?obra='+OBRA_ID">Tablero</button>
   <button class="btn ghost" id="b-volver">Volver</button>
   <button class="btn primary" id="b-guardar">Guardar</button>
 </header>
@@ -158,13 +169,32 @@ aside h2{font-family:'Space Grotesk',sans-serif;font-size:.82rem;margin:0 0 9px;
 <script>
 const TIPOS = {
   IUG:{n:'Iluminación de uso general', fam:'luz',   sec:1.5, prot:10, max:15},
-  TUG:{n:'Tomacorrientes de uso general', fam:'tomas', sec:2.5, prot:16, max:15},
+  TUG:{n:'Tomacorrientes de uso general', fam:'tomas_general', sec:2.5, prot:16, max:15},
   IUE:{n:'Iluminación de uso especial', fam:'luz',  sec:1.5, prot:10, max:15},
-  TUE:{n:'Tomacorrientes de uso especial', fam:'tomas', sec:2.5, prot:16, max:12},
-  ACU:{n:'Aire acondicionado', fam:'tomas', sec:2.5, prot:20, max:6},
-  OCE:{n:'Otros circuitos específicos', fam:'tomas', sec:2.5, prot:20, max:12},
+  TUE:{n:'Tomacorrientes de uso especial', fam:'tomas_especial', sec:2.5, prot:16, max:12},
+  ACU:{n:'Aire acondicionado', fam:'tomas_aa', sec:2.5, prot:20, max:6},
+  OCE:{n:'Otros circuitos específicos', fam:'tomas_otro', sec:2.5, prot:20, max:12},
 };
-const FAMILIA = {artefacto:'luz', llave:'luz', toma:'tomas', otros:'tomas'};
+const SUB_ESPECIALES = ['toma_heladera','toma_horno','toma_microondas','toma_anafe',
+  'toma_lavarropas','toma_lavavajillas','toma_termotanque'];
+function familiaDe(e){
+  if(!e) return null;
+  if(e.tipo==='artefacto' || e.tipo==='llave') return 'luz';
+  if(e.tipo==='otros') return 'tomas_especial';
+  if(e.tipo==='toma'){
+    if(e.subtipo==='preinstalacion_aa') return 'tomas_aa';
+    if(SUB_ESPECIALES.includes(e.subtipo)) return 'tomas_especial';
+    return 'tomas_general';
+  }
+  return null;
+}
+const COMPATIBLE = {
+  luz: new Set(['luz']),
+  tomas_general: new Set(['tomas_general','tomas_otro']),
+  tomas_especial: new Set(['tomas_especial','tomas_otro']),
+  tomas_aa: new Set(['tomas_aa','tomas_otro']),
+  tomas_otro: new Set(['tomas_general','tomas_especial','tomas_aa','tomas_otro']),
+};
 const SECCIONES = [1, 1.5, 2.5, 4, 6, 10, 16];
 const PROTECCIONES = [6, 10, 16, 20, 25, 32, 40, 50, 63];
 const COLORES = ['#2b6ca3','#2f7d5c','#b5651d','#8e44ad','#c0392b','#16a085',
@@ -183,6 +213,8 @@ const ZOOM = 2;
 const $ = id => document.getElementById(id);
 const OBRA_ID = new URLSearchParams(location.search).get('obra');
 let obra = null, marcados = new Set(), selCir = null, zona = null, conPlano = false;
+let modo = 'zona';           // 'zona' | 'individual'
+let historial = [], indiceHistorial = -1;   // undo/redo sobre obra.circuitos
 
 const api = async (ruta, opts={}) => {
   const r = await fetch(ruta, {headers:{'Content-Type':'application/json'}, ...opts});
@@ -204,12 +236,17 @@ function rotulo(e){
   if(e.alturaM != null) p.push('h '+Number(e.alturaM).toFixed(2));
   return p.join(' · ');
 }
-/* un elemento entra en el circuito activo sólo si es de su familia */
+/* un elemento entra en el circuito activo sólo si su familia es compatible.
+   Antes se comparaba sólo "toma" vs "artefacto", y una preinstalación de A.A.
+   -que para el extractor también es "toma"- se colaba en cualquier zona que
+   tocara un TUG. Ahora se compara la familia fina (ver arriba). */
 function elegible(e){
   if(!e) return false;
+  const fam = familiaDe(e);
+  if(!fam) return false;
   const c = (obra.circuitos||[]).find(x=>x.id===selCir);
-  if(!c) return FAMILIA[e.tipo] !== undefined;
-  return FAMILIA[e.tipo] === (TIPOS[c.tipo]||{}).fam;
+  if(!c) return true;
+  return (COMPATIBLE[(TIPOS[c.tipo]||{}).fam] || new Set()).has(fam);
 }
 
 /* ---------------- carga ---------------- */
@@ -227,6 +264,7 @@ async function cargar(){
     $('lista').style.display = 'block';
   }
   if(!selCir && obra.circuitos.length) selCir = obra.circuitos[0].id;
+  historial = [JSON.stringify(obra.circuitos)]; indiceHistorial = 0;
   await revalidar();
   pintar();
 }
@@ -271,11 +309,33 @@ function pintarPlano(){
   $('capa').innerHTML = html;
   $('capa').querySelectorAll('[data-id]').forEach(n => n.onclick = ev => {
     ev.stopPropagation();
-    const e = (obra.elementos||[]).find(x=>x.id===n.dataset.id);
-    if(!elegible(e)){ toast('Ese elemento no entra en un circuito de este tipo.'); return; }
-    marcados.has(e.id) ? marcados.delete(e.id) : marcados.add(e.id);
-    pintarPlano(); pintarAccion();
+    clicElemento(n.dataset.id);
   });
+}
+/* modo individual: un clic agrega o saca del circuito activo, al toque.
+   modo zona: un clic marca/desmarca para el lote (se confirma con el botón). */
+async function clicElemento(id){
+  const e = (obra.elementos||[]).find(x=>x.id===id);
+  if(modo === 'individual'){
+    if(!selCir){ toast('Elegí primero un circuito.'); return; }
+    if(!elegible(e) && !circuitoDe(id)){
+      toast('Ese elemento no entra en un circuito de este tipo.'); return;
+    }
+    snapshot();
+    const c = obra.circuitos.find(x=>x.id===selCir);
+    if((c.elementos||[]).includes(id)){
+      c.elementos = c.elementos.filter(i=>i!==id);
+      await actualizar(); toast('Sacado del circuito');
+    } else {
+      obra.circuitos.forEach(o => o.elementos = (o.elementos||[]).filter(i=>i!==id));
+      c.elementos = [...(c.elementos||[]), id];
+      await actualizar(); toast('Agregado a '+c.nombre);
+    }
+    return;
+  }
+  if(!elegible(e)){ toast('Ese elemento no entra en un circuito de este tipo.'); return; }
+  marcados.has(id) ? marcados.delete(id) : marcados.add(id);
+  pintarPlano(); pintarLista(); pintarAccion();
 }
 
 /* selección por zona: se arrastra un rectángulo sobre el plano */
@@ -288,7 +348,7 @@ function pintarPlano(){
     return [(ev.clientX-r.left)/r.width*p.ancho, (ev.clientY-r.top)/r.height*p.alto];
   };
   capa.addEventListener('mousedown', ev => {
-    if(!conPlano || ev.target.dataset.id) return;
+    if(!conPlano || ev.target.dataset.id || modo !== 'zona') return;
     const [x,y] = pt(ev);
     arrastrando = true; sumar = ev.shiftKey;
     zona = {x0:x, y0:y, x1:x, y1:y};
@@ -330,12 +390,7 @@ function pintarLista(){
       <span class="id">${esc(e.id)}</span></div>`;
   }).join('') : '<div class="vacio">Esta obra no tiene elementos todavía. '
     + 'Cargalos con “Agregar elemento”.</div>';
-  $('lista').querySelectorAll('[data-id]').forEach(n => n.onclick = () => {
-    const e = (obra.elementos||[]).find(x=>x.id===n.dataset.id);
-    if(!elegible(e)){ toast('Ese elemento no entra en un circuito de este tipo.'); return; }
-    marcados.has(e.id) ? marcados.delete(e.id) : marcados.add(e.id);
-    pintarLista(); pintarAccion();
-  });
+  $('lista').querySelectorAll('[data-id]').forEach(n => n.onclick = () => clicElemento(n.dataset.id));
 }
 
 /* ---------------- panel ---------------- */
@@ -373,6 +428,14 @@ function pintarCircuitos(){
           ${PROTECCIONES.map(v=>`<option ${v===c.proteccionA?'selected':''}>${v}</option>`).join('')}
         </select></div>
       </div>
+      <div style="margin-top:6px"><label style="font-size:.68rem;color:var(--muted);
+        font-weight:600;display:block;margin-bottom:2px">Tablero</label>
+        <select data-campo="tableroId" data-cir="${c.id}" style="width:100%;padding:5px 7px;
+          border:1px solid var(--line);border-radius:7px;font-size:.78rem">
+          <option value="">— sin asignar —</option>
+          ${(obra.tableros||[]).map(t=>`<option value="${t.id}" ${t.id===c.tableroId?'selected':''}
+            >${esc(t.nombre)}</option>`).join('')}
+        </select></div>
     </div>`;
   }).join('');
 
@@ -390,7 +453,8 @@ function pintarCircuitos(){
     n.onchange = () => {
       const c = obra.circuitos.find(x=>x.id===n.dataset.cir);
       const campo = n.dataset.campo;
-      c[campo] = (campo === 'nombre' || campo === 'tipo') ? n.value : parseFloat(n.value);
+      c[campo] = (campo === 'nombre' || campo === 'tipo' || campo === 'tableroId')
+        ? (n.value || null) : parseFloat(n.value);
       if(campo === 'tipo'){
         const r = TIPOS[c.tipo];
         c.seccionMm2 = r.sec; c.proteccionA = r.prot;
@@ -400,6 +464,7 @@ function pintarCircuitos(){
   });
   cont.querySelectorAll('[data-borrar]').forEach(n => n.onclick = ev => {
     ev.stopPropagation();
+    snapshot();
     obra.circuitos = obra.circuitos.filter(c=>c.id!==n.dataset.borrar);
     if(selCir === n.dataset.borrar) selCir = (obra.circuitos[0]||{}).id || null;
     actualizar();
@@ -430,15 +495,44 @@ function pintar(){
   const c = (obra.circuitos||[]).find(x=>x.id===selCir);
   const libres = (obra.elementos||[]).filter(e => FAMILIA[e.tipo] && !circuitoDe(e.id)).length;
   $('h-sub').textContent = `${obra.circuitos.length} circuitos · ${libres} sin asignar`;
-  $('p-ayuda').innerHTML = c
-    ? `Sombreá una zona con el mouse: se marcan sólo los de <b>${TIPOS[c.tipo].fam}</b>. `
-      + 'Con Shift, suma a lo que ya estaba marcado.'
-    : 'Elegí un circuito para empezar a marcar.';
+  $('p-ayuda').innerHTML = !c ? 'Elegí un circuito para empezar.'
+    : modo === 'individual'
+      ? `Modo individual: tocá un elemento para agregarlo o sacarlo de <b>${c.nombre}</b> al toque.`
+      : `Modo zona: arrastrá el mouse sobre el plano. Se marcan sólo los que le ` +
+        `corresponden a <b>${c.nombre}</b>. Con Shift, suma a lo ya marcado.`;
 }
+function snapshot(){
+  // se llama ANTES de cada mutación de obra.circuitos, para poder volver atrás
+  historial = historial.slice(0, indiceHistorial + 1);
+  historial.push(JSON.stringify(obra.circuitos));
+  if(historial.length > 50) historial.shift();
+  indiceHistorial = historial.length - 1;
+  pintarHistorial();
+}
+function pintarHistorial(){
+  $('b-deshacer').disabled = indiceHistorial <= 0;
+  $('b-rehacer').disabled = indiceHistorial >= historial.length - 1;
+}
+async function deshacer(){
+  if(indiceHistorial <= 0) return;
+  indiceHistorial--;
+  obra.circuitos = JSON.parse(historial[indiceHistorial]);
+  pintarHistorial(); await actualizar();
+}
+async function rehacer(){
+  if(indiceHistorial >= historial.length - 1) return;
+  indiceHistorial++;
+  obra.circuitos = JSON.parse(historial[indiceHistorial]);
+  pintarHistorial(); await actualizar();
+}
+$('b-deshacer').onclick = deshacer;
+$('b-rehacer').onclick = rehacer;
+
 async function actualizar(){ await revalidar(); pintar(); }
 
 /* ---------------- acciones ---------------- */
 document.querySelectorAll('[data-nuevo]').forEach(b => b.onclick = () => {
+  snapshot();
   const tipo = b.dataset.nuevo;
   const n = obra.circuitos.filter(c=>c.tipo===tipo).length + 1;
   const r = TIPOS[tipo];
@@ -447,9 +541,17 @@ document.querySelectorAll('[data-nuevo]').forEach(b => b.onclick = () => {
   obra.circuitos.push(c); selCir = c.id; marcados.clear();
   actualizar();
 });
+$('h-zona').onclick = () => { modo='zona';
+  $('h-zona').classList.add('activa'); $('h-individual').classList.remove('activa');
+  $('lienzo').classList.remove('modo-individual'); };
+$('h-individual').onclick = () => { modo='individual';
+  $('h-individual').classList.add('activa'); $('h-zona').classList.remove('activa');
+  $('lienzo').classList.add('modo-individual'); marcados.clear(); pintar(); };
+
 $('a-agregar').onclick = async () => {
   const c = obra.circuitos.find(x=>x.id===selCir);
   if(!c || !marcados.size) return;
+  snapshot();
   // si estaban en otro circuito, se mueven: nunca quedan en dos a la vez
   obra.circuitos.forEach(o => o.elementos = (o.elementos||[]).filter(i=>!marcados.has(i)));
   c.elementos = [...new Set([...(c.elementos||[]), ...marcados])];
@@ -483,6 +585,9 @@ document.addEventListener('keydown', e => {
   if(e.key === 'Escape'){ marcados.clear(); zona = null; pintar(); }
   if(e.key === 'Enter' && marcados.size) $('a-agregar').click();
   if((e.ctrlKey||e.metaKey) && e.key === 's'){ e.preventDefault(); $('b-guardar').click(); }
+  if((e.ctrlKey||e.metaKey) && !e.shiftKey && e.key === 'z'){ e.preventDefault(); deshacer(); }
+  if((e.ctrlKey||e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'Z'))){
+    e.preventDefault(); rehacer(); }
 });
 
 cargar().catch(e => { $('h-sub').textContent = e.message; });

@@ -121,26 +121,55 @@ def resumen(obra: dict) -> dict:
 
 
 # --------------------------------------------------------------- circuitos
-# familia: qué elementos entran en cada tipo de circuito
-#   luz    -> artefactos y las teclas que los comandan
-#   tomas  -> tomacorrientes y otras salidas de fuerza
+# familia fina: qué elementos entran en cada tipo de circuito.
+# "tomas" sin distinguir hacía que una preinstalación de A.A. -que es un
+# tomacorriente como cualquier otro para el extractor- pudiera colarse en un
+# TUG al sombrear una zona. Por eso la familia se afina por subtipo, no sólo
+# por tipo de elemento.
 TIPOS_CIRCUITO = {
     "IUG": {"nombre": "Iluminación de uso general", "familia": "luz", "maxBocas": 15,
             "seccionMin": 1.5, "proteccionMax": 16, "seccion": 1.5, "proteccion": 10},
-    "TUG": {"nombre": "Tomacorrientes de uso general", "familia": "tomas", "maxBocas": 15,
+    "TUG": {"nombre": "Tomacorrientes de uso general", "familia": "tomas_general", "maxBocas": 15,
             "seccionMin": 2.5, "proteccionMax": 20, "seccion": 2.5, "proteccion": 16},
     "IUE": {"nombre": "Iluminación de uso especial", "familia": "luz", "maxBocas": 15,
             "seccionMin": 1.5, "proteccionMax": 16, "seccion": 1.5, "proteccion": 10},
-    "TUE": {"nombre": "Tomacorrientes de uso especial", "familia": "tomas", "maxBocas": 12,
+    "TUE": {"nombre": "Tomacorrientes de uso especial", "familia": "tomas_especial", "maxBocas": 12,
             "seccionMin": 2.5, "proteccionMax": 20, "seccion": 2.5, "proteccion": 16},
-    "ACU": {"nombre": "Aire acondicionado", "familia": "tomas", "maxBocas": 6,
+    "ACU": {"nombre": "Aire acondicionado", "familia": "tomas_aa", "maxBocas": 6,
             "seccionMin": 2.5, "proteccionMax": 25, "seccion": 2.5, "proteccion": 20},
-    "OCE": {"nombre": "Otros circuitos específicos", "familia": "tomas", "maxBocas": 12,
+    "OCE": {"nombre": "Otros circuitos específicos", "familia": "tomas_otro", "maxBocas": 12,
             "seccionMin": 2.5, "proteccionMax": 32, "seccion": 2.5, "proteccion": 20},
 }
 
-FAMILIA_DE_TIPO = {"artefacto": "luz", "llave": "luz",
-                   "toma": "tomas", "otros": "tomas"}
+SUBTIPOS_ESPECIALES = ("toma_heladera", "toma_horno", "toma_microondas", "toma_anafe",
+                       "toma_lavarropas", "toma_lavavajillas", "toma_termotanque")
+
+
+def familia_de(e: dict) -> str | None:
+    t, sub = e.get("tipo"), e.get("subtipo") or ""
+    if t in ("artefacto", "llave"):
+        return "luz"
+    if t == "otros":
+        return "tomas_especial"
+    if t == "toma":
+        if sub == "preinstalacion_aa":
+            return "tomas_aa"
+        if sub in SUBTIPOS_ESPECIALES:
+            return "tomas_especial"
+        return "tomas_general"
+    return None
+
+
+# compatibilidad: además de su familia natural, cada tipo de circuito acepta
+# la familia "tomas_otro" (para el que no encaje en ningún casillero), y OCE
+# acepta cualquier toma o salida de fuerza como comodín.
+COMPATIBLE = {
+    "luz": {"luz"},
+    "tomas_general": {"tomas_general", "tomas_otro"},
+    "tomas_especial": {"tomas_especial", "tomas_otro"},
+    "tomas_aa": {"tomas_aa", "tomas_otro"},
+    "tomas_otro": {"tomas_general", "tomas_especial", "tomas_aa", "tomas_otro"},
+}
 
 # secciones y su corriente máxima de protección (cobre, cañería embutida)
 MAX_PROTECCION = {1.0: 10, 1.5: 16, 2.5: 20, 4.0: 25, 6.0: 32, 10.0: 50, 16.0: 63}
@@ -202,13 +231,17 @@ def validar_circuitos(obra: dict) -> list[dict]:
                            "detalle": f"{nom}: {sec} mm² es menos que el mínimo de "
                                       f"{regla['seccionMin']} mm² para {c.get('tipo')}."})
         familia = regla.get("familia")
+        aceptadas = COMPATIBLE.get(familia, {familia}) if familia else None
         mezclados = [i for i in ids
-                     if familia and FAMILIA_DE_TIPO.get(porId[i].get("tipo")) not in (familia, None)]
+                     if familia and familia_de(porId[i]) not in aceptadas
+                     and familia_de(porId[i]) is not None]
         if mezclados:
-            avisos.append({"tipo": "familia_mezclada", "gravedad": "advertencia",
+            ejemplos = ", ".join(porId[i].get("subtipo") or porId[i].get("tipo") for i in mezclados[:3])
+            avisos.append({"tipo": "familia_mezclada", "gravedad": "error",
                            "circuitoId": c.get("id"), "ids": mezclados,
-                           "detalle": f"{nom} es de {familia} pero tiene "
-                                      f"{len(mezclados)} elementos de otro tipo."})
+                           "detalle": f"{nom} tiene {len(mezclados)} elementos que no son de "
+                                      f"{TIPOS_CIRCUITO.get(c.get('tipo',''),{}).get('nombre','ese tipo')} "
+                                      f"({ejemplos}). Revisá si se colaron al sombrear una zona."})
         if sec and prot and MAX_PROTECCION.get(sec) and prot > MAX_PROTECCION[sec]:
             avisos.append({"tipo": "proteccion_excedida", "gravedad": "error",
                            "circuitoId": c.get("id"),

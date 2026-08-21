@@ -3,6 +3,38 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 0.5.0 — tablero, y arreglo de fondo en circuitos
+
+- **Lista de precios** actualizada a las categorías reales: Puntos, Tomas,
+  Iluminación, Tableros, Puesta a tierra, Trabajos adicionales (aparte) y
+  Automatizaciones (aparte). Orden manual por categoría con flechas, como en
+  la app anterior.
+- **Arreglo de fondo en circuitos**: la familia de un elemento ya no depende
+  sólo de si es artefacto o toma — se afina por subtipo. Antes una
+  preinstalación de A.A. (que para el extractor también es "toma") podía
+  colarse en un TUG al sombrear una zona, sin ningún aviso. Ahora las familias
+  son `luz`, `tomas_general`, `tomas_especial`, `tomas_aa` y `tomas_otro`, y
+  mezclar familias en un circuito es **error**, no advertencia.
+- **Modo Individual** en circuitos: un clic agrega o saca un elemento del
+  circuito activo al toque, sin pasar por el lote. El modo Zona sigue para
+  sombrear rangos.
+- **Deshacer / rehacer** en circuitos (Ctrl+Z / Ctrl+Y), sobre altas, bajas y
+  movimientos entre circuitos.
+- **Módulo de tablero** (`web/tablero.html`): presets de gabinete (8 a 36
+  bocas) o a medida, con distribución automática en pisos; general y
+  diferencial por defecto (25 A / 40 A, editables), bornera de tierra de riel
+  DIN, protector de sobretensión opcional del tamaño de una térmica.
+  Una térmica por circuito, dimensionada según su protección y la cantidad de
+  polos que corresponde (mono 2P, trifásico 3P o 4P según corte neutro).
+  Distribución arrastrando con el mouse sobre el riel, con validación de
+  superposición y de espacio excedido en tiempo real.
+- Los circuitos ahora se asignan a un tablero (`circuitos.tableroId`), y desde
+  ahí "Sincronizar circuitos" agrega o quita térmicas automáticamente.
+- **Pendiente para una próxima entrega**: el conexionado gráfico completo
+  (peine, conectores, guirnaldas, entrada de caños arriba/abajo dibujada) —
+  por ahora cada dispositivo guarda de qué lado se alimenta, pero el dibujo
+  del cableado en sí todavía no está.
+
 ## 0.4.0 — precios y presupuesto
 
 - Lista de precios global (`web/precios.html`), editable por categoría, con

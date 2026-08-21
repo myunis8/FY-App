@@ -271,6 +271,11 @@ main{max-width:1180px;margin:0 auto;padding:26px 22px 60px}
       <button class="btn primary sm" id="d-circuitos">Abrir</button>
     </div>
     <div class="plano-fila">
+      <div class="txt"><b>Tablero</b><span id="d-ntableros"></span>
+        <div class="nota">Protecciones, distribución de bocas y armado gráfico.</div></div>
+      <button class="btn primary sm" id="d-tablero">Abrir</button>
+    </div>
+    <div class="plano-fila">
       <div class="txt"><b>Presupuesto</b><span id="d-npresupuesto"></span>
         <div class="nota">Cantidades, extras, descuentos y precio final.</div></div>
       <button class="btn primary sm" id="d-presupuesto">Abrir</button>
@@ -464,6 +469,9 @@ function pintarBloques(obra){
   $('d-ncircuitos').textContent = (obra.circuitos||[]).length
     ? `${obra.circuitos.length} armados` : 'Todavía ninguno';
   $('d-circuitos').onclick = () => location.href = '/circuitos.html?obra=' + obra.obra.id;
+  $('d-ntableros').textContent = (obra.tableros||[]).length
+    ? `${obra.tableros.length} armado(s)` : 'Todavía ninguno';
+  $('d-tablero').onclick = () => location.href = '/tablero.html?obra=' + obra.obra.id;
   const nit = (obra.presupuesto?.items||[]).length + (obra.presupuesto?.extras||[]).length;
   $('d-npresupuesto').textContent = nit ? `${nit} ítems` +
     (obra.presupuesto?.congeladoEl ? ' · congelado' : ' · sin congelar') : 'Todavía ninguno';

@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tablero</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+:root{
+  --navy:#16283f; --navy-deep:#0e1c2e; --paper:#f1f3f2; --panel:#fff; --line:#dde3e2;
+  --ink:#1c2733; --muted:#5b6b7a; --amber:#e2a33d; --amber-deep:#c07f1f;
+  --copper:#b5651d; --copper-soft:#f4e3d3; --slate-soft:#eef1f3;
+  --green:#2f7d5c; --green-soft:#dcefe4; --danger:#b3432f; --danger-soft:#f8ded7;
+  --blue:#2b6ca3; --blue-soft:#dce9f3; --radius:10px;
+  font-family:'IBM Plex Sans',system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink)}
+button{font:inherit;cursor:pointer} input,select{font:inherit}
+.mono{font-family:'IBM Plex Mono',Consolas,monospace}
+header{background:var(--navy);color:#fff;padding:11px 18px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+header h1{font-family:'Space Grotesk',sans-serif;font-size:.98rem;margin:0;font-weight:600}
+header .sub{font-size:.72rem;color:#9db2c7}
+.spacer{flex:1}
+.btn{border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:7px 13px;
+  border-radius:var(--radius);font-size:.82rem;font-weight:500}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--amber);border-color:var(--amber-deep);color:#2a1e07;font-weight:600}
+.btn.ghost{background:transparent;border-color:#33506e;color:#cfe0f0}
+.btn.ghost:hover{border-color:#5b7fa5}
+.btn.sm{padding:4px 9px;font-size:.75rem}
+.btn.danger{color:var(--danger)}
+header select.sel-tab{background:#0e1c2e;color:#cfe0f0;border:1px solid #33506e;
+  padding:6px 10px;border-radius:8px}
+
+main{display:grid;grid-template-columns:1fr 320px;gap:0;align-items:start}
+.centro{padding:22px;overflow-x:auto}
+aside{background:var(--panel);border-left:1px solid var(--line);padding:16px;
+  min-height:calc(100vh - 52px)}
+h2{font-family:'Space Grotesk',sans-serif;font-size:.82rem;margin:16px 0 8px;
+  text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+h2:first-child{margin-top:0}
+
+/* gabinete */
+.gabinete{background:#e9edec;border:2px solid #c3cbc9;border-radius:10px;padding:18px;
+  display:inline-block;min-width:100%}
+.riel{position:relative;background:#d7dcda;border:1px dashed #a9b3b0;border-radius:6px;
+  margin-bottom:10px;height:64px}
+.riel:last-child{margin-bottom:0}
+.riel .etiqueta{position:absolute;left:-2px;top:-18px;font-size:.66rem;color:var(--muted);
+  font-weight:600}
+.celda-fantasma{position:absolute;top:6px;bottom:6px;border-right:1px dashed #c3cbc9}
+.disp{position:absolute;top:6px;bottom:6px;border-radius:5px;color:#fff;font-size:.66rem;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;padding:2px;cursor:grab;line-height:1.25;box-shadow:0 1px 3px rgba(0,0,0,.25);
+  user-select:none}
+.disp:active{cursor:grabbing}
+.disp .n{font-weight:700;font-size:.68rem}
+.disp .c{opacity:.9;font-size:.62rem}
+.disp.arrastrando{opacity:.4}
+.disp .alim{position:absolute;top:1px;right:1px;font-size:.6rem;background:rgba(0,0,0,.28);
+  border-radius:3px;padding:0 3px;cursor:pointer}
+.disp.gen{background:var(--navy)}
+.disp.dif{background:#8e44ad}
+.disp.tierra{background:#5b6b7a}
+.disp.dps{background:#c0392b}
+.riel.sobre{outline:2px solid var(--copper);outline-offset:-2px}
+
+.campo{margin-bottom:10px}
+.campo label{display:block;font-size:.7rem;font-weight:600;color:var(--muted);margin-bottom:3px}
+.campo input,.campo select{width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:7px}
+.fila2{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.nota{font-size:.72rem;color:var(--muted);line-height:1.45}
+.chip{font-size:.68rem;padding:3px 9px;border-radius:99px;background:var(--slate-soft);
+  color:var(--muted);font-weight:600;display:inline-block}
+.check{display:flex;gap:8px;align-items:center;font-size:.82rem;margin-bottom:10px}
+.check input{width:auto}
+
+.aviso-item{border-left:3px solid var(--copper);background:var(--copper-soft);padding:7px 9px;
+  border-radius:0 6px 6px 0;margin-bottom:5px;font-size:.77rem;line-height:1.4;cursor:pointer}
+.aviso-item.error{border-color:var(--danger);background:var(--danger-soft)}
+.vacio{color:var(--muted);font-size:.85rem;line-height:1.6;padding:30px 10px;text-align:center}
+
+.overlay{position:fixed;inset:0;background:rgba(14,28,46,.55);display:none;
+  align-items:center;justify-content:center;padding:20px;z-index:40}
+.overlay.abierto{display:flex}
+.caja{background:var(--panel);border-radius:14px;padding:22px;width:min(420px,100%)}
+.caja h2{margin:0 0 4px}
+.acciones{display:flex;gap:9px;justify-content:flex-end;margin-top:18px}
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--navy-deep);
+  color:#fff;padding:10px 17px;border-radius:var(--radius);font-size:.82rem;display:none;z-index:60}
+@media(max-width:900px){main{grid-template-columns:1fr}aside{border-left:none;border-top:1px solid var(--line)}}
+</style>
+</head>
+<body>
+<header>
+  <div><h1 id="h-nombre">Tablero</h1><div class="sub" id="h-sub">Cargando…</div></div>
+  <div class="spacer"></div>
+  <select class="sel-tab" id="sel-tablero"></select>
+  <button class="btn ghost" id="b-nuevo">Nuevo tablero</button>
+  <button class="btn ghost" id="b-sincronizar">Sincronizar circuitos</button>
+  <button class="btn ghost" id="b-volver">Volver</button>
+</header>
+
+<main>
+  <div class="centro">
+    <div id="gabinete-cont"></div>
+  </div>
+  <aside>
+    <div id="sin-tablero" class="vacio" style="display:none">Esta obra todavía no tiene
+      ningún tablero. Creá uno con “Nuevo tablero”.</div>
+    <div id="panel-tablero" style="display:none">
+      <h2>Este tablero</h2>
+      <div class="fila2">
+        <div class="campo"><label for="t-nombre">Nombre</label>
+          <input id="t-nombre"></div>
+        <div class="campo"><label for="t-tipo">Tipo</label>
+          <select id="t-tipo"><option value="principal">Principal</option>
+            <option value="seccional">Seccional</option></select></div>
+      </div>
+      <div class="fila2">
+        <div class="campo"><label for="t-bocas">Bocas totales</label>
+          <input id="t-bocas" type="number" min="1"></div>
+        <div class="campo"><label for="t-pisos">Pisos (rieles)</label>
+          <input id="t-pisos" type="number" min="1"></div>
+      </div>
+      <div class="nota" id="t-resumen" style="margin-bottom:12px"></div>
+
+      <div class="check"><input type="checkbox" id="t-dps">
+        <label for="t-dps" style="margin:0">Protector de sobretensión (DPS)</label></div>
+
+      <button class="btn sm danger" id="b-borrar-tablero" style="width:100%">Borrar este tablero</button>
+
+      <h2>Para revisar</h2>
+      <div id="avisos"></div>
+    </div>
+  </aside>
+</main>
+
+<div class="overlay" id="ov-nuevo">
+  <div class="caja">
+    <h2>Nuevo tablero</h2>
+    <p class="nota" style="margin:0 0 16px">El principal es el que trae la acometida;
+      uno seccional se alimenta desde una térmica de otro tablero.</p>
+    <div class="campo"><label for="n-nombre">Nombre</label>
+      <input id="n-nombre" placeholder="Tablero principal"></div>
+    <div class="fila2">
+      <div class="campo"><label for="n-tipo">Tipo</label>
+        <select id="n-tipo"><option value="principal">Principal</option>
+          <option value="seccional">Seccional</option></select></div>
+      <div class="campo"><label for="n-fases">Instalación</label>
+        <select id="n-fases"><option value="1">Monofásica</option>
+          <option value="3">Trifásica</option></select></div>
+    </div>
+    <div class="campo"><label for="n-preset">Tamaño</label>
+      <select id="n-preset"></select></div>
+    <div class="fila2" id="n-custom" style="display:none">
+      <div class="campo"><label for="n-bocas">Bocas</label><input id="n-bocas" type="number" value="12"></div>
+      <div class="campo"><label for="n-pisos">Pisos</label><input id="n-pisos" type="number" value="2"></div>
+    </div>
+    <div class="acciones">
+      <button class="btn" id="n-cerrar">Cancelar</button>
+      <button class="btn primary" id="n-crear">Crear</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<script>
+const $ = id => document.getElementById(id);
+const OBRA_ID = new URLSearchParams(location.search).get('obra');
+let obra = null, tableros = [], activo = null, presets = [], arrastrando = null;
+
+const api = async (r,o={}) => {
+  const res = await fetch(r,{headers:{'Content-Type':'application/json'},...o});
+  const d = await res.json().catch(()=>({}));
+  if(!res.ok) throw new Error(d.error||'Error'); return d;
+};
+function toast(m){const t=$('toast');t.textContent=m;t.style.display='block';
+  clearTimeout(t._t);t._t=setTimeout(()=>t.style.display='none',3000);}
+const esc = s => (s==null?'':String(s)).replace(/[&<>"]/g,
+  c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ---------------- carga ---------------- */
+async function cargar(){
+  obra = await api('/api/obras/'+OBRA_ID);
+  $('h-nombre').textContent = obra.obra.nombre;
+  tableros = obra.tableros || [];
+  presets = (await api('/api/tablero/presets')).presets;
+  $('n-preset').innerHTML = presets.map(p=>`<option value="${p.id}">${esc(p.nombre)}</option>`).join('');
+  $('n-preset').onchange = () => $('n-custom').style.display =
+    $('n-preset').value === 'custom' ? 'grid' : 'none';
+  obra.tableros = tableros;             // misma referencia: mutar tableros[] alcanza
+  if(tableros.length) activo = tableros[0].id;
+  pintarSelector();
+  pintar();
+}
+function pintarSelector(){
+  $('sel-tablero').innerHTML = tableros.map(t=>
+    `<option value="${t.id}" ${t.id===activo?'selected':''}>${esc(t.nombre)}</option>`).join('');
+  $('sel-tablero').onchange = () => { activo = $('sel-tablero').value; pintar(); };
+}
+
+function tableroActivo(){ return tableros.find(t=>t.id===activo); }
+
+/* ---------------- gabinete ---------------- */
+const CELDA = 42;
+function pintarGabinete(){
+  const t = tableroActivo();
+  const cont = $('gabinete-cont');
+  if(!t){ cont.innerHTML = ''; return; }
+  const ancho = t.bocasPorPiso * CELDA;
+  let html = `<div class="gabinete" style="width:${ancho + 36}px">`;
+  for(let piso = 0; piso < t.pisos; piso++){
+    html += `<div class="riel" data-piso="${piso}" style="width:${ancho}px">
+      <span class="etiqueta">Piso ${piso+1}</span>`;
+    for(let c = 0; c < t.bocasPorPiso; c++)
+      html += `<div class="celda-fantasma" style="left:${c*CELDA}px;width:${CELDA}px"></div>`;
+    t.dispositivos.filter(d=>d.piso===piso).forEach(d => { html += bloqueDisp(d); });
+    html += `</div>`;
+  }
+  html += `</div>`;
+  cont.innerHTML = html;
+  cablearDrag();
+}
+function bloqueDisp(d){
+  const clase = d.rol==='general' && d.tipo==='termica' ? 'gen'
+    : d.tipo==='diferencial' ? 'dif' : d.tipo==='bornera' ? 'tierra'
+    : d.tipo==='protector' ? 'dps' : '';
+  const bg = d.color ? `style="background:${d.color};left:${d.posicion*CELDA}px;width:${d.polos*CELDA-3}px"`
+    : `style="left:${d.posicion*CELDA}px;width:${d.polos*CELDA-3}px"`;
+  const nombre = d.rol==='general' && d.tipo==='termica' ? 'GRAL'
+    : d.tipo==='diferencial' ? 'DIF' : d.tipo==='bornera' ? 'PAT'
+    : d.tipo==='protector' ? 'DPS' : (nombreCircuito(d.circuitoId) || '—');
+  const detalle = d.tipo==='bornera' ? ''
+    : d.tipo==='diferencial' ? `${d.corriente}A ${d.sensibilidadMa}mA`
+    : d.corriente ? `${d.corriente}A` : '';
+  const alim = d.alimentacion ? (d.alimentacion==='arriba'?'⬆':'⬇') : '';
+  return `<div class="disp ${clase}" draggable="true" data-id="${d.id}" ${bg}>
+    ${alim?`<span class="alim" data-alim="${d.id}" title="Cambiar de dónde entra">${alim}</span>`:''}
+    <span class="n">${esc(nombre)}</span><span class="c">${esc(detalle)}</span>
+  </div>`;
+}
+function nombreCircuito(id){
+  const c = (obra.circuitos||[]).find(x=>x.id===id);
+  return c ? c.nombre : null;
+}
+
+function cablearDrag(){
+  document.querySelectorAll('.disp').forEach(n => {
+    n.addEventListener('dragstart', ev => {
+      arrastrando = n.dataset.id;
+      n.classList.add('arrastrando');
+      ev.dataTransfer.setData('text/plain', n.dataset.id);
+    });
+    n.addEventListener('dragend', () => n.classList.remove('arrastrando'));
+  });
+  document.querySelectorAll('.alim').forEach(n => n.onclick = async ev => {
+    ev.stopPropagation();
+    const t = tableroActivo();
+    const d = t.dispositivos.find(x=>x.id===n.dataset.alim);
+    d.alimentacion = d.alimentacion === 'arriba' ? 'abajo' : 'arriba';
+    pintarGabinete();
+    await guardarTablero();
+  });
+  document.querySelectorAll('.riel').forEach(riel => {
+    riel.addEventListener('dragover', ev => { ev.preventDefault(); riel.classList.add('sobre'); });
+    riel.addEventListener('dragleave', () => riel.classList.remove('sobre'));
+    riel.addEventListener('drop', async ev => {
+      ev.preventDefault(); riel.classList.remove('sobre');
+      const id = ev.dataTransfer.getData('text/plain') || arrastrando;
+      if(!id) return;
+      const rect = riel.getBoundingClientRect();
+      const pos = Math.max(0, Math.round((ev.clientX - rect.left) / CELDA));
+      const piso = +riel.dataset.piso;
+      try{
+        const r = await api(`/api/obras/${OBRA_ID}/tableros/${activo}/mover`,
+          {method:'POST', body:JSON.stringify({dispositivoId:id, piso, posicion:pos})});
+        actualizarTablero(r.tablero, r.avisos);
+      }catch(e){ toast(e.message); pintarGabinete(); }
+    });
+  });
+}
+
+/* ---------------- panel lateral ---------------- */
+function pintarPanel(){
+  const t = tableroActivo();
+  $('sin-tablero').style.display = t ? 'none' : 'block';
+  $('panel-tablero').style.display = t ? 'block' : 'none';
+  if(!t) return;
+  $('t-nombre').value = t.nombre;
+  $('t-tipo').value = t.tipo;
+  $('t-bocas').value = t.bocas;
+  $('t-pisos').value = t.pisos;
+  $('t-dps').checked = !!t.protectorSobretension?.activo;
+  const usados = t.dispositivos.reduce((s,d)=>s+d.polos,0);
+  $('t-resumen').textContent = `${t.fases===3?'Trifásico':'Monofásico'} · `
+    + `${t.bocasPorPiso} bocas por piso · ${usados} de ${t.bocas} ocupadas`;
+}
+function pintarAvisos(avisos){
+  const rel = (avisos||[]).filter(a =>
+    ['tablero_sin_lugar','circuito_sin_termica'].includes(a.tipo));
+  $('avisos').innerHTML = rel.length
+    ? rel.map(a=>`<div class="aviso-item ${a.gravedad==='error'?'error':''}">${esc(a.detalle)}</div>`).join('')
+    : '<div class="nota">Sin problemas de lugar.</div>';
+}
+function pintar(){ pintarSelector(); pintarGabinete(); pintarPanel();
+  $('h-sub').textContent = tableros.length ? `${tableros.length} tablero(s)` : 'Sin tableros todavía'; }
+
+function actualizarTablero(t, avisos){
+  const i = tableros.findIndex(x=>x.id===t.id);
+  if(i>=0) tableros[i] = t; else tableros.push(t);
+  pintarGabinete(); pintarPanel(); pintarAvisos(avisos);
+}
+async function guardarTablero(){
+  const t = tableroActivo(); if(!t) return;
+  await api(`/api/obras/${OBRA_ID}/tableros/${t.id}`,
+    {method:'POST', body:JSON.stringify({tablero:{nombre:t.nombre, tipo:t.tipo,
+      protectorSobretension:t.protectorSobretension}})});
+}
+
+/* ---------------- acciones ---------------- */
+$('b-nuevo').onclick = () => { $('n-nombre').value=''; $('n-preset').value='12';
+  $('n-custom').style.display='none'; $('ov-nuevo').classList.add('abierto'); };
+$('n-cerrar').onclick = () => $('ov-nuevo').classList.remove('abierto');
+$('n-crear').onclick = async () => {
+  const cuerpo = {nombre:$('n-nombre').value.trim(), tipo:$('n-tipo').value,
+                 fases:+$('n-fases').value, preset:$('n-preset').value};
+  if($('n-preset').value === 'custom'){ cuerpo.bocas=+$('n-bocas').value; cuerpo.pisos=+$('n-pisos').value; }
+  try{
+    const r = await api('/api/obras/'+OBRA_ID+'/tableros', {method:'POST', body:JSON.stringify(cuerpo)});
+    tableros.push(r.tablero); activo = r.tablero.id;
+    $('ov-nuevo').classList.remove('abierto');
+    pintar(); toast('Tablero creado');
+  }catch(e){ toast(e.message); }
+};
+$('b-sincronizar').onclick = async () => {
+  const t = tableroActivo(); if(!t) return;
+  try{
+    const r = await api(`/api/obras/${OBRA_ID}/tableros/${t.id}`, {method:'POST', body:'{}'});
+    actualizarTablero(r.tablero, r.avisos);
+    toast('Circuitos sincronizados con el tablero');
+  }catch(e){ toast(e.message); }
+};
+$('b-borrar-tablero').onclick = async () => {
+  const t = tableroActivo(); if(!t) return;
+  if(!confirm(`¿Borrar "${t.nombre}"? Los circuitos que apuntaban acá quedan sin tablero.`)) return;
+  await api(`/api/obras/${OBRA_ID}/tableros/${t.id}`, {method:'DELETE'});
+  tableros = tableros.filter(x=>x.id!==t.id);
+  activo = tableros[0]?.id || null;
+  pintar(); toast('Tablero borrado');
+};
+['t-nombre','t-tipo'].forEach(id => $(id).onchange = async () => {
+  const t = tableroActivo(); t[id.slice(2)] = $(id).value;
+  await guardarTablero(); pintarPanel();
+});
+['t-bocas','t-pisos'].forEach(id => $(id).onchange = async () => {
+  const t = tableroActivo();
+  t.bocas = +$('t-bocas').value; t.pisos = +$('t-pisos').value;
+  t.bocasPorPiso = Math.ceil(t.bocas / Math.max(t.pisos,1));
+  await api(`/api/obras/${OBRA_ID}/tableros/${t.id}`,
+    {method:'POST', body:JSON.stringify({tablero:{bocas:t.bocas, pisos:t.pisos,
+      bocasPorPiso:t.bocasPorPiso}})});
+  const r = await api(`/api/obras/${OBRA_ID}/tableros/${t.id}`, {method:'POST', body:'{}'});
+  actualizarTablero(r.tablero, r.avisos);
+});
+$('t-dps').onchange = async () => {
+  const t = tableroActivo();
+  t.protectorSobretension = t.protectorSobretension || {activo:false, polos:2};
+  t.protectorSobretension.activo = $('t-dps').checked;
+  if($('t-dps').checked && !t.dispositivos.some(d=>d.tipo==='protector')){
+    t.dispositivos.push({id:'dps_'+Date.now().toString(36), tipo:'protector', rol:'general',
+      piso:0, posicion:0, polos:t.protectorSobretension.polos||2, circuitoId:null, alimentacion:'arriba'});
+  } else if(!$('t-dps').checked){
+    t.dispositivos = t.dispositivos.filter(d=>d.tipo!=='protector');
+  }
+  // el dispositivo nuevo sólo existe en el cliente: se persiste con la obra
+  // entera, no con el endpoint angosto (ese relee del disco y lo perdería).
+  try{
+    await api('/api/obras/'+OBRA_ID, {method:'PUT', body:JSON.stringify(obra)});
+    pintarGabinete();
+  }catch(e){ toast(e.message); }
+};
+$('b-volver').onclick = () => location.href = '/circuitos.html?obra='+OBRA_ID;
+
+cargar().catch(e => { $('h-sub').textContent = e.message; toast(e.message); });
+</script>
+</body>
+</html>

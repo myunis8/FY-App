@@ -105,6 +105,8 @@ del contrato consume y cuáles produce:
 2. **Circuitos** — se seleccionan por zona sobre el plano y llena `circuitos`. *(hecho)*
 3. **Precios y presupuesto** — lista global congelable por obra, extras,
    opcionales, descuentos y PDF con logo y marca de agua. *(hecho)*
+4. **Tablero** — presets de gabinete, distribución automática y arrastre
+   gráfico de térmicas por riel. *(hecho, falta el dibujo del conexionado)*
 3. **Validador** — función pura `validar(obra)`, llena `validacion`.
 4. **Canalización** — `canaliza.html` adaptado al contrato.
 5. **Cómputo** — deriva `computo` desde `canalizacion` y `circuitos`.

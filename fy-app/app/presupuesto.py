@@ -15,6 +15,8 @@ EQUIVALENCIAS = [
     ("toma_termo",    ["Toma especial - Termotanque"]),
 ]
 
+# categorías que no se calculan solas desde el plano (ver precios.CATEGORIAS_APARTE)
+
 SUB_COCINA = ("toma_horno", "toma_microondas", "toma_anafe", "toma_lavavajillas")
 SUB_TERMO = ("toma_termotanque", "alimentacion_estufa")
 

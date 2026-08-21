@@ -69,14 +69,16 @@ td.precio input{text-align:right;font-family:'IBM Plex Mono',monospace;font-weig
       <button class="btn sm" id="b-ajustar">Aplicar</button></label>
   </div>
   <table><thead><tr>
-    <th style="width:38%">Ítem</th><th style="width:20%">Categoría</th>
-    <th style="width:12%">Unidad</th><th style="width:22%">Precio</th><th class="acc"></th>
+    <th style="width:36%">Ítem</th><th style="width:17%">Categoría</th>
+    <th style="width:10%">Unidad</th><th style="width:19%">Precio</th>
+    <th style="width:10%;text-align:center">Orden</th><th class="acc"></th>
   </tr></thead><tbody id="cuerpo"></tbody></table>
 </main>
 <div id="toast"></div>
 <script>
-const CATEGORIAS = ["Puntos","Tomacorrientes","Tableros","Canalización","Artefactos",
-                    "Mano de obra","Materiales","Otros"];
+const CATEGORIAS = ["Puntos","Tomas","Iluminación","Tableros","Puesta a tierra",
+                    "Canalización","Trabajos adicionales","Automatizaciones","Otros"];
+const APARTE = new Set(["Trabajos adicionales","Automatizaciones"]);
 const $ = id => document.getElementById(id);
 let lista = null;
 const api = async (r,o={}) => {
@@ -101,31 +103,55 @@ function visibles(){
   return lista.items.filter(i =>
     (!q || (i.item||'').toLowerCase().includes(q)) && (!c || i.categoria === c));
 }
+function itemsDeCategoria(cat){
+  return lista.items.filter(i => (i.categoria||'Otros') === cat)
+    .sort((a,b) => (a.orden??0) - (b.orden??0));
+}
 function pintar(){
-  const items = visibles();
-  const porCat = {};
-  items.forEach(i => (porCat[i.categoria||'Otros'] = porCat[i.categoria||'Otros']||[]).push(i));
-  $('cuerpo').innerHTML = Object.entries(porCat).map(([cat, arr]) =>
-    `<tr class="grupo"><td colspan="5">${esc(cat)} · ${arr.length}</td></tr>` +
-    arr.map(i=>`<tr data-id="${i.id}">
-      <td><input data-c="item" value="${esc(i.item)}"></td>
-      <td><select data-c="categoria">${CATEGORIAS.map(c=>
-        `<option ${c===i.categoria?'selected':''}>${c}</option>`).join('')}</select></td>
-      <td><input data-c="unidad" value="${esc(i.unidad||'u')}"></td>
-      <td class="precio"><input data-c="precio" type="number" step="1" value="${i.precio||0}"></td>
-      <td class="acc"><button data-borrar="${i.id}" title="Borrar">×</button></td>
-    </tr>`).join('')).join('') ||
-    '<tr><td colspan="5" style="color:var(--muted);padding:18px">Nada coincide.</td></tr>';
+  const catsVisibles = new Set(visibles().map(i => i.categoria||'Otros'));
+  const cats = CATEGORIAS.filter(c => catsVisibles.has(c));
+  $('cuerpo').innerHTML = cats.map(cat => {
+    const arr = itemsDeCategoria(cat).filter(i => catsVisibles.has(cat) &&
+      (visibles().includes(i)));
+    const esAparte = APARTE.has(cat);
+    return `<tr class="grupo${esAparte?' aparte':''}"><td colspan="6">${esc(cat)} · ${arr.length}
+        ${esAparte?'<span class="tag-aparte">APARTE</span>':''}</td></tr>` +
+      arr.map((i, idx) => `<tr data-id="${i.id}">
+        <td><input data-c="item" value="${esc(i.item)}"></td>
+        <td><select data-c="categoria">${CATEGORIAS.map(c=>
+          `<option ${c===i.categoria?'selected':''}>${c}</option>`).join('')}</select></td>
+        <td><input data-c="unidad" value="${esc(i.unidad||'u')}"></td>
+        <td class="precio"><input data-c="precio" type="number" step="1" value="${i.precio||0}"></td>
+        <td class="ord">
+          <button data-subir="${i.id}" ${idx===0?'disabled':''} title="Subir">▲</button>
+          <button data-bajar="${i.id}" ${idx===arr.length-1?'disabled':''} title="Bajar">▼</button>
+        </td>
+        <td class="acc"><button data-borrar="${i.id}" title="Borrar">×</button></td>
+      </tr>`).join('');
+  }).join('') || '<tr><td colspan="6" style="color:var(--muted);padding:18px">Nada coincide.</td></tr>';
 
   $('cuerpo').querySelectorAll('[data-c]').forEach(n => n.onchange = () => {
     const id = n.closest('tr').dataset.id;
     const it = lista.items.find(x=>x.id===id);
     it[n.dataset.c] = n.dataset.c==='precio' ? parseFloat(n.value||0) : n.value;
-    if(n.dataset.c === 'categoria') pintar();
+    if(n.dataset.c === 'categoria'){
+      it.orden = itemsDeCategoria(it.categoria).length;   // al final de la nueva categoría
+      pintar();
+    }
     actualizarTotalizador();
   });
   $('cuerpo').querySelectorAll('[data-borrar]').forEach(n => n.onclick = () => {
     lista.items = lista.items.filter(x=>x.id!==n.dataset.borrar);
+    pintar();
+  });
+  $('cuerpo').querySelectorAll('[data-subir],[data-bajar]').forEach(n => n.onclick = () => {
+    const id = n.dataset.subir || n.dataset.bajar;
+    const it = lista.items.find(x=>x.id===id);
+    const hermanos = itemsDeCategoria(it.categoria);
+    const pos = hermanos.indexOf(it);
+    const vecino = hermanos[n.dataset.subir ? pos-1 : pos+1];
+    if(!vecino) return;
+    [it.orden, vecino.orden] = [vecino.orden ?? 0, it.orden ?? 0];
     pintar();
   });
   actualizarTotalizador();
@@ -136,8 +162,9 @@ function actualizarTotalizador(){
     (lista.actualizadoEl ? ` · actualizada ${new Date(lista.actualizadoEl).toLocaleDateString('es-AR')}` : '');
 }
 $('b-agregar').onclick = () => {
-  lista.items.push({id:'pr_'+Date.now().toString(36), categoria:$('f-cat').value||'Otros',
-                    item:'Ítem nuevo', unidad:'u', precio:0});
+  const cat = $('f-cat').value || 'Otros';
+  lista.items.push({id:'pr_'+Date.now().toString(36), categoria:cat,
+                    item:'Ítem nuevo', unidad:'u', precio:0, orden:itemsDeCategoria(cat).length});
   pintar();
   const filas = $('cuerpo').querySelectorAll('tr[data-id] input[data-c="item"]');
   filas[filas.length-1]?.focus();

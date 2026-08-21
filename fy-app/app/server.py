@@ -6,7 +6,8 @@ from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
 from . import (almacen, config as cfgmod, contrato as C, extraccion, github as gh,
-               pdf_presupuesto, precios as precios_mod, presupuesto as pres_mod, sync, vinculos)
+               pdf_presupuesto, precios as precios_mod, presupuesto as pres_mod,
+               sync, tablero as tablero_mod, vinculos)
 
 if getattr(sys, "frozen", False):
     DIR_WEB = Path(sys._MEIPASS) / "web"        # bundle de PyInstaller
@@ -63,6 +64,12 @@ class Handler(BaseHTTPRequestHandler):
                 return self._revalidar(partes[2])
             if len(partes) == 4 and partes[:3] == ["api", "config", "imagen"]:
                 return self._subir_imagen(partes[3])
+            if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "tableros":
+                return self._nuevo_tablero(partes[2])
+            if len(partes) == 6 and partes[:2] == ["api", "obras"] and partes[3] == "tableros" and partes[5] == "mover":
+                return self._mover_dispositivo(partes[2], partes[4])
+            if len(partes) == 5 and partes[:2] == ["api", "obras"] and partes[3] == "tableros":
+                return self._sincronizar_tablero(partes[2], partes[4])
             return self._api_post(ruta)
         except gh.ErrorSync as e:
             return self._error(e.mensaje, 409 if e.conflicto else 502,
@@ -84,6 +91,17 @@ class Handler(BaseHTTPRequestHandler):
         partes = [p for p in urlparse(self.path).path.split("/") if p]
         if len(partes) == 3 and partes[:2] == ["api", "obras"]:
             return self._json({"ok": almacen.borrar_obra(partes[2])})
+        if len(partes) == 5 and partes[:2] == ["api", "obras"] and partes[3] == "tableros":
+            obra = almacen.leer_obra(partes[2])
+            if obra is None:
+                return self._error("Esa obra no está en este equipo.", 404)
+            obra["tableros"] = [t for t in obra.get("tableros") or [] if t["id"] != partes[4]]
+            # los circuitos que apuntaban a este tablero quedan sin tablero, no se borran
+            for c in obra.get("circuitos") or []:
+                if c.get("tableroId") == partes[4]:
+                    c["tableroId"] = None
+            almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
+            return self._json({"ok": True})
         return self._error("Ruta desconocida", 404)
 
     # ----------------------------------------------------------------- API
@@ -103,6 +121,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"obras": almacen.listar_resumenes()})
         if ruta == "/api/precios":
             return self._json(precios_mod.leer())
+        if ruta == "/api/tablero/presets":
+            return self._json({"presets": tablero_mod.PRESETS})
         if len(partes) == 4 and partes[:3] == ["api", "config", "imagen"]:
             destino = cfgmod.ruta_imagen(partes[3])
             if destino is None:
@@ -270,6 +290,52 @@ class Handler(BaseHTTPRequestHandler):
         return self._json({"ok": True, "validacion": obra["validacion"],
                            "elementos": obra.get("elementos") or [],
                            "resumen": vinculos.resumen(obra)})
+
+    def _nuevo_tablero(self, obra_id):
+        obra = almacen.leer_obra(obra_id)
+        if obra is None:
+            return self._error("Esa obra no está en este equipo.", 404)
+        cuerpo = self._cuerpo()
+        fases = 3 if (cuerpo.get("fases") == 3) else 1
+        t = tablero_mod.tablero_nuevo(cuerpo.get("nombre", ""), cuerpo.get("tipo", "principal"),
+                                      cuerpo.get("preset", "12"), fases)
+        if cuerpo.get("bocas") and cuerpo.get("pisos"):
+            t["bocas"] = int(cuerpo["bocas"]); t["pisos"] = int(cuerpo["pisos"])
+            t["bocasPorPiso"] = tablero_mod.bocas_por_piso(t["bocas"], t["pisos"])
+        obra.setdefault("tableros", []).append(t)
+        almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
+        return self._json({"ok": True, "tablero": t, "obra": obra})
+
+    def _sincronizar_tablero(self, obra_id, tablero_id):
+        obra = almacen.leer_obra(obra_id)
+        if obra is None:
+            return self._error("Esa obra no está en este equipo.", 404)
+        t = next((x for x in obra.get("tableros") or [] if x["id"] == tablero_id), None)
+        if t is None:
+            return self._error("Ese tablero no existe.", 404)
+        cuerpo = self._cuerpo()
+        if "tablero" in cuerpo:                       # el cliente mandó ediciones (nombre, etc)
+            t.update({k: v for k, v in cuerpo["tablero"].items() if k != "dispositivos"})
+        tablero_mod.sincronizar_circuitos(t, obra.get("circuitos") or [], t.get("fases", 1))
+        avisos = tablero_mod.validar(t, obra.get("circuitos") or [])
+        almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
+        return self._json({"ok": True, "tablero": t, "avisos": avisos})
+
+    def _mover_dispositivo(self, obra_id, tablero_id):
+        obra = almacen.leer_obra(obra_id)
+        if obra is None:
+            return self._error("Esa obra no está en este equipo.", 404)
+        t = next((x for x in obra.get("tableros") or [] if x["id"] == tablero_id), None)
+        if t is None:
+            return self._error("Ese tablero no existe.", 404)
+        cuerpo = self._cuerpo()
+        ok, msg = tablero_mod.mover_dispositivo(t, cuerpo.get("dispositivoId"),
+                                                cuerpo.get("piso"), cuerpo.get("posicion"))
+        if not ok:
+            return self._error(msg, 409)
+        avisos = tablero_mod.validar(t, obra.get("circuitos") or [])
+        almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
+        return self._json({"ok": True, "tablero": t, "avisos": avisos})
 
     def _pdf_presupuesto(self, obra_id):
         obra = almacen.leer_obra(obra_id)
