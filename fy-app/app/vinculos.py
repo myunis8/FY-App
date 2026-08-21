@@ -99,7 +99,7 @@ def recalcular(obra: dict) -> dict:
 
     previos = [a for a in (plano.get("avisosExtraccion") or [])
                if _sigue_vigente(a, elementos, plano)]
-    todos = previos + avisos
+    todos = previos + avisos + validar_circuitos(obra)
     return {"corridaEl": obra.get("validacion", {}).get("corridaEl", 0),
             "errores": [a for a in todos if a.get("gravedad") == "error"],
             "advertencias": [a for a in todos if a.get("gravedad") != "error"]}
@@ -118,3 +118,86 @@ def resumen(obra: dict) -> dict:
             "circuitos": len(teclas),
             "combinados": sum(1 for v in cuenta.values() if v > 1),
             "manuales": sum(1 for e in elementos if e.get("origen") == "manual")}
+
+
+# --------------------------------------------------------------- circuitos
+TIPOS_CIRCUITO = {
+    "IUG": {"nombre": "Iluminación de uso general", "maxBocas": 15,
+            "seccionMin": 1.5, "proteccionMax": 10},
+    "TUG": {"nombre": "Tomacorrientes de uso general", "maxBocas": 15,
+            "seccionMin": 2.5, "proteccionMax": 20},
+    "IUE": {"nombre": "Iluminación de uso especial", "maxBocas": 15,
+            "seccionMin": 1.5, "proteccionMax": 16},
+    "TUE": {"nombre": "Tomacorrientes de uso especial", "maxBocas": 12,
+            "seccionMin": 2.5, "proteccionMax": 20},
+    "ACU": {"nombre": "Aire acondicionado", "maxBocas": 6,
+            "seccionMin": 2.5, "proteccionMax": 25},
+    "OCE": {"nombre": "Otros circuitos específicos", "maxBocas": 12,
+            "seccionMin": 2.5, "proteccionMax": 32},
+}
+
+# secciones y su corriente máxima de protección (cobre, cañería embutida)
+MAX_PROTECCION = {1.0: 10, 1.5: 16, 2.5: 20, 4.0: 25, 6.0: 32, 10.0: 50, 16.0: 63}
+
+# qué elementos tienen que estar sí o sí en algún circuito
+CONSUMOS = ("artefacto", "toma", "otros")
+
+
+def validar_circuitos(obra: dict) -> list[dict]:
+    elementos = obra.get("elementos") or []
+    circuitos = obra.get("circuitos") or []
+    porId = {e["id"]: e for e in elementos if e.get("id")}
+    avisos = []
+
+    asignaciones = collections.Counter()
+    for c in circuitos:
+        for eid in c.get("elementos") or []:
+            asignaciones[eid] += 1
+
+    faltan = [e for e in elementos
+              if e.get("tipo") in CONSUMOS and not asignaciones.get(e["id"])]
+    if faltan:
+        porTipo = collections.Counter(e["tipo"] for e in faltan)
+        detalle = ", ".join(f"{v} {k}" for k, v in porTipo.items())
+        avisos.append({"tipo": "elementos_sin_circuito", "gravedad": "error",
+                       "cantidad": len(faltan), "ids": [e["id"] for e in faltan],
+                       "detalle": f"Quedan {len(faltan)} sin circuito ({detalle})."})
+
+    for eid, n in asignaciones.items():
+        if n > 1:
+            avisos.append({"tipo": "elemento_repetido", "gravedad": "error",
+                           "simbolo": eid,
+                           "detalle": f"El elemento {eid} está en {n} circuitos a la vez."})
+        elif eid not in porId:
+            avisos.append({"tipo": "elemento_inexistente", "gravedad": "advertencia",
+                           "simbolo": eid,
+                           "detalle": f"Un circuito referencia {eid}, que ya no existe."})
+
+    for c in circuitos:
+        nom = c.get("nombre") or c.get("id")
+        regla = TIPOS_CIRCUITO.get(c.get("tipo") or "", {})
+        ids = [i for i in (c.get("elementos") or []) if i in porId]
+        # las teclas no cuentan como boca: se cuentan los consumos
+        bocas = [i for i in ids if porId[i].get("tipo") in CONSUMOS]
+        if not bocas:
+            avisos.append({"tipo": "circuito_vacio", "gravedad": "advertencia",
+                           "circuitoId": c.get("id"),
+                           "detalle": f"El circuito {nom} no tiene ninguna boca."})
+        maxb = regla.get("maxBocas")
+        if maxb and len(bocas) > maxb:
+            avisos.append({"tipo": "circuito_excedido", "gravedad": "error",
+                           "circuitoId": c.get("id"),
+                           "detalle": f"{nom} tiene {len(bocas)} bocas y el máximo para "
+                                      f"{c.get('tipo')} es {maxb}."})
+        sec, prot = c.get("seccionMm2"), c.get("proteccionA")
+        if sec and regla.get("seccionMin") and sec < regla["seccionMin"]:
+            avisos.append({"tipo": "seccion_insuficiente", "gravedad": "error",
+                           "circuitoId": c.get("id"),
+                           "detalle": f"{nom}: {sec} mm² es menos que el mínimo de "
+                                      f"{regla['seccionMin']} mm² para {c.get('tipo')}."})
+        if sec and prot and MAX_PROTECCION.get(sec) and prot > MAX_PROTECCION[sec]:
+            avisos.append({"tipo": "proteccion_excedida", "gravedad": "error",
+                           "circuitoId": c.get("id"),
+                           "detalle": f"{nom}: {prot} A es demasiado para {sec} mm² "
+                                      f"(máximo {MAX_PROTECCION[sec]} A)."})
+    return avisos

@@ -33,7 +33,7 @@ PREFIJO = {"boca_luz": "A", "aplique": "A", "luminaria_lineal": "A",
            "desconocido": "X"}
 
 SUBTIPOS_OTROS = ("alimentacion_extractor", "alimentacion_estufa",
-                  "alimentacion_bomba", "toma_termotanque")
+                  "alimentacion_bomba", "alimentacion_otros", "toma_termotanque")
 
 
 def _dist(a, b):

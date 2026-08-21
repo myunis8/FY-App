@@ -136,6 +136,7 @@ class Handler(BaseHTTPRequestHandler):
         if ruta == "/api/obras":
             obra = C.obra_vacia(cuerpo.get("nombre", ""), cuerpo.get("cliente", ""),
                                 cfg.get("usuario", ""))
+            obra["obra"]["sinPlano"] = bool(cuerpo.get("sinPlano"))
             almacen.guardar_obra(obra)
             return self._json({"ok": True, "obra": obra})
 

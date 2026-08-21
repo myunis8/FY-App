@@ -30,6 +30,7 @@ def obra_vacia(nombre: str = "", cliente: str = "", usuario: str = "") -> dict:
         "contrato": CONTRATO,
         "obra": {"id": nuevo_id(), "nombre": nombre or "Obra sin nombre",
                  "cliente": cliente, "direccion": "", "tipoInstalacion": "Monofásica",
+                 "sinPlano": False,
                  "creadoEl": t, "actualizadoEl": t, "actualizadoPor": usuario},
         "plano": None,
         "ambientes": [], "elementos": [], "circuitos": [], "tableros": [],
@@ -65,8 +66,12 @@ def total_presupuesto(obra: dict) -> float:
 
 def progreso(obra: dict) -> dict:
     canal = obra.get("canalizacion") or {}
+    sin_plano = bool((obra.get("obra") or {}).get("sinPlano"))
     return {
-        "extraido": bool(obra.get("elementos")),
+        # una obra sin plano (reparación, trabajo chico) no queda trabada en
+        # el primer paso: los elementos se cargan a mano
+        "extraido": bool(obra.get("elementos")) or sin_plano,
+        "sinPlano": sin_plano,
         "circuitosAsignados": bool(obra.get("circuitos")),
         "canalizado": bool(canal.get("tramos")),
         "presupuestado": bool((obra.get("presupuesto") or {}).get("items")),
@@ -88,6 +93,7 @@ def resumen(obra: dict) -> dict:
         "total": round(total_presupuesto(obra), 2),
         "actualizadoEl": o.get("actualizadoEl") or 0,
         "actualizadoPor": o.get("actualizadoPor") or "",
+        "sinPlano": bool(o.get("sinPlano")),
         "progreso": progreso(obra),
         "pendientes": len(val.get("errores") or []) + len(val.get("advertencias") or []),
         "planoRevision": plano.get("revision") if plano else None,

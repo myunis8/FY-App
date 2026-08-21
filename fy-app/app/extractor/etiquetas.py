@@ -69,7 +69,7 @@ def _agrupar(spans: List[Texto], sep_v=3.4) -> List[List[Texto]]:
         col.sort(key=lambda t: (t.x0 if t.vertical else t.y0))
         actual: List[Texto] = []
         for t in col:
-            inicia = any(_norm(t.texto).startswith(p) for p in C.PALABRAS_ETIQUETA)
+            inicia = any(_norm(t.texto).startswith(p) for p in C.INICIA_ETIQUETA)
             if inicia and actual:
                 grupos.append(actual); actual = []
             actual.append(t)

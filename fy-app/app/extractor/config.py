@@ -44,6 +44,7 @@ REGLAS_SUBTIPO = [
     ("toma_lavavajillas",  ["lavavajillas", "lavavajilla"]),
     ("toma_termotanque",   ["termotanque", "calefon", "calefón"]),
     ("alimentacion_extractor", ["extractor", "campana"]),
+    ("alimentacion_otros",  ["alimentacion", "alimentación"]),
     ("alimentacion_estufa",["estufa"]),
     ("alimentacion_bomba", ["bomba"]),
     ("toma_tv",            ["toma tv", "tv", "cable"]),
@@ -54,8 +55,15 @@ REGLAS_SUBTIPO = [
     ("tablero",            ["tablero", "ts ", "tsg"]),
 ]
 
+# palabras que identifican a un texto como leyenda de caja
 PALABRAS_ETIQUETA = ("toma", "preinstal", "alimenta", "tablero", "estufa",
                      "calefon", "calefón", "termotanque", "extractor", "tv", "caja")
+
+# palabras que ABREN una leyenda nueva. "extractor" y "tv" no están: son
+# continuación de la línea anterior ("alimentación / extractor", "toma / tv"),
+# y tratarlas como inicio partía la leyenda en dos.
+INICIA_ETIQUETA = ("toma", "preinstal", "alimenta", "tablero", "estufa",
+                   "calefon", "calefón", "termotanque", "caja")
 
 # --- Heuristica de nombre de ambiente -------------------------------------
 # (nombre, subtipos que suman, peso)

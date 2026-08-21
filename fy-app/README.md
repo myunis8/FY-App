@@ -102,9 +102,7 @@ Los módulos se enchufan sobre este esqueleto, cada uno declarando qué bloques
 del contrato consume y cuáles produce:
 
 1. **Extractor** — lee el PDF y llena `plano` y `elementos`. *(hecho)*
-2. **Circuitos** — agrupa a mano en IUG/TUG/TUE y llena `circuitos`, `tableros`.
-   El agrupamiento por ambiente lo hace el usuario: la detección automática de
-   ambientes se quitó por poco confiable.
+2. **Circuitos** — agrupa a mano en IUG/TUG/TUE y llena `circuitos`. *(hecho)*
 3. **Validador** — función pura `validar(obra)`, llena `validacion`.
 4. **Canalización** — `canaliza.html` adaptado al contrato.
 5. **Cómputo** — deriva `computo` desde `canalizacion` y `circuitos`.

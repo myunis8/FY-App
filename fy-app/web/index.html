@@ -213,6 +213,12 @@ main{max-width:1180px;margin:0 auto;padding:26px 22px 60px}
       <label for="n-cliente">Cliente</label>
       <input id="n-cliente" placeholder="Opcional">
     </div>
+    <div class="campo">
+      <label style="font-weight:500;display:flex;gap:8px;align-items:center">
+        <input type="checkbox" id="n-sinplano" style="width:auto">
+        Sin plano (reparación o trabajo chico)</label>
+      <div class="nota">Los elementos se cargan a mano desde el módulo de circuitos.</div>
+    </div>
     <div class="acciones">
       <button class="btn" id="n-cerrar">Cancelar</button>
       <button class="btn primary" id="n-crear">Crear</button>
@@ -229,8 +235,13 @@ main{max-width:1180px;margin:0 auto;padding:26px 22px 60px}
     <div class="bloques" id="d-bloques"></div>
     <div class="plano-fila" id="d-plano"></div>
     <input type="file" id="d-archivo" accept="application/pdf,.pdf" hidden>
-    <p class="ayuda" style="margin-top:16px">Los módulos de extracción, circuitos,
-      canalización y presupuesto se enchufan acá.</p>
+    <div class="plano-fila" style="margin-top:10px">
+      <div class="txt"><b>Circuitos</b><span id="d-ncircuitos"></span>
+        <div class="nota">Agrupá los elementos en IUG, TUG, TUE y elegí secciones
+        y protecciones.</div></div>
+      <button class="btn primary sm" id="d-circuitos">Abrir</button>
+    </div>
+    <p class="ayuda" style="margin-top:16px">Precios y presupuesto se enchufan acá.</p>
     <div class="acciones">
       <button class="btn" id="d-borrar" style="margin-right:auto;color:var(--danger)">Borrar</button>
       <button class="btn" id="d-cerrar">Cerrar</button>
@@ -350,7 +361,8 @@ function render(){
 function tarjeta(o){
   const p = o.progreso||{};
   const via = ETAPAS.map(([k]) => `<div class="tramo${p[k]?' hecho':''}"></div>`).join('');
-  const rot = ETAPAS.map(([k,l]) => `<span class="${p[k]?'hecho':''}">${l}</span>`).join('');
+  const rot = ETAPAS.map(([k,l]) =>
+    `<span class="${p[k]?'hecho':''}">${k==='extraido'&&o.sinPlano?'Sin plano':l}</span>`).join('');
   const pago = o.pago||{};
   const pagoTxt = pago.estado==='parcial' && pago.porcentaje
     ? `Pago ${pago.porcentaje}%` : (PAGOS[pago.estado]||'Pendiente');
@@ -414,11 +426,21 @@ function pintarBloques(obra){
     ['Ítems de presupuesto', (obra.presupuesto?.items||[]).length],
     ['Avisos', (obra.validacion?.errores||[]).length + (obra.validacion?.advertencias||[]).length],
   ];
+  $('d-ncircuitos').textContent = (obra.circuitos||[]).length
+    ? `${obra.circuitos.length} armados` : 'Todavía ninguno';
+  $('d-circuitos').onclick = () => location.href = '/circuitos.html?obra=' + obra.obra.id;
   $('d-bloques').innerHTML = filas.map(([k,v]) =>
     `<div class="bloque"><b>${k}</b>${v}</div>`).join('');
 }
 function pintarPlano(obra){
   const p = obra.plano, cont = $('d-plano');
+  if(!p && obra.obra.sinPlano){
+    cont.innerHTML = `<div class="txt"><b>Plano</b>Esta obra no lleva plano.
+      <div class="nota">Los elementos se cargan a mano desde circuitos.</div></div>
+      <button class="btn sm" id="p-cargar">Cargar uno igual</button>`;
+    cont.querySelector('#p-cargar').onclick = () => $('d-archivo').click();
+    return;
+  }
   if(!p){
     cont.innerHTML = `<div class="txt"><b>Plano</b>Todavía no cargaste el PDF.
       <div class="nota">Es el que te manda el arquitecto. La lectura automática
@@ -529,13 +551,14 @@ $('c-guardar').onclick = async () => {
 };
 
 /* ---------------- nueva obra ---------------- */
-$('b-nueva').onclick = () => { $('n-nombre').value=''; $('n-cliente').value='';
+$('b-nueva').onclick = () => { $('n-nombre').value=''; $('n-cliente').value=''; $('n-sinplano').checked=false;
   abrir('ov-nueva'); $('n-nombre').focus(); };
 $('n-crear').onclick = async () => {
   const nombre = $('n-nombre').value.trim();
   if(!nombre){ $('n-nombre').focus(); return; }
   await api('/api/obras', {method:'POST',
-    body:JSON.stringify({nombre, cliente:$('n-cliente').value.trim()})});
+    body:JSON.stringify({nombre, cliente:$('n-cliente').value.trim(),
+                         sinPlano:$('n-sinplano').checked})});
   cerrar('ov-nueva'); await cargarObras(); toast('Obra creada');
 };
 

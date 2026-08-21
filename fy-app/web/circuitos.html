@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Circuitos</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+:root{
+  --navy:#16283f; --navy-deep:#0e1c2e; --paper:#f1f3f2; --panel:#fff; --line:#dde3e2;
+  --ink:#1c2733; --muted:#5b6b7a; --amber:#e2a33d; --amber-deep:#c07f1f;
+  --copper:#b5651d; --copper-soft:#f4e3d3; --slate-soft:#eef1f3;
+  --green:#2f7d5c; --green-soft:#dcefe4; --danger:#b3432f; --danger-soft:#f8ded7;
+  --blue:#2b6ca3; --blue-soft:#dce9f3; --radius:10px;
+  font-family:'IBM Plex Sans',system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--paper);color:var(--ink);display:flex;flex-direction:column}
+button{font:inherit;cursor:pointer}
+input,select{font:inherit}
+.mono{font-family:'IBM Plex Mono',Consolas,monospace}
+
+header{background:var(--navy);color:#fff;padding:11px 18px;display:flex;align-items:center;
+  gap:12px;flex-wrap:wrap;flex:0 0 auto}
+header h1{font-family:'Space Grotesk',sans-serif;font-size:.98rem;margin:0;font-weight:600}
+header .sub{font-size:.72rem;color:#9db2c7}
+.spacer{flex:1}
+.btn{border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:7px 13px;
+  border-radius:var(--radius);font-size:.82rem;font-weight:500}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--amber);border-color:var(--amber-deep);color:#2a1e07;font-weight:600}
+.btn.ghost{background:transparent;border-color:#33506e;color:#cfe0f0}
+.btn.ghost:hover{border-color:#5b7fa5}
+.btn.sm{padding:4px 9px;font-size:.75rem}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+
+.cuerpo{flex:1;display:grid;grid-template-columns:1fr 1fr;gap:0;min-height:0}
+.col{overflow-y:auto;padding:16px 18px}
+.col+.col{border-left:1px solid var(--line);background:var(--panel)}
+h2{font-family:'Space Grotesk',sans-serif;font-size:.85rem;margin:0 0 10px;
+  text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+
+.barra{display:flex;gap:8px;align-items:center;margin-bottom:11px;flex-wrap:wrap}
+.barra select,.barra input{padding:6px 9px;border:1px solid var(--line);border-radius:8px;background:#fff}
+
+/* lista de elementos */
+.grupo{margin-bottom:14px}
+.grupo h3{font-size:.75rem;margin:0 0 5px;color:var(--muted);font-weight:600;
+  text-transform:uppercase;letter-spacing:.04em}
+.el{display:flex;align-items:center;gap:9px;padding:5px 8px;border-radius:7px;
+  font-size:.8rem;cursor:pointer;border:1px solid transparent}
+.el:hover{background:var(--slate-soft)}
+.el.asignado{opacity:.5}
+.el.marcado{background:var(--copper-soft);border-color:var(--copper)}
+.el .id{font-family:'IBM Plex Mono',monospace;font-size:.68rem;color:var(--muted)}
+.el .spacer{flex:1}
+.tag{font-size:.66rem;padding:2px 7px;border-radius:99px;background:var(--slate-soft);
+  color:var(--muted);font-weight:600;white-space:nowrap}
+.tag.cir{background:var(--blue-soft);color:var(--blue)}
+
+/* circuitos */
+.circuito{border:1px solid var(--line);border-radius:var(--radius);padding:12px 13px;margin-bottom:10px}
+.circuito.sel{border-color:var(--copper);box-shadow:0 0 0 2px var(--copper-soft)}
+.circuito .cab{display:flex;align-items:center;gap:9px;margin-bottom:9px}
+.circuito .cab input{font-weight:600;border:none;border-bottom:1px solid var(--line);
+  padding:2px 0;width:110px;font-family:'Space Grotesk',sans-serif}
+.circuito .cab input:focus{outline:none;border-color:var(--copper)}
+.rejilla{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-bottom:8px}
+.rejilla label{display:block;font-size:.68rem;color:var(--muted);font-weight:600;margin-bottom:3px}
+.rejilla select,.rejilla input{width:100%;padding:5px 7px;border:1px solid var(--line);border-radius:7px}
+.conteo{font-size:.75rem;color:var(--muted)}
+.aviso-item{border-left:3px solid var(--copper);background:var(--copper-soft);padding:8px 10px;
+  border-radius:0 6px 6px 0;margin-bottom:6px;font-size:.78rem;line-height:1.4}
+.aviso-item.error{border-color:var(--danger);background:var(--danger-soft)}
+.vacio{color:var(--muted);font-size:.8rem;line-height:1.5;padding:10px 0}
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--navy-deep);
+  color:#fff;padding:10px 17px;border-radius:var(--radius);font-size:.82rem;display:none;z-index:60}
+@media(max-width:900px){.cuerpo{grid-template-columns:1fr}.col+.col{border-left:none;border-top:1px solid var(--line)}}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1 id="h-nombre">Circuitos</h1>
+    <div class="sub" id="h-sub">Cargando…</div>
+  </div>
+  <div class="spacer"></div>
+  <button class="btn ghost" id="b-agregar-el">Agregar elemento</button>
+  <button class="btn ghost" id="b-nuevo">Nuevo circuito</button>
+  <button class="btn ghost" id="b-volver">Volver</button>
+  <button class="btn primary" id="b-guardar">Guardar</button>
+</header>
+
+<div class="cuerpo">
+  <div class="col">
+    <h2>Elementos</h2>
+    <div class="barra">
+      <select id="f-tipo">
+        <option value="">Todos</option>
+        <option value="artefacto">Artefactos</option>
+        <option value="toma">Tomas</option>
+        <option value="otros">Otros</option>
+        <option value="llave">Teclas</option>
+      </select>
+      <select id="f-estado">
+        <option value="">Asignados y sin asignar</option>
+        <option value="libres">Sólo sin circuito</option>
+        <option value="tomados">Sólo asignados</option>
+      </select>
+      <input id="f-buscar" placeholder="Buscar" style="flex:1;min-width:110px">
+    </div>
+    <div class="barra">
+      <button class="btn sm" id="b-todos">Marcar lo visible</button>
+      <button class="btn sm" id="b-ninguno">Desmarcar</button>
+      <span class="spacer"></span>
+      <button class="btn sm primary" id="b-asignar">Agregar al circuito</button>
+    </div>
+    <div id="lista"></div>
+  </div>
+
+  <div class="col">
+    <h2>Circuitos</h2>
+    <div id="circuitos"></div>
+    <h2 style="margin-top:20px">Para revisar</h2>
+    <div id="avisos"></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const TIPOS_CIRCUITO = {
+  IUG:{n:'Iluminación de uso general', sec:1.5, prot:10, max:15},
+  TUG:{n:'Tomacorrientes de uso general', sec:2.5, prot:16, max:15},
+  IUE:{n:'Iluminación de uso especial', sec:1.5, prot:16, max:15},
+  TUE:{n:'Tomacorrientes de uso especial', sec:2.5, prot:20, max:12},
+  ACU:{n:'Aire acondicionado', sec:2.5, prot:20, max:6},
+  OCE:{n:'Otros circuitos específicos', sec:2.5, prot:20, max:12},
+};
+const SECCIONES = [1, 1.5, 2.5, 4, 6, 10, 16];
+const PROTECCIONES = [6, 10, 16, 20, 25, 32, 40, 50, 63];
+const SUBTIPOS = {
+  toma:['toma_doble','toma_simple','toma_tv','toma_datos','toma_exterior','preinstalacion_aa',
+        'toma_heladera','toma_horno','toma_microondas','toma_anafe','toma_lavarropas',
+        'toma_lavavajillas','toma_termotanque','especial'],
+  artefacto:['boca_techo','aplique_pared','artefacto_lineal'],
+  otros:['alimentacion_extractor','alimentacion_estufa','alimentacion_bomba',
+         'alimentacion_otros','toma_termotanque'],
+  llave:['llave_1_tecla','llave_2_teclas','llave_3_teclas'],
+};
+
+const $ = id => document.getElementById(id);
+const params = new URLSearchParams(location.search);
+const OBRA_ID = params.get('obra');
+let obra = null, marcados = new Set(), selCir = null;
+
+const api = async (ruta, opts={}) => {
+  const r = await fetch(ruta, {headers:{'Content-Type':'application/json'}, ...opts});
+  const d = await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error(d.error || 'Error inesperado');
+  return d;
+};
+function toast(m){const t=$('toast');t.textContent=m;t.style.display='block';
+  clearTimeout(t._t);t._t=setTimeout(()=>t.style.display='none',3000);}
+const esc = s => (s==null?'':String(s)).replace(/[&<>"]/g,
+  c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function circuitoDe(id){
+  return (obra.circuitos||[]).find(c => (c.elementos||[]).includes(id));
+}
+function rotulo(e){
+  const p = [e.subtipo || e.tipo];
+  if(e.nombre) p.push('“'+e.nombre+'”');
+  if(e.letra) p.push('tecla '+e.letra);
+  if(e.alturaM != null) p.push('h '+Number(e.alturaM).toFixed(2));
+  return p.join(' · ');
+}
+
+/* ---------------- carga ---------------- */
+async function cargar(){
+  obra = await api('/api/obras/'+OBRA_ID);
+  obra.circuitos = obra.circuitos || [];
+  $('h-nombre').textContent = obra.obra.nombre;
+  await revalidar();
+  pintar();
+}
+async function revalidar(){
+  try{
+    const r = await api('/api/obras/'+OBRA_ID+'/revalidar',
+      {method:'POST', body:JSON.stringify(obra)});
+    obra.elementos = r.elementos;
+    obra.validacion = r.validacion;
+  }catch(e){ /* si falla, se sigue con lo que hay */ }
+}
+
+/* ---------------- elementos ---------------- */
+function visibles(){
+  const t = $('f-tipo').value, est = $('f-estado').value;
+  const q = $('f-buscar').value.trim().toLowerCase();
+  return (obra.elementos||[]).filter(e=>{
+    if(t && e.tipo !== t) return false;
+    const c = circuitoDe(e.id);
+    if(est === 'libres' && c) return false;
+    if(est === 'tomados' && !c) return false;
+    if(q && !(e.id + ' ' + rotulo(e)).toLowerCase().includes(q)) return false;
+    return true;
+  });
+}
+function pintarElementos(){
+  const els = visibles();
+  const porTipo = {};
+  els.forEach(e => (porTipo[e.tipo] = porTipo[e.tipo] || []).push(e));
+  const nombres = {artefacto:'Artefactos', toma:'Tomas', otros:'Otros',
+                   llave:'Teclas', desconocido:'Sin reconocer'};
+  $('lista').innerHTML = Object.keys(porTipo).length
+    ? Object.entries(porTipo).map(([t, arr]) => `<div class="grupo">
+        <h3>${nombres[t]||t} · ${arr.length}</h3>
+        ${arr.map(e=>{
+          const c = circuitoDe(e.id);
+          return `<div class="el ${c?'asignado':''} ${marcados.has(e.id)?'marcado':''}" data-id="${e.id}">
+            <span>${esc(rotulo(e))}</span>
+            <span class="spacer"></span>
+            ${c?`<span class="tag cir">${esc(c.nombre||c.id)}</span>`:''}
+            <span class="id">${esc(e.id)}</span>
+          </div>`;}).join('')}
+      </div>`).join('')
+    : '<div class="vacio">No hay elementos que coincidan. Si esta obra no tiene plano, '
+      + 'cargalos con “Agregar elemento”.</div>';
+  $('lista').querySelectorAll('[data-id]').forEach(n => n.onclick = () => {
+    const id = n.dataset.id;
+    marcados.has(id) ? marcados.delete(id) : marcados.add(id);
+    pintarElementos();
+  });
+  $('h-sub').textContent = `${(obra.elementos||[]).length} elementos · `
+    + `${(obra.circuitos||[]).length} circuitos · ${marcados.size} marcados`;
+}
+
+/* ---------------- circuitos ---------------- */
+function pintarCircuitos(){
+  const cont = $('circuitos');
+  if(!obra.circuitos.length){
+    cont.innerHTML = '<div class="vacio">Todavía no hay circuitos. '
+      + 'Creá el primero con “Nuevo circuito”, marcá los elementos de la izquierda '
+      + 'y agregalos.</div>';
+    return;
+  }
+  cont.innerHTML = obra.circuitos.map(c=>{
+    const ids = c.elementos||[];
+    const bocas = ids.filter(id => {
+      const e = (obra.elementos||[]).find(x=>x.id===id);
+      return e && ['artefacto','toma','otros'].includes(e.tipo);
+    }).length;
+    const regla = TIPOS_CIRCUITO[c.tipo] || {};
+    return `<div class="circuito ${selCir===c.id?'sel':''}" data-cir="${c.id}">
+      <div class="cab">
+        <input value="${esc(c.nombre||'')}" data-campo="nombre" data-cir="${c.id}">
+        <span class="tag">${esc(c.tipo||'')}</span>
+        <span class="spacer"></span>
+        <span class="conteo">${bocas}${regla.max?' / '+regla.max:''} bocas</span>
+        <button class="btn sm" data-borrar="${c.id}" style="color:var(--danger)">×</button>
+      </div>
+      <div class="rejilla">
+        <div><label>Tipo</label><select data-campo="tipo" data-cir="${c.id}">
+          ${Object.keys(TIPOS_CIRCUITO).map(t=>
+            `<option ${t===c.tipo?'selected':''}>${t}</option>`).join('')}</select></div>
+        <div><label>Sección mm²</label><select data-campo="seccionMm2" data-cir="${c.id}">
+          ${SECCIONES.map(v=>`<option ${v===c.seccionMm2?'selected':''}>${v}</option>`).join('')}</select></div>
+        <div><label>Protección A</label><select data-campo="proteccionA" data-cir="${c.id}">
+          ${PROTECCIONES.map(v=>`<option ${v===c.proteccionA?'selected':''}>${v}</option>`).join('')}</select></div>
+      </div>
+      <div class="conteo">${esc(TIPOS_CIRCUITO[c.tipo]?.n||'')}</div>
+      ${ids.length?`<div style="margin-top:7px">${ids.map(id=>{
+        const e=(obra.elementos||[]).find(x=>x.id===id);
+        return `<span class="tag" style="margin:0 4px 4px 0;display:inline-block;cursor:pointer"
+          data-quitar="${id}" data-de="${c.id}">${esc(e?rotulo(e):id)} ×</span>`;
+      }).join('')}</div>`:''}
+    </div>`;
+  }).join('');
+
+  cont.querySelectorAll('.circuito').forEach(n => n.onclick = ev => {
+    if(ev.target.dataset.quitar || ev.target.dataset.borrar) return;
+    selCir = n.dataset.cir; pintarCircuitos();
+  });
+  cont.querySelectorAll('[data-campo]').forEach(n => n.onchange = () => {
+    const c = obra.circuitos.find(x=>x.id===n.dataset.cir);
+    const campo = n.dataset.campo;
+    c[campo] = campo === 'nombre' || campo === 'tipo' ? n.value : parseFloat(n.value);
+    if(campo === 'tipo'){
+      const r = TIPOS_CIRCUITO[c.tipo];
+      c.seccionMm2 = r.sec; c.proteccionA = r.prot;
+    }
+    actualizar();
+  });
+  cont.querySelectorAll('[data-borrar]').forEach(n => n.onclick = ev => {
+    ev.stopPropagation();
+    obra.circuitos = obra.circuitos.filter(c=>c.id!==n.dataset.borrar);
+    actualizar();
+  });
+  cont.querySelectorAll('[data-quitar]').forEach(n => n.onclick = ev => {
+    ev.stopPropagation();
+    const c = obra.circuitos.find(x=>x.id===n.dataset.de);
+    c.elementos = (c.elementos||[]).filter(i=>i!==n.dataset.quitar);
+    actualizar();
+  });
+}
+
+function pintarAvisos(){
+  const v = obra.validacion||{};
+  const todos = [...(v.errores||[]).map(a=>({...a,g:'error'})), ...(v.advertencias||[])];
+  const relevantes = todos.filter(a => ['elementos_sin_circuito','elemento_repetido',
+    'circuito_vacio','circuito_excedido','seccion_insuficiente','proteccion_excedida',
+    'elemento_inexistente'].includes(a.tipo));
+  $('avisos').innerHTML = relevantes.length
+    ? relevantes.map(a=>`<div class="aviso-item ${a.g==='error'?'error':''}">${esc(a.detalle)}</div>`).join('')
+    : '<div class="vacio">Todo asignado y dentro de los límites.</div>';
+}
+
+function pintar(){ pintarElementos(); pintarCircuitos(); pintarAvisos(); }
+async function actualizar(){ await revalidar(); pintar(); }
+
+/* ---------------- acciones ---------------- */
+$('b-nuevo').onclick = () => {
+  const n = obra.circuitos.length + 1;
+  const usados = obra.circuitos.filter(c=>c.tipo==='IUG').length + 1;
+  const c = {id:'cir_'+Date.now().toString(36), nombre:'IUG'+usados, tipo:'IUG',
+             seccionMm2:1.5, proteccionA:10, elementos:[], tableroId:null, notas:''};
+  obra.circuitos.push(c); selCir = c.id;
+  actualizar();
+};
+$('b-asignar').onclick = async () => {
+  if(!selCir){ toast('Elegí primero a qué circuito agregarlos.'); return; }
+  if(!marcados.size){ toast('No hay elementos marcados.'); return; }
+  const c = obra.circuitos.find(x=>x.id===selCir);
+  obra.circuitos.forEach(o => o.elementos = (o.elementos||[]).filter(i=>!marcados.has(i)));
+  c.elementos = [...new Set([...(c.elementos||[]), ...marcados])];
+  const n = marcados.size; marcados.clear();
+  await actualizar();
+  toast(`${n} agregados a ${c.nombre}`);
+};
+$('b-todos').onclick = () => { visibles().forEach(e=>marcados.add(e.id)); pintarElementos(); };
+$('b-ninguno').onclick = () => { marcados.clear(); pintarElementos(); };
+['f-tipo','f-estado','f-buscar'].forEach(id => $(id).addEventListener('input', pintarElementos));
+
+$('b-agregar-el').onclick = async () => {
+  const t = (prompt('¿Qué agregás? toma / artefacto / llave / otros', 'toma')||'').trim().toLowerCase();
+  if(!SUBTIPOS[t]) return;
+  const sub = (prompt('¿Qué es?\n'+SUBTIPOS[t].join('\n'), SUBTIPOS[t][0])||'').trim();
+  if(!sub) return;
+  const cant = parseInt(prompt('¿Cuántos?', '1')||'0', 10);
+  if(!(cant > 0)) return;
+  for(let i=0;i<cant;i++){
+    obra.elementos.push({
+      id: `${t[0].toUpperCase()}-man-${Date.now().toString(36)}${i}`,
+      tipo: t, subtipo: sub, alturaM: null, posicionM: null, posicionPdfPt: null,
+      origen: 'manual', revisadoPorUsuario: true,
+      notas: ['Cargado a mano, sin plano'],
+    });
+  }
+  await actualizar();
+  toast(`${cant} agregados`);
+};
+$('b-guardar').onclick = async () => {
+  try{
+    await api('/api/obras/'+OBRA_ID, {method:'PUT', body:JSON.stringify(obra)});
+    toast('Guardado');
+  }catch(e){ toast(e.message); }
+};
+$('b-volver').onclick = () => location.href = '/';
+document.addEventListener('keydown', e => {
+  if((e.ctrlKey||e.metaKey) && e.key==='s'){ e.preventDefault(); $('b-guardar').click(); }
+});
+
+cargar().catch(e => { $('h-sub').textContent = e.message; });
+</script>
+</body>
+</html>

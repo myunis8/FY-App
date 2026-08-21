@@ -3,6 +3,17 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 0.3.0 — circuitos
+
+- Módulo de circuitos: agrupar elementos en IUG, TUG, IUE, TUE, ACU y OCE,
+  con sección y protección por circuito.
+- Chequeos: elementos sin circuito, elementos en dos circuitos, circuito vacío,
+  máximo de bocas por tipo, sección mínima y protección contra sección.
+- Obras sin plano, para reparaciones y trabajos chicos: los elementos se cargan
+  a mano desde circuitos.
+- Corrige la leyenda "alimentación / extractor", que se partía en dos y hacía
+  saltar un falso aviso de caja faltante.
+
 ## 0.2.1
 
 - Corrige el desfase de los elementos en planos apaisados: el visor fijaba el
