@@ -121,20 +121,26 @@ def resumen(obra: dict) -> dict:
 
 
 # --------------------------------------------------------------- circuitos
+# familia: qué elementos entran en cada tipo de circuito
+#   luz    -> artefactos y las teclas que los comandan
+#   tomas  -> tomacorrientes y otras salidas de fuerza
 TIPOS_CIRCUITO = {
-    "IUG": {"nombre": "Iluminación de uso general", "maxBocas": 15,
-            "seccionMin": 1.5, "proteccionMax": 10},
-    "TUG": {"nombre": "Tomacorrientes de uso general", "maxBocas": 15,
-            "seccionMin": 2.5, "proteccionMax": 20},
-    "IUE": {"nombre": "Iluminación de uso especial", "maxBocas": 15,
-            "seccionMin": 1.5, "proteccionMax": 16},
-    "TUE": {"nombre": "Tomacorrientes de uso especial", "maxBocas": 12,
-            "seccionMin": 2.5, "proteccionMax": 20},
-    "ACU": {"nombre": "Aire acondicionado", "maxBocas": 6,
-            "seccionMin": 2.5, "proteccionMax": 25},
-    "OCE": {"nombre": "Otros circuitos específicos", "maxBocas": 12,
-            "seccionMin": 2.5, "proteccionMax": 32},
+    "IUG": {"nombre": "Iluminación de uso general", "familia": "luz", "maxBocas": 15,
+            "seccionMin": 1.5, "proteccionMax": 16, "seccion": 1.5, "proteccion": 10},
+    "TUG": {"nombre": "Tomacorrientes de uso general", "familia": "tomas", "maxBocas": 15,
+            "seccionMin": 2.5, "proteccionMax": 20, "seccion": 2.5, "proteccion": 16},
+    "IUE": {"nombre": "Iluminación de uso especial", "familia": "luz", "maxBocas": 15,
+            "seccionMin": 1.5, "proteccionMax": 16, "seccion": 1.5, "proteccion": 10},
+    "TUE": {"nombre": "Tomacorrientes de uso especial", "familia": "tomas", "maxBocas": 12,
+            "seccionMin": 2.5, "proteccionMax": 20, "seccion": 2.5, "proteccion": 16},
+    "ACU": {"nombre": "Aire acondicionado", "familia": "tomas", "maxBocas": 6,
+            "seccionMin": 2.5, "proteccionMax": 25, "seccion": 2.5, "proteccion": 20},
+    "OCE": {"nombre": "Otros circuitos específicos", "familia": "tomas", "maxBocas": 12,
+            "seccionMin": 2.5, "proteccionMax": 32, "seccion": 2.5, "proteccion": 20},
 }
+
+FAMILIA_DE_TIPO = {"artefacto": "luz", "llave": "luz",
+                   "toma": "tomas", "otros": "tomas"}
 
 # secciones y su corriente máxima de protección (cobre, cañería embutida)
 MAX_PROTECCION = {1.0: 10, 1.5: 16, 2.5: 20, 4.0: 25, 6.0: 32, 10.0: 50, 16.0: 63}
@@ -195,6 +201,14 @@ def validar_circuitos(obra: dict) -> list[dict]:
                            "circuitoId": c.get("id"),
                            "detalle": f"{nom}: {sec} mm² es menos que el mínimo de "
                                       f"{regla['seccionMin']} mm² para {c.get('tipo')}."})
+        familia = regla.get("familia")
+        mezclados = [i for i in ids
+                     if familia and FAMILIA_DE_TIPO.get(porId[i].get("tipo")) not in (familia, None)]
+        if mezclados:
+            avisos.append({"tipo": "familia_mezclada", "gravedad": "advertencia",
+                           "circuitoId": c.get("id"), "ids": mezclados,
+                           "detalle": f"{nom} es de {familia} pero tiene "
+                                      f"{len(mezclados)} elementos de otro tipo."})
         if sec and prot and MAX_PROTECCION.get(sec) and prot > MAX_PROTECCION[sec]:
             avisos.append({"tipo": "proteccion_excedida", "gravedad": "error",
                            "circuitoId": c.get("id"),

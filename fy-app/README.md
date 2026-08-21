@@ -102,7 +102,9 @@ Los módulos se enchufan sobre este esqueleto, cada uno declarando qué bloques
 del contrato consume y cuáles produce:
 
 1. **Extractor** — lee el PDF y llena `plano` y `elementos`. *(hecho)*
-2. **Circuitos** — agrupa a mano en IUG/TUG/TUE y llena `circuitos`. *(hecho)*
+2. **Circuitos** — se seleccionan por zona sobre el plano y llena `circuitos`. *(hecho)*
+3. **Precios y presupuesto** — lista global congelable por obra, extras,
+   opcionales, descuentos y PDF con logo y marca de agua. *(hecho)*
 3. **Validador** — función pura `validar(obra)`, llena `validacion`.
 4. **Canalización** — `canaliza.html` adaptado al contrato.
 5. **Cómputo** — deriva `computo` desde `canalizacion` y `circuitos`.

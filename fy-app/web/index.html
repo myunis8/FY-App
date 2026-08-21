@@ -110,6 +110,12 @@ main{max-width:1180px;margin:0 auto;padding:26px 22px 60px}
 .aviso{padding:10px 12px;border-radius:8px;font-size:.8rem;margin-bottom:14px;display:none;line-height:1.45}
 .aviso.ok{background:var(--green-soft);color:var(--green);display:block}
 .aviso.mal{background:var(--danger-soft);color:var(--danger);display:block}
+.fila-img{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+.prev{border:1px dashed var(--line);border-radius:8px;height:64px;display:flex;
+  align-items:center;justify-content:center;margin-bottom:6px;background:var(--slate-soft);
+  overflow:hidden}
+.prev span{font-size:.72rem;color:var(--muted)}
+.prev img{max-height:100%;max-width:100%;object-fit:contain}
 
 /* ---------- detalle ---------- */
 .bloques{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin:6px 0 4px}
@@ -138,6 +144,7 @@ main{max-width:1180px;margin:0 auto;padding:26px 22px 60px}
   <div class="spacer"></div>
   <div id="sync-estado"><span class="punto" id="sync-punto"></span><span id="sync-texto">Sin configurar</span></div>
   <button class="btn ghost" id="b-sync">Sincronizar</button>
+  <button class="btn ghost" onclick="location.href='/precios.html'">Precios</button>
   <button class="btn ghost" id="b-config">Configuración</button>
   <button class="btn primary" id="b-nueva">Nueva obra</button>
 </header>
@@ -192,6 +199,28 @@ main{max-width:1180px;margin:0 auto;padding:26px 22px 60px}
       <label for="c-rama">Rama</label>
       <input id="c-rama" class="mono" placeholder="main">
     </div>
+    <div class="campo">
+      <label for="c-empresa">Nombre de la empresa</label>
+      <input id="c-empresa" placeholder="Para el encabezado del presupuesto">
+    </div>
+    <div class="fila-img">
+      <div>
+        <label style="font-size:.78rem;font-weight:600;display:block;margin-bottom:5px">Logo</label>
+        <div class="prev" id="prev-logo"><span>Sin logo</span></div>
+        <button class="btn sm" id="c-logo">Subir logo</button>
+        <input type="file" id="f-logo" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden>
+      </div>
+      <div>
+        <label style="font-size:.78rem;font-weight:600;display:block;margin-bottom:5px">Marca de agua</label>
+        <div class="prev" id="prev-marca"><span>Sin imagen</span></div>
+        <button class="btn sm" id="c-marca">Subir marca de agua</button>
+        <input type="file" id="f-marca" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden>
+      </div>
+    </div>
+    <div class="campo">
+      <label for="c-opacidad">Opacidad de la marca de agua en el PDF (%)</label>
+      <input id="c-opacidad" type="number" min="2" max="40" value="8">
+    </div>
     <div class="acciones">
       <button class="btn" id="c-cerrar">Cancelar</button>
       <button class="btn" id="c-probar">Probar acceso</button>
@@ -241,7 +270,12 @@ main{max-width:1180px;margin:0 auto;padding:26px 22px 60px}
         y protecciones.</div></div>
       <button class="btn primary sm" id="d-circuitos">Abrir</button>
     </div>
-    <p class="ayuda" style="margin-top:16px">Precios y presupuesto se enchufan acá.</p>
+    <div class="plano-fila">
+      <div class="txt"><b>Presupuesto</b><span id="d-npresupuesto"></span>
+        <div class="nota">Cantidades, extras, descuentos y precio final.</div></div>
+      <button class="btn primary sm" id="d-presupuesto">Abrir</button>
+      <button class="btn sm" id="d-pdf">Descargar PDF</button>
+    </div>
     <div class="acciones">
       <button class="btn" id="d-borrar" style="margin-right:auto;color:var(--danger)">Borrar</button>
       <button class="btn" id="d-cerrar">Cerrar</button>
@@ -292,7 +326,8 @@ function cuando(ts){
 async function cargarEstado(){
   estadoApp = await api('/api/estado');
   const c = estadoApp.config;
-  $('hdr-sub').textContent = (c.usuario ? c.usuario+' · ' : '') + 'contrato v'+estadoApp.contrato;
+  $('hdr-sub').textContent = (c.usuario ? c.usuario+' · ' : '')
+    + `v${estadoApp.version} · contrato ${estadoApp.contrato}`;
   pintarSync(estadoApp.listoParaSync ? 'listo' : 'sin-config');
 }
 function pintarSync(modo, texto){
@@ -429,6 +464,11 @@ function pintarBloques(obra){
   $('d-ncircuitos').textContent = (obra.circuitos||[]).length
     ? `${obra.circuitos.length} armados` : 'Todavía ninguno';
   $('d-circuitos').onclick = () => location.href = '/circuitos.html?obra=' + obra.obra.id;
+  const nit = (obra.presupuesto?.items||[]).length + (obra.presupuesto?.extras||[]).length;
+  $('d-npresupuesto').textContent = nit ? `${nit} ítems` +
+    (obra.presupuesto?.congeladoEl ? ' · congelado' : ' · sin congelar') : 'Todavía ninguno';
+  $('d-presupuesto').onclick = () => location.href = '/presupuesto.html?obra=' + obra.obra.id;
+  $('d-pdf').onclick = () => window.open('/api/obras/' + obra.obra.id + '/presupuesto.pdf', '_blank');
   $('d-bloques').innerHTML = filas.map(([k,v]) =>
     `<div class="bloque"><b>${k}</b>${v}</div>`).join('');
 }
@@ -518,6 +558,9 @@ $('d-borrar').onclick = async () => {
 /* ---------------- configuración ---------------- */
 function abrirConfig(){
   const c = estadoApp.config;
+  $('c-empresa').value = c.empresa || '';
+  $('c-opacidad').value = c.opacidadMarca ?? 8;
+  pintarPrev('logo', c.logoCargado); pintarPrev('marca', c.marcaCargada);
   $('c-usuario').value=c.usuario||''; $('c-repo').value=c.repo||'';
   $('c-rama').value=c.rama||'main'; $('c-token').value='';
   $('c-token').placeholder = c.tokenCargado ? '•••••• (ya guardado)' : 'github_pat_…';
@@ -526,10 +569,27 @@ function abrirConfig(){
 }
 function datosConfig(){
   const d = {usuario:$('c-usuario').value.trim(), repo:$('c-repo').value.trim(),
-             rama:$('c-rama').value.trim()||'main'};
+             rama:$('c-rama').value.trim()||'main', empresa:$('c-empresa').value.trim(),
+             opacidadMarca: parseFloat($('c-opacidad').value)||8};
   const t=$('c-token').value.trim(); if(t) d.token=t;
   return d;
 }
+function pintarPrev(clave, cargado){
+  $('prev-'+clave).innerHTML = cargado
+    ? `<img src="/api/config/imagen/${clave}?t=${Date.now()}">` : '<span>Sin imagen</span>';
+}
+async function subirImagen(clave, file){
+  const r = await fetch('/api/config/imagen/'+clave, {method:'POST', body:file});
+  const d = await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error(d.error||'No se pudo subir');
+  pintarPrev(clave, true); toast('Imagen actualizada');
+}
+$('c-logo').onclick = () => $('f-logo').click();
+$('c-marca').onclick = () => $('f-marca').click();
+$('f-logo').onchange = e => { const f=e.target.files[0]; e.target.value='';
+  if(f) subirImagen('logo', f).catch(err=>toast(err.message)); };
+$('f-marca').onchange = e => { const f=e.target.files[0]; e.target.value='';
+  if(f) subirImagen('marca', f).catch(err=>toast(err.message)); };
 $('c-probar').onclick = async () => {
   mostrarAviso('cfg-aviso','ok','Probando lectura y escritura…');
   try{

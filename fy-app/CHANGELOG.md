@@ -3,6 +3,40 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 0.4.0 — precios y presupuesto
+
+- Lista de precios global (`web/precios.html`), editable por categoría, con
+  ajuste porcentual masivo.
+- Al presupuestar, los precios se **congelan dentro de la obra**: actualizar la
+  lista después no mueve un presupuesto ya armado. Si algún ítem congelado
+  cambió de precio en la lista vigente, se muestra la variación para decidir
+  si conviene reajustar.
+- Módulo de presupuesto (`web/presupuesto.html`): cantidades sugeridas desde
+  los elementos del plano, extras y adicionales, ítems marcables como
+  opcionales (se muestran aparte y no suman al total), descuento por
+  porcentaje o por monto fijo, y precio final para redondear (queda registrado
+  como "ajuste").
+- Logo y marca de agua configurables desde Configuración, con vista previa.
+  La marca de agua se puede regular en opacidad.
+- Generador de PDF del presupuesto (PyMuPDF, sin dependencias nuevas): logo,
+  datos de la empresa, tabla de trabajos, extras, opcionales y totales.
+- Se agrega `VERSIONING.md`: versión `0.MINOR.PATCH` hasta que el ciclo
+  completo (extraer, circuitos, canalización, presupuesto, seguimiento)
+  funcione de punta a punta, momento en que pasa a `1.0.0` con semver estricto.
+  La versión ahora se muestra en la cabecera del tablero.
+
+## 0.3.1
+
+- El armado de circuitos pasa a hacerse sobre el plano: se sombrea una zona con
+  el mouse y quedan marcados los elementos que correspondan al tipo de circuito
+  activo (iluminación o tomas). Shift suma a lo ya marcado.
+- Cada circuito muestra su color en el plano, y los elementos sin asignar quedan
+  en gris.
+- Valores por defecto por tipo: IUG 1,5 mm² / 10 A, TUG y TUE 2,5 mm² / 16 A,
+  ACU 2,5 mm² / 20 A.
+- Aviso nuevo cuando un circuito mezcla familias (una tecla dentro de un TUG).
+- Las obras sin plano siguen usando la lista.
+
 ## 0.3.0 — circuitos
 
 - Módulo de circuitos: agrupar elementos en IUG, TUG, IUE, TUE, ACU y OCE,

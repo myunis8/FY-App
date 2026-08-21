@@ -31,6 +31,8 @@ DIR_DATOS = Path(os.environ.get("OBRAS_DIR_DATOS") or _base_datos())
 DIR_CONFIG = Path(os.environ.get("OBRAS_DIR_CONFIG") or _base_config())
 DIR_OBRAS = DIR_DATOS / "obras"
 ARCHIVO_CONFIG = DIR_CONFIG / "config.json"
+DIR_IMAGENES = DIR_CONFIG / "imagenes"
+IMAGENES = {"logo": "logo", "marca": "marca"}     # logo de la empresa y marca de agua
 
 CONFIG_POR_DEFECTO = {
     "usuario": "",
@@ -38,6 +40,10 @@ CONFIG_POR_DEFECTO = {
     "token": "",           # PAT fine-grained; nunca se empaqueta en el .exe
     "rama": "main",
     "ultimaSync": 0,
+    "empresa": "",
+    "cuit": "",
+    "contacto": "",
+    "opacidadMarca": 8,          # % de opacidad de la marca de agua en el PDF
 }
 
 
@@ -57,6 +63,7 @@ def asegurar_carpetas():
     _mudar_datos_viejos()
     DIR_OBRAS.mkdir(parents=True, exist_ok=True)
     DIR_CONFIG.mkdir(parents=True, exist_ok=True)
+    DIR_IMAGENES.mkdir(parents=True, exist_ok=True)
 
 
 def leer_config() -> dict:
@@ -81,8 +88,34 @@ def guardar_config(nueva: dict) -> dict:
     return cfg
 
 
+def ruta_imagen(clave: str):
+    """Devuelve la imagen guardada para 'logo' o 'marca', si existe."""
+    if clave not in IMAGENES:
+        return None
+    for ext in (".png", ".jpg", ".jpeg", ".webp", ".svg"):
+        p = DIR_IMAGENES / (IMAGENES[clave] + ext)
+        if p.is_file():
+            return p
+    return None
+
+
+def guardar_imagen(clave: str, datos: bytes, ext: str):
+    asegurar_carpetas()
+    vieja = ruta_imagen(clave)
+    if vieja:
+        try:
+            vieja.unlink()
+        except OSError:
+            pass
+    destino = DIR_IMAGENES / (IMAGENES[clave] + ext)
+    destino.write_bytes(datos)
+    return destino
+
+
 def config_publica(cfg: dict | None = None) -> dict:
     """La misma config pero sin el token, para mandarla al navegador."""
     cfg = cfg or leer_config()
     return {**{k: v for k, v in cfg.items() if k != "token"},
-            "tokenCargado": bool(cfg.get("token"))}
+            "tokenCargado": bool(cfg.get("token")),
+            "logoCargado": ruta_imagen("logo") is not None,
+            "marcaCargada": ruta_imagen("marca") is not None}

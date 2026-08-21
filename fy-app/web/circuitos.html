@@ -33,50 +33,67 @@ header .sub{font-size:.72rem;color:#9db2c7}
 .btn.ghost{background:transparent;border-color:#33506e;color:#cfe0f0}
 .btn.ghost:hover{border-color:#5b7fa5}
 .btn.sm{padding:4px 9px;font-size:.75rem}
-.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn:disabled{opacity:.45;cursor:not-allowed}
 
-.cuerpo{flex:1;display:grid;grid-template-columns:1fr 1fr;gap:0;min-height:0}
-.col{overflow-y:auto;padding:16px 18px}
-.col+.col{border-left:1px solid var(--line);background:var(--panel)}
-h2{font-family:'Space Grotesk',sans-serif;font-size:.85rem;margin:0 0 10px;
+#accion{display:none;background:var(--copper);color:#fff;padding:9px 18px;
+  align-items:center;gap:12px;flex:0 0 auto;font-size:.84rem}
+#accion.activo{display:flex}
+#accion b{font-weight:600}
+
+.cuerpo{flex:1;display:grid;grid-template-columns:1fr 330px;min-height:0}
+#lienzo{position:relative;overflow:auto;background:#e7eae9;padding:18px}
+#envoltorio{position:relative;display:inline-block;background:#fff;
+  box-shadow:0 2px 14px rgba(14,28,46,.14)}
+#hoja{display:block;max-width:none}
+#capa{position:absolute;inset:0;width:100%;height:100%;overflow:visible;
+  cursor:crosshair;user-select:none}
+
+.el{stroke-width:1;fill-opacity:.9}
+.el.libre{fill:#9aa8b4;stroke:#6f7d89}
+.el.fuera{fill:#cfd6db;stroke:#bcc5cc;fill-opacity:.55}
+.el.marcado{stroke:#0e1c2e;stroke-width:2.4}
+.zona{fill:var(--copper);fill-opacity:.14;stroke:var(--copper);stroke-width:1;
+  stroke-dasharray:4 2.5}
+.origen{stroke:#b3432f;stroke-width:1.4}
+
+aside{background:var(--panel);border-left:1px solid var(--line);overflow-y:auto;padding:15px}
+aside h2{font-family:'Space Grotesk',sans-serif;font-size:.82rem;margin:0 0 9px;
   text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.seccion{margin-bottom:18px}
 
-.barra{display:flex;gap:8px;align-items:center;margin-bottom:11px;flex-wrap:wrap}
-.barra select,.barra input{padding:6px 9px;border:1px solid var(--line);border-radius:8px;background:#fff}
-
-/* lista de elementos */
-.grupo{margin-bottom:14px}
-.grupo h3{font-size:.75rem;margin:0 0 5px;color:var(--muted);font-weight:600;
-  text-transform:uppercase;letter-spacing:.04em}
-.el{display:flex;align-items:center;gap:9px;padding:5px 8px;border-radius:7px;
-  font-size:.8rem;cursor:pointer;border:1px solid transparent}
-.el:hover{background:var(--slate-soft)}
-.el.asignado{opacity:.5}
-.el.marcado{background:var(--copper-soft);border-color:var(--copper)}
-.el .id{font-family:'IBM Plex Mono',monospace;font-size:.68rem;color:var(--muted)}
-.el .spacer{flex:1}
-.tag{font-size:.66rem;padding:2px 7px;border-radius:99px;background:var(--slate-soft);
-  color:var(--muted);font-weight:600;white-space:nowrap}
-.tag.cir{background:var(--blue-soft);color:var(--blue)}
-
-/* circuitos */
-.circuito{border:1px solid var(--line);border-radius:var(--radius);padding:12px 13px;margin-bottom:10px}
-.circuito.sel{border-color:var(--copper);box-shadow:0 0 0 2px var(--copper-soft)}
-.circuito .cab{display:flex;align-items:center;gap:9px;margin-bottom:9px}
-.circuito .cab input{font-weight:600;border:none;border-bottom:1px solid var(--line);
-  padding:2px 0;width:110px;font-family:'Space Grotesk',sans-serif}
+.circuito{border:1px solid var(--line);border-left-width:5px;border-radius:8px;
+  padding:10px 11px;margin-bottom:8px;cursor:pointer}
+.circuito.sel{background:var(--copper-soft);border-color:var(--copper)}
+.circuito .cab{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.circuito .cab input{font-weight:600;border:none;background:transparent;width:80px;
+  border-bottom:1px solid transparent;font-family:'Space Grotesk',sans-serif;padding:1px 0}
 .circuito .cab input:focus{outline:none;border-color:var(--copper)}
-.rejilla{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-bottom:8px}
-.rejilla label{display:block;font-size:.68rem;color:var(--muted);font-weight:600;margin-bottom:3px}
-.rejilla select,.rejilla input{width:100%;padding:5px 7px;border:1px solid var(--line);border-radius:7px}
-.conteo{font-size:.75rem;color:var(--muted)}
-.aviso-item{border-left:3px solid var(--copper);background:var(--copper-soft);padding:8px 10px;
-  border-radius:0 6px 6px 0;margin-bottom:6px;font-size:.78rem;line-height:1.4}
+.rejilla{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+.rejilla label{display:block;font-size:.64rem;color:var(--muted);font-weight:600;margin-bottom:2px}
+.rejilla select{width:100%;padding:4px 5px;border:1px solid var(--line);border-radius:6px;
+  font-size:.76rem;background:#fff}
+.conteo{font-size:.72rem;color:var(--muted)}
+.tag{font-size:.64rem;padding:2px 7px;border-radius:99px;background:var(--slate-soft);
+  color:var(--muted);font-weight:600;white-space:nowrap}
+.punto{width:9px;height:9px;border-radius:50%;display:inline-block;flex:0 0 auto}
+
+.aviso-item{border-left:3px solid var(--copper);background:var(--copper-soft);padding:7px 9px;
+  border-radius:0 6px 6px 0;margin-bottom:5px;font-size:.77rem;line-height:1.4}
 .aviso-item.error{border-color:var(--danger);background:var(--danger-soft)}
-.vacio{color:var(--muted);font-size:.8rem;line-height:1.5;padding:10px 0}
+.vacio{color:var(--muted);font-size:.79rem;line-height:1.5;padding:8px 0}
+.leyenda{display:flex;gap:12px;font-size:.72rem;color:var(--muted);flex-wrap:wrap}
+.leyenda span{display:flex;align-items:center;gap:5px}
+
+#lista{padding:16px 18px;overflow-y:auto}
+.el-fila{display:flex;align-items:center;gap:9px;padding:5px 8px;border-radius:7px;
+  font-size:.8rem;cursor:pointer;border:1px solid transparent}
+.el-fila:hover{background:var(--slate-soft)}
+.el-fila.marcado{background:var(--copper-soft);border-color:var(--copper)}
+.el-fila .id{font-family:'IBM Plex Mono',monospace;font-size:.67rem;color:var(--muted)}
+
 #toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--navy-deep);
   color:#fff;padding:10px 17px;border-radius:var(--radius);font-size:.82rem;display:none;z-index:60}
-@media(max-width:900px){.cuerpo{grid-template-columns:1fr}.col+.col{border-left:none;border-top:1px solid var(--line)}}
+@media(max-width:900px){.cuerpo{grid-template-columns:1fr}aside{border-left:none;border-top:1px solid var(--line)}}
 </style>
 </head>
 <body>
@@ -88,59 +105,70 @@ h2{font-family:'Space Grotesk',sans-serif;font-size:.85rem;margin:0 0 10px;
   </div>
   <div class="spacer"></div>
   <button class="btn ghost" id="b-agregar-el">Agregar elemento</button>
-  <button class="btn ghost" id="b-nuevo">Nuevo circuito</button>
   <button class="btn ghost" id="b-volver">Volver</button>
   <button class="btn primary" id="b-guardar">Guardar</button>
 </header>
 
-<div class="cuerpo">
-  <div class="col">
-    <h2>Elementos</h2>
-    <div class="barra">
-      <select id="f-tipo">
-        <option value="">Todos</option>
-        <option value="artefacto">Artefactos</option>
-        <option value="toma">Tomas</option>
-        <option value="otros">Otros</option>
-        <option value="llave">Teclas</option>
-      </select>
-      <select id="f-estado">
-        <option value="">Asignados y sin asignar</option>
-        <option value="libres">Sólo sin circuito</option>
-        <option value="tomados">Sólo asignados</option>
-      </select>
-      <input id="f-buscar" placeholder="Buscar" style="flex:1;min-width:110px">
-    </div>
-    <div class="barra">
-      <button class="btn sm" id="b-todos">Marcar lo visible</button>
-      <button class="btn sm" id="b-ninguno">Desmarcar</button>
-      <span class="spacer"></span>
-      <button class="btn sm primary" id="b-asignar">Agregar al circuito</button>
-    </div>
-    <div id="lista"></div>
-  </div>
+<div id="accion">
+  <b id="a-texto"></b>
+  <span class="spacer"></span>
+  <button class="btn sm" id="a-limpiar">Desmarcar</button>
+  <button class="btn sm primary" id="a-agregar">Agregar al circuito</button>
+</div>
 
-  <div class="col">
-    <h2>Circuitos</h2>
-    <div id="circuitos"></div>
-    <h2 style="margin-top:20px">Para revisar</h2>
-    <div id="avisos"></div>
+<div class="cuerpo">
+  <div id="lienzo">
+    <div id="envoltorio">
+      <img id="hoja" alt="Plano de la obra">
+      <svg id="capa" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
   </div>
+  <div id="lista" style="display:none"></div>
+
+  <aside>
+    <div class="seccion">
+      <h2>Circuitos</h2>
+      <div id="circuitos"></div>
+      <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+        <button class="btn sm" data-nuevo="IUG">+ IUG</button>
+        <button class="btn sm" data-nuevo="TUG">+ TUG</button>
+        <button class="btn sm" data-nuevo="TUE">+ TUE</button>
+        <button class="btn sm" data-nuevo="ACU">+ ACU</button>
+      </div>
+    </div>
+
+    <div class="seccion">
+      <h2>Referencias</h2>
+      <div class="leyenda">
+        <span><i class="punto" style="background:#9aa8b4"></i> sin circuito</span>
+        <span><i class="punto" style="background:#cfd6db"></i> no entra en este tipo</span>
+      </div>
+      <div class="conteo" style="margin-top:7px" id="p-ayuda"></div>
+    </div>
+
+    <div class="seccion">
+      <h2>Para revisar</h2>
+      <div id="avisos"></div>
+    </div>
+  </aside>
 </div>
 
 <div id="toast"></div>
 
 <script>
-const TIPOS_CIRCUITO = {
-  IUG:{n:'Iluminación de uso general', sec:1.5, prot:10, max:15},
-  TUG:{n:'Tomacorrientes de uso general', sec:2.5, prot:16, max:15},
-  IUE:{n:'Iluminación de uso especial', sec:1.5, prot:16, max:15},
-  TUE:{n:'Tomacorrientes de uso especial', sec:2.5, prot:20, max:12},
-  ACU:{n:'Aire acondicionado', sec:2.5, prot:20, max:6},
-  OCE:{n:'Otros circuitos específicos', sec:2.5, prot:20, max:12},
+const TIPOS = {
+  IUG:{n:'Iluminación de uso general', fam:'luz',   sec:1.5, prot:10, max:15},
+  TUG:{n:'Tomacorrientes de uso general', fam:'tomas', sec:2.5, prot:16, max:15},
+  IUE:{n:'Iluminación de uso especial', fam:'luz',  sec:1.5, prot:10, max:15},
+  TUE:{n:'Tomacorrientes de uso especial', fam:'tomas', sec:2.5, prot:16, max:12},
+  ACU:{n:'Aire acondicionado', fam:'tomas', sec:2.5, prot:20, max:6},
+  OCE:{n:'Otros circuitos específicos', fam:'tomas', sec:2.5, prot:20, max:12},
 };
+const FAMILIA = {artefacto:'luz', llave:'luz', toma:'tomas', otros:'tomas'};
 const SECCIONES = [1, 1.5, 2.5, 4, 6, 10, 16];
 const PROTECCIONES = [6, 10, 16, 20, 25, 32, 40, 50, 63];
+const COLORES = ['#2b6ca3','#2f7d5c','#b5651d','#8e44ad','#c0392b','#16a085',
+                 '#d68910','#5d6d7e','#1f618d','#117864'];
 const SUBTIPOS = {
   toma:['toma_doble','toma_simple','toma_tv','toma_datos','toma_exterior','preinstalacion_aa',
         'toma_heladera','toma_horno','toma_microondas','toma_anafe','toma_lavarropas',
@@ -150,11 +178,11 @@ const SUBTIPOS = {
          'alimentacion_otros','toma_termotanque'],
   llave:['llave_1_tecla','llave_2_teclas','llave_3_teclas'],
 };
+const ZOOM = 2;
 
 const $ = id => document.getElementById(id);
-const params = new URLSearchParams(location.search);
-const OBRA_ID = params.get('obra');
-let obra = null, marcados = new Set(), selCir = null;
+const OBRA_ID = new URLSearchParams(location.search).get('obra');
+let obra = null, marcados = new Set(), selCir = null, zona = null, conPlano = false;
 
 const api = async (ruta, opts={}) => {
   const r = await fetch(ruta, {headers:{'Content-Type':'application/json'}, ...opts});
@@ -167,9 +195,8 @@ function toast(m){const t=$('toast');t.textContent=m;t.style.display='block';
 const esc = s => (s==null?'':String(s)).replace(/[&<>"]/g,
   c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
-function circuitoDe(id){
-  return (obra.circuitos||[]).find(c => (c.elementos||[]).includes(id));
-}
+const circuitoDe = id => (obra.circuitos||[]).find(c => (c.elementos||[]).includes(id));
+const colorDe = c => COLORES[(obra.circuitos||[]).findIndex(x=>x.id===c.id) % COLORES.length];
 function rotulo(e){
   const p = [e.subtipo || e.tipo];
   if(e.nombre) p.push('“'+e.nombre+'”');
@@ -177,14 +204,39 @@ function rotulo(e){
   if(e.alturaM != null) p.push('h '+Number(e.alturaM).toFixed(2));
   return p.join(' · ');
 }
+/* un elemento entra en el circuito activo sólo si es de su familia */
+function elegible(e){
+  if(!e) return false;
+  const c = (obra.circuitos||[]).find(x=>x.id===selCir);
+  if(!c) return FAMILIA[e.tipo] !== undefined;
+  return FAMILIA[e.tipo] === (TIPOS[c.tipo]||{}).fam;
+}
 
 /* ---------------- carga ---------------- */
 async function cargar(){
   obra = await api('/api/obras/'+OBRA_ID);
   obra.circuitos = obra.circuitos || [];
   $('h-nombre').textContent = obra.obra.nombre;
+  conPlano = !!(obra.plano && obra.plano.referencia);
+  if(conPlano){
+    const img = $('hoja');
+    img.onload = () => { dimensionar(); pintar(); };
+    img.src = '/api/obras/'+OBRA_ID+'/plano.png?zoom='+ZOOM;
+  } else {
+    $('lienzo').style.display = 'none';
+    $('lista').style.display = 'block';
+  }
+  if(!selCir && obra.circuitos.length) selCir = obra.circuitos[0].id;
   await revalidar();
   pintar();
+}
+function dimensionar(){
+  const img = $('hoja');
+  let p = obra.plano && obra.plano.paginaPt;
+  if(!p && img.naturalWidth) p = {ancho: img.naturalWidth/ZOOM, alto: img.naturalHeight/ZOOM};
+  if(!p) return;
+  $('capa').setAttribute('viewBox', `0 0 ${p.ancho} ${p.alto}`);
+  if(img.naturalWidth) $('envoltorio').style.width = img.naturalWidth + 'px';
 }
 async function revalidar(){
   try{
@@ -192,157 +244,220 @@ async function revalidar(){
       {method:'POST', body:JSON.stringify(obra)});
     obra.elementos = r.elementos;
     obra.validacion = r.validacion;
-  }catch(e){ /* si falla, se sigue con lo que hay */ }
+  }catch(e){}
 }
 
-/* ---------------- elementos ---------------- */
-function visibles(){
-  const t = $('f-tipo').value, est = $('f-estado').value;
-  const q = $('f-buscar').value.trim().toLowerCase();
-  return (obra.elementos||[]).filter(e=>{
-    if(t && e.tipo !== t) return false;
+/* ---------------- plano ---------------- */
+function pintarPlano(){
+  if(!conPlano) return;
+  dimensionar();
+  let html = '';
+  (obra.elementos||[]).forEach(e=>{
+    if(!e.posicionPdfPt) return;
     const c = circuitoDe(e.id);
-    if(est === 'libres' && c) return false;
-    if(est === 'tomados' && !c) return false;
-    if(q && !(e.id + ' ' + rotulo(e)).toLowerCase().includes(q)) return false;
-    return true;
+    const ok = elegible(e);
+    const clase = c ? '' : (ok ? 'libre' : 'fuera');
+    const relleno = c ? ` style="fill:${colorDe(c)};stroke:${colorDe(c)}"` : '';
+    html += `<circle class="el ${clase} ${marcados.has(e.id)?'marcado':''}"${relleno}
+      ${ok?'':'opacity="0.5"'} cx="${e.posicionPdfPt.x}" cy="${e.posicionPdfPt.y}"
+      r="${ok?3.6:2.4}" data-id="${e.id}"><title>${esc(rotulo(e))}${
+        c?' · '+esc(c.nombre):''}</title></circle>`;
   });
-}
-function pintarElementos(){
-  const els = visibles();
-  const porTipo = {};
-  els.forEach(e => (porTipo[e.tipo] = porTipo[e.tipo] || []).push(e));
-  const nombres = {artefacto:'Artefactos', toma:'Tomas', otros:'Otros',
-                   llave:'Teclas', desconocido:'Sin reconocer'};
-  $('lista').innerHTML = Object.keys(porTipo).length
-    ? Object.entries(porTipo).map(([t, arr]) => `<div class="grupo">
-        <h3>${nombres[t]||t} · ${arr.length}</h3>
-        ${arr.map(e=>{
-          const c = circuitoDe(e.id);
-          return `<div class="el ${c?'asignado':''} ${marcados.has(e.id)?'marcado':''}" data-id="${e.id}">
-            <span>${esc(rotulo(e))}</span>
-            <span class="spacer"></span>
-            ${c?`<span class="tag cir">${esc(c.nombre||c.id)}</span>`:''}
-            <span class="id">${esc(e.id)}</span>
-          </div>`;}).join('')}
-      </div>`).join('')
-    : '<div class="vacio">No hay elementos que coincidan. Si esta obra no tiene plano, '
-      + 'cargalos con “Agregar elemento”.</div>';
-  $('lista').querySelectorAll('[data-id]').forEach(n => n.onclick = () => {
-    const id = n.dataset.id;
-    marcados.has(id) ? marcados.delete(id) : marcados.add(id);
-    pintarElementos();
+  if(zona)
+    html += `<rect class="zona" x="${Math.min(zona.x0,zona.x1)}" y="${Math.min(zona.y0,zona.y1)}"
+      width="${Math.abs(zona.x1-zona.x0)}" height="${Math.abs(zona.y1-zona.y0)}"/>`;
+  const o = obra.plano.referencia.origenPdfPt;
+  html += `<path class="origen" d="M${o.x-5},${o.y} h10 M${o.x},${o.y-5} v10" fill="none"/>`;
+  $('capa').innerHTML = html;
+  $('capa').querySelectorAll('[data-id]').forEach(n => n.onclick = ev => {
+    ev.stopPropagation();
+    const e = (obra.elementos||[]).find(x=>x.id===n.dataset.id);
+    if(!elegible(e)){ toast('Ese elemento no entra en un circuito de este tipo.'); return; }
+    marcados.has(e.id) ? marcados.delete(e.id) : marcados.add(e.id);
+    pintarPlano(); pintarAccion();
   });
-  $('h-sub').textContent = `${(obra.elementos||[]).length} elementos · `
-    + `${(obra.circuitos||[]).length} circuitos · ${marcados.size} marcados`;
 }
 
-/* ---------------- circuitos ---------------- */
+/* selección por zona: se arrastra un rectángulo sobre el plano */
+(function selectorDeZona(){
+  const capa = $('capa');
+  let arrastrando = false, sumar = false;
+  const pt = ev => {
+    const r = $('hoja').getBoundingClientRect();
+    const p = obra.plano.paginaPt;
+    return [(ev.clientX-r.left)/r.width*p.ancho, (ev.clientY-r.top)/r.height*p.alto];
+  };
+  capa.addEventListener('mousedown', ev => {
+    if(!conPlano || ev.target.dataset.id) return;
+    const [x,y] = pt(ev);
+    arrastrando = true; sumar = ev.shiftKey;
+    zona = {x0:x, y0:y, x1:x, y1:y};
+    ev.preventDefault();
+  });
+  window.addEventListener('mousemove', ev => {
+    if(!arrastrando) return;
+    const [x,y] = pt(ev);
+    zona.x1 = x; zona.y1 = y;
+    pintarPlano();
+  });
+  window.addEventListener('mouseup', () => {
+    if(!arrastrando) return;
+    arrastrando = false;
+    const z = zona; zona = null;
+    if(!z || Math.abs(z.x1-z.x0) < 3 || Math.abs(z.y1-z.y0) < 3){ pintarPlano(); return; }
+    if(!sumar) marcados.clear();
+    const x0=Math.min(z.x0,z.x1), x1=Math.max(z.x0,z.x1);
+    const y0=Math.min(z.y0,z.y1), y1=Math.max(z.y0,z.y1);
+    (obra.elementos||[]).forEach(e=>{
+      if(!e.posicionPdfPt || !elegible(e)) return;
+      const {x,y} = e.posicionPdfPt;
+      if(x>=x0 && x<=x1 && y>=y0 && y<=y1) marcados.add(e.id);
+    });
+    pintarPlano(); pintarAccion();
+  });
+})();
+
+/* ---------------- lista, para obras sin plano ---------------- */
+function pintarLista(){
+  if(conPlano) return;
+  const els = (obra.elementos||[]).filter(e => FAMILIA[e.tipo]);
+  $('lista').innerHTML = els.length ? els.map(e=>{
+    const c = circuitoDe(e.id);
+    return `<div class="el-fila ${marcados.has(e.id)?'marcado':''}"
+      style="${elegible(e)?'':'opacity:.45'}" data-id="${e.id}">
+      <span>${esc(rotulo(e))}</span><span style="flex:1"></span>
+      ${c?`<span class="tag" style="color:${colorDe(c)}">${esc(c.nombre)}</span>`:''}
+      <span class="id">${esc(e.id)}</span></div>`;
+  }).join('') : '<div class="vacio">Esta obra no tiene elementos todavía. '
+    + 'Cargalos con “Agregar elemento”.</div>';
+  $('lista').querySelectorAll('[data-id]').forEach(n => n.onclick = () => {
+    const e = (obra.elementos||[]).find(x=>x.id===n.dataset.id);
+    if(!elegible(e)){ toast('Ese elemento no entra en un circuito de este tipo.'); return; }
+    marcados.has(e.id) ? marcados.delete(e.id) : marcados.add(e.id);
+    pintarLista(); pintarAccion();
+  });
+}
+
+/* ---------------- panel ---------------- */
 function pintarCircuitos(){
   const cont = $('circuitos');
   if(!obra.circuitos.length){
-    cont.innerHTML = '<div class="vacio">Todavía no hay circuitos. '
-      + 'Creá el primero con “Nuevo circuito”, marcá los elementos de la izquierda '
-      + 'y agregalos.</div>';
+    cont.innerHTML = '<div class="vacio">Creá un circuito acá abajo, después sombreá '
+      + 'una zona del plano con el mouse y los elementos que correspondan se marcan solos.</div>';
     return;
   }
   cont.innerHTML = obra.circuitos.map(c=>{
-    const ids = c.elementos||[];
-    const bocas = ids.filter(id => {
+    const regla = TIPOS[c.tipo] || {};
+    const bocas = (c.elementos||[]).filter(id=>{
       const e = (obra.elementos||[]).find(x=>x.id===id);
       return e && ['artefacto','toma','otros'].includes(e.tipo);
     }).length;
-    const regla = TIPOS_CIRCUITO[c.tipo] || {};
-    return `<div class="circuito ${selCir===c.id?'sel':''}" data-cir="${c.id}">
+    return `<div class="circuito ${selCir===c.id?'sel':''}"
+        style="border-left-color:${colorDe(c)}" data-cir="${c.id}">
       <div class="cab">
+        <i class="punto" style="background:${colorDe(c)}"></i>
         <input value="${esc(c.nombre||'')}" data-campo="nombre" data-cir="${c.id}">
-        <span class="tag">${esc(c.tipo||'')}</span>
-        <span class="spacer"></span>
-        <span class="conteo">${bocas}${regla.max?' / '+regla.max:''} bocas</span>
-        <button class="btn sm" data-borrar="${c.id}" style="color:var(--danger)">×</button>
+        <span style="flex:1"></span>
+        <span class="conteo">${bocas}${regla.max?'/'+regla.max:''}</span>
+        <button class="btn sm" data-borrar="${c.id}"
+          style="color:var(--danger);padding:2px 7px">×</button>
       </div>
       <div class="rejilla">
         <div><label>Tipo</label><select data-campo="tipo" data-cir="${c.id}">
-          ${Object.keys(TIPOS_CIRCUITO).map(t=>
-            `<option ${t===c.tipo?'selected':''}>${t}</option>`).join('')}</select></div>
-        <div><label>Sección mm²</label><select data-campo="seccionMm2" data-cir="${c.id}">
-          ${SECCIONES.map(v=>`<option ${v===c.seccionMm2?'selected':''}>${v}</option>`).join('')}</select></div>
-        <div><label>Protección A</label><select data-campo="proteccionA" data-cir="${c.id}">
-          ${PROTECCIONES.map(v=>`<option ${v===c.proteccionA?'selected':''}>${v}</option>`).join('')}</select></div>
+          ${Object.keys(TIPOS).map(t=>`<option ${t===c.tipo?'selected':''}>${t}</option>`).join('')}
+        </select></div>
+        <div><label>mm²</label><select data-campo="seccionMm2" data-cir="${c.id}">
+          ${SECCIONES.map(v=>`<option ${v===c.seccionMm2?'selected':''}>${v}</option>`).join('')}
+        </select></div>
+        <div><label>Prot. A</label><select data-campo="proteccionA" data-cir="${c.id}">
+          ${PROTECCIONES.map(v=>`<option ${v===c.proteccionA?'selected':''}>${v}</option>`).join('')}
+        </select></div>
       </div>
-      <div class="conteo">${esc(TIPOS_CIRCUITO[c.tipo]?.n||'')}</div>
-      ${ids.length?`<div style="margin-top:7px">${ids.map(id=>{
-        const e=(obra.elementos||[]).find(x=>x.id===id);
-        return `<span class="tag" style="margin:0 4px 4px 0;display:inline-block;cursor:pointer"
-          data-quitar="${id}" data-de="${c.id}">${esc(e?rotulo(e):id)} ×</span>`;
-      }).join('')}</div>`:''}
     </div>`;
   }).join('');
 
   cont.querySelectorAll('.circuito').forEach(n => n.onclick = ev => {
-    if(ev.target.dataset.quitar || ev.target.dataset.borrar) return;
-    selCir = n.dataset.cir; pintarCircuitos();
+    if(ev.target.dataset.campo || ev.target.dataset.borrar) return;
+    selCir = n.dataset.cir;
+    [...marcados].forEach(id => {
+      const e = (obra.elementos||[]).find(x=>x.id===id);
+      if(!elegible(e)) marcados.delete(id);      // cambió la familia del circuito
+    });
+    pintar();
   });
-  cont.querySelectorAll('[data-campo]').forEach(n => n.onchange = () => {
-    const c = obra.circuitos.find(x=>x.id===n.dataset.cir);
-    const campo = n.dataset.campo;
-    c[campo] = campo === 'nombre' || campo === 'tipo' ? n.value : parseFloat(n.value);
-    if(campo === 'tipo'){
-      const r = TIPOS_CIRCUITO[c.tipo];
-      c.seccionMm2 = r.sec; c.proteccionA = r.prot;
-    }
-    actualizar();
+  cont.querySelectorAll('[data-campo]').forEach(n => {
+    n.onclick = ev => ev.stopPropagation();
+    n.onchange = () => {
+      const c = obra.circuitos.find(x=>x.id===n.dataset.cir);
+      const campo = n.dataset.campo;
+      c[campo] = (campo === 'nombre' || campo === 'tipo') ? n.value : parseFloat(n.value);
+      if(campo === 'tipo'){
+        const r = TIPOS[c.tipo];
+        c.seccionMm2 = r.sec; c.proteccionA = r.prot;
+      }
+      actualizar();
+    };
   });
   cont.querySelectorAll('[data-borrar]').forEach(n => n.onclick = ev => {
     ev.stopPropagation();
     obra.circuitos = obra.circuitos.filter(c=>c.id!==n.dataset.borrar);
-    actualizar();
-  });
-  cont.querySelectorAll('[data-quitar]').forEach(n => n.onclick = ev => {
-    ev.stopPropagation();
-    const c = obra.circuitos.find(x=>x.id===n.dataset.de);
-    c.elementos = (c.elementos||[]).filter(i=>i!==n.dataset.quitar);
+    if(selCir === n.dataset.borrar) selCir = (obra.circuitos[0]||{}).id || null;
     actualizar();
   });
 }
 
+function pintarAccion(){
+  const c = (obra.circuitos||[]).find(x=>x.id===selCir);
+  const b = $('accion');
+  if(!marcados.size){ b.className=''; return; }
+  b.className = 'activo';
+  $('a-texto').textContent = `${marcados.size} marcados`
+    + (c ? ` · van a ${c.nombre}` : ' · elegí a qué circuito');
+  $('a-agregar').disabled = !c;
+}
 function pintarAvisos(){
   const v = obra.validacion||{};
   const todos = [...(v.errores||[]).map(a=>({...a,g:'error'})), ...(v.advertencias||[])];
-  const relevantes = todos.filter(a => ['elementos_sin_circuito','elemento_repetido',
-    'circuito_vacio','circuito_excedido','seccion_insuficiente','proteccion_excedida',
+  const rel = todos.filter(a => ['elementos_sin_circuito','elemento_repetido','circuito_vacio',
+    'circuito_excedido','seccion_insuficiente','proteccion_excedida','familia_mezclada',
     'elemento_inexistente'].includes(a.tipo));
-  $('avisos').innerHTML = relevantes.length
-    ? relevantes.map(a=>`<div class="aviso-item ${a.g==='error'?'error':''}">${esc(a.detalle)}</div>`).join('')
+  $('avisos').innerHTML = rel.length
+    ? rel.map(a=>`<div class="aviso-item ${a.g==='error'?'error':''}">${esc(a.detalle)}</div>`).join('')
     : '<div class="vacio">Todo asignado y dentro de los límites.</div>';
 }
-
-function pintar(){ pintarElementos(); pintarCircuitos(); pintarAvisos(); }
+function pintar(){
+  pintarPlano(); pintarLista(); pintarCircuitos(); pintarAvisos(); pintarAccion();
+  const c = (obra.circuitos||[]).find(x=>x.id===selCir);
+  const libres = (obra.elementos||[]).filter(e => FAMILIA[e.tipo] && !circuitoDe(e.id)).length;
+  $('h-sub').textContent = `${obra.circuitos.length} circuitos · ${libres} sin asignar`;
+  $('p-ayuda').innerHTML = c
+    ? `Sombreá una zona con el mouse: se marcan sólo los de <b>${TIPOS[c.tipo].fam}</b>. `
+      + 'Con Shift, suma a lo que ya estaba marcado.'
+    : 'Elegí un circuito para empezar a marcar.';
+}
 async function actualizar(){ await revalidar(); pintar(); }
 
 /* ---------------- acciones ---------------- */
-$('b-nuevo').onclick = () => {
-  const n = obra.circuitos.length + 1;
-  const usados = obra.circuitos.filter(c=>c.tipo==='IUG').length + 1;
-  const c = {id:'cir_'+Date.now().toString(36), nombre:'IUG'+usados, tipo:'IUG',
-             seccionMm2:1.5, proteccionA:10, elementos:[], tableroId:null, notas:''};
-  obra.circuitos.push(c); selCir = c.id;
+document.querySelectorAll('[data-nuevo]').forEach(b => b.onclick = () => {
+  const tipo = b.dataset.nuevo;
+  const n = obra.circuitos.filter(c=>c.tipo===tipo).length + 1;
+  const r = TIPOS[tipo];
+  const c = {id:'cir_'+Date.now().toString(36), nombre:tipo+n, tipo,
+             seccionMm2:r.sec, proteccionA:r.prot, elementos:[], tableroId:null, notas:''};
+  obra.circuitos.push(c); selCir = c.id; marcados.clear();
   actualizar();
-};
-$('b-asignar').onclick = async () => {
-  if(!selCir){ toast('Elegí primero a qué circuito agregarlos.'); return; }
-  if(!marcados.size){ toast('No hay elementos marcados.'); return; }
+});
+$('a-agregar').onclick = async () => {
   const c = obra.circuitos.find(x=>x.id===selCir);
+  if(!c || !marcados.size) return;
+  // si estaban en otro circuito, se mueven: nunca quedan en dos a la vez
   obra.circuitos.forEach(o => o.elementos = (o.elementos||[]).filter(i=>!marcados.has(i)));
   c.elementos = [...new Set([...(c.elementos||[]), ...marcados])];
   const n = marcados.size; marcados.clear();
   await actualizar();
   toast(`${n} agregados a ${c.nombre}`);
 };
-$('b-todos').onclick = () => { visibles().forEach(e=>marcados.add(e.id)); pintarElementos(); };
-$('b-ninguno').onclick = () => { marcados.clear(); pintarElementos(); };
-['f-tipo','f-estado','f-buscar'].forEach(id => $(id).addEventListener('input', pintarElementos));
-
+$('a-limpiar').onclick = () => { marcados.clear(); pintar(); };
 $('b-agregar-el').onclick = async () => {
   const t = (prompt('¿Qué agregás? toma / artefacto / llave / otros', 'toma')||'').trim().toLowerCase();
   if(!SUBTIPOS[t]) return;
@@ -350,14 +465,10 @@ $('b-agregar-el').onclick = async () => {
   if(!sub) return;
   const cant = parseInt(prompt('¿Cuántos?', '1')||'0', 10);
   if(!(cant > 0)) return;
-  for(let i=0;i<cant;i++){
-    obra.elementos.push({
-      id: `${t[0].toUpperCase()}-man-${Date.now().toString(36)}${i}`,
-      tipo: t, subtipo: sub, alturaM: null, posicionM: null, posicionPdfPt: null,
-      origen: 'manual', revisadoPorUsuario: true,
-      notas: ['Cargado a mano, sin plano'],
-    });
-  }
+  for(let i=0;i<cant;i++)
+    obra.elementos.push({id:`${t[0].toUpperCase()}-man-${Date.now().toString(36)}${i}`,
+      tipo:t, subtipo:sub, alturaM:null, posicionM:null, posicionPdfPt:null,
+      origen:'manual', revisadoPorUsuario:true, notas:['Cargado a mano']});
   await actualizar();
   toast(`${cant} agregados`);
 };
@@ -369,7 +480,9 @@ $('b-guardar').onclick = async () => {
 };
 $('b-volver').onclick = () => location.href = '/';
 document.addEventListener('keydown', e => {
-  if((e.ctrlKey||e.metaKey) && e.key==='s'){ e.preventDefault(); $('b-guardar').click(); }
+  if(e.key === 'Escape'){ marcados.clear(); zona = null; pintar(); }
+  if(e.key === 'Enter' && marcados.size) $('a-agregar').click();
+  if((e.ctrlKey||e.metaKey) && e.key === 's'){ e.preventDefault(); $('b-guardar').click(); }
 });
 
 cargar().catch(e => { $('h-sub').textContent = e.message; });

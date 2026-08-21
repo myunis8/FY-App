@@ -5,7 +5,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
-from . import almacen, config as cfgmod, contrato as C, extraccion, github as gh, sync, vinculos
+from . import (almacen, config as cfgmod, contrato as C, extraccion, github as gh,
+               pdf_presupuesto, precios as precios_mod, presupuesto as pres_mod, sync, vinculos)
 
 if getattr(sys, "frozen", False):
     DIR_WEB = Path(sys._MEIPASS) / "web"        # bundle de PyInstaller
@@ -60,6 +61,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._extraer(partes[2])
             if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "revalidar":
                 return self._revalidar(partes[2])
+            if len(partes) == 4 and partes[:3] == ["api", "config", "imagen"]:
+                return self._subir_imagen(partes[3])
             return self._api_post(ruta)
         except gh.ErrorSync as e:
             return self._error(e.mensaje, 409 if e.conflicto else 502,
@@ -88,8 +91,9 @@ class Handler(BaseHTTPRequestHandler):
         partes = [p for p in ruta.split("/") if p]
         if ruta == "/api/estado":
             cfg = cfgmod.leer_config()
+            from . import __version__
             return self._json({
-                "version": "0.1",
+                "version": __version__,
                 "contrato": C.CONTRATO,
                 "config": cfgmod.config_publica(cfg),
                 "carpetaDatos": str(cfgmod.DIR_OBRAS),
@@ -97,6 +101,21 @@ class Handler(BaseHTTPRequestHandler):
             })
         if ruta == "/api/obras":
             return self._json({"obras": almacen.listar_resumenes()})
+        if ruta == "/api/precios":
+            return self._json(precios_mod.leer())
+        if len(partes) == 4 and partes[:3] == ["api", "config", "imagen"]:
+            destino = cfgmod.ruta_imagen(partes[3])
+            if destino is None:
+                return self._error("No hay imagen cargada.", 404)
+            datos = destino.read_bytes()
+            tipo = mimetypes.guess_type(str(destino))[0] or "image/png"
+            self.send_response(200)
+            self.send_header("Content-Type", tipo)
+            self.send_header("Content-Length", str(len(datos)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(datos)
+            return
         if len(partes) == 3 and partes[:2] == ["api", "obras"]:
             obra = almacen.leer_obra(partes[2])
             if obra is None:
@@ -104,6 +123,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(obra)
         if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "plano.png":
             return self._render_plano(partes[2], urlparse(self.path).query)
+        if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "presupuesto.pdf":
+            return self._pdf_presupuesto(partes[2])
         if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "plano":
             obra = almacen.leer_obra(partes[2])
             nombre = ((obra or {}).get("plano") or {}).get("archivo")
@@ -127,6 +148,40 @@ class Handler(BaseHTTPRequestHandler):
         if ruta == "/api/config":
             nueva = cfgmod.guardar_config(cuerpo)
             return self._json({"ok": True, "config": cfgmod.config_publica(nueva)})
+
+        if ruta == "/api/precios":
+            return self._json(precios_mod.guardar(cuerpo))
+
+        if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "presupuesto":
+            obra = almacen.leer_obra(partes[2])
+            if obra is None:
+                return self._error("Esa obra no está en este equipo.", 404)
+            pres = cuerpo.get("presupuesto")
+            if pres is not None:
+                obra["presupuesto"] = pres
+            if cuerpo.get("recalcularCantidades"):
+                sug = pres_mod.sugerir_items(obra)
+                previos = {i.get("clave"): i for i in (obra["presupuesto"].get("items") or [])}
+                for it in sug:                       # conserva precios ya congelados
+                    viejo = previos.get(it["clave"])
+                    if viejo and viejo.get("congelado"):
+                        it["precioUnitario"] = viejo["precioUnitario"]
+                        it["congelado"] = True
+                obra["presupuesto"]["items"] = sug
+            if cuerpo.get("congelar"):
+                pres_mod.congelar(obra, cfg.get("usuario", ""))
+                for it in obra["presupuesto"].get("items") or []:
+                    it["congelado"] = True
+            if cuerpo.get("guardar"):
+                almacen.guardar_obra(obra, cfg.get("usuario", ""))
+            return self._json({
+                "ok": True,
+                "presupuesto": obra.get("presupuesto") or {},
+                "cantidades": pres_mod.cantidades(obra),
+                "totales": pres_mod.totales(obra.get("presupuesto") or {}),
+                "comparacion": precios_mod.comparar(
+                    (obra.get("presupuesto") or {}).get("items") or []),
+            })
 
         if ruta == "/api/config/verificar":
             datos = gh.verificar({**cfg, **{k: v for k, v in cuerpo.items() if v}},
@@ -185,6 +240,23 @@ class Handler(BaseHTTPRequestHandler):
         almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
         return self._json({"ok": True, "obra": obra, **info})
 
+    def _subir_imagen(self, clave):
+        if clave not in cfgmod.IMAGENES:
+            return self._error("Imagen desconocida.", 404)
+        n = int(self.headers.get("Content-Length") or 0)
+        if not n:
+            return self._error("No llegó ninguna imagen.")
+        if n > 6 * 1024 * 1024:
+            return self._error("La imagen supera los 6 MB.", 413)
+        datos = self.rfile.read(n)
+        firmas = {b"\x89PNG": ".png", b"\xff\xd8\xff": ".jpg", b"RIFF": ".webp",
+                  b"<svg": ".svg", b"<?xm": ".svg"}
+        ext = next((v for k, v in firmas.items() if datos.startswith(k)), None)
+        if ext is None:
+            return self._error("El archivo tiene que ser PNG, JPG, WEBP o SVG.")
+        cfgmod.guardar_imagen(clave, datos, ext)
+        return self._json({"ok": True, "clave": clave})
+
     def _revalidar(self, obra_id):
         """Recalcula vínculos y avisos con los elementos que manda el revisor.
 
@@ -198,6 +270,22 @@ class Handler(BaseHTTPRequestHandler):
         return self._json({"ok": True, "validacion": obra["validacion"],
                            "elementos": obra.get("elementos") or [],
                            "resumen": vinculos.resumen(obra)})
+
+    def _pdf_presupuesto(self, obra_id):
+        obra = almacen.leer_obra(obra_id)
+        if obra is None:
+            return self._error("Esa obra no está en este equipo.", 404)
+        try:
+            datos = pdf_presupuesto.generar(obra)
+        except Exception as e:
+            return self._error(f"No pude generar el PDF: {e}", 500)
+        nombre = (obra["obra"].get("nombre") or "presupuesto").replace(" ", "_")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/pdf")
+        self.send_header("Content-Length", str(len(datos)))
+        self.send_header("Content-Disposition", f'inline; filename="{nombre}.pdf"')
+        self.end_headers()
+        self.wfile.write(datos)
 
     def _render_plano(self, obra_id, consulta):
         import io
