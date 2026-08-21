@@ -328,7 +328,9 @@ class Handler(BaseHTTPRequestHandler):
         cuerpo = self._cuerpo()
         if "tablero" in cuerpo:                       # el cliente mandó ediciones (nombre, etc)
             t.update({k: v for k, v in cuerpo["tablero"].items() if k != "dispositivos"})
-        tablero_mod.sincronizar_circuitos(t, obra.get("circuitos") or [], t.get("fases", 1))
+        reclamar = len(obra.get("tableros") or []) == 1
+        tablero_mod.sincronizar_circuitos(t, obra.get("circuitos") or [], t.get("fases", 1),
+                                          reclamar_sueltos=reclamar)
         avisos = tablero_mod.validar(t, obra.get("circuitos") or [])
         almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
         return self._json({"ok": True, "tablero": t, "avisos": avisos})

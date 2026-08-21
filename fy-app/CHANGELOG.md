@@ -3,6 +3,24 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 0.5.2 — causa real del bug de las térmicas, y esquemas nuevos
+
+- **Encontrada la causa de fondo** de que las térmicas de los circuitos no
+  aparecieran: los circuitos armados antes de crear el tablero quedan con
+  `tableroId` vacío, y sincronizar sólo buscaba circuitos ya vinculados. Ahora,
+  si la obra tiene un único tablero (el caso normal), sincronizar **reclama**
+  los circuitos sueltos automáticamente y les asigna ese tablero. Probado de
+  punta a punta contra el servidor.
+- **Corrección de bocas**: quedó bien esta vez — 12 bocas por piso, una
+  térmica bipolar ocupa 2.
+- Dibujo esquemático rehecho a partir de las cinco referencias: térmica con
+  tornillos en cruz arriba y en más abajo, diferencial con botón T de test y
+  ventana indicadora, protector con display y botonera, bornera con tornillos
+  en tres grupos, riel DIN con las ranuras típicas de fondo en cada piso. Sin
+  ninguna marca de fábrica — sólo contorno, la corriente ("C16", "40A/30mA") y
+  el circuito.
+- Validado el SVG generado con Node antes de entregar (no sólo mirado a ojo).
+
 ## 0.5.1 — correcciones del tablero
 
 - **Corrección de concepto**: una boca es el ancho de una llave monopolar (no

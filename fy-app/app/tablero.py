@@ -92,11 +92,26 @@ def agregar_dispositivo(tablero: dict, tipo: str, extra: dict | None = None) -> 
     return d
 
 
-def sincronizar_circuitos(tablero: dict, circuitos: list[dict], fases: int) -> dict:
+def sincronizar_circuitos(tablero: dict, circuitos: list[dict], fases: int,
+                          reclamar_sueltos: bool = False) -> dict:
     """Crea (sin ubicar) una térmica por cada circuito nuevo asignado a este
     tablero, y quita las que quedaron de circuitos que ya no le pertenecen o
-    que se borraron. Nunca las coloca sola en el riel."""
+    que se borraron. Nunca las coloca sola en el riel.
+
+    reclamar_sueltos=True hace que los circuitos SIN tablero asignado
+    (tableroId vacío) se consideren de este tablero y se los marca como tales.
+    Sin esto, un circuito armado antes de crear el tablero quedaba sin
+    término y sin ningún aviso visible: el usuario tenía que abrir circuitos.html
+    y elegir el tablero a mano, circuito por circuito, para que apareciera acá.
+    El servidor activa esta reclamación cuando la obra tiene un solo tablero,
+    que es el caso normal.
+    """
     ligados = {c["id"] for c in circuitos if c.get("tableroId") == tablero["id"]}
+    if reclamar_sueltos:
+        for c in circuitos:
+            if not c.get("tableroId"):
+                c["tableroId"] = tablero["id"]
+                ligados.add(c["id"])
     existentes = {d["circuitoId"] for d in tablero["dispositivos"] if d.get("circuitoId")}
 
     tablero["dispositivos"] = [d for d in tablero["dispositivos"]

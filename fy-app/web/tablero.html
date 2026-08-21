@@ -56,31 +56,13 @@ h2:first-child{margin-top:0}
 .conexion-sel{font-size:.68rem;padding:3px 7px;border:1px solid var(--line);border-radius:6px;
   background:#fff;color:var(--muted)}
 
-.disp{position:absolute;border-radius:6px;cursor:grab;user-select:none;
-  background:#f4f6f5;border:1.6px solid #33506e;overflow:hidden}
+.disp{position:absolute;cursor:grab;user-select:none}
 .disp:active{cursor:grabbing}
 .disp.arrastrando{opacity:.35}
-.disp.seleccionado{outline:2px solid var(--copper);outline-offset:1px}
-.disp .cuerpo{position:relative;width:100%;height:100%}
-.disp .polo{position:absolute;top:0;bottom:0;border-right:1px solid #c7ced3}
-.disp .polo:last-child{border-right:none}
-.disp .llave{position:absolute;top:6%;width:34%;height:18%;left:33%;background:var(--navy);
-  border-radius:3px}
-.disp .txt-main{position:absolute;left:0;right:0;top:30%;text-align:center;font-size:.72rem;
-  font-weight:700;color:var(--ink);font-family:'IBM Plex Mono',monospace}
-.disp .txt-sub{position:absolute;left:2px;right:2px;bottom:13px;text-align:center;font-size:.6rem;
-  color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.disp .franja{position:absolute;left:0;right:0;bottom:0;height:5px}
-.disp.diferencial .test{position:absolute;top:5%;right:6%;width:12%;height:10%;
-  background:var(--amber-deep);border-radius:2px}
-.disp.diferencial .delta{position:absolute;left:6%;top:5%;font-size:.62rem;color:var(--muted);font-weight:700}
-.disp.bornera .cuerpo{background:#e4e8e7}
-.disp.bornera .tornillo{position:absolute;width:26%;height:26%;border-radius:50%;
-  background:#bcc5cc;border:1px solid #8b969c;top:50%;left:50%;transform:translate(-50%,-55%)}
-.disp.bornera .tierra-simbolo{position:absolute;bottom:11px;left:0;right:0;text-align:center;
-  font-size:.6rem;color:var(--muted)}
-.disp.protector .ojo{position:absolute;top:8%;left:50%;transform:translateX(-50%);width:20%;
-  height:14%;border-radius:50%;background:var(--green)}
+.disp.seleccionado svg .cuerpo-disp{stroke:var(--copper);stroke-width:2.4}
+.disp svg{width:100%;height:100%;display:block;overflow:visible}
+.disp .etiqueta-corriente{font-family:'IBM Plex Mono',monospace;font-weight:700}
+.disp .etiqueta-circuito{font-family:'IBM Plex Sans',sans-serif;font-weight:600}
 
 .flecha-alim{position:absolute;left:50%;transform:translateX(-50%);width:0;height:0;
   border-left:5px solid transparent;border-right:5px solid transparent;cursor:pointer}
@@ -92,7 +74,7 @@ h2:first-child{margin-top:0}
 .bandeja-fila{display:flex;gap:10px;flex-wrap:wrap;min-height:96px;background:var(--slate-soft);
   border:2px dashed var(--line);border-radius:10px;padding:10px;align-items:flex-start}
 .bandeja-fila.sobre{border-color:var(--copper);background:var(--copper-soft)}
-.bandeja-item{position:relative;width:76px;height:86px}
+.bandeja-item{position:relative}
 .bandeja-vacia{color:var(--muted);font-size:.8rem;padding:20px;width:100%;text-align:center}
 .agregar-fila{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
 
@@ -235,37 +217,151 @@ function pintarSelector(){
   $('sel-tablero').onchange = () => { activo = $('sel-tablero').value; seleccionado=null; pintar(); };
 }
 
-/* ---------------- dibujo de un dispositivo (esquemático) ---------------- */
-function svgDispositivo(d, ancho, alto){
-  const clase = d.tipo==='diferencial' ? 'diferencial' : d.tipo==='bornera' ? 'bornera'
-    : d.tipo==='protector' ? 'protector' : 'termica';
-  const franja = d.rol==='general' ? '#16283f' : (d.color || '#5b6b7a');
-  let interior = `<div class="cuerpo">`;
-  if(clase === 'bornera'){
-    interior += `<div class="tornillo"></div><div class="tierra-simbolo">⏚ PAT</div>`;
-  } else {
-    for(let i=0;i<d.polos;i++)
-      interior += `<div class="polo" style="left:${i*100/d.polos}%;width:${100/d.polos}%">
-        <div class="llave" style="left:33%"></div></div>`;
-    if(clase === 'diferencial'){
-      interior += `<div class="delta">Δ</div><div class="test"></div>
-        <div class="txt-main">${d.corriente}A</div>
-        <div class="txt-sub">${d.sensibilidadMa}mA</div>`;
-    } else if(clase === 'protector'){
-      interior += `<div class="ojo"></div><div class="txt-main">DPS</div>
-        <div class="txt-sub">${etiquetaCircuito(d) || (d.rol==='general'?'General':'')}</div>`;
-    } else {
-      interior += `<div class="txt-main">C${d.corriente ?? ''}</div>
-        <div class="txt-sub">${esc(etiquetaCircuito(d) || (d.rol==='general'?'General':''))}</div>`;
-    }
-    interior += `<div class="franja" style="background:${franja}"></div>`;
-  }
-  interior += `</div>`;
-  return interior;
-}
+/* ---------------- dibujo de un dispositivo (esquemático) ----------------
+   Basado en los cinco esquemas de referencia: térmica y diferencial bipolares
+   con tornillos arriba/abajo, protector con display digital, bornera de
+   terminales a tornillo. Sin marcas de fábrica: sólo el contorno, la
+   corriente y el circuito. */
+const TRAZO = '#33506e';
 function etiquetaCircuito(d){
   const c = (obra.circuitos||[]).find(x=>x.id===d.circuitoId);
   return c ? c.nombre : null;
+}
+function tornilloX(cx, cy, r){
+  const k = r*0.55;
+  return `<circle class="cuerpo-disp" cx="${cx}" cy="${cy}" r="${r}" fill="#fff" stroke="${TRAZO}" stroke-width="1.1"/>
+    <line x1="${cx-k}" y1="${cy-k}" x2="${cx+k}" y2="${cy+k}" stroke="${TRAZO}" stroke-width="1.1"/>
+    <line x1="${cx-k}" y1="${cy+k}" x2="${cx+k}" y2="${cy-k}" stroke="${TRAZO}" stroke-width="1.1"/>`;
+}
+function tornilloMas(cx, cy, r){
+  const k = r*0.55;
+  return `<circle class="cuerpo-disp" cx="${cx}" cy="${cy}" r="${r}" fill="#fff" stroke="${TRAZO}" stroke-width="1.1"/>
+    <line x1="${cx-k}" y1="${cy}" x2="${cx+k}" y2="${cy}" stroke="${TRAZO}" stroke-width="1.1"/>
+    <line x1="${cx}" y1="${cy-k}" x2="${cx}" y2="${cy+k}" stroke="${TRAZO}" stroke-width="1.1"/>`;
+}
+function svgTermica(w, h, polos, corriente, colorFamilia, circuito){
+  const r = Math.min(w/polos, h)*0.15;
+  let tornillosTop = '', tornillosBot = '';
+  for(let i=0;i<polos;i++){
+    const cx = (i+0.5)*w/polos;
+    tornillosTop += tornilloX(cx, h*0.13, r);
+    tornillosBot += tornilloMas(cx, h*0.87, r);
+  }
+  return `<svg viewBox="0 0 ${w} ${h}">
+    <rect class="cuerpo-disp" x="1" y="1" width="${w-2}" height="${h-2}" rx="5"
+      fill="#fff" stroke="${colorFamilia||TRAZO}" stroke-width="1.6"/>
+    ${tornillosTop}
+    <rect x="${w*0.12}" y="${h*0.24}" width="${w*0.76}" height="${h*0.14}" rx="1.5"
+      fill="none" stroke="${TRAZO}" stroke-width="0.9"/>
+    <line x1="${w*0.16}" y1="${h*0.36}" x2="${w*0.24}" y2="${h*0.26}" stroke="${TRAZO}" stroke-width=".8"/>
+    <line x1="${w*0.72}" y1="${h*0.36}" x2="${w*0.8}" y2="${h*0.26}" stroke="${TRAZO}" stroke-width=".8"/>
+    <rect x="${w*0.22}" y="${h*0.46}" width="${w*0.56}" height="${h*0.07}" rx="1"
+      fill="none" stroke="${TRAZO}" stroke-width="0.9"/>
+    <rect x="${w*0.28}" y="${h*0.53}" width="${w*0.16}" height="${h*0.14}" fill="none"
+      stroke="${TRAZO}" stroke-width="0.9"/>
+    <rect x="${w*0.56}" y="${h*0.53}" width="${w*0.16}" height="${h*0.14}" fill="none"
+      stroke="${TRAZO}" stroke-width="0.9"/>
+    ${tornillosBot}
+    <text x="${w/2}" y="${h*0.71}" text-anchor="middle" class="etiqueta-corriente"
+      font-size="${Math.min(w*0.24,13)}" fill="${TRAZO}">C${corriente??''}</text>
+    ${circuito ? `<text x="${w/2}" y="${h+11}" text-anchor="middle" class="etiqueta-circuito"
+      font-size="9.5" fill="${TRAZO}">${esc(circuito)}</text>` : ''}
+  </svg>`;
+}
+function svgDiferencial(w, h, polos, corriente, mA){
+  const r = Math.min(w/polos, h)*0.13;
+  let tTop='', tBot='';
+  for(let i=0;i<polos;i++){
+    const cx = (i+0.5)*w/polos;
+    tTop += tornilloMas(cx, h*0.11, r*0.85);
+    tBot += tornilloMas(cx, h*0.89, r*0.85);
+  }
+  return `<svg viewBox="0 0 ${w} ${h}">
+    <rect class="cuerpo-disp" x="1" y="1" width="${w-2}" height="${h-2}" rx="5"
+      fill="#fff" stroke="${TRAZO}" stroke-width="1.6"/>
+    ${tTop}${tBot}
+    <rect x="${w*0.1}" y="${h*0.3}" width="${w*0.32}" height="${h*0.32}" fill="none"
+      stroke="${TRAZO}" stroke-width="0.9"/>
+    <text x="${w*0.26}" y="${h*0.49}" text-anchor="middle" font-size="${h*0.16}"
+      fill="${TRAZO}" font-weight="700">T</text>
+    <rect x="${w*0.52}" y="${h*0.32}" width="${w*0.36}" height="${h*0.1}" rx="2"
+      fill="${TRAZO}" opacity=".85"/>
+    <rect x="${w*0.6}" y="${h*0.46}" width="${w*0.2}" height="${h*0.08}" fill="none"
+      stroke="${TRAZO}" stroke-width="0.9"/>
+    <text x="${w*0.28}" y="${h*0.14}" font-size="8" fill="${TRAZO}">Δ</text>
+    <text x="${w/2}" y="${h*0.72}" text-anchor="middle" class="etiqueta-corriente"
+      font-size="${Math.min(w*0.18,11)}" fill="${TRAZO}">${corriente??''}A</text>
+    <text x="${w/2}" y="${h*0.82}" text-anchor="middle" font-size="8.5"
+      fill="${TRAZO}">${mA??''}mA</text>
+  </svg>`;
+}
+function svgProtector(w, h, corriente, circuito){
+  return `<svg viewBox="0 0 ${w} ${h}">
+    <rect class="cuerpo-disp" x="1" y="1" width="${w-2}" height="${h-2}" rx="5"
+      fill="#fff" stroke="${TRAZO}" stroke-width="1.6"/>
+    ${tornilloMas(w*0.28, h*0.11, Math.min(w,h)*0.11)}
+    ${tornilloMas(w*0.72, h*0.11, Math.min(w,h)*0.11)}
+    ${tornilloMas(w*0.28, h*0.89, Math.min(w,h)*0.11)}
+    ${tornilloMas(w*0.72, h*0.89, Math.min(w,h)*0.11)}
+    <circle cx="${w*0.22}" cy="${h*0.3}" r="2.4" fill="none" stroke="${TRAZO}" stroke-width=".8"/>
+    <circle cx="${w*0.22}" cy="${h*0.4}" r="2.4" fill="none" stroke="${TRAZO}" stroke-width=".8"/>
+    <rect x="${w*0.32}" y="${h*0.24}" width="${w*0.54}" height="${h*0.2}" rx="1.5"
+      fill="none" stroke="${TRAZO}" stroke-width="0.9"/>
+    <text x="${w*0.59}" y="${h*0.4}" text-anchor="middle" class="etiqueta-corriente"
+      font-size="${Math.min(w*0.15,10)}" fill="${TRAZO}">${corriente??''}A</text>
+    <rect x="${w*0.16}" y="${h*0.52}" width="${w*0.15}" height="${h*0.1}" rx="1.5"
+      fill="none" stroke="${TRAZO}" stroke-width=".8"/>
+    <rect x="${w*0.34}" y="${h*0.52}" width="${w*0.15}" height="${h*0.1}" rx="1.5"
+      fill="none" stroke="${TRAZO}" stroke-width=".8"/>
+    <rect x="${w*0.52}" y="${h*0.52}" width="${w*0.15}" height="${h*0.1}" rx="1.5"
+      fill="none" stroke="${TRAZO}" stroke-width=".8"/>
+    <rect x="${w*0.7}" y="${h*0.52}" width="${w*0.16}" height="${h*0.1}" rx="1.5"
+      fill="none" stroke="${TRAZO}" stroke-width=".8"/>
+    <text x="${w/2}" y="${h*0.72}" text-anchor="middle" font-size="8" fill="${TRAZO}">DPS</text>
+    ${circuito ? `<text x="${w/2}" y="${h+11}" text-anchor="middle" class="etiqueta-circuito"
+      font-size="9.5" fill="${TRAZO}">${esc(circuito)}</text>` : ''}
+  </svg>`;
+}
+function svgBornera(w, h){
+  const filas = 6, alto = h*0.86/filas, x0 = h*0.07;
+  let term = '';
+  for(let i=0;i<filas;i++){
+    const cy = x0 + alto*(i+0.5);
+    term += `<rect x="${w*0.28}" y="${cy-alto*0.3}" width="${w*0.44}" height="${alto*0.6}" rx="${alto*0.28}"
+      fill="none" stroke="${TRAZO}" stroke-width="0.9"/>
+      <circle cx="${w*0.5}" cy="${cy}" r="${alto*0.16}" fill="none" stroke="${TRAZO}" stroke-width=".7"/>`;
+    if(i===1 || i===3) term += `<line x1="4" y1="${x0+alto*(i+1)}" x2="${w-4}" y2="${x0+alto*(i+1)}"
+      stroke="${TRAZO}" stroke-width=".7" stroke-dasharray="2 2"/>`;
+  }
+  return `<svg viewBox="0 0 ${w} ${h}">
+    <rect class="cuerpo-disp" x="1" y="1" width="${w-2}" height="${h-2}" rx="4"
+      fill="#fff" stroke="${TRAZO}" stroke-width="1.6"/>
+    ${term}
+    <text x="${w/2}" y="${h-4}" text-anchor="middle" font-size="7.5" fill="${TRAZO}">⏚</text>
+  </svg>`;
+}
+function svgDispositivo(d, w, h){
+  w = w||64; h = h||96;
+  if(d.tipo === 'diferencial') return svgDiferencial(w, h, d.polos, d.corriente, d.sensibilidadMa);
+  if(d.tipo === 'bornera') return svgBornera(w, h);
+  if(d.tipo === 'protector') return svgProtector(w, h, d.corriente, etiquetaCircuito(d));
+  const color = d.rol==='general' ? '#16283f' : (d.color || null);
+  return svgTermica(w, h, d.polos, d.corriente, color,
+    etiquetaCircuito(d) || (d.rol==='general' ? 'General' : ''));
+}
+function svgRielFondo(w, h){
+  const n = Math.max(2, Math.round(w / 70));
+  let slots = '';
+  for(let i=0;i<n;i++){
+    const cx = (i+0.5)*w/n, oval = i%2===0;
+    slots += oval
+      ? `<ellipse cx="${cx}" cy="${h/2}" rx="4" ry="${h*0.22}" fill="none" stroke="#a9b3b0"/>`
+      : `<rect x="${cx-14}" y="${h*0.44}" width="28" height="${h*0.12}" rx="5" fill="none" stroke="#a9b3b0"/>`;
+  }
+  return `<svg viewBox="0 0 ${w} ${h}" style="position:absolute;inset:0;pointer-events:none">
+    <rect x="1" y="${h*0.14}" width="${w-2}" height="${h*0.72}" fill="#dfe3e1" stroke="#a9b3b0"/>
+    ${slots}
+  </svg>`;
 }
 
 /* ---------------- gabinete ---------------- */
@@ -279,7 +375,8 @@ function pintarGabinete(){
     const modo = (t.conexionPiso||{})[piso] || 'individual';
     html += `<div class="riel-fila">
       <div class="riel" data-piso="${piso}" style="width:${ancho}px;height:${ALTO_RIEL}px">
-        <span class="etiqueta">Piso ${piso+1}</span>`;
+        <span class="etiqueta">Piso ${piso+1}</span>
+        ${svgRielFondo(ancho, ALTO_RIEL)}`;
     for(let c=0;c<=t.bocasPorPiso;c++)
       html += `<div class="celda-fantasma" style="left:${c*CELDA}px"></div>`;
     html += dibujoBus(t, piso, modo);
@@ -315,14 +412,12 @@ function dibujoBus(t, piso, modo){
   return html;
 }
 function bloqueDisp(d, enRiel){
-  const w = d.polos*CELDA - 3, h = ALTO_RIEL - 8;
-  const pos = enRiel ? `left:${d.posicion*CELDA+1}px;top:4px` : `left:0;top:0`;
-  const clase = d.tipo==='diferencial' ? 'diferencial' : d.tipo==='bornera' ? 'bornera'
-    : d.tipo==='protector' ? 'protector' : '';
+  const w = d.polos*CELDA - 4, h = ALTO_RIEL - 10;
+  const pos = enRiel ? `left:${d.posicion*CELDA+2}px;top:5px` : `left:0;top:0`;
   const flechas = enRiel ? `
     <div class="flecha-alim ${d.alimentacion==='arriba'?'arriba':'abajo'}"
       data-alim="${d.id}" title="Cambiar por dónde entra"></div>` : '';
-  return `<div class="disp ${clase} ${seleccionado===d.id?'seleccionado':''}" draggable="true"
+  return `<div class="disp ${seleccionado===d.id?'seleccionado':''}" draggable="true"
     data-id="${d.id}" style="${pos};width:${w}px;height:${h}px">
     ${svgDispositivo(d, w, h)}${flechas}
   </div>`;
@@ -404,10 +499,9 @@ function pintarBandeja(){
   document.querySelectorAll('[data-agregar]').forEach(n => n.onclick = () => agregarDispositivo(n.dataset.agregar));
 }
 function bloqueDispBandeja(d){
-  const clase = d.tipo==='diferencial' ? 'diferencial' : d.tipo==='bornera' ? 'bornera'
-    : d.tipo==='protector' ? 'protector' : '';
-  return `<div class="disp ${clase} ${seleccionado===d.id?'seleccionado':''}"
-    style="position:static;width:100%;height:100%">${svgDispositivo(d)}</div>`;
+  const w = Math.max(48, d.polos*CELDA*0.85), h = 78;
+  return `<div class="disp ${seleccionado===d.id?'seleccionado':''}"
+    style="position:static;width:${w}px;height:${h}px">${svgDispositivo(d, w, h)}</div>`;
 }
 
 /* ---------------- acciones de dispositivo ---------------- */
