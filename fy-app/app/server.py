@@ -5,7 +5,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
-from . import almacen, config as cfgmod, contrato as C, extraccion, github as gh, sync
+from . import almacen, config as cfgmod, contrato as C, extraccion, github as gh, sync, vinculos
 
 if getattr(sys, "frozen", False):
     DIR_WEB = Path(sys._MEIPASS) / "web"        # bundle de PyInstaller
@@ -58,6 +58,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._subir_plano(partes[2])
             if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "extraer":
                 return self._extraer(partes[2])
+            if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "revalidar":
+                return self._revalidar(partes[2])
             return self._api_post(ruta)
         except gh.ErrorSync as e:
             return self._error(e.mensaje, 409 if e.conflicto else 502,
@@ -181,6 +183,20 @@ class Handler(BaseHTTPRequestHandler):
             return self._error(f"No pude leer el plano: {e}", 500)
         almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
         return self._json({"ok": True, "obra": obra, **info})
+
+    def _revalidar(self, obra_id):
+        """Recalcula vínculos y avisos con los elementos que manda el revisor.
+
+        No guarda: el revisor puede pedirlo en cada cambio y decidir después si
+        guarda o descarta.
+        """
+        obra = self._cuerpo() or almacen.leer_obra(obra_id)
+        if not obra:
+            return self._error("Esa obra no está en este equipo.", 404)
+        obra["validacion"] = vinculos.recalcular(obra)
+        return self._json({"ok": True, "validacion": obra["validacion"],
+                           "elementos": obra.get("elementos") or [],
+                           "resumen": vinculos.resumen(obra)})
 
     def _render_plano(self, obra_id, consulta):
         import io

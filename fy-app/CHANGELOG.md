@@ -3,6 +3,16 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 0.2.1
+
+- Corrige el desfase de los elementos en planos apaisados: el visor fijaba el
+  sistema de coordenadas antes de conocer el tamaño real de la hoja.
+- Los vínculos entre artefactos y teclas pasan a un módulo único (`vinculos.py`)
+  y se recalculan en vivo: al colocar una caja a mano, los avisos de "letra sin
+  artefacto" y "tecla sin artefacto" desaparecen solos.
+- Al colocar un artefacto o una tecla a mano se pide la letra.
+- "Agregar caja" permite elegir el tipo.
+
 ## 0.2.0 — FY-App
 
 - La app pasa a llamarse FY-App; los datos guardados con el nombre anterior se

@@ -191,13 +191,18 @@ async function cargar(){
   }
 }
 function dimensionar(){
-  const p = obra.plano.paginaPt || {ancho:842, alto:1191};
+  // El tamaño de hoja llega recién con la extracción, y la imagen carga por su
+  // cuenta: si el viewBox se fija antes, un plano apaisado queda descolocado.
+  const img = $('hoja');
+  let p = obra.plano && obra.plano.paginaPt;
+  if(!p && img.naturalWidth) p = {ancho: img.naturalWidth/ZOOM, alto: img.naturalHeight/ZOOM};
+  if(!p) return;
   $('capa').setAttribute('viewBox', `0 0 ${p.ancho} ${p.alto}`);
-  $('envoltorio').style.width = $('hoja').naturalWidth + 'px';
+  if(img.naturalWidth) $('envoltorio').style.width = img.naturalWidth + 'px';
 }
 
 /* ---------- pintado ---------- */
-function pintarTodo(){ pintarCapa(); pintarPanel(); }
+function pintarTodo(){ dimensionar(); pintarCapa(); pintarPanel(); }
 
 function pintarCapa(){
   if(!obra.plano || !obra.plano.referencia) return;
@@ -351,19 +356,20 @@ function pintarEditor(){
       Lo revisado no se pisa cuando volvés a extraer.</div>`;
 
   const marcar = () => { e.revisadoPorUsuario = true; };
-  $('e-tipo').onchange = ev => { e.tipo = ev.target.value; e.subtipo = null; marcar(); pintarTodo(); };
-  if($('e-sub')) $('e-sub').onchange = ev => { e.subtipo = ev.target.value; marcar(); pintarTodo(); };
+  const tocado = () => { marcar(); pintarTodo(); revalidar(); };
+  $('e-tipo').onchange = ev => { e.tipo = ev.target.value; e.subtipo = null; tocado(); };
+  if($('e-sub')) $('e-sub').onchange = ev => { e.subtipo = ev.target.value; tocado(); };
   if($('e-alt')) $('e-alt').onchange = ev => {
-    e.alturaM = ev.target.value === '' ? null : parseFloat(ev.target.value); marcar(); pintarTodo(); };
+    e.alturaM = ev.target.value === '' ? null : parseFloat(ev.target.value); tocado(); };
   if($('e-nom')) $('e-nom').onchange = ev => {
     e.nombre = ev.target.value.trim().toUpperCase() || null;
-    e.interruptor = e.nombre ? e.nombre.toLowerCase() : null; marcar(); pintarTodo(); };
+    e.interruptor = e.nombre ? e.nombre.toLowerCase() : null; tocado(); };
   if($('e-let')) $('e-let').onchange = ev => {
-    e.letra = ev.target.value.trim().toLowerCase() || null; marcar(); pintarTodo(); };
-  $('e-rev').onclick = () => { e.revisadoPorUsuario = !e.revisadoPorUsuario; pintarTodo(); };
+    e.letra = ev.target.value.trim().toLowerCase() || null; tocado(); };
+  $('e-rev').onclick = () => { e.revisadoPorUsuario = !e.revisadoPorUsuario; pintarTodo(); revalidar(); };
   if($('e-borrar')) $('e-borrar').onclick = () => {
     obra.elementos = obra.elementos.filter(x => x.id !== e.id);
-    sel = null; pintarTodo(); toast('Caja borrada');
+    sel = null; pintarTodo(); revalidar(); toast('Caja borrada');
   };
 }
 
@@ -385,10 +391,12 @@ function barra(texto, ayuda){
 }
 function salirDeModo(){ modo=null; pendiente=null; barra(null); pintarTodo(); }
 
-function iniciarColocar(aviso){
+function iniciarColocar(aviso, tipo){
   if(!obra.plano?.escala){ toast('Primero calibrá la escala.'); return; }
   modo = 'colocar';
-  pendiente = aviso ? {...(aviso.sugerencia||{}), aviso} : {tipo:'toma', subtipo:'toma_doble'};
+  pendiente = aviso ? {...(aviso.sugerencia||{}), aviso}
+                    : {tipo: tipo || 'toma',
+                       subtipo: tipo === 'toma' || !tipo ? 'toma_doble' : null};
   barra('Colocá la caja', aviso
     ? `Tocá el punto del plano donde va «${aviso.texto}».`
     : 'Tocá el punto del plano donde va la caja nueva.');
@@ -398,12 +406,22 @@ function colocarEn(xpt, ypt){
   const [xm, ym] = aMetros(xpt, ypt);
   const pref = {toma:'T', artefacto:'A', llave:'LL', otros:'O'}[pendiente.tipo] || 'X';
   const id = `${pref}-${String(Math.round(xm*100)).padStart(5,'0')}-${String(Math.round(ym*100)).padStart(5,'0')}m`;
+  let letra = null;
+  if((pendiente.tipo||'toma') === 'artefacto' || (pendiente.tipo||'') === 'llave'){
+    const t = prompt((pendiente.tipo==='llave'
+      ? 'Letra de la tecla (minúscula)' : 'Letra del artefacto (mayúscula)'), '');
+    letra = (t||'').trim();
+    if(!letra){ salirDeModo(); return; }
+  }
   const nuevo = {
     id,
     tipo: pendiente.tipo || 'toma',
     subtipo: pendiente.subtipo || null,
     alturaM: pendiente.alturaM ?? null,
     etiquetaTexto: pendiente.etiquetaTexto || null,
+    ...(pendiente.tipo === 'artefacto' ? {nombre: letra.toUpperCase(),
+                                          interruptor: letra.toLowerCase()} : {}),
+    ...(pendiente.tipo === 'llave' ? {letra: letra.toLowerCase()} : {}),
     posicionM: {x: +xm.toFixed(3), y: +ym.toFixed(3)},
     posicionPdfPt: {x: +xpt.toFixed(2), y: +ypt.toFixed(2)},
     origen: 'manual',
@@ -419,6 +437,7 @@ function colocarEn(xpt, ypt){
       .filter(x => !(x.tipo==='caja_faltante' && x.texto===av.texto && String(x.pt)===String(av.pt)));
   sel = id;
   salirDeModo();
+  revalidar();
   toast('Caja agregada. Acordate de guardar.');
 }
 
@@ -465,6 +484,22 @@ $('capa').addEventListener('mousemove', ev => {
   pendiente.b = null;
 });
 
+/* ---------- revalidación ---------- */
+let revalidando = null;
+async function revalidar(){
+  clearTimeout(revalidando);
+  revalidando = setTimeout(async () => {
+    try{
+      const r = await api('/api/obras/'+OBRA_ID+'/revalidar',
+        {method:'POST', body:JSON.stringify(obra)});
+      obra.elementos = r.elementos;
+      obra.validacion = r.validacion;
+      pintarPanel();
+      pintarCapa();
+    }catch(err){ /* si falla, el panel queda como estaba */ }
+  }, 120);
+}
+
 /* ---------- acciones ---------- */
 async function extraer(op={}){
   const b = $('b-extraer'); b.disabled = true; b.textContent = 'Leyendo…';
@@ -484,7 +519,12 @@ async function extraer(op={}){
 }
 $('b-extraer').onclick = () => extraer();
 $('b-calibrar').onclick = iniciarCalibrar;
-$('b-agregar').onclick = () => iniciarColocar(null);
+$('b-agregar').onclick = () => {
+  const t = prompt('¿Qué querés agregar? toma / artefacto / llave / otros', 'toma');
+  const tipo = (t||'').trim().toLowerCase();
+  if(!['toma','artefacto','llave','otros'].includes(tipo)) return;
+  iniciarColocar(null, tipo);
+};
 $('b-guardar').onclick = async () => {
   try{
     await api('/api/obras/'+OBRA_ID, {method:'PUT', body:JSON.stringify(obra)});

@@ -2,7 +2,7 @@
 from __future__ import annotations
 from typing import Optional
 
-from . import almacen, contrato as C
+from . import almacen, contrato as C, vinculos
 
 CAMPOS_DEL_USUARIO = ("subtipo", "alturaM", "nombre", "interruptor", "letra",
                       "notas", "tipo", "circuitoId")
@@ -63,13 +63,11 @@ def ejecutar(obra: dict, escala: Optional[float] = None,
                      "referencia": r["referencia"],
                      "paginaPt": r["paginaPt"],
                      "correcciones": corr,
+                     "avisosExtraccion": r["avisos"],
                      "extraidoEl": C.ahora()}
-    val = obra.setdefault("validacion", {})
-    val["corridaEl"] = C.ahora()
-    val["errores"] = [a for a in r["avisos"] if a.get("gravedad") == "error"]
-    val["advertencias"] = [a for a in r["avisos"] if a.get("gravedad") != "error"]
+    obra["validacion"] = {**vinculos.recalcular(obra), "corridaEl": C.ahora()}
 
-    return {"resumen": r["resumen"],
+    return {"resumen": vinculos.resumen(obra),
             "cambios": {"altas": len(altas), "bajas": len(bajas),
                         "conservados": conservados, "manuales": len(agregados),
                         "idsBaja": bajas[:20]},

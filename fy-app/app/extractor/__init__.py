@@ -249,58 +249,12 @@ def extraer(ruta_pdf: str, pt_por_metro: Optional[float] = None,
                 e["largoM"] = s.largo_m
             if letra is None:
                 e["notas"].append("Sin letra de circuito")
-                avisos.append({"tipo": "artefacto_sin_letra", "gravedad": "error",
-                               "simbolo": e["id"], "pt": [round(s.x, 1), round(s.y, 1)],
-                               "detalle": "Este artefacto no tiene letra: no sé qué tecla lo comanda."})
 
     for m in modulos:
         agregar("llave", m["x"], m["y"], {
             "tipo": "llave", "subtipo": "modulo_llave", "letra": m["letra"],
             "cajaId": m["caja"], "confianza": {"simbolo": m["confianza"], "etiqueta": 1.0}})
 
-    # ---- teclas por caja: llave simple / doble / triple ----
-    por_caja = collections.Counter(e.get("cajaId") for e in elementos
-                                   if e["tipo"] == "llave" and e.get("cajaId"))
-    for e in elementos:
-        if e["tipo"] == "llave":
-            n = por_caja.get(e.get("cajaId"), 1)
-            e["teclasEnCaja"] = n
-            e["subtipo"] = {1: "llave_1_tecla", 2: "llave_2_teclas",
-                            3: "llave_3_teclas"}.get(n, f"llave_{n}_teclas")
-
-    # ---- comando: combinado si la letra aparece en mas de una tecla ----
-    teclas = collections.defaultdict(list)
-    for e in elementos:
-        if e["tipo"] == "llave" and e.get("letra"):
-            teclas[e["letra"].upper()].append(e["id"])
-    for e in elementos:
-        letra = (e.get("nombre") or e.get("letra") or "")
-        if not letra:
-            continue
-        ids = teclas.get(letra.upper(), [])
-        n = len(ids)
-        comando = ("simple" if n == 1 else "combinado" if n == 2
-                   else f"combinado_{n}_puntos" if n > 2 else "sin_tecla")
-        e["tipoComando"] = comando
-        if e["tipo"] == "artefacto":
-            e["comandadoPor"] = ids
-            if n == 0:
-                avisos.append({"tipo": "artefacto_sin_tecla", "gravedad": "error",
-                               "simbolo": e["id"],
-                               "detalle": f"El artefacto {letra} no tiene ninguna tecla {letra.lower()}."})
-    porArtefacto = collections.defaultdict(list)
-    for e in elementos:
-        if e["tipo"] == "artefacto" and e.get("nombre"):
-            porArtefacto[e["nombre"].upper()].append(e["id"])
-    for e in elementos:
-        if e["tipo"] == "llave" and e.get("letra"):
-            e["comanda"] = porArtefacto.get(e["letra"].upper(), [])
-            if not e["comanda"]:
-                avisos.append({"tipo": "tecla_sin_artefacto", "gravedad": "error",
-                               "simbolo": e["id"],
-                               "detalle": f"La tecla {e['letra']} no comanda ningún artefacto."})
-
-    resumen = collections.Counter(e["tipo"] for e in elementos)
     return {
         "escala": {"ptPorMetro": cal.pt_por_metro, "nominal": cal.escala_nominal,
                    "metodo": cal.metodo, "confianza": cal.confianza,
@@ -314,13 +268,4 @@ def extraer(ruta_pdf: str, pt_por_metro: Optional[float] = None,
         "paginaPt": {"ancho": round(rect[2], 1), "alto": round(rect[3], 1)},
         "elementos": elementos,
         "avisos": avisos,
-        "resumen": {
-            "artefactos": resumen.get("artefacto", 0),
-            "tomas": resumen.get("toma", 0),
-            "teclas": resumen.get("llave", 0),
-            "otros": resumen.get("otros", 0),
-            "sinReconocer": resumen.get("desconocido", 0),
-            "circuitos": len(teclas),
-            "combinados": sum(1 for ids in teclas.values() if len(ids) > 1),
-        },
     }
