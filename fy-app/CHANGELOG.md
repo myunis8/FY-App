@@ -3,6 +3,33 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 0.5.1 — correcciones del tablero
+
+- **Corrección de concepto**: una boca es el ancho de una llave monopolar (no
+  usada, prohibida). Una térmica bipolar ocupa 2 bocas. Un riel de 12 bocas
+  entran 6 térmicas — no 6 bocas como estaba antes. Los presets pasan a 12,
+  24, 36, 48 y 72 bocas, todos con 12 bocas por piso.
+- **Nada se coloca solo.** La térmica general, el diferencial, la bornera de
+  tierra y las térmicas de cada circuito nacen en una **bandeja**, afuera del
+  gabinete. El usuario los arrastra al riel. Esto también corrige el aporte de
+  que las térmicas de circuitos creados antes "no aparecían": ahora siempre
+  están visibles en la bandeja hasta que se colocan, en vez de quedar
+  invisibles si no encontraban lugar solas.
+- **Dibujo esquemático** de cada dispositivo (contorno, llaves, sin marca de
+  ninguna fábrica): térmica con "C" + corriente, diferencial con Δ y botón de
+  test, bornera con símbolo de tierra, protector con indicador. Debajo de cada
+  térmica de circuito, su nombre.
+- Tablero más grande (bocas de 64px, antes 42) y con más aire.
+- **Entrada arriba/abajo** ahora es una flecha visible sobre o bajo cada
+  dispositivo colocado, más un selector explícito en el panel de detalle al
+  tocar un dispositivo (antes sólo existía como ícono chico, poco visible).
+- **Cableado — primera versión**: cada riel elige "peine" o "conectores
+  individuales" y se dibuja en consecuencia (una barra continua o tramos
+  cortos entre térmicas vecinas). Pendiente para una próxima entrega: el
+  conexionado punto a punto con la canalización real del plano.
+- Agregar dispositivos sueltos (térmica, diferencial, bornera, protector) con
+  un clic, y quitarlos del tablero con confirmación.
+
 ## 0.5.0 — tablero, y arreglo de fondo en circuitos
 
 - **Lista de precios** actualizada a las categorías reales: Puntos, Tomas,

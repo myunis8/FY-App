@@ -28,44 +28,75 @@ header .sub{font-size:.72rem;color:#9db2c7}
 .btn.primary{background:var(--amber);border-color:var(--amber-deep);color:#2a1e07;font-weight:600}
 .btn.ghost{background:transparent;border-color:#33506e;color:#cfe0f0}
 .btn.ghost:hover{border-color:#5b7fa5}
-.btn.sm{padding:4px 9px;font-size:.75rem}
+.btn.sm{padding:4px 10px;font-size:.74rem}
 .btn.danger{color:var(--danger)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
 header select.sel-tab{background:#0e1c2e;color:#cfe0f0;border:1px solid #33506e;
   padding:6px 10px;border-radius:8px}
 
 main{display:grid;grid-template-columns:1fr 320px;gap:0;align-items:start}
-.centro{padding:22px;overflow-x:auto}
+.centro{padding:20px;overflow-x:auto}
 aside{background:var(--panel);border-left:1px solid var(--line);padding:16px;
-  min-height:calc(100vh - 52px)}
+  min-height:calc(100vh - 52px);position:sticky;top:0}
 h2{font-family:'Space Grotesk',sans-serif;font-size:.82rem;margin:16px 0 8px;
   text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
 h2:first-child{margin-top:0}
 
-/* gabinete */
-.gabinete{background:#e9edec;border:2px solid #c3cbc9;border-radius:10px;padding:18px;
-  display:inline-block;min-width:100%}
-.riel{position:relative;background:#d7dcda;border:1px dashed #a9b3b0;border-radius:6px;
-  margin-bottom:10px;height:64px}
-.riel:last-child{margin-bottom:0}
-.riel .etiqueta{position:absolute;left:-2px;top:-18px;font-size:.66rem;color:var(--muted);
-  font-weight:600}
-.celda-fantasma{position:absolute;top:6px;bottom:6px;border-right:1px dashed #c3cbc9}
-.disp{position:absolute;top:6px;bottom:6px;border-radius:5px;color:#fff;font-size:.66rem;
-  display:flex;flex-direction:column;align-items:center;justify-content:center;
-  text-align:center;padding:2px;cursor:grab;line-height:1.25;box-shadow:0 1px 3px rgba(0,0,0,.25);
-  user-select:none}
-.disp:active{cursor:grabbing}
-.disp .n{font-weight:700;font-size:.68rem}
-.disp .c{opacity:.9;font-size:.62rem}
-.disp.arrastrando{opacity:.4}
-.disp .alim{position:absolute;top:1px;right:1px;font-size:.6rem;background:rgba(0,0,0,.28);
-  border-radius:3px;padding:0 3px;cursor:pointer}
-.disp.gen{background:var(--navy)}
-.disp.dif{background:#8e44ad}
-.disp.tierra{background:#5b6b7a}
-.disp.dps{background:#c0392b}
-.riel.sobre{outline:2px solid var(--copper);outline-offset:-2px}
+/* ---------- gabinete ---------- */
+.gabinete{background:#e9edec;border:2px solid #c3cbc9;border-radius:12px;padding:22px 24px;
+  display:inline-block}
+.riel-fila{display:flex;align-items:center;gap:10px;margin-bottom:16px}
+.riel-fila:last-child{margin-bottom:0}
+.riel{position:relative;background:#d7dcda;border:1px dashed #a9b3b0;border-radius:7px}
+.riel .etiqueta{position:absolute;left:6px;top:-19px;font-size:.68rem;color:var(--muted);font-weight:600}
+.riel .cablebus{position:absolute;height:5px;background:#8a5a2b;border-radius:3px;top:8px;
+  box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.riel .cablebus.n{background:#2b6ca3;top:15px}
+.celda-fantasma{position:absolute;top:0;bottom:0;border-right:1px dashed #c3cbc9}
+.conexion-sel{font-size:.68rem;padding:3px 7px;border:1px solid var(--line);border-radius:6px;
+  background:#fff;color:var(--muted)}
 
+.disp{position:absolute;border-radius:6px;cursor:grab;user-select:none;
+  background:#f4f6f5;border:1.6px solid #33506e;overflow:hidden}
+.disp:active{cursor:grabbing}
+.disp.arrastrando{opacity:.35}
+.disp.seleccionado{outline:2px solid var(--copper);outline-offset:1px}
+.disp .cuerpo{position:relative;width:100%;height:100%}
+.disp .polo{position:absolute;top:0;bottom:0;border-right:1px solid #c7ced3}
+.disp .polo:last-child{border-right:none}
+.disp .llave{position:absolute;top:6%;width:34%;height:18%;left:33%;background:var(--navy);
+  border-radius:3px}
+.disp .txt-main{position:absolute;left:0;right:0;top:30%;text-align:center;font-size:.72rem;
+  font-weight:700;color:var(--ink);font-family:'IBM Plex Mono',monospace}
+.disp .txt-sub{position:absolute;left:2px;right:2px;bottom:13px;text-align:center;font-size:.6rem;
+  color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.disp .franja{position:absolute;left:0;right:0;bottom:0;height:5px}
+.disp.diferencial .test{position:absolute;top:5%;right:6%;width:12%;height:10%;
+  background:var(--amber-deep);border-radius:2px}
+.disp.diferencial .delta{position:absolute;left:6%;top:5%;font-size:.62rem;color:var(--muted);font-weight:700}
+.disp.bornera .cuerpo{background:#e4e8e7}
+.disp.bornera .tornillo{position:absolute;width:26%;height:26%;border-radius:50%;
+  background:#bcc5cc;border:1px solid #8b969c;top:50%;left:50%;transform:translate(-50%,-55%)}
+.disp.bornera .tierra-simbolo{position:absolute;bottom:11px;left:0;right:0;text-align:center;
+  font-size:.6rem;color:var(--muted)}
+.disp.protector .ojo{position:absolute;top:8%;left:50%;transform:translateX(-50%);width:20%;
+  height:14%;border-radius:50%;background:var(--green)}
+
+.flecha-alim{position:absolute;left:50%;transform:translateX(-50%);width:0;height:0;
+  border-left:5px solid transparent;border-right:5px solid transparent;cursor:pointer}
+.flecha-alim.arriba{top:-11px;border-bottom:9px solid var(--copper)}
+.flecha-alim.abajo{bottom:-11px;border-top:9px solid var(--copper)}
+
+/* ---------- bandeja ---------- */
+.bandeja{margin-top:22px}
+.bandeja-fila{display:flex;gap:10px;flex-wrap:wrap;min-height:96px;background:var(--slate-soft);
+  border:2px dashed var(--line);border-radius:10px;padding:10px;align-items:flex-start}
+.bandeja-fila.sobre{border-color:var(--copper);background:var(--copper-soft)}
+.bandeja-item{position:relative;width:76px;height:86px}
+.bandeja-vacia{color:var(--muted);font-size:.8rem;padding:20px;width:100%;text-align:center}
+.agregar-fila{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+
+/* ---------- lateral ---------- */
 .campo{margin-bottom:10px}
 .campo label{display:block;font-size:.7rem;font-weight:600;color:var(--muted);margin-bottom:3px}
 .campo input,.campo select{width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:7px}
@@ -75,6 +106,9 @@ h2:first-child{margin-top:0}
   color:var(--muted);font-weight:600;display:inline-block}
 .check{display:flex;gap:8px;align-items:center;font-size:.82rem;margin-bottom:10px}
 .check input{width:auto}
+.detalle-disp{border:1px solid var(--copper);background:var(--copper-soft);border-radius:9px;
+  padding:11px;margin-bottom:14px}
+.detalle-disp h3{margin:0 0 8px;font-size:.85rem;font-family:'Space Grotesk',sans-serif}
 
 .aviso-item{border-left:3px solid var(--copper);background:var(--copper-soft);padding:7px 9px;
   border-radius:0 6px 6px 0;margin-bottom:5px;font-size:.77rem;line-height:1.4;cursor:pointer}
@@ -89,7 +123,7 @@ h2:first-child{margin-top:0}
 .acciones{display:flex;gap:9px;justify-content:flex-end;margin-top:18px}
 #toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--navy-deep);
   color:#fff;padding:10px 17px;border-radius:var(--radius);font-size:.82rem;display:none;z-index:60}
-@media(max-width:900px){main{grid-template-columns:1fr}aside{border-left:none;border-top:1px solid var(--line)}}
+@media(max-width:900px){main{grid-template-columns:1fr}aside{border-left:none;border-top:1px solid var(--line);position:static}}
 </style>
 </head>
 <body>
@@ -105,15 +139,17 @@ h2:first-child{margin-top:0}
 <main>
   <div class="centro">
     <div id="gabinete-cont"></div>
+    <div class="bandeja" id="bandeja-cont"></div>
   </div>
   <aside>
     <div id="sin-tablero" class="vacio" style="display:none">Esta obra todavía no tiene
       ningún tablero. Creá uno con “Nuevo tablero”.</div>
     <div id="panel-tablero" style="display:none">
+      <div id="detalle-disp-cont"></div>
+
       <h2>Este tablero</h2>
       <div class="fila2">
-        <div class="campo"><label for="t-nombre">Nombre</label>
-          <input id="t-nombre"></div>
+        <div class="campo"><label for="t-nombre">Nombre</label><input id="t-nombre"></div>
         <div class="campo"><label for="t-tipo">Tipo</label>
           <select id="t-tipo"><option value="principal">Principal</option>
             <option value="seccional">Seccional</option></select></div>
@@ -125,10 +161,6 @@ h2:first-child{margin-top:0}
           <input id="t-pisos" type="number" min="1"></div>
       </div>
       <div class="nota" id="t-resumen" style="margin-bottom:12px"></div>
-
-      <div class="check"><input type="checkbox" id="t-dps">
-        <label for="t-dps" style="margin:0">Protector de sobretensión (DPS)</label></div>
-
       <button class="btn sm danger" id="b-borrar-tablero" style="width:100%">Borrar este tablero</button>
 
       <h2>Para revisar</h2>
@@ -156,7 +188,7 @@ h2:first-child{margin-top:0}
       <select id="n-preset"></select></div>
     <div class="fila2" id="n-custom" style="display:none">
       <div class="campo"><label for="n-bocas">Bocas</label><input id="n-bocas" type="number" value="12"></div>
-      <div class="campo"><label for="n-pisos">Pisos</label><input id="n-pisos" type="number" value="2"></div>
+      <div class="campo"><label for="n-pisos">Pisos</label><input id="n-pisos" type="number" value="1"></div>
     </div>
     <div class="acciones">
       <button class="btn" id="n-cerrar">Cancelar</button>
@@ -169,7 +201,9 @@ h2:first-child{margin-top:0}
 <script>
 const $ = id => document.getElementById(id);
 const OBRA_ID = new URLSearchParams(location.search).get('obra');
-let obra = null, tableros = [], activo = null, presets = [], arrastrando = null;
+const CELDA = 64;             // ancho de una boca, en px. Antes 42: se pidió más grande.
+const ALTO_RIEL = 108;
+let obra = null, tableros = [], activo = null, presets = [], arrastrando = null, seleccionado = null;
 
 const api = async (r,o={}) => {
   const res = await fetch(r,{headers:{'Content-Type':'application/json'},...o});
@@ -186,140 +220,302 @@ async function cargar(){
   obra = await api('/api/obras/'+OBRA_ID);
   $('h-nombre').textContent = obra.obra.nombre;
   tableros = obra.tableros || [];
+  obra.tableros = tableros;                 // misma referencia: mutar tableros[] alcanza
   presets = (await api('/api/tablero/presets')).presets;
   $('n-preset').innerHTML = presets.map(p=>`<option value="${p.id}">${esc(p.nombre)}</option>`).join('');
   $('n-preset').onchange = () => $('n-custom').style.display =
     $('n-preset').value === 'custom' ? 'grid' : 'none';
-  obra.tableros = tableros;             // misma referencia: mutar tableros[] alcanza
   if(tableros.length) activo = tableros[0].id;
-  pintarSelector();
   pintar();
 }
+function tableroActivo(){ return tableros.find(t=>t.id===activo); }
 function pintarSelector(){
   $('sel-tablero').innerHTML = tableros.map(t=>
     `<option value="${t.id}" ${t.id===activo?'selected':''}>${esc(t.nombre)}</option>`).join('');
-  $('sel-tablero').onchange = () => { activo = $('sel-tablero').value; pintar(); };
+  $('sel-tablero').onchange = () => { activo = $('sel-tablero').value; seleccionado=null; pintar(); };
 }
 
-function tableroActivo(){ return tableros.find(t=>t.id===activo); }
+/* ---------------- dibujo de un dispositivo (esquemático) ---------------- */
+function svgDispositivo(d, ancho, alto){
+  const clase = d.tipo==='diferencial' ? 'diferencial' : d.tipo==='bornera' ? 'bornera'
+    : d.tipo==='protector' ? 'protector' : 'termica';
+  const franja = d.rol==='general' ? '#16283f' : (d.color || '#5b6b7a');
+  let interior = `<div class="cuerpo">`;
+  if(clase === 'bornera'){
+    interior += `<div class="tornillo"></div><div class="tierra-simbolo">⏚ PAT</div>`;
+  } else {
+    for(let i=0;i<d.polos;i++)
+      interior += `<div class="polo" style="left:${i*100/d.polos}%;width:${100/d.polos}%">
+        <div class="llave" style="left:33%"></div></div>`;
+    if(clase === 'diferencial'){
+      interior += `<div class="delta">Δ</div><div class="test"></div>
+        <div class="txt-main">${d.corriente}A</div>
+        <div class="txt-sub">${d.sensibilidadMa}mA</div>`;
+    } else if(clase === 'protector'){
+      interior += `<div class="ojo"></div><div class="txt-main">DPS</div>
+        <div class="txt-sub">${etiquetaCircuito(d) || (d.rol==='general'?'General':'')}</div>`;
+    } else {
+      interior += `<div class="txt-main">C${d.corriente ?? ''}</div>
+        <div class="txt-sub">${esc(etiquetaCircuito(d) || (d.rol==='general'?'General':''))}</div>`;
+    }
+    interior += `<div class="franja" style="background:${franja}"></div>`;
+  }
+  interior += `</div>`;
+  return interior;
+}
+function etiquetaCircuito(d){
+  const c = (obra.circuitos||[]).find(x=>x.id===d.circuitoId);
+  return c ? c.nombre : null;
+}
 
 /* ---------------- gabinete ---------------- */
-const CELDA = 42;
 function pintarGabinete(){
   const t = tableroActivo();
   const cont = $('gabinete-cont');
   if(!t){ cont.innerHTML = ''; return; }
   const ancho = t.bocasPorPiso * CELDA;
-  let html = `<div class="gabinete" style="width:${ancho + 36}px">`;
+  let html = `<div class="gabinete">`;
   for(let piso = 0; piso < t.pisos; piso++){
-    html += `<div class="riel" data-piso="${piso}" style="width:${ancho}px">
-      <span class="etiqueta">Piso ${piso+1}</span>`;
-    for(let c = 0; c < t.bocasPorPiso; c++)
-      html += `<div class="celda-fantasma" style="left:${c*CELDA}px;width:${CELDA}px"></div>`;
-    t.dispositivos.filter(d=>d.piso===piso).forEach(d => { html += bloqueDisp(d); });
-    html += `</div>`;
+    const modo = (t.conexionPiso||{})[piso] || 'individual';
+    html += `<div class="riel-fila">
+      <div class="riel" data-piso="${piso}" style="width:${ancho}px;height:${ALTO_RIEL}px">
+        <span class="etiqueta">Piso ${piso+1}</span>`;
+    for(let c=0;c<=t.bocasPorPiso;c++)
+      html += `<div class="celda-fantasma" style="left:${c*CELDA}px"></div>`;
+    html += dibujoBus(t, piso, modo);
+    t.dispositivos.filter(d=>d.piso===piso).forEach(d => { html += bloqueDisp(d, true); });
+    html += `</div>
+      <select class="conexion-sel" data-piso-conexion="${piso}">
+        <option value="individual" ${modo==='individual'?'selected':''}>Conectores individuales</option>
+        <option value="peine" ${modo==='peine'?'selected':''}>Peine</option>
+      </select>
+    </div>`;
   }
   html += `</div>`;
   cont.innerHTML = html;
-  cablearDrag();
+  cablearGabinete();
 }
-function bloqueDisp(d){
-  const clase = d.rol==='general' && d.tipo==='termica' ? 'gen'
-    : d.tipo==='diferencial' ? 'dif' : d.tipo==='bornera' ? 'tierra'
-    : d.tipo==='protector' ? 'dps' : '';
-  const bg = d.color ? `style="background:${d.color};left:${d.posicion*CELDA}px;width:${d.polos*CELDA-3}px"`
-    : `style="left:${d.posicion*CELDA}px;width:${d.polos*CELDA-3}px"`;
-  const nombre = d.rol==='general' && d.tipo==='termica' ? 'GRAL'
-    : d.tipo==='diferencial' ? 'DIF' : d.tipo==='bornera' ? 'PAT'
-    : d.tipo==='protector' ? 'DPS' : (nombreCircuito(d.circuitoId) || '—');
-  const detalle = d.tipo==='bornera' ? ''
-    : d.tipo==='diferencial' ? `${d.corriente}A ${d.sensibilidadMa}mA`
-    : d.corriente ? `${d.corriente}A` : '';
-  const alim = d.alimentacion ? (d.alimentacion==='arriba'?'⬆':'⬇') : '';
-  return `<div class="disp ${clase}" draggable="true" data-id="${d.id}" ${bg}>
-    ${alim?`<span class="alim" data-alim="${d.id}" title="Cambiar de dónde entra">${alim}</span>`:''}
-    <span class="n">${esc(nombre)}</span><span class="c">${esc(detalle)}</span>
+function dibujoBus(t, piso, modo){
+  const puestos = t.dispositivos.filter(d=>d.piso===piso && d.tipo!=='bornera')
+    .sort((a,b)=>a.posicion-b.posicion);
+  if(puestos.length < 2) return '';
+  const x0 = puestos[0].posicion*CELDA + 6;
+  const x1 = (puestos[puestos.length-1].posicion + puestos[puestos.length-1].polos)*CELDA - 6;
+  if(modo === 'peine'){
+    return `<div class="cablebus" style="left:${x0}px;width:${x1-x0}px"></div>
+            <div class="cablebus n" style="left:${x0}px;width:${x1-x0}px"></div>`;
+  }
+  // individual: un segmento corto entre cada par de dispositivos adyacentes
+  let html = '';
+  for(let i=0;i<puestos.length-1;i++){
+    const a = puestos[i], b = puestos[i+1];
+    const xa = (a.posicion+a.polos)*CELDA - 4, xb = b.posicion*CELDA + 4;
+    if(xb > xa) html += `<div class="cablebus" style="left:${xa}px;width:${xb-xa}px"></div>`;
+  }
+  return html;
+}
+function bloqueDisp(d, enRiel){
+  const w = d.polos*CELDA - 3, h = ALTO_RIEL - 8;
+  const pos = enRiel ? `left:${d.posicion*CELDA+1}px;top:4px` : `left:0;top:0`;
+  const clase = d.tipo==='diferencial' ? 'diferencial' : d.tipo==='bornera' ? 'bornera'
+    : d.tipo==='protector' ? 'protector' : '';
+  const flechas = enRiel ? `
+    <div class="flecha-alim ${d.alimentacion==='arriba'?'arriba':'abajo'}"
+      data-alim="${d.id}" title="Cambiar por dónde entra"></div>` : '';
+  return `<div class="disp ${clase} ${seleccionado===d.id?'seleccionado':''}" draggable="true"
+    data-id="${d.id}" style="${pos};width:${w}px;height:${h}px">
+    ${svgDispositivo(d, w, h)}${flechas}
   </div>`;
 }
-function nombreCircuito(id){
-  const c = (obra.circuitos||[]).find(x=>x.id===id);
-  return c ? c.nombre : null;
-}
 
-function cablearDrag(){
+function cablearGabinete(){
   document.querySelectorAll('.disp').forEach(n => {
     n.addEventListener('dragstart', ev => {
-      arrastrando = n.dataset.id;
-      n.classList.add('arrastrando');
+      arrastrando = n.dataset.id; n.classList.add('arrastrando');
       ev.dataTransfer.setData('text/plain', n.dataset.id);
     });
     n.addEventListener('dragend', () => n.classList.remove('arrastrando'));
+    n.addEventListener('click', ev => {
+      if(ev.target.dataset.alim) return;
+      seleccionado = n.dataset.id; pintar();
+    });
   });
-  document.querySelectorAll('.alim').forEach(n => n.onclick = async ev => {
+  document.querySelectorAll('[data-alim]').forEach(n => n.onclick = async ev => {
     ev.stopPropagation();
     const t = tableroActivo();
     const d = t.dispositivos.find(x=>x.id===n.dataset.alim);
     d.alimentacion = d.alimentacion === 'arriba' ? 'abajo' : 'arriba';
-    pintarGabinete();
-    await guardarTablero();
+    await persistirObra(); pintarGabinete();
+  });
+  document.querySelectorAll('[data-piso-conexion]').forEach(n => n.onchange = async () => {
+    const t = tableroActivo();
+    t.conexionPiso = t.conexionPiso || {};
+    t.conexionPiso[n.dataset.pisoConexion] = n.value;
+    await persistirObra(); pintarGabinete();
   });
   document.querySelectorAll('.riel').forEach(riel => {
-    riel.addEventListener('dragover', ev => { ev.preventDefault(); riel.classList.add('sobre'); });
-    riel.addEventListener('dragleave', () => riel.classList.remove('sobre'));
+    riel.addEventListener('dragover', ev => ev.preventDefault());
     riel.addEventListener('drop', async ev => {
-      ev.preventDefault(); riel.classList.remove('sobre');
+      ev.preventDefault();
       const id = ev.dataTransfer.getData('text/plain') || arrastrando;
       if(!id) return;
       const rect = riel.getBoundingClientRect();
       const pos = Math.max(0, Math.round((ev.clientX - rect.left) / CELDA));
-      const piso = +riel.dataset.piso;
-      try{
-        const r = await api(`/api/obras/${OBRA_ID}/tableros/${activo}/mover`,
-          {method:'POST', body:JSON.stringify({dispositivoId:id, piso, posicion:pos})});
-        actualizarTablero(r.tablero, r.avisos);
-      }catch(e){ toast(e.message); pintarGabinete(); }
+      await moverA(id, +riel.dataset.piso, pos);
     });
   });
 }
 
-/* ---------------- panel lateral ---------------- */
+/* ---------------- bandeja (sin colocar) ---------------- */
+function pintarBandeja(){
+  const t = tableroActivo();
+  const cont = $('bandeja-cont');
+  if(!t){ cont.innerHTML=''; return; }
+  const sueltos = t.dispositivos.filter(d=>d.piso===null || d.piso===undefined);
+  cont.innerHTML = `<h2>Bandeja — sin colocar en el riel</h2>
+    <div class="bandeja-fila" id="bandeja-drop">
+      ${sueltos.length ? sueltos.map(d=>`<div class="bandeja-item" data-id="${d.id}"
+          draggable="true">${bloqueDispBandeja(d)}</div>`).join('')
+        : '<div class="bandeja-vacia">Nada suelto. Agregá dispositivos abajo o arrastrá uno '
+          + 'desde el riel para sacarlo.</div>'}
+    </div>
+    <div class="agregar-fila">
+      <button class="btn sm" data-agregar="termica">+ Térmica</button>
+      <button class="btn sm" data-agregar="diferencial">+ Diferencial</button>
+      <button class="btn sm" data-agregar="bornera">+ Bornera de tierra</button>
+      <button class="btn sm" data-agregar="protector">+ Protector de sobretensión</button>
+    </div>`;
+  const drop = $('bandeja-drop');
+  drop.addEventListener('dragover', ev => { ev.preventDefault(); drop.classList.add('sobre'); });
+  drop.addEventListener('dragleave', () => drop.classList.remove('sobre'));
+  drop.addEventListener('drop', async ev => {
+    ev.preventDefault(); drop.classList.remove('sobre');
+    const id = ev.dataTransfer.getData('text/plain') || arrastrando;
+    if(id) await moverA(id, null, null);
+  });
+  drop.querySelectorAll('.bandeja-item').forEach(n => {
+    n.addEventListener('dragstart', ev => {
+      arrastrando = n.dataset.id; n.classList.add('arrastrando');
+      ev.dataTransfer.setData('text/plain', n.dataset.id);
+    });
+    n.addEventListener('dragend', () => n.classList.remove('arrastrando'));
+    n.addEventListener('click', () => { seleccionado = n.dataset.id; pintar(); });
+  });
+  document.querySelectorAll('[data-agregar]').forEach(n => n.onclick = () => agregarDispositivo(n.dataset.agregar));
+}
+function bloqueDispBandeja(d){
+  const clase = d.tipo==='diferencial' ? 'diferencial' : d.tipo==='bornera' ? 'bornera'
+    : d.tipo==='protector' ? 'protector' : '';
+  return `<div class="disp ${clase} ${seleccionado===d.id?'seleccionado':''}"
+    style="position:static;width:100%;height:100%">${svgDispositivo(d)}</div>`;
+}
+
+/* ---------------- acciones de dispositivo ---------------- */
+async function moverA(id, piso, posicion){
+  const t = tableroActivo();
+  try{
+    const r = await api(`/api/obras/${OBRA_ID}/tableros/${t.id}/mover`,
+      {method:'POST', body:JSON.stringify({dispositivoId:id, piso, posicion})});
+    actualizarTablero(r.tablero, r.avisos);
+  }catch(e){ toast(e.message); pintar(); }
+}
+async function agregarDispositivo(tipo){
+  const t = tableroActivo(); if(!t) return;
+  let extra = {tipo};
+  if(tipo === 'termica'){
+    const c = prompt('Corriente de la térmica (A)', '16');
+    if(!c) return; extra.corriente = parseFloat(c);
+  } else if(tipo === 'diferencial'){
+    const c = prompt('Corriente del diferencial (A)', '40'); if(!c) return;
+    const mA = prompt('Sensibilidad (mA)', '30'); if(!mA) return;
+    extra.corriente = parseFloat(c); extra.sensibilidadMa = parseFloat(mA);
+  }
+  try{
+    const r = await api(`/api/obras/${OBRA_ID}/tableros/${t.id}/dispositivos`,
+      {method:'POST', body:JSON.stringify(extra)});
+    actualizarTablero(r.tablero, null);
+    toast('Agregado a la bandeja');
+  }catch(e){ toast(e.message); }
+}
+async function eliminarDispositivo(id){
+  const t = tableroActivo(); if(!t) return;
+  if(!confirm('¿Sacar este dispositivo del tablero? Si es la térmica de un circuito, '
+    + 'el circuito queda sin protección planificada.')) return;
+  await api(`/api/obras/${OBRA_ID}/tableros/${t.id}/dispositivos/${id}`, {method:'DELETE'});
+  t.dispositivos = t.dispositivos.filter(d=>d.id!==id);
+  seleccionado = null;
+  pintar(); toast('Quitado');
+}
+async function persistirObra(){
+  await api('/api/obras/'+OBRA_ID, {method:'PUT', body:JSON.stringify(obra)});
+}
+
+/* ---------------- panel de detalle del seleccionado ---------------- */
+function pintarDetalle(){
+  const t = tableroActivo();
+  const cont = $('detalle-disp-cont');
+  if(!t || !seleccionado){ cont.innerHTML = ''; return; }
+  const d = t.dispositivos.find(x=>x.id===seleccionado);
+  if(!d){ seleccionado=null; cont.innerHTML=''; return; }
+  const circ = etiquetaCircuito(d);
+  cont.innerHTML = `<div class="detalle-disp">
+    <h3>${d.tipo==='bornera'?'Bornera de tierra':d.tipo==='diferencial'?'Diferencial':
+      d.tipo==='protector'?'Protector de sobretensión':(circ?'Térmica · '+esc(circ):'Térmica')}</h3>
+    ${d.tipo!=='bornera' ? `<div class="campo"><label for="dd-corriente">Corriente (A)</label>
+      <input id="dd-corriente" type="number" value="${d.corriente??''}"></div>` : ''}
+    ${d.tipo==='diferencial' ? `<div class="campo"><label for="dd-ma">Sensibilidad (mA)</label>
+      <input id="dd-ma" type="number" value="${d.sensibilidadMa??''}"></div>` : ''}
+    <div class="campo"><label for="dd-alim">Entra por</label>
+      <select id="dd-alim"><option value="arriba" ${d.alimentacion==='arriba'?'selected':''}>Arriba</option>
+        <option value="abajo" ${d.alimentacion==='abajo'?'selected':''}>Abajo</option></select></div>
+    ${d.piso!==null ? `<button class="btn sm" id="dd-sacar" style="width:100%;margin-bottom:6px">
+      Devolver a la bandeja</button>` : ''}
+    <button class="btn sm danger" id="dd-borrar" style="width:100%">Quitar del tablero</button>
+  </div>`;
+  if($('dd-corriente')) $('dd-corriente').onchange = async () => {
+    d.corriente = parseFloat($('dd-corriente').value)||0; await persistirObra(); pintarGabinete();
+  };
+  if($('dd-ma')) $('dd-ma').onchange = async () => {
+    d.sensibilidadMa = parseFloat($('dd-ma').value)||0; await persistirObra(); pintarGabinete();
+  };
+  $('dd-alim').onchange = async () => {
+    d.alimentacion = $('dd-alim').value; await persistirObra(); pintarGabinete();
+  };
+  if($('dd-sacar')) $('dd-sacar').onclick = () => moverA(d.id, null, null);
+  $('dd-borrar').onclick = () => eliminarDispositivo(d.id);
+}
+
+/* ---------------- panel general ---------------- */
 function pintarPanel(){
   const t = tableroActivo();
   $('sin-tablero').style.display = t ? 'none' : 'block';
   $('panel-tablero').style.display = t ? 'block' : 'none';
   if(!t) return;
-  $('t-nombre').value = t.nombre;
-  $('t-tipo').value = t.tipo;
-  $('t-bocas').value = t.bocas;
-  $('t-pisos').value = t.pisos;
-  $('t-dps').checked = !!t.protectorSobretension?.activo;
-  const usados = t.dispositivos.reduce((s,d)=>s+d.polos,0);
+  $('t-nombre').value = t.nombre; $('t-tipo').value = t.tipo;
+  $('t-bocas').value = t.bocas; $('t-pisos').value = t.pisos;
+  const usados = t.dispositivos.filter(d=>d.piso!==null).reduce((s,d)=>s+d.polos,0);
   $('t-resumen').textContent = `${t.fases===3?'Trifásico':'Monofásico'} · `
-    + `${t.bocasPorPiso} bocas por piso · ${usados} de ${t.bocas} ocupadas`;
+    + `${t.bocasPorPiso} bocas por piso · ${usados} de ${t.bocas} colocadas`;
 }
 function pintarAvisos(avisos){
-  const rel = (avisos||[]).filter(a =>
-    ['tablero_sin_lugar','circuito_sin_termica'].includes(a.tipo));
+  if(avisos) ultimosAvisos = avisos;
+  const rel = (ultimosAvisos||[]).filter(a =>
+    ['sin_ubicar','circuito_sin_termica'].includes(a.tipo));
   $('avisos').innerHTML = rel.length
     ? rel.map(a=>`<div class="aviso-item ${a.gravedad==='error'?'error':''}">${esc(a.detalle)}</div>`).join('')
-    : '<div class="nota">Sin problemas de lugar.</div>';
+    : '<div class="nota">Sin pendientes.</div>';
 }
-function pintar(){ pintarSelector(); pintarGabinete(); pintarPanel();
+let ultimosAvisos = [];
+function pintar(){ pintarSelector(); pintarGabinete(); pintarBandeja(); pintarPanel(); pintarDetalle(); pintarAvisos();
   $('h-sub').textContent = tableros.length ? `${tableros.length} tablero(s)` : 'Sin tableros todavía'; }
 
 function actualizarTablero(t, avisos){
   const i = tableros.findIndex(x=>x.id===t.id);
   if(i>=0) tableros[i] = t; else tableros.push(t);
-  pintarGabinete(); pintarPanel(); pintarAvisos(avisos);
-}
-async function guardarTablero(){
-  const t = tableroActivo(); if(!t) return;
-  await api(`/api/obras/${OBRA_ID}/tableros/${t.id}`,
-    {method:'POST', body:JSON.stringify({tablero:{nombre:t.nombre, tipo:t.tipo,
-      protectorSobretension:t.protectorSobretension}})});
+  pintar(); if(avisos) pintarAvisos(avisos);
 }
 
-/* ---------------- acciones ---------------- */
+/* ---------------- acciones de cabecera ---------------- */
 $('b-nuevo').onclick = () => { $('n-nombre').value=''; $('n-preset').value='12';
   $('n-custom').style.display='none'; $('ov-nuevo').classList.add('abierto'); };
 $('n-cerrar').onclick = () => $('ov-nuevo').classList.remove('abierto');
@@ -331,7 +527,7 @@ $('n-crear').onclick = async () => {
     const r = await api('/api/obras/'+OBRA_ID+'/tableros', {method:'POST', body:JSON.stringify(cuerpo)});
     tableros.push(r.tablero); activo = r.tablero.id;
     $('ov-nuevo').classList.remove('abierto');
-    pintar(); toast('Tablero creado');
+    pintar(); toast('Tablero creado. Arrastrá los dispositivos de la bandeja al riel.');
   }catch(e){ toast(e.message); }
 };
 $('b-sincronizar').onclick = async () => {
@@ -339,7 +535,7 @@ $('b-sincronizar').onclick = async () => {
   try{
     const r = await api(`/api/obras/${OBRA_ID}/tableros/${t.id}`, {method:'POST', body:'{}'});
     actualizarTablero(r.tablero, r.avisos);
-    toast('Circuitos sincronizados con el tablero');
+    toast('Circuitos sincronizados: las térmicas nuevas quedaron en la bandeja.');
   }catch(e){ toast(e.message); }
 };
 $('b-borrar-tablero').onclick = async () => {
@@ -352,7 +548,9 @@ $('b-borrar-tablero').onclick = async () => {
 };
 ['t-nombre','t-tipo'].forEach(id => $(id).onchange = async () => {
   const t = tableroActivo(); t[id.slice(2)] = $(id).value;
-  await guardarTablero(); pintarPanel();
+  await api(`/api/obras/${OBRA_ID}/tableros/${t.id}`,
+    {method:'POST', body:JSON.stringify({tablero:{nombre:t.nombre, tipo:t.tipo}})});
+  pintarPanel();
 });
 ['t-bocas','t-pisos'].forEach(id => $(id).onchange = async () => {
   const t = tableroActivo();
@@ -364,23 +562,6 @@ $('b-borrar-tablero').onclick = async () => {
   const r = await api(`/api/obras/${OBRA_ID}/tableros/${t.id}`, {method:'POST', body:'{}'});
   actualizarTablero(r.tablero, r.avisos);
 });
-$('t-dps').onchange = async () => {
-  const t = tableroActivo();
-  t.protectorSobretension = t.protectorSobretension || {activo:false, polos:2};
-  t.protectorSobretension.activo = $('t-dps').checked;
-  if($('t-dps').checked && !t.dispositivos.some(d=>d.tipo==='protector')){
-    t.dispositivos.push({id:'dps_'+Date.now().toString(36), tipo:'protector', rol:'general',
-      piso:0, posicion:0, polos:t.protectorSobretension.polos||2, circuitoId:null, alimentacion:'arriba'});
-  } else if(!$('t-dps').checked){
-    t.dispositivos = t.dispositivos.filter(d=>d.tipo!=='protector');
-  }
-  // el dispositivo nuevo sólo existe en el cliente: se persiste con la obra
-  // entera, no con el endpoint angosto (ese relee del disco y lo perdería).
-  try{
-    await api('/api/obras/'+OBRA_ID, {method:'PUT', body:JSON.stringify(obra)});
-    pintarGabinete();
-  }catch(e){ toast(e.message); }
-};
 $('b-volver').onclick = () => location.href = '/circuitos.html?obra='+OBRA_ID;
 
 cargar().catch(e => { $('h-sub').textContent = e.message; toast(e.message); });

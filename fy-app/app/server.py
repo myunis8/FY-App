@@ -68,6 +68,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._nuevo_tablero(partes[2])
             if len(partes) == 6 and partes[:2] == ["api", "obras"] and partes[3] == "tableros" and partes[5] == "mover":
                 return self._mover_dispositivo(partes[2], partes[4])
+            if len(partes) == 6 and partes[:2] == ["api", "obras"] and partes[3] == "tableros" and partes[5] == "dispositivos":
+                return self._agregar_dispositivo(partes[2], partes[4])
             if len(partes) == 5 and partes[:2] == ["api", "obras"] and partes[3] == "tableros":
                 return self._sincronizar_tablero(partes[2], partes[4])
             return self._api_post(ruta)
@@ -91,6 +93,16 @@ class Handler(BaseHTTPRequestHandler):
         partes = [p for p in urlparse(self.path).path.split("/") if p]
         if len(partes) == 3 and partes[:2] == ["api", "obras"]:
             return self._json({"ok": almacen.borrar_obra(partes[2])})
+        if len(partes) == 7 and partes[:2] == ["api", "obras"] and partes[3] == "tableros" and partes[5] == "dispositivos":
+            obra = almacen.leer_obra(partes[2])
+            if obra is None:
+                return self._error("Esa obra no está en este equipo.", 404)
+            t = next((x for x in obra.get("tableros") or [] if x["id"] == partes[4]), None)
+            if t is None:
+                return self._error("Ese tablero no existe.", 404)
+            ok = tablero_mod.eliminar_dispositivo(t, partes[6])
+            almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
+            return self._json({"ok": ok})
         if len(partes) == 5 and partes[:2] == ["api", "obras"] and partes[3] == "tableros":
             obra = almacen.leer_obra(partes[2])
             if obra is None:
@@ -320,6 +332,21 @@ class Handler(BaseHTTPRequestHandler):
         avisos = tablero_mod.validar(t, obra.get("circuitos") or [])
         almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
         return self._json({"ok": True, "tablero": t, "avisos": avisos})
+
+    def _agregar_dispositivo(self, obra_id, tablero_id):
+        obra = almacen.leer_obra(obra_id)
+        if obra is None:
+            return self._error("Esa obra no está en este equipo.", 404)
+        t = next((x for x in obra.get("tableros") or [] if x["id"] == tablero_id), None)
+        if t is None:
+            return self._error("Ese tablero no existe.", 404)
+        cuerpo = self._cuerpo()
+        try:
+            d = tablero_mod.agregar_dispositivo(t, cuerpo.get("tipo", "termica"), cuerpo)
+        except ValueError as e:
+            return self._error(str(e))
+        almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
+        return self._json({"ok": True, "dispositivo": d, "tablero": t})
 
     def _mover_dispositivo(self, obra_id, tablero_id):
         obra = almacen.leer_obra(obra_id)
