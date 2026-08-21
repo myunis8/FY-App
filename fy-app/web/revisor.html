@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Revisar plano</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+:root{
+  --navy:#16283f; --navy-deep:#0e1c2e; --paper:#f1f3f2; --panel:#fff; --line:#dde3e2;
+  --ink:#1c2733; --muted:#5b6b7a; --amber:#e2a33d; --amber-deep:#c07f1f;
+  --copper:#b5651d; --copper-soft:#f4e3d3; --slate-soft:#eef1f3;
+  --green:#2f7d5c; --green-soft:#dcefe4; --danger:#b3432f; --danger-soft:#f8ded7;
+  --blue:#2b6ca3; --blue-soft:#dce9f3; --radius:10px;
+  font-family:'IBM Plex Sans',system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--paper);color:var(--ink);display:flex;flex-direction:column}
+button{font:inherit;cursor:pointer}
+input,select{font:inherit}
+.mono{font-family:'IBM Plex Mono',Consolas,monospace}
+
+header{background:var(--navy);color:#fff;padding:11px 18px;display:flex;align-items:center;
+  gap:14px;flex-wrap:wrap;flex:0 0 auto}
+header h1{font-family:'Space Grotesk',sans-serif;font-size:.98rem;margin:0;font-weight:600}
+header .sub{font-size:.72rem;color:#9db2c7}
+.spacer{flex:1}
+.btn{border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:7px 13px;
+  border-radius:var(--radius);font-size:.82rem;font-weight:500}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--amber);border-color:var(--amber-deep);color:#2a1e07;font-weight:600}
+.btn.ghost{background:transparent;border-color:#33506e;color:#cfe0f0}
+.btn.ghost:hover{border-color:#5b7fa5}
+.btn.sm{padding:4px 9px;font-size:.75rem}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+
+.cuerpo{flex:1;display:grid;grid-template-columns:1fr 340px;min-height:0}
+#lienzo{position:relative;overflow:auto;background:#e7eae9;padding:18px}
+#envoltorio{position:relative;display:inline-block;background:#fff;box-shadow:0 2px 14px rgba(14,28,46,.14)}
+#hoja{display:block;max-width:none}
+#capa{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+
+.el{cursor:pointer;stroke-width:1.1;fill-opacity:.85}
+.el.artefacto{fill:#2b6ca3;stroke:#17456e}
+.el.toma{fill:#2f7d5c;stroke:#1d5740}
+.el.llave{fill:#e2a33d;stroke:#a06a12}
+.el.otros{fill:#b5651d;stroke:#7a410c}
+.el.desconocido{fill:#b3432f;stroke:#7d2418}
+.el.sel{stroke:#0e1c2e;stroke-width:2.4}
+.el.dudoso{stroke-dasharray:2 1.4}
+.marca-rev{fill:#fff;pointer-events:none}
+.origen{stroke:#b3432f;stroke-width:1.6}
+
+aside{background:var(--panel);border-left:1px solid var(--line);overflow-y:auto;padding:16px}
+aside h2{font-family:'Space Grotesk',sans-serif;font-size:.85rem;margin:0 0 9px;
+  text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.seccion{margin-bottom:22px}
+.cifras{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.cifra{background:var(--slate-soft);border-radius:8px;padding:8px 10px}
+.cifra b{display:block;font-size:1.05rem;font-family:'IBM Plex Mono',monospace}
+.cifra span{font-size:.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+
+.aviso-item{border-left:3px solid var(--copper);background:var(--copper-soft);
+  padding:8px 10px;border-radius:0 6px 6px 0;margin-bottom:6px;font-size:.78rem;
+  line-height:1.4;cursor:pointer}
+.aviso-item.error{border-color:var(--danger);background:var(--danger-soft)}
+.aviso-item:hover{filter:brightness(.97)}
+
+.campo{margin-bottom:10px}
+.campo label{display:block;font-size:.72rem;font-weight:600;margin-bottom:4px;color:var(--muted)}
+.campo input,.campo select{width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:7px}
+.fila2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.vacio-panel{color:var(--muted);font-size:.8rem;line-height:1.5}
+.pastilla{display:inline-block;font-size:.66rem;padding:2px 7px;border-radius:99px;
+  background:var(--slate-soft);color:var(--muted);font-weight:600;margin-right:4px}
+.pastilla.ok{background:var(--green-soft);color:var(--green)}
+.pastilla.baja{background:var(--danger-soft);color:var(--danger)}
+.leyenda{display:flex;gap:10px;flex-wrap:wrap;font-size:.72rem;color:var(--muted)}
+.leyenda label{display:flex;align-items:center;gap:4px;cursor:pointer}
+.pt{width:9px;height:9px;border-radius:50%;display:inline-block}
+#barra-modo{display:none;background:var(--copper);color:#fff;padding:9px 18px;
+  font-size:.83rem;align-items:center;gap:12px;flex:0 0 auto}
+#barra-modo.activo{display:flex}
+#barra-modo b{font-weight:600}
+#barra-modo .spacer{flex:1}
+#lienzo.colocando{cursor:crosshair}
+.guia{stroke:var(--copper);stroke-width:1.2;stroke-dasharray:3 2;fill:none}
+.guia-pt{fill:var(--copper)}
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--navy-deep);
+  color:#fff;padding:10px 17px;border-radius:var(--radius);font-size:.82rem;display:none;z-index:60}
+@media(max-width:900px){.cuerpo{grid-template-columns:1fr}aside{border-left:none;border-top:1px solid var(--line)}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1 id="h-nombre">Revisar plano</h1>
+    <div class="sub" id="h-sub">Cargando…</div>
+  </div>
+  <div class="spacer"></div>
+  <button class="btn ghost" id="b-calibrar">Calibrar escala</button>
+  <button class="btn ghost" id="b-extraer">Extraer</button>
+  <button class="btn ghost" id="b-volver">Volver</button>
+  <button class="btn primary" id="b-guardar">Guardar</button>
+</header>
+
+<div id="barra-modo"></div>
+
+<div class="cuerpo">
+  <div id="lienzo">
+    <div id="envoltorio">
+      <img id="hoja" alt="Plano de la obra">
+      <svg id="capa" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
+  </div>
+
+  <aside>
+    <div class="seccion">
+      <h2>Lo que leí</h2>
+      <div class="cifras" id="p-cifras"></div>
+      <div style="margin-top:9px;font-size:.74rem;color:var(--muted)" id="p-escala"></div>
+    </div>
+
+    <div class="seccion">
+      <h2>Mostrar</h2>
+      <div class="leyenda" id="p-leyenda"></div>
+    </div>
+
+    <div class="seccion">
+      <h2>Selección <button class="btn sm" id="b-agregar" style="float:right">Agregar caja</button></h2>
+      <div id="p-editor"><div class="vacio-panel">Tocá un elemento o un ambiente del plano para corregirlo.</div></div>
+    </div>
+
+    <div class="seccion">
+      <h2>Para revisar <span class="pastilla" id="p-navisos"></span></h2>
+      <div id="p-avisos"></div>
+    </div>
+  </aside>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const SUBTIPOS_TOMA = ['toma_doble','toma_simple','toma_tv','toma_datos','toma_exterior',
+  'preinstalacion_aa','toma_heladera','toma_horno','toma_microondas','toma_anafe',
+  'toma_lavarropas','toma_lavavajillas','toma_termotanque','especial'];
+const SUBTIPOS_ART = ['boca_techo','aplique_pared','artefacto_lineal'];
+const SUBTIPOS_OTROS = ['alimentacion_extractor','alimentacion_estufa',
+  'alimentacion_bomba','toma_termotanque','especial'];
+const TIPOS = [['artefacto','Artefactos','#2b6ca3'],['toma','Tomas','#2f7d5c'],
+  ['llave','Teclas','#e2a33d'],['otros','Otros','#b5651d'],
+  ['desconocido','Sin reconocer','#b3432f']];
+const ZOOM = 2;
+
+const $ = id => document.getElementById(id);
+const params = new URLSearchParams(location.search);
+const OBRA_ID = params.get('obra');
+let obra = null, sel = null, visibles = new Set(TIPOS.map(t=>t[0]));
+let modo = null;            // null | 'colocar' | 'calibrar'
+let pendiente = null;       // caja a colocar, o primer punto de la calibración
+
+const api = async (ruta, opts={}) => {
+  const r = await fetch(ruta, {headers:{'Content-Type':'application/json'}, ...opts});
+  const d = await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error(d.error || 'Error inesperado');
+  return d;
+};
+function toast(m){const t=$('toast');t.textContent=m;t.style.display='block';
+  clearTimeout(t._t);t._t=setTimeout(()=>t.style.display='none',3000);}
+const esc = s => (s==null?'':String(s)).replace(/[&<>"]/g,
+  c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+
+/* ---------- carga ---------- */
+async function cargar(){
+  obra = await api('/api/obras/'+OBRA_ID);
+  $('h-nombre').textContent = obra.obra.nombre;
+  if(!obra.plano){
+    $('h-sub').textContent = 'Esta obra todavía no tiene plano cargado.';
+    return;
+  }
+  const img = $('hoja');
+  img.onload = () => { dimensionar(); pintarTodo(); };
+  img.src = '/api/obras/'+OBRA_ID+'/plano.png?zoom='+ZOOM+'&t='+Date.now();
+  if(!obra.elementos.length && !obra.plano.extraidoEl){
+    $('h-sub').textContent = 'Leyendo el plano…';
+    await extraer({silencioso:true});
+  }
+}
+function dimensionar(){
+  const p = obra.plano.paginaPt || {ancho:842, alto:1191};
+  $('capa').setAttribute('viewBox', `0 0 ${p.ancho} ${p.alto}`);
+  $('envoltorio').style.width = $('hoja').naturalWidth + 'px';
+}
+
+/* ---------- pintado ---------- */
+function pintarTodo(){ pintarCapa(); pintarPanel(); }
+
+function pintarCapa(){
+  if(!obra.plano || !obra.plano.referencia) return;
+  const capa = $('capa');
+  let html = '';
+  (obra.elementos||[]).forEach(e=>{
+    if(!visibles.has(e.tipo)) return;
+    const x = e.posicionPdfPt.x, y = e.posicionPdfPt.y;
+    const dudoso = (Math.min(...Object.values(e.confianza||{simbolo:1}))||1) < 0.6;
+    html += `<circle class="el ${e.tipo}${sel===e.id?' sel':''}${dudoso?' dudoso':''}"
+      cx="${x}" cy="${y}" r="3.4" data-el="${e.id}"><title>${esc(rotulo(e))}</title></circle>`;
+    if(e.revisadoPorUsuario || e.origen==='manual')
+      html += `<circle class="marca-rev" cx="${x}" cy="${y}" r="1.1"/>`;
+  });
+  // leyendas sin caja: se marcan para poder colocarlas
+  ((obra.validacion||{}).errores||[]).forEach((a,i)=>{
+    if(a.tipo!=='caja_faltante' || !a.pt) return;
+    html += `<path class="guia" d="M${a.pt[0]-4},${a.pt[1]-4} l8,8 M${a.pt[0]+4},${a.pt[1]-4} l-8,8"/>`;
+  });
+  if(pendiente && pendiente.a){
+    const [x0,y0] = pendiente.a, [x1,y1] = pendiente.b || pendiente.a;
+    html += `<line class="guia" x1="${x0}" y1="${y0}" x2="${x1}" y2="${y1}"/>
+             <circle class="guia-pt" cx="${x0}" cy="${y0}" r="2"/>`;
+  }
+  const o = obra.plano.referencia.origenPdfPt;
+  html += `<path class="origen" d="M${o.x-6},${o.y} h12 M${o.x},${o.y-6} v12" fill="none"/>`;
+  capa.innerHTML = html;
+  capa.querySelectorAll('[data-el]').forEach(n =>
+    n.onclick = ev => { if(modo) return; ev.stopPropagation(); sel = n.dataset.el; pintarTodo(); });
+}
+
+/* ---------- coordenadas del clic sobre el plano ---------- */
+function puntoPdf(ev){
+  const img = $('hoja'), r = img.getBoundingClientRect();
+  const p = obra.plano.paginaPt;
+  return [(ev.clientX - r.left) / r.width * p.ancho,
+          (ev.clientY - r.top) / r.height * p.alto];
+}
+function aMetros(xpt, ypt){
+  const r = obra.plano.referencia, k = obra.plano.escala.ptPorMetro;
+  return [(xpt - r.origenPdfPt.x)/k, (r.origenPdfPt.y - ypt)/k];
+}
+
+function rotulo(e){
+  const p = [e.subtipo||e.tipo];
+  if(e.nombre) p.push('“'+e.nombre+'”');
+  if(e.letra) p.push('tecla '+e.letra);
+  if(e.alturaM!=null) p.push('h '+e.alturaM.toFixed(2)+' m');
+  if(e.tipoComando) p.push(e.tipoComando);
+  return p.join(' · ');
+}
+
+/* ---------- panel ---------- */
+function pintarPanel(){
+  const els = obra.elementos||[];
+  const cuenta = t => els.filter(e=>e.tipo===t).length;
+  const teclas = els.filter(e=>e.tipo==='llave');
+  const letras = new Set(teclas.map(e=>e.letra));
+  const comb = [...letras].filter(l => teclas.filter(e=>e.letra===l).length>1).length;
+  $('p-cifras').innerHTML = [
+    ['Artefactos', cuenta('artefacto')], ['Tomas', cuenta('toma')],
+    ['Teclas', teclas.length], ['Circuitos', letras.size],
+    ['Combinados', comb], ['Puestos a mano', els.filter(e=>e.origen==='manual').length],
+  ].map(([k,v])=>`<div class="cifra"><b>${v}</b><span>${k}</span></div>`).join('');
+
+  const esc_ = obra.plano?.escala;
+  $('p-escala').innerHTML = esc_
+    ? `Escala ${esc(esc_.nominal)} · ${esc_.ptPorMetro.toFixed(3)} pt/m · ${
+        esc_.metodo==='cadena_de_cotas'
+          ? 'medida sobre las cotas del plano'
+          : esc_.metodo==='manual' ? 'calibrada por vos'
+          : '<b style="color:var(--danger)">asumida: el plano no tiene cotas.' +
+            ' Calibrala antes de seguir</b>'}`
+    : '';
+  $('h-sub').textContent = esc_
+    ? `${els.length} elementos · escala ${esc_.nominal}` : 'Sin leer';
+
+  $('p-leyenda').innerHTML = TIPOS.map(([t,l,c])=>
+    `<label><input type="checkbox" data-t="${t}" ${visibles.has(t)?'checked':''}>
+      <span class="pt" style="background:${c}"></span>${l}</label>`).join('');
+  $('p-leyenda').querySelectorAll('input').forEach(i => i.onchange = () => {
+    i.checked ? visibles.add(i.dataset.t) : visibles.delete(i.dataset.t);
+    pintarCapa();
+  });
+
+  const v = obra.validacion||{};
+  const avisos = [...(v.errores||[]).map(a=>({...a,g:'error'})),
+                  ...(v.advertencias||[])];
+  $('p-navisos').textContent = avisos.length || '';
+  $('p-navisos').className = 'pastilla' + ((v.errores||[]).length ? ' baja' : '');
+  $('p-avisos').innerHTML = avisos.length ? avisos.map((a,i)=>
+    `<div class="aviso-item ${a.g==='error'?'error':''}" data-i="${i}">${esc(a.detalle||a.tipo)}
+      ${a.tipo==='caja_faltante'
+        ? `<div style="margin-top:6px"><button class="btn sm" data-colocar="${i}">Colocar en el plano</button></div>`
+        : ''}</div>`
+  ).join('') : '<div class="vacio-panel">Nada pendiente.</div>';
+  $('p-avisos').querySelectorAll('[data-i]').forEach(n => n.onclick = ev => {
+    if(ev.target.dataset.colocar!==undefined) return;
+    const a = avisos[n.dataset.i];
+    if(a.simbolo){ sel = a.simbolo; pintarTodo(); centrarEnSeleccion(); }
+  });
+  $('p-avisos').querySelectorAll('[data-colocar]').forEach(n => n.onclick = ev => {
+    ev.stopPropagation();
+    iniciarColocar(avisos[n.dataset.colocar]);
+  });
+
+  pintarEditor();
+}
+
+function pintarEditor(){
+  const cont = $('p-editor');
+  const e = (obra.elementos||[]).find(x=>x.id===sel);
+  if(!e){
+    cont.innerHTML = '<div class="vacio-panel">Tocá un elemento del plano para corregirlo, '
+      + 'o agregá una caja que el plano no tenga dibujada.</div>';
+    return;
+  }
+  const opciones = e.tipo==='toma' ? SUBTIPOS_TOMA
+    : e.tipo==='artefacto' ? SUBTIPOS_ART
+    : e.tipo==='otros' ? SUBTIPOS_OTROS : [];
+  const m = e.posicionM;
+  cont.innerHTML = `
+    <div style="font-size:.7rem;color:var(--muted);margin-bottom:8px" class="mono">
+      ${esc(e.id)}${e.origen==='manual'?' <span class="pastilla ok">a mano</span>':''}</div>
+    <div class="campo"><label for="e-tipo">Tipo</label>
+      <select id="e-tipo">${['toma','artefacto','llave','otros','desconocido'].map(t=>
+        `<option ${t===e.tipo?'selected':''}>${t}</option>`).join('')}</select></div>
+    ${opciones.length ? `<div class="campo"><label for="e-sub">Qué es</label>
+      <select id="e-sub">${opciones.map(o=>
+        `<option ${o===e.subtipo?'selected':''}>${o}</option>`).join('')}</select></div>` : ''}
+    <div class="fila2">
+      ${e.tipo!=='llave' ? `<div class="campo"><label for="e-alt">Altura (m)</label>
+        <input id="e-alt" type="number" step="0.05" value="${e.alturaM??''}"></div>` : ''}
+      ${e.tipo==='artefacto' ? `<div class="campo"><label for="e-nom">Letra</label>
+        <input id="e-nom" maxlength="2" value="${esc(e.nombre??'')}"></div>` : ''}
+      ${e.tipo==='llave' ? `<div class="campo"><label for="e-let">Tecla</label>
+        <input id="e-let" maxlength="2" value="${esc(e.letra??'')}"></div>` : ''}
+    </div>
+    <div style="font-size:.74rem;color:var(--muted);margin-bottom:9px">
+      ${e.tipoComando?`<span class="pastilla">${esc(e.tipoComando)}</span>`:''}
+      <span class="mono">x ${m.x.toFixed(2)} · y ${m.y.toFixed(2)} m</span><br>
+      ${e.etiquetaTexto?esc(e.etiquetaTexto):''}
+      ${(e.notas||[]).length?'<br>'+esc(e.notas.join(' · ')):''}
+    </div>
+    <button class="btn sm ${e.revisadoPorUsuario?'':'primary'}" id="e-rev">
+      ${e.revisadoPorUsuario?'Revisado ✓ (desmarcar)':'Marcar como revisado'}</button>
+    ${e.origen==='manual'
+      ? '<button class="btn sm" id="e-borrar" style="color:var(--danger);margin-left:6px">Borrar</button>'
+      : ''}
+    <div style="font-size:.7rem;color:var(--muted);margin-top:7px;line-height:1.4">
+      Lo revisado no se pisa cuando volvés a extraer.</div>`;
+
+  const marcar = () => { e.revisadoPorUsuario = true; };
+  $('e-tipo').onchange = ev => { e.tipo = ev.target.value; e.subtipo = null; marcar(); pintarTodo(); };
+  if($('e-sub')) $('e-sub').onchange = ev => { e.subtipo = ev.target.value; marcar(); pintarTodo(); };
+  if($('e-alt')) $('e-alt').onchange = ev => {
+    e.alturaM = ev.target.value === '' ? null : parseFloat(ev.target.value); marcar(); pintarTodo(); };
+  if($('e-nom')) $('e-nom').onchange = ev => {
+    e.nombre = ev.target.value.trim().toUpperCase() || null;
+    e.interruptor = e.nombre ? e.nombre.toLowerCase() : null; marcar(); pintarTodo(); };
+  if($('e-let')) $('e-let').onchange = ev => {
+    e.letra = ev.target.value.trim().toLowerCase() || null; marcar(); pintarTodo(); };
+  $('e-rev').onclick = () => { e.revisadoPorUsuario = !e.revisadoPorUsuario; pintarTodo(); };
+  if($('e-borrar')) $('e-borrar').onclick = () => {
+    obra.elementos = obra.elementos.filter(x => x.id !== e.id);
+    sel = null; pintarTodo(); toast('Caja borrada');
+  };
+}
+
+function centrarEnSeleccion(){
+  const n = $('capa').querySelector('.sel');
+  if(n) n.scrollIntoView({block:'center', inline:'center', behavior:'smooth'});
+}
+
+/* ---------- modos sobre el plano ---------- */
+function barra(texto, ayuda){
+  const b = $('barra-modo');
+  if(!texto){ b.className=''; b.innerHTML=''; $('lienzo').classList.remove('colocando'); return; }
+  b.className='activo';
+  b.innerHTML = `<b>${texto}</b><span style="opacity:.85">${ayuda||''}</span>
+    <span class="spacer"></span>
+    <button class="btn sm" id="b-cancelar">Cancelar</button>`;
+  $('lienzo').classList.add('colocando');
+  $('b-cancelar').onclick = salirDeModo;
+}
+function salirDeModo(){ modo=null; pendiente=null; barra(null); pintarTodo(); }
+
+function iniciarColocar(aviso){
+  if(!obra.plano?.escala){ toast('Primero calibrá la escala.'); return; }
+  modo = 'colocar';
+  pendiente = aviso ? {...(aviso.sugerencia||{}), aviso} : {tipo:'toma', subtipo:'toma_doble'};
+  barra('Colocá la caja', aviso
+    ? `Tocá el punto del plano donde va «${aviso.texto}».`
+    : 'Tocá el punto del plano donde va la caja nueva.');
+}
+
+function colocarEn(xpt, ypt){
+  const [xm, ym] = aMetros(xpt, ypt);
+  const pref = {toma:'T', artefacto:'A', llave:'LL', otros:'O'}[pendiente.tipo] || 'X';
+  const id = `${pref}-${String(Math.round(xm*100)).padStart(5,'0')}-${String(Math.round(ym*100)).padStart(5,'0')}m`;
+  const nuevo = {
+    id,
+    tipo: pendiente.tipo || 'toma',
+    subtipo: pendiente.subtipo || null,
+    alturaM: pendiente.alturaM ?? null,
+    etiquetaTexto: pendiente.etiquetaTexto || null,
+    posicionM: {x: +xm.toFixed(3), y: +ym.toFixed(3)},
+    posicionPdfPt: {x: +xpt.toFixed(2), y: +ypt.toFixed(2)},
+    origen: 'manual',
+    revisadoPorUsuario: true,
+    confianza: {simbolo: 1, etiqueta: 1},
+    notas: ['Puesta a mano: el plano no tiene el símbolo dibujado'],
+  };
+  obra.elementos.push(nuevo);
+  // el aviso deja de tener sentido una vez colocada la caja
+  const av = pendiente.aviso;
+  if(av && obra.validacion)
+    obra.validacion.errores = (obra.validacion.errores||[])
+      .filter(x => !(x.tipo==='caja_faltante' && x.texto===av.texto && String(x.pt)===String(av.pt)));
+  sel = id;
+  salirDeModo();
+  toast('Caja agregada. Acordate de guardar.');
+}
+
+function iniciarCalibrar(){
+  modo = 'calibrar'; pendiente = null;
+  barra('Calibrar escala', 'Tocá dos puntos separados por una medida que conozcas. '
+    + 'La recta se fuerza a horizontal o vertical.');
+}
+function clicCalibrar(xpt, ypt){
+  if(!pendiente){ pendiente = {a:[xpt,ypt]}; pintarCapa(); return; }
+  const [x0,y0] = pendiente.a;
+  // se fuerza el eje dominante: así la medida es la de la cota, sin diagonal
+  const dx = Math.abs(xpt-x0), dy = Math.abs(ypt-y0);
+  const b = dx >= dy ? [xpt, y0] : [x0, ypt];
+  pendiente.b = b; pintarCapa();
+  const largoPt = Math.hypot(b[0]-x0, b[1]-y0);
+  if(largoPt < 5){ toast('Los dos puntos están muy cerca.'); pendiente=null; pintarCapa(); return; }
+  const txt = prompt(`¿Cuántos metros mide esa recta ${dx>=dy?'horizontal':'vertical'}?`, '');
+  const metros = parseFloat((txt||'').replace(',','.'));
+  if(!(metros > 0)){ pendiente=null; pintarCapa(); return; }
+  const ppm = largoPt / metros;
+  // los ids salen de la posición en metros: cambiar la escala los renumera y
+  // el trabajo manual deja de coincidir. Conviene calibrar antes de revisar.
+  const tocados = (obra.elementos||[]).filter(e=>e.revisadoPorUsuario||e.origen==='manual').length;
+  if(tocados && !confirm(`Ya hay ${tocados} cajas revisadas o puestas a mano. `
+      + `Al cambiar la escala se renumeran todas y esas correcciones se pierden. `
+      + `¿Calibrar igual?`)){ salirDeModo(); return; }
+  salirDeModo();
+  extraer({escalaPtPorMetro: +ppm.toFixed(4),
+           aviso: `Escala calibrada: ${ppm.toFixed(2)} pt/m (1:${Math.round(1000/(ppm/72*25.4))}).`});
+}
+
+$('capa').addEventListener('click', ev => {
+  if(!modo) return;
+  const [x,y] = puntoPdf(ev);
+  if(modo === 'colocar') colocarEn(x,y);
+  else if(modo === 'calibrar') clicCalibrar(x,y);
+});
+$('capa').addEventListener('mousemove', ev => {
+  if(modo !== 'calibrar' || !pendiente || pendiente.b) return;
+  const [x,y] = puntoPdf(ev), [x0,y0] = pendiente.a;
+  pendiente.b = Math.abs(x-x0) >= Math.abs(y-y0) ? [x,y0] : [x0,y];
+  pintarCapa();
+  pendiente.b = null;
+});
+
+/* ---------- acciones ---------- */
+async function extraer(op={}){
+  const b = $('b-extraer'); b.disabled = true; b.textContent = 'Leyendo…';
+  try{
+    const cuerpo = {};
+    if(op.escalaPtPorMetro) cuerpo.escalaPtPorMetro = op.escalaPtPorMetro;
+    const r = await api('/api/obras/'+OBRA_ID+'/extraer',
+      {method:'POST', body:JSON.stringify(cuerpo)});
+    obra = r.obra; sel = null;
+    pintarTodo();
+    const c = r.cambios;
+    toast(op.aviso || (c.conservados || c.manuales
+      ? `Leído. ${c.altas} nuevas, ${c.bajas} ya no están, ${c.conservados+c.manuales} intactas.`
+      : `Leído: ${r.resumen.artefactos} artefactos, ${r.resumen.tomas} tomas, ${r.resumen.teclas} teclas.`));
+  }catch(err){ toast(err.message); }
+  finally{ b.disabled = false; b.textContent = 'Extraer'; }
+}
+$('b-extraer').onclick = () => extraer();
+$('b-calibrar').onclick = iniciarCalibrar;
+$('b-agregar').onclick = () => iniciarColocar(null);
+$('b-guardar').onclick = async () => {
+  try{
+    await api('/api/obras/'+OBRA_ID, {method:'PUT', body:JSON.stringify(obra)});
+    toast('Guardado');
+  }catch(err){ toast(err.message); }
+};
+$('b-volver').onclick = () => location.href = '/';
+document.addEventListener('keydown', e => {
+  if(e.key==='Escape'){ if(modo) salirDeModo(); else { sel=null; pintarTodo(); } }
+  if((e.ctrlKey||e.metaKey) && e.key==='s'){ e.preventDefault(); $('b-guardar').click(); }
+});
+
+cargar().catch(e => { $('h-sub').textContent = e.message; });
+</script>
+</body>
+</html>
