@@ -3,6 +3,30 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 0.9.0 — nodos por polo, ruta libre, y selector de bocas por botones
+
+- **Un nodo por polo, no uno por lado**: una térmica bipolar ahora tiene 2
+  nodos arriba y 2 abajo (uno por polo), igual el diferencial y el protector.
+  La bornera de tierra tiene sus terminales de costado, no arriba/abajo. Esto
+  es lo que hacía falta para conectar en serie de verdad: el polo de fase
+  puede ir a un lado y el de neutro a otro, sin que se estorben.
+- **El peine ya no "tapa" el nodo**: como cada polo tiene su propio nodo, el
+  punto donde el peine engancha una térmica sigue disponible para cablear
+  otra cosa desde ahí mismo, sin nada especial que hacer.
+- **Ruteo libre**: un cable ya no va siempre en línea recta por el canal
+  lateral. Con la herramienta activa, después de tocar el primer extremo se
+  pueden tocar tantos puntos intermedios como se quiera antes de tocar el
+  segundo extremo, y el cable sigue exactamente esa ruta.
+- **Selector de bocas de caño por botones**, no por texto: tocar una boca abre
+  una lista con Acometida, Jabalina, y cada circuito ya creado, para elegir
+  con un clic en vez de escribir el nombre.
+- **Conector rediseñado** a partir de la foto de referencia: cuerpo con
+  tornillo en cruz y lengüeta de contacto, en vez del rectángulo simple
+  anterior.
+- Validado de punta a punta: dos cables al mismo lado de una térmica pero a
+  polos distintos (0 y 1) conviven sin problema; un polo fuera de rango se
+  rechaza; una ruta con puntos intermedios se guarda y se puede reconstruir.
+
 ## 0.8.0 — bocas de caño fijas, y conexión en serie real
 
 - **Bocas de caño en vez de posición libre**: como en la foto de referencia

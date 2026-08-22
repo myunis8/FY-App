@@ -468,7 +468,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._error("Ese tablero no existe.", 404)
         t.setdefault("cables", [])
         cuerpo = self._cuerpo()
-        cable, msg = tablero_mod.crear_cable(t, cuerpo.get("origen"), cuerpo.get("destino"))
+        cable, msg = tablero_mod.crear_cable(t, cuerpo.get("origen"), cuerpo.get("destino"),
+                                            cuerpo.get("ruta"))
         if cable is None:
             return self._error(msg)
         almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))

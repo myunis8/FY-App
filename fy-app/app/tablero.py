@@ -130,7 +130,20 @@ def _endpoint_es_cano(ep, cano_id) -> bool:
     return isinstance(ep, dict) and ep.get("tipo") == "cano" and ep.get("id") == cano_id
 
 
+BOCAS_BORNERA = 6   # cantidad de terminales laterales que dibuja svgBornera en el frontend
+
+
+def _cantidad_polos_nodo(tablero: dict, d: dict) -> int | None:
+    """Cuántos nodos tiene ese lado del dispositivo. None si el tipo no aplica."""
+    if d["tipo"] == "bornera":
+        return BOCAS_BORNERA
+    return d.get("polos", 1)
+
+
 def _endpoint_valido(tablero: dict, ep: dict) -> bool:
+    """Cada polo es un nodo propio: una térmica bipolar tiene 2 nodos arriba y
+    2 abajo, no uno solo por lado. La bornera de tierra tiene varios
+    terminales, pero de costado, no arriba/abajo."""
     if not isinstance(ep, dict):
         return False
     tipo = ep.get("tipo")
@@ -138,24 +151,44 @@ def _endpoint_valido(tablero: dict, ep: dict) -> bool:
         return any(c["id"] == ep.get("id") for c in tablero.get("canos") or [])
     if tipo == "dispositivo":
         d = next((x for x in tablero["dispositivos"] if x["id"] == ep.get("id")), None)
-        return d is not None and ep.get("lado") in ("arriba", "abajo") and d.get("piso") is not None
+        if d is None or d.get("piso") is None:
+            return False
+        lado, polo = ep.get("lado"), ep.get("polo")
+        if not isinstance(polo, int):
+            return False
+        if d["tipo"] == "bornera":
+            return lado == "costado" and 0 <= polo < BOCAS_BORNERA
+        return lado in ("arriba", "abajo") and 0 <= polo < _cantidad_polos_nodo(tablero, d)
     if tipo == "peine":
         return any(c["id"] == ep.get("id") for c in tablero.get("conexiones") or [] if c["tipo"] == "peine")
     return False
 
 
-def crear_cable(tablero: dict, origen: dict, destino: dict) -> tuple[dict | None, str]:
-    """Un cable conecta dos puntos cualquiera: un caño, un peine, o un nodo
-    (arriba/abajo) de un dispositivo. Así se arma la serie real: acometida ->
+def crear_cable(tablero: dict, origen: dict, destino: dict,
+                ruta: list | None = None) -> tuple[dict | None, str]:
+    """Un cable conecta dos puntos cualquiera: un caño, un peine, o el nodo de
+    un polo puntual de un dispositivo. Así se arma la serie real: acometida ->
     general -> diferencial -> peine -> cada térmica, en vez de que todo tenga
-    que pasar por un solo tipo de conexión."""
+    que pasar por un solo tipo de conexión.
+
+    `ruta` son puntos intermedios opcionales (coordenadas del propio lienzo)
+    para que el cable no tenga que ir siempre recto: el que lo dibuja elige
+    por dónde pasa.
+    """
     if not _endpoint_valido(tablero, origen):
         return None, "El primer punto no es válido, o el dispositivo no está en el riel."
     if not _endpoint_valido(tablero, destino):
         return None, "El segundo punto no es válido, o el dispositivo no está en el riel."
     if origen == destino:
         return None, "El origen y el destino no pueden ser el mismo punto."
-    cable = {"id": _id("cable"), "origen": origen, "destino": destino}
+    ruta_limpia = []
+    for p in (ruta or []):
+        if isinstance(p, (list, tuple)) and len(p) == 2:
+            try:
+                ruta_limpia.append([float(p[0]), float(p[1])])
+            except (TypeError, ValueError):
+                pass
+    cable = {"id": _id("cable"), "origen": origen, "destino": destino, "ruta": ruta_limpia}
     tablero.setdefault("cables", []).append(cable)
     return cable, ""
 

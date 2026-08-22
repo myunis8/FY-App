@@ -59,6 +59,9 @@ h2:first-child{margin-top:0}
 .franja-cano{position:absolute;background:#e3e7e5;border:1px dashed #a9b3b0;border-radius:6px}
 .canal-etq{position:absolute;writing-mode:vertical-rl;text-align:center;font-size:.6rem;
   color:#9aa4a1;display:flex;align-items:center;justify-content:center;letter-spacing:.06em}
+.opciones-cano{display:flex;flex-direction:column;gap:6px;max-height:280px;overflow-y:auto}
+.op-cano{width:100%;text-align:left;padding:9px 12px}
+.btn.danger{color:var(--danger);border-color:var(--danger-soft)}
 
 .disp{position:absolute;cursor:grab;user-select:none}
 .disp:active{cursor:grabbing}
@@ -72,6 +75,13 @@ h2:first-child{margin-top:0}
   border-left:5px solid transparent;border-right:5px solid transparent;cursor:pointer}
 .flecha-alim.arriba{top:-11px;border-bottom:9px solid var(--copper)}
 .flecha-alim.abajo{bottom:-11px;border-top:9px solid var(--copper)}
+.nodo{position:absolute;width:9px;height:9px;border-radius:50%;background:#fff;
+  border:2px solid var(--muted);z-index:5;transform:translateX(-50%)}
+.nodo-arriba{top:-6px} .nodo-abajo{bottom:-6px}
+.nodo-lateral{right:-6px;left:auto;transform:translateY(-50%)}
+body.modo-cable .nodo{border-color:var(--copper);cursor:pointer}
+body.modo-cable .nodo:hover{background:var(--copper);transform:translateX(-50%) scale(1.3)}
+body.modo-cable .nodo-lateral:hover{transform:translateY(-50%) scale(1.3)}
 
 /* ---------- bandeja ---------- */
 .bandeja{margin-top:22px}
@@ -171,6 +181,16 @@ h2:first-child{margin-top:0}
   </aside>
 </main>
 
+<div class="overlay" id="ov-cano">
+  <div class="caja" style="width:min(340px,100%)">
+    <h2 id="cano-titulo">Boca de caño</h2>
+    <p class="nota" style="margin:0 0 12px">Elegí qué entra por acá.</p>
+    <div id="opciones-cano" class="opciones-cano"></div>
+    <button class="btn danger" id="cano-vaciar" style="width:100%;margin-top:8px">Vaciar esta boca</button>
+    <div class="acciones"><button class="btn" id="cano-cerrar">Cerrar</button></div>
+  </div>
+</div>
+
 <div class="overlay" id="ov-nuevo">
   <div class="caja">
     <h2>Nuevo tablero</h2>
@@ -215,7 +235,7 @@ function yPiso(piso){ return FRANJA_CANO + piso * ALTURA_PISO; }   // FRANJA_CAN
 function yRiel(piso){ return yPiso(piso) + BANDA; }
 function yBandaInf(piso){ return yRiel(piso) + ALTO_DISP; }
 let obra = null, tableros = [], activo = null, presets = [], arrastrando = null, seleccionado = null;
-let herramienta = {tipo: null, paso1: null};   // null | 'peine' | 'puente' — flujo de 2 clics
+let herramienta = {tipo: null, paso1: null, ruta: []};   // null|'peine'|'puente'|'cable'
 
 const api = async (r,o={}) => {
   const res = await fetch(r,{headers:{'Content-Type':'application/json'},...o});
@@ -503,7 +523,12 @@ function puntoDeEndpoint(t, ep){
   if(ep.tipo === 'dispositivo'){
     const d = t.dispositivos.find(x=>x.id===ep.id);
     if(!d || d.piso===null || d.piso===undefined) return null;
-    return {x: CANAL + (d.posicion + d.polos/2)*CELDA,
+    const polo = ep.polo || 0;
+    if(d.tipo === 'bornera'){
+      const y0 = yRiel(d.piso) + ALTO_DISP*0.07 + (ALTO_DISP*0.86/BOCAS_BORNERA)*(polo+0.5);
+      return {x: CANAL + (d.posicion+1)*CELDA - 6, y: y0};
+    }
+    return {x: CANAL + (d.posicion + polo + 0.5)*CELDA,
             y: ep.lado==='arriba' ? yRiel(d.piso) : yRiel(d.piso)+ALTO_DISP};
   }
   if(ep.tipo === 'peine'){
@@ -528,12 +553,13 @@ function dibujoCable(t, cable){
   if(!a || !b) return '';
   const [anchoTotal, altoTotal] = _anchoAltoOverlay(t);
   const color = colorDeCable(t, cable);
-  const xCanal = CANAL/2;
-  const pts = [[a.x,a.y],[xCanal,a.y],[xCanal,b.y],[b.x,b.y]];
+  const ruta = (cable.ruta && cable.ruta.length) ? cable.ruta : [];
+  const pts = [[a.x,a.y], ...ruta, [b.x,b.y]];
   const path = pts.map((p,i)=>(i===0?'M':'L')+p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ');
   return `<svg style="position:absolute;left:0;top:0;width:${anchoTotal}px;height:${altoTotal}px;
     overflow:visible;pointer-events:none">
-    <path d="${path}" fill="none" stroke="${color}" stroke-width="2.6" stroke-linejoin="round"/>
+    <path d="${path}" fill="none" stroke="${color}" stroke-width="2.6"
+      stroke-linejoin="round" stroke-linecap="round"/>
     <circle cx="${a.x}" cy="${a.y}" r="3.5" fill="${color}"
       style="pointer-events:all;cursor:pointer" data-con-click-cable="${cable.id}"/>
     <circle cx="${b.x}" cy="${b.y}" r="3.5" fill="${color}"
@@ -587,19 +613,50 @@ function dibujoConexion(t, c){
   // puente: baja desde la banda inferior del piso origen a la banda superior del siguiente
   const y0 = yBandaInf(c.pisoOrigen) + 10, y1 = yPiso(c.pisoDestino) + BANDA - 10;
   const x = CANAL + c.x * CELDA + CELDA/2;
+  const ancho = 24, alto = 38, cy = (y0+y1)/2;
   return `<svg class="conexion" data-con="${c.id}" style="position:absolute;left:0;top:0;
     width:${anchoTotal}px;height:${altoTotal}px;overflow:visible;
     pointer-events:none">
-    <line x1="${x}" y1="${y0}" x2="${x}" y2="${y1}" stroke="#5b6b7a" stroke-width="3"/>
-    <rect x="${x-11}" y="${(y0+y1)/2-9}" width="22" height="18" rx="3" fill="#fff"
-      stroke="#33506e" stroke-width="1.4" style="pointer-events:all;cursor:pointer"
-      data-con-click="${c.id}"/>
-    <line x1="${x-6}" y1="${(y0+y1)/2}" x2="${x+6}" y2="${(y0+y1)/2}" stroke="#33506e" stroke-width="1.4"/>
+    <line x1="${x}" y1="${y0}" x2="${x}" y2="${cy-alto/2}" stroke="#5b6b7a" stroke-width="3"/>
+    <line x1="${x}" y1="${cy+alto/2}" x2="${x}" y2="${y1}" stroke="#5b6b7a" stroke-width="3"/>
+    <g transform="translate(${x-ancho/2},${cy-alto/2})" style="pointer-events:all;cursor:pointer"
+      data-con-click="${c.id}">${svgConectorPeine(ancho, alto)}</g>
   </svg>`;
 }
+function svgConectorPeine(w, h){
+  // esquema del conector que junta o baja un peine, según la foto de referencia:
+  // cuerpo con tornillo en cruz y una lengüeta inferior a modo de contacto.
+  return `<rect x="1" y="1" width="${w-2}" height="${h*0.52}" rx="4" fill="#fff"
+      stroke="${TRAZO}" stroke-width="1.3"/>
+    <rect x="${w*0.06}" y="${h*0.05}" width="${w*0.14}" height="${h*0.1}" fill="none"
+      stroke="${TRAZO}" stroke-width="0.9"/>
+    <rect x="${w*0.8}" y="${h*0.05}" width="${w*0.14}" height="${h*0.1}" fill="none"
+      stroke="${TRAZO}" stroke-width="0.9"/>
+    <circle cx="${w/2}" cy="${h*0.28}" r="${w*0.32}" fill="none" stroke="${TRAZO}" stroke-width="1.1"/>
+    <line x1="${w*0.34}" y1="${h*0.16}" x2="${w*0.66}" y2="${h*0.4}" stroke="${TRAZO}" stroke-width="1.1"/>
+    <line x1="${w*0.34}" y1="${h*0.4}" x2="${w*0.66}" y2="${h*0.16}" stroke="${TRAZO}" stroke-width="1.1"/>
+    <rect x="${w*0.3}" y="${h*0.52}" width="${w*0.4}" height="${h*0.3}" fill="none"
+      stroke="${TRAZO}" stroke-width="1.1"/>
+    <line x1="${w*0.16}" y1="${h*0.58}" x2="${w*0.3}" y2="${h*0.58}" stroke="${TRAZO}" stroke-width="1.1"/>
+    <line x1="${w*0.7}" y1="${h*0.58}" x2="${w*0.84}" y2="${h*0.58}" stroke="${TRAZO}" stroke-width="1.1"/>
+    <line x1="${w/2}" y1="${h*0.82}" x2="${w/2}" y2="${h-1}" stroke="${TRAZO}" stroke-width="1.6"/>`;
+}
 function dibujoPendienteHerramienta(t){
-  if(!herramienta.paso1 || herramienta.paso1.piso===undefined) return '';
+  if(!herramienta.paso1) return '';
   const [anchoTotal, altoTotal] = _anchoAltoOverlay(t);
+  if(herramienta.tipo === 'cable'){
+    const a = puntoDeEndpoint(t, herramienta.paso1);
+    if(!a) return '';
+    const pts = [[a.x,a.y], ...(herramienta.ruta||[])];
+    const path = pts.map((p,i)=>(i===0?'M':'L')+p[0]+','+p[1]).join(' ');
+    const puntos = pts.map(p=>`<circle cx="${p[0]}" cy="${p[1]}" r="4" fill="var(--copper)"/>`).join('');
+    return `<svg style="position:absolute;left:0;top:0;width:${anchoTotal}px;height:${altoTotal}px;
+      overflow:visible;pointer-events:none">
+      <path d="${path}" fill="none" stroke="var(--copper)" stroke-width="2" stroke-dasharray="4 3"/>
+      ${puntos}
+    </svg>`;
+  }
+  if(herramienta.paso1.piso === undefined) return '';
   const p = herramienta.paso1;
   const cx = CANAL + (p.posicion!==undefined ? p.posicion*CELDA+CELDA/2 : p.x*CELDA+CELDA/2);
   const cy = yRiel(p.piso) + ALTO_DISP/2;
@@ -609,18 +666,35 @@ function dibujoPendienteHerramienta(t){
   </svg>`;
 }
 
+const BOCAS_BORNERA = 6;   // igual que en el motor: terminales laterales de la bornera
+function nodosDeDispositivo(d, w, h){
+  if(herramienta.tipo !== 'cable') return '';   // sólo se muestran con la herramienta activa
+  if(d.tipo === 'bornera'){
+    let html = '';
+    for(let i=0;i<BOCAS_BORNERA;i++){
+      const cy = h*0.07 + (h*0.86/BOCAS_BORNERA)*(i+0.5);
+      html += `<div class="nodo nodo-lateral" style="top:${cy}px"
+        data-nodo="${d.id}:costado:${i}" title="Terminal ${i+1}"></div>`;
+    }
+    return html;
+  }
+  let html = '';
+  for(let i=0;i<d.polos;i++){
+    const cx = (i+0.5)*100/d.polos;
+    html += `<div class="nodo nodo-arriba" style="left:${cx}%"
+      data-nodo="${d.id}:arriba:${i}" title="Polo ${i+1}, arriba"></div>`;
+    html += `<div class="nodo nodo-abajo" style="left:${cx}%"
+      data-nodo="${d.id}:abajo:${i}" title="Polo ${i+1}, abajo"></div>`;
+  }
+  return html;
+}
 function bloqueDisp(d){
   const w = d.polos*CELDA - 4, h = ALTO_DISP - 14;
   const flechas = `<div class="flecha-alim ${d.alimentacion==='arriba'?'arriba':'abajo'}"
       data-alim="${d.id}" title="Cambiar por dónde entra"></div>`;
-  // nodos de conexión: sólo se muestran con la herramienta de cable activa,
-  // para no superponerse con la flecha de alimentación en el uso normal
-  const nodos = herramienta.tipo === 'cable'
-    ? `<div class="nodo nodo-arriba" data-nodo="${d.id}:arriba" title="Nodo de arriba"></div>
-       <div class="nodo nodo-abajo" data-nodo="${d.id}:abajo" title="Nodo de abajo"></div>` : '';
   return `<div class="disp ${seleccionado===d.id?'seleccionado':''}" draggable="true"
     data-id="${d.id}" style="left:${d.posicion*CELDA+2}px;top:6px;width:${w}px;height:${h}px">
-    ${svgDispositivo(d, w, h)}${flechas}${nodos}
+    ${svgDispositivo(d, w, h)}${flechas}${nodosDeDispositivo(d, w, h)}
   </div>`;
 }
 
@@ -664,8 +738,8 @@ function cablearGabinete(){
   document.querySelectorAll('[data-nodo]').forEach(n => n.addEventListener('click', ev => {
     ev.stopPropagation();
     if(herramienta.tipo !== 'cable') return;
-    const [id, lado] = n.dataset.nodo.split(':');
-    manejarEndpointHerramienta({tipo:'dispositivo', id, lado});
+    const [id, lado, polo] = n.dataset.nodo.split(':');
+    manejarEndpointHerramienta({tipo:'dispositivo', id, lado, polo: +polo});
   }));
   document.querySelectorAll('.riel').forEach(riel => {
     riel.addEventListener('dragover', ev => ev.preventDefault());
@@ -788,7 +862,13 @@ function manejarClicHerramienta(ev){
   if(herramienta.tipo === 'cable'){
     // el click sobre un nodo/caño/peine ya viene resuelto por su propio
     // listener (con stopPropagation). Si llega hasta acá es un click en
-    // vacío: no hace nada, sólo evita romper el flujo.
+    // el lienzo vacío: si ya elegimos el primer extremo, se guarda como
+    // punto intermedio de la ruta, para poder llevar el cable por donde
+    // se quiera en vez de ir siempre directo.
+    if(herramienta.paso1){
+      herramienta.ruta.push([Math.round(x), Math.round(y)]);
+      pintarGabinete();
+    }
   }
 }
 
@@ -796,13 +876,17 @@ function manejarClicHerramienta(ev){
 function manejarEndpointHerramienta(ep){
   if(!herramienta.paso1){
     herramienta.paso1 = ep;
-    $('paso-actual').textContent = 'Tocá el segundo extremo del cable';
+    herramienta.ruta = [];
+    $('paso-actual').textContent = 'Tocá puntos intermedios si querés, '
+      + 'y el segundo extremo para terminar';
     pintarGabinete();
     return;
   }
   const origen = herramienta.paso1;
+  const ruta = herramienta.ruta.slice();
   herramienta.paso1 = null;
-  crearCable(origen, ep);
+  herramienta.ruta = [];
+  crearCable(origen, ep, ruta);
 }
 
 /* ---------------- bocas de caño: asignar qué entra, o usar como extremo ---------------- */
@@ -821,27 +905,25 @@ function clicSlotCano(lado, seccion){
   abrirAsignarCano(lado, seccion, cano);
 }
 function abrirAsignarCano(lado, seccion, actual){
-  const tipo = (prompt(`Boca ${seccion+1} (${lado}). ¿Qué entra? acometida / circuito / tierra / vacio`,
-    actual ? actual.tipo : 'circuito') || '').trim().toLowerCase();
-  if(!tipo) return;
-  if(tipo === 'vacio'){
+  const cont = $('opciones-cano');
+  const opciones = [
+    {tipo:'acometida', nombre:'Acometida', circuitoId:null},
+    {tipo:'tierra', nombre:'Jabalina', circuitoId:null},
+    ...(obra.circuitos||[]).map(c => ({tipo:'circuito', nombre:c.nombre, circuitoId:c.id})),
+  ];
+  $('cano-titulo').textContent = `Boca ${seccion+1} — entrada de ${lado}`;
+  cont.innerHTML = opciones.map(o => `<button class="btn op-cano"
+      data-op-tipo="${o.tipo}" data-op-circuito="${o.circuitoId||''}">${esc(o.nombre)}</button>`).join('');
+  cont.querySelectorAll('[data-op-tipo]').forEach(b => b.onclick = () => {
+    asignarCanoAPI(lado, seccion, b.dataset.opTipo, b.dataset.opCircuito || null);
+    $('ov-cano').classList.remove('abierto');
+  });
+  $('cano-vaciar').style.display = actual ? 'block' : 'none';
+  $('cano-vaciar').onclick = () => {
     if(actual) eliminarCano(actual.id);
-    return;
-  }
-  if(!['acometida','circuito','tierra'].includes(tipo)){
-    toast('Escribí acometida, circuito, tierra o vacio.'); return;
-  }
-  let circuitoId = null;
-  if(tipo === 'circuito'){
-    const nombres = (obra.circuitos||[]).map(c=>c.nombre).join(', ');
-    const previo = actual && actual.circuitoId ? nombreDeCircuito(actual.circuitoId) : '';
-    const elegido = prompt('¿Qué circuito? (escribí el nombre tal cual)\n'+nombres, previo);
-    if(!elegido) return;
-    const c = (obra.circuitos||[]).find(x=>(x.nombre||'').toLowerCase()===elegido.trim().toLowerCase());
-    if(!c){ toast('No encontré ese circuito.'); return; }
-    circuitoId = c.id;
-  }
-  asignarCanoAPI(lado, seccion, tipo, circuitoId);
+    $('ov-cano').classList.remove('abierto');
+  };
+  $('ov-cano').classList.add('abierto');
 }
 async function asignarCanoAPI(lado, seccion, tipo, circuitoId){
   const t = tableroActivo();
@@ -869,11 +951,11 @@ async function eliminarCano(id){
 }
 
 /* ---------------- cables ---------------- */
-async function crearCable(origen, destino){
+async function crearCable(origen, destino, ruta){
   const t = tableroActivo();
   try{
     const r = await api(`/api/obras/${OBRA_ID}/tableros/${t.id}/cables`,
-      {method:'POST', body:JSON.stringify({origen, destino})});
+      {method:'POST', body:JSON.stringify({origen, destino, ruta: ruta||[]})});
     actualizarTablero(r.tablero, null);
     toast('Conectado');
   }catch(e){ toast(e.message); pintarGabinete(); }
@@ -1041,6 +1123,7 @@ function actualizarTablero(t, avisos){
 $('b-nuevo').onclick = () => { $('n-nombre').value=''; $('n-preset').value='12';
   $('n-custom').style.display='none'; $('ov-nuevo').classList.add('abierto'); };
 $('n-cerrar').onclick = () => $('ov-nuevo').classList.remove('abierto');
+$('cano-cerrar').onclick = () => $('ov-cano').classList.remove('abierto');
 $('n-crear').onclick = async () => {
   const cuerpo = {nombre:$('n-nombre').value.trim(), tipo:$('n-tipo').value,
                  fases:+$('n-fases').value, preset:$('n-preset').value};
