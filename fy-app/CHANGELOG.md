@@ -3,6 +3,30 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 0.8.0 — bocas de caño fijas, y conexión en serie real
+
+- **Bocas de caño en vez de posición libre**: como en la foto de referencia
+  (los caños en corte que entran al gabinete), ahora son una cantidad fija
+  —elegible, 1 a 12, por separado arriba y abajo— y se toca cada boca para
+  decidir qué entra: acometida, un circuito puntual, o la jabalina. Tocar una
+  boca ya asignada permite cambiarla sin duplicar el agujero.
+- **Conexión en serie de verdad**: el problema de fondo era que sólo se podía
+  cablear de un caño a una térmica directo. Ahora cada dispositivo tiene dos
+  nodos (arriba y abajo, visibles con la herramienta "Cable / serie" activa) y
+  un cable conecta *cualquier* combinación de caño, peine, o nodo de un
+  dispositivo. Así se arma la cadena real: acometida → térmica general
+  (que corta todo) → diferencial → peine → cada térmica del circuito.
+  Un peine también puede ser el destino de un cable, para alimentarlo desde
+  el diferencial en vez de asumir que siempre nace de la nada.
+- Corregido un bug de origen propio encontrado en las pruebas: los ids se
+  generaban con el milisegundo del reloj y podían repetirse si se creaban
+  varios objetos en la misma corrida. Ahora usan un identificador realmente
+  único.
+- Validado de punta a punta contra el servidor real: boca fuera de rango,
+  reasignar una boca sin romper los cables que ya dependían de ella (mismo id,
+  se actualiza en el lugar), y la cadena completa caño → general → diferencial
+  con sus tres tramos intactos.
+
 ## 0.7.0 — caños de entrada/salida y cableado por canal lateral
 
 - **La etiqueta del circuito ahora se lee**: se movió adentro de la térmica, a

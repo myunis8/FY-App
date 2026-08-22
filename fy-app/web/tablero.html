@@ -128,8 +128,7 @@ h2:first-child{margin-top:0}
       <button class="btn sm" id="h-ninguna" title="Sólo mover térmicas">☞ Mover</button>
       <button class="btn sm" id="h-peine" title="Unir térmicas del mismo riel en paralelo">▭ Peine</button>
       <button class="btn sm" id="h-puente" title="Bajar el bus al riel de abajo">↓ Conector al piso siguiente</button>
-      <button class="btn sm" id="h-cano" title="Un caño que entra o sale del gabinete">+ Caño</button>
-      <button class="btn sm" id="h-cable" title="Cablear desde un caño hasta una térmica">⌁ Cable desde caño</button>
+      <button class="btn sm" id="h-cable" title="Conectar dos puntos: caño, peine, o el nodo de una térmica">⌁ Cable / serie</button>
       <span class="paso-actual" id="paso-actual"></span>
     </div>
     <div id="gabinete-cont"></div>
@@ -155,6 +154,15 @@ h2:first-child{margin-top:0}
           <input id="t-pisos" type="number" min="1"></div>
       </div>
       <div class="nota" id="t-resumen" style="margin-bottom:12px"></div>
+
+      <h2>Bocas de caño</h2>
+      <div class="fila2">
+        <div class="campo"><label for="t-canos-arriba">Arriba</label>
+          <input id="t-canos-arriba" type="number" min="1" max="12"></div>
+        <div class="campo"><label for="t-canos-abajo">Abajo</label>
+          <input id="t-canos-abajo" type="number" min="1" max="12"></div>
+      </div>
+
       <button class="btn sm danger" id="b-borrar-tablero" style="width:100%">Borrar este tablero</button>
 
       <h2>Para revisar</h2>
@@ -435,55 +443,100 @@ function pintarGabinete(){
   cablearGabinete();
 }
 
-/* ---------------- franjas de caño (acometida, circuitos, tierra) ---------------- */
+/* ---------------- franjas de caño: bocas fijas, como en la foto de referencia
+   (los caños en corte que entran al gabinete). No se elige una posición
+   libre: se elige CUÁNTAS bocas hay, y qué entra por cada una. ---------------- */
 function iconoCano(c){
-  const color = c.tipo==='tierra' ? '#2f7d5c' : c.tipo==='acometida' ? '#8a5a2b' : '#2b6ca3';
-  return `<circle r="9" fill="#fff" stroke="${color}" stroke-width="2"/>
-    <circle r="4" fill="${color}"/>`;
+  const color = !c ? '#9aa4a1' : c.tipo==='tierra' ? '#2f7d5c' : c.tipo==='acometida' ? '#8a5a2b' : '#2b6ca3';
+  const relleno = c ? color : '#fff';
+  return `<circle r="11" fill="#e8ebe9" stroke="${color}" stroke-width="2"/>
+    <circle r="6" fill="${c ? relleno : '#fff'}" stroke="${color}" stroke-width="1.4"/>`;
 }
 function etiquetaCano(c){
+  if(!c) return '';
   if(c.tipo === 'acometida') return 'Acometida';
   if(c.tipo === 'tierra') return 'Jabalina';
   const circ = (obra.circuitos||[]).find(x=>x.id===c.circuitoId);
   return circ ? circ.nombre : 'Circuito';
 }
+function buscarCano(t, lado, seccion){
+  return (t.canos||[]).find(c=>c.lado===lado && c.seccion===seccion) || null;
+}
+function xSeccion(t, lado, seccion){
+  const n = (t.seccionesCano||{arriba:3,abajo:3})[lado] || 3;
+  const ancho = t.bocasPorPiso*CELDA;
+  return CANAL + (seccion+0.5)*ancho/n;
+}
 function pintarFranjas(t, anchoTotal, altoTotal){
   const yTop = FRANJA_CANO, yBot = FRANJA_CANO + (altoTotal - 2*FRANJA_CANO);
   let g = '';
-  (t.canos||[]).forEach(c => {
-    const y = c.lado === 'arriba' ? yTop : yBot;
-    g += `<g transform="translate(${c.xPx},${y})" style="pointer-events:all;cursor:pointer"
-      data-cano-click="${c.id}">${iconoCano(c)}
-      <text y="${c.lado==='arriba' ? -13 : 22}" text-anchor="middle" font-size="8"
-        fill="#33506e">${esc(etiquetaCano(c))}</text></g>`;
+  ['arriba','abajo'].forEach(lado => {
+    const n = (t.seccionesCano||{arriba:3,abajo:3})[lado] || 3;
+    const y = lado==='arriba' ? yTop : yBot;
+    for(let i=0;i<n;i++){
+      const cano = buscarCano(t, lado, i);
+      const x = xSeccion(t, lado, i);
+      g += `<g transform="translate(${x},${y})" style="pointer-events:all;cursor:pointer"
+        data-slot-lado="${lado}" data-slot-seccion="${i}">${iconoCano(cano)}
+        <text y="${lado==='arriba' ? -15 : 24}" text-anchor="middle" font-size="8"
+          fill="#33506e">${esc(etiquetaCano(cano) || ('Boca '+(i+1)))}</text></g>`;
+    }
   });
   return `<svg style="position:absolute;left:0;top:0;width:${anchoTotal}px;height:${altoTotal}px;
     overflow:visible;pointer-events:none">${g}</svg>`;
 }
 
-/* ---------------- cable individual: caño -> dispositivo ----------------
-   Recorre el canal lateral para bajar o subir sin cruzar nunca por encima
-   de otra térmica: sale del caño, entra al canal, viaja por el canal hasta
-   la altura del piso destino, y recién ahí se mete hacia la térmica. */
+/* ---------------- cable: conecta dos puntos cualquiera ----------------
+   Un extremo puede ser un caño, un peine, o un nodo (arriba/abajo) de
+   cualquier dispositivo. Así se arma la serie real: acometida -> general ->
+   diferencial -> peine -> cada térmica, no sólo caño -> térmica directo.
+   Recorre el canal lateral para nunca cruzar por encima de otra térmica. */
+function puntoDeEndpoint(t, ep){
+  if(!ep) return null;
+  if(ep.tipo === 'cano'){
+    const cano = (t.canos||[]).find(c=>c.id===ep.id);
+    if(!cano) return null;
+    const [, altoTotal] = _anchoAltoOverlay(t);
+    return {x: xSeccion(t, cano.lado, cano.seccion),
+            y: cano.lado==='arriba' ? FRANJA_CANO : altoTotal - FRANJA_CANO};
+  }
+  if(ep.tipo === 'dispositivo'){
+    const d = t.dispositivos.find(x=>x.id===ep.id);
+    if(!d || d.piso===null || d.piso===undefined) return null;
+    return {x: CANAL + (d.posicion + d.polos/2)*CELDA,
+            y: ep.lado==='arriba' ? yRiel(d.piso) : yRiel(d.piso)+ALTO_DISP};
+  }
+  if(ep.tipo === 'peine'){
+    const pe = (t.conexiones||[]).find(c=>c.id===ep.id);
+    if(!pe) return null;
+    return {x: CANAL + (pe.desde+pe.hasta+1)/2*CELDA, y: yRiel(pe.piso)-16};
+  }
+  return null;
+}
+function colorDeCable(t, cable){
+  for(const ep of [cable.origen, cable.destino]){
+    if(ep && ep.tipo === 'cano'){
+      const cano = (t.canos||[]).find(c=>c.id===ep.id);
+      if(cano?.tipo === 'tierra') return '#2f7d5c';
+      if(cano?.tipo === 'acometida') return '#8a5a2b';
+    }
+  }
+  return '#5b6b7a';
+}
 function dibujoCable(t, cable){
-  const cano = (t.canos||[]).find(c=>c.id===cable.canoId);
-  const d = t.dispositivos.find(x=>x.id===cable.dispositivoId);
-  if(!cano || !d || d.piso===null || d.piso===undefined) return '';
-  const color = cano.tipo==='tierra' ? '#2f7d5c' : cano.tipo==='acometida' ? '#8a5a2b' : '#5b6b7a';
-  const anchoTotal = t.bocasPorPiso*CELDA + CANAL;
-  const altoTotal = 2*FRANJA_CANO + t.pisos*ALTURA_PISO - MARGEN_PISO;
-  const yEntrada = cano.lado==='arriba' ? FRANJA_CANO : altoTotal - FRANJA_CANO;
+  const a = puntoDeEndpoint(t, cable.origen), b = puntoDeEndpoint(t, cable.destino);
+  if(!a || !b) return '';
+  const [anchoTotal, altoTotal] = _anchoAltoOverlay(t);
+  const color = colorDeCable(t, cable);
   const xCanal = CANAL/2;
-  const feedArriba = d.alimentacion !== 'abajo';
-  const yFuera = feedArriba ? yRiel(d.piso) - 6 : yRiel(d.piso) + ALTO_DISP + 6;
-  const yBorde = feedArriba ? yRiel(d.piso) - 1 : yRiel(d.piso) + ALTO_DISP + 1;
-  const xDevice = CANAL + (d.posicion + d.polos/2) * CELDA;
-  const pts = [[cano.xPx,yEntrada],[xCanal,yEntrada],[xCanal,yFuera],[xDevice,yFuera],[xDevice,yBorde]];
+  const pts = [[a.x,a.y],[xCanal,a.y],[xCanal,b.y],[b.x,b.y]];
   const path = pts.map((p,i)=>(i===0?'M':'L')+p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ');
   return `<svg style="position:absolute;left:0;top:0;width:${anchoTotal}px;height:${altoTotal}px;
     overflow:visible;pointer-events:none">
     <path d="${path}" fill="none" stroke="${color}" stroke-width="2.6" stroke-linejoin="round"/>
-    <circle cx="${cano.xPx}" cy="${yEntrada}" r="3.5" fill="${color}"
+    <circle cx="${a.x}" cy="${a.y}" r="3.5" fill="${color}"
+      style="pointer-events:all;cursor:pointer" data-con-click-cable="${cable.id}"/>
+    <circle cx="${b.x}" cy="${b.y}" r="3.5" fill="${color}"
       style="pointer-events:all;cursor:pointer" data-con-click-cable="${cable.id}"/>
   </svg>`;
 }
@@ -560,9 +613,14 @@ function bloqueDisp(d){
   const w = d.polos*CELDA - 4, h = ALTO_DISP - 14;
   const flechas = `<div class="flecha-alim ${d.alimentacion==='arriba'?'arriba':'abajo'}"
       data-alim="${d.id}" title="Cambiar por dónde entra"></div>`;
+  // nodos de conexión: sólo se muestran con la herramienta de cable activa,
+  // para no superponerse con la flecha de alimentación en el uso normal
+  const nodos = herramienta.tipo === 'cable'
+    ? `<div class="nodo nodo-arriba" data-nodo="${d.id}:arriba" title="Nodo de arriba"></div>
+       <div class="nodo nodo-abajo" data-nodo="${d.id}:abajo" title="Nodo de abajo"></div>` : '';
   return `<div class="disp ${seleccionado===d.id?'seleccionado':''}" draggable="true"
     data-id="${d.id}" style="left:${d.posicion*CELDA+2}px;top:6px;width:${w}px;height:${h}px">
-    ${svgDispositivo(d, w, h)}${flechas}
+    ${svgDispositivo(d, w, h)}${flechas}${nodos}
   </div>`;
 }
 
@@ -597,11 +655,17 @@ function cablearGabinete(){
   document.querySelectorAll('[data-con-click]').forEach(n => n.addEventListener('click', ev => {
     ev.stopPropagation(); clicConexion(n.dataset.conClick);
   }));
-  document.querySelectorAll('[data-cano-click]').forEach(n => n.addEventListener('click', ev => {
-    ev.stopPropagation(); clicCano(n.dataset.canoClick);
+  document.querySelectorAll('[data-slot-lado]').forEach(n => n.addEventListener('click', ev => {
+    ev.stopPropagation(); clicSlotCano(n.dataset.slotLado, +n.dataset.slotSeccion);
   }));
   document.querySelectorAll('[data-con-click-cable]').forEach(n => n.addEventListener('click', ev => {
     ev.stopPropagation(); clicCable(n.dataset.conClickCable);
+  }));
+  document.querySelectorAll('[data-nodo]').forEach(n => n.addEventListener('click', ev => {
+    ev.stopPropagation();
+    if(herramienta.tipo !== 'cable') return;
+    const [id, lado] = n.dataset.nodo.split(':');
+    manejarEndpointHerramienta({tipo:'dispositivo', id, lado});
   }));
   document.querySelectorAll('.riel').forEach(riel => {
     riel.addEventListener('dragover', ev => ev.preventDefault());
@@ -663,13 +727,14 @@ function bloqueDispBandeja(d){
 function elegirHerramienta(tipo, pendiente){
   herramienta = {tipo, paso1:null, pendiente: pendiente||null};
   document.querySelectorAll('.herramientas-cableado .btn').forEach(b=>b.classList.remove('activa'));
-  const idBoton = {peine:'h-peine', puente:'h-puente', cable:'h-cable', colocarCano:'h-cano'}[tipo] || 'h-ninguna';
+  const idBoton = {peine:'h-peine', puente:'h-puente', cable:'h-cable'}[tipo] || 'h-ninguna';
   $(idBoton).classList.add('activa');
   $('paso-actual').textContent = tipo==='peine'
     ? 'Tocá una térmica, después la otra punta del tramo a unir'
     : tipo==='puente' ? 'Tocá la banda de salida, después la banda de llegada del piso de abajo'
-    : tipo==='cable' ? 'Tocá un caño, después la térmica a la que llega'
-    : tipo==='colocarCano' ? 'Tocá dónde entra o sale el caño, arriba o abajo del gabinete' : '';
+    : tipo==='cable' ? 'Tocá el primer punto (un caño, un peine, o el nodo de una térmica), '
+      + 'después el segundo' : '';
+  document.body.classList.toggle('modo-cable', tipo === 'cable');
   seleccionado = null;
   pintar();
 }
@@ -677,22 +742,6 @@ $('h-ninguna').onclick = () => elegirHerramienta(null);
 $('h-peine').onclick = () => elegirHerramienta('peine');
 $('h-puente').onclick = () => elegirHerramienta('puente');
 $('h-cable').onclick = () => elegirHerramienta('cable');
-$('h-cano').onclick = () => {
-  const tipo = (prompt('Tipo de caño: acometida / circuito / tierra', 'circuito')||'').trim().toLowerCase();
-  if(!['acometida','circuito','tierra'].includes(tipo)) return;
-  const lado = (prompt('¿Entra por arriba o por abajo del gabinete?', 'arriba')||'').trim().toLowerCase();
-  if(!['arriba','abajo'].includes(lado)) return;
-  let circuitoId = null;
-  if(tipo === 'circuito'){
-    const nombres = (obra.circuitos||[]).map(c=>c.nombre).join(', ');
-    const elegido = prompt('¿Qué circuito? (escribí el nombre tal cual)\n'+nombres, '');
-    if(!elegido) return;
-    const c = (obra.circuitos||[]).find(x=>(x.nombre||'').toLowerCase()===elegido.trim().toLowerCase());
-    if(!c){ toast('No encontré ese circuito.'); return; }
-    circuitoId = c.id;
-  }
-  elegirHerramienta('colocarCano', {tipo, lado, circuitoId});
-};
 
 function manejarClicHerramienta(ev){
   if(!herramienta.tipo) return;
@@ -737,63 +786,101 @@ function manejarClicHerramienta(ev){
   }
 
   if(herramienta.tipo === 'cable'){
-    const dEl = ev.target.closest('.disp');
-    if(!dEl){ toast('Ahora tocá la térmica de destino.'); return; }
-    if(!herramienta.paso1 || !herramienta.paso1.canoId){
-      toast('Primero tocá un caño, arriba o abajo del gabinete.'); return;
-    }
-    const canoId = herramienta.paso1.canoId;
-    herramienta.paso1 = null;
-    crearCable(canoId, dEl.dataset.id);
-    return;
-  }
-
-  if(herramienta.tipo === 'colocarCano'){
-    if(ev.target.closest('.disp') || ev.target.closest('[data-cano-click]')) return;
-    const { tipo, lado, circuitoId } = herramienta.pendiente;
-    elegirHerramienta(null);
-    agregarCanoAPI(tipo, lado, Math.round(x), circuitoId);
+    // el click sobre un nodo/caño/peine ya viene resuelto por su propio
+    // listener (con stopPropagation). Si llega hasta acá es un click en
+    // vacío: no hace nada, sólo evita romper el flujo.
   }
 }
-function clicCano(id){
-  if(herramienta.tipo === 'cable'){
-    herramienta.paso1 = {canoId: id};
-    $('paso-actual').textContent = 'Tocá la térmica de destino';
+
+/* ---------------- selección de los dos extremos de un cable ---------------- */
+function manejarEndpointHerramienta(ep){
+  if(!herramienta.paso1){
+    herramienta.paso1 = ep;
+    $('paso-actual').textContent = 'Tocá el segundo extremo del cable';
     pintarGabinete();
     return;
   }
-  eliminarCano(id);
+  const origen = herramienta.paso1;
+  herramienta.paso1 = null;
+  crearCable(origen, ep);
 }
-function clicCable(id){
-  if(!confirm('¿Quitar este cable?')) return;
-  eliminarCableAPI(id);
+
+/* ---------------- bocas de caño: asignar qué entra, o usar como extremo ---------------- */
+function nombreDeCircuito(id){
+  const c = (obra.circuitos||[]).find(x=>x.id===id);
+  return c ? c.nombre : '';
 }
-async function agregarCanoAPI(tipo, lado, xPx, circuitoId){
+function clicSlotCano(lado, seccion){
+  const t = tableroActivo();
+  const cano = buscarCano(t, lado, seccion);
+  if(herramienta.tipo === 'cable'){
+    if(!cano){ toast('Primero asigná qué entra por esta boca.'); return; }
+    manejarEndpointHerramienta({tipo:'cano', id: cano.id});
+    return;
+  }
+  abrirAsignarCano(lado, seccion, cano);
+}
+function abrirAsignarCano(lado, seccion, actual){
+  const tipo = (prompt(`Boca ${seccion+1} (${lado}). ¿Qué entra? acometida / circuito / tierra / vacio`,
+    actual ? actual.tipo : 'circuito') || '').trim().toLowerCase();
+  if(!tipo) return;
+  if(tipo === 'vacio'){
+    if(actual) eliminarCano(actual.id);
+    return;
+  }
+  if(!['acometida','circuito','tierra'].includes(tipo)){
+    toast('Escribí acometida, circuito, tierra o vacio.'); return;
+  }
+  let circuitoId = null;
+  if(tipo === 'circuito'){
+    const nombres = (obra.circuitos||[]).map(c=>c.nombre).join(', ');
+    const previo = actual && actual.circuitoId ? nombreDeCircuito(actual.circuitoId) : '';
+    const elegido = prompt('¿Qué circuito? (escribí el nombre tal cual)\n'+nombres, previo);
+    if(!elegido) return;
+    const c = (obra.circuitos||[]).find(x=>(x.nombre||'').toLowerCase()===elegido.trim().toLowerCase());
+    if(!c){ toast('No encontré ese circuito.'); return; }
+    circuitoId = c.id;
+  }
+  asignarCanoAPI(lado, seccion, tipo, circuitoId);
+}
+async function asignarCanoAPI(lado, seccion, tipo, circuitoId){
   const t = tableroActivo();
   try{
     const r = await api(`/api/obras/${OBRA_ID}/tableros/${t.id}/canos`,
-      {method:'POST', body:JSON.stringify({tipo, lado, xPx, circuitoId})});
+      {method:'POST', body:JSON.stringify({lado, seccion, tipo, circuitoId})});
     actualizarTablero(r.tablero, null);
-    toast('Caño agregado. Ahora podés cablearlo con "Cable desde caño".');
   }catch(e){ toast(e.message); pintarGabinete(); }
 }
-async function crearCable(canoId, dispositivoId){
+async function cambiarSeccionesAPI(lado, n){
   const t = tableroActivo();
   try{
-    const r = await api(`/api/obras/${OBRA_ID}/tableros/${t.id}/cables`,
-      {method:'POST', body:JSON.stringify({canoId, dispositivoId})});
+    const r = await api(`/api/obras/${OBRA_ID}/tableros/${t.id}/secciones-cano`,
+      {method:'POST', body:JSON.stringify({lado, n})});
     actualizarTablero(r.tablero, null);
-    toast('Cable conectado');
-  }catch(e){ toast(e.message); pintarGabinete(); }
+  }catch(e){ toast(e.message); pintarPanel(); }
 }
 async function eliminarCano(id){
-  if(!confirm('¿Quitar este caño? Los cables que dependían de él también se van.')) return;
   const t = tableroActivo();
   await api(`/api/obras/${OBRA_ID}/tableros/${t.id}/canos/${id}`, {method:'DELETE'});
   obra = await api('/api/obras/'+OBRA_ID);
   obra.tableros = obra.tableros || [];
   tableros = obra.tableros;
   pintar();
+}
+
+/* ---------------- cables ---------------- */
+async function crearCable(origen, destino){
+  const t = tableroActivo();
+  try{
+    const r = await api(`/api/obras/${OBRA_ID}/tableros/${t.id}/cables`,
+      {method:'POST', body:JSON.stringify({origen, destino})});
+    actualizarTablero(r.tablero, null);
+    toast('Conectado');
+  }catch(e){ toast(e.message); pintarGabinete(); }
+}
+function clicCable(id){
+  if(!confirm('¿Quitar este cable?')) return;
+  eliminarCableAPI(id);
 }
 async function eliminarCableAPI(id){
   const t = tableroActivo();
@@ -820,8 +907,14 @@ async function crearPuente(pisoOrigen, x, pisoDestino){
   }catch(e){ toast(e.message); pintarGabinete(); }
 }
 async function clicConexion(id){
-  if(!confirm('¿Quitar esta conexión?')) return;
   const t = tableroActivo();
+  const con = (t.conexiones||[]).find(c=>c.id===id);
+  if(herramienta.tipo === 'cable' && con && con.tipo === 'peine'){
+    manejarEndpointHerramienta({tipo:'peine', id});
+    return;
+  }
+  if(herramienta.tipo === 'peine' || herramienta.tipo === 'puente') return;
+  if(!confirm('¿Quitar esta conexión?')) return;
   await api(`/api/obras/${OBRA_ID}/tableros/${t.id}/conexiones/${id}`, {method:'DELETE'});
   t.conexiones = (t.conexiones||[]).filter(c=>c.id!==id);
   pintarGabinete();
@@ -918,10 +1011,14 @@ function pintarPanel(){
   if(!t) return;
   $('t-nombre').value = t.nombre; $('t-tipo').value = t.tipo;
   $('t-bocas').value = t.bocas; $('t-pisos').value = t.pisos;
+  const sc = t.seccionesCano || {arriba:3, abajo:3};
+  $('t-canos-arriba').value = sc.arriba; $('t-canos-abajo').value = sc.abajo;
   const usados = t.dispositivos.filter(d=>d.piso!==null).reduce((s,d)=>s+d.polos,0);
   $('t-resumen').textContent = `${t.fases===3?'Trifásico':'Monofásico'} · `
     + `${t.bocasPorPiso} bocas por piso · ${usados} de ${t.bocas} colocadas`;
 }
+$('t-canos-arriba').onchange = () => cambiarSeccionesAPI('arriba', +$('t-canos-arriba').value || 3);
+$('t-canos-abajo').onchange = () => cambiarSeccionesAPI('abajo', +$('t-canos-abajo').value || 3);
 function pintarAvisos(avisos){
   if(avisos) ultimosAvisos = avisos;
   const rel = (ultimosAvisos||[]).filter(a =>

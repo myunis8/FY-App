@@ -12,7 +12,14 @@ la térmica general, el diferencial y la bornera de tierra: se crean listos
 para arrastrar, no ya puestos.
 """
 from __future__ import annotations
+import uuid
 from . import contrato as C
+
+
+def _id(prefijo: str) -> str:
+    """Id único de verdad: C.ahora() es por milisegundo y puede repetirse
+    si se crean varios objetos en la misma corrida (pasó en las pruebas)."""
+    return f"{prefijo}_{uuid.uuid4().hex[:10]}"
 
 PRESETS = [
     {"id": "12", "nombre": "12 bocas (1 piso x 12)", "bocas": 12, "pisos": 1},
@@ -48,7 +55,7 @@ def _sin_ubicar(base: dict) -> dict:
 def tablero_nuevo(nombre: str, tipo: str, preset_id: str, fases: int) -> dict:
     preset = next((p for p in PRESETS if p["id"] == preset_id), PRESETS[0])
     bocas, pisos = preset["bocas"], preset["pisos"]
-    tid = f"tab_{C.ahora()}"
+    tid = _id("tab")
     polos = polos_termica(fases)
     dispositivos = [
         _sin_ubicar({"id": f"{tid}_gen", "tipo": "termica", "rol": "general",
@@ -66,8 +73,9 @@ def tablero_nuevo(nombre: str, tipo: str, preset_id: str, fases: int) -> dict:
         "alimentaDesde": None,           # {tableroId, dispositivoId} si es seccional
         "dispositivos": dispositivos,
         "conexiones": [],                # peines (bus por piso) y puentes (entre pisos)
-        "canos": [],                      # entradas/salidas de caño arriba y abajo del gabinete
-        "cables": [],                     # cable individual: un caño -> un dispositivo
+        "seccionesCano": {"arriba": 3, "abajo": 3},   # cantidad de bocas de caño fijas
+        "canos": [],                      # qué entra por cada boca de caño
+        "cables": [],                     # conexión entre dos puntos: caño, peine o nodo de un dispositivo
         "notas": [],
     }
 
@@ -75,35 +83,79 @@ def tablero_nuevo(nombre: str, tipo: str, preset_id: str, fases: int) -> dict:
 TIPOS_CANO = ("acometida", "circuito", "tierra")
 
 
-def agregar_cano(tablero: dict, tipo: str, lado: str, x_px: float, circuito_id=None):
-    if tipo not in TIPOS_CANO:
-        return None, "Ese tipo de caño no existe."
+def asignar_cano(tablero: dict, lado: str, seccion: int, tipo: str, circuito_id=None):
+    """Cada boca de caño es un lugar fijo (no una posición libre): 'seccion'
+    es el índice de la boca dentro de esa cantidad. Tocar una boca ya asignada
+    la reemplaza, no crea una segunda."""
     if lado not in ("arriba", "abajo"):
         return None, "El caño entra por arriba o por abajo del tablero."
-    c = {"id": f"cano_{C.ahora()}", "tipo": tipo, "lado": lado, "xPx": x_px,
+    n = (tablero.get("seccionesCano") or {}).get(lado, 3)
+    if not (0 <= seccion < n):
+        return None, "Esa boca de caño no existe."
+    if tipo not in TIPOS_CANO:
+        return None, "Ese tipo de caño no existe."
+    canos = tablero.setdefault("canos", [])
+    actual = next((c for c in canos if c["lado"] == lado and c["seccion"] == seccion), None)
+    if actual:
+        actual["tipo"] = tipo
+        actual["circuitoId"] = circuito_id if tipo == "circuito" else None
+        return actual, ""
+    c = {"id": _id("cano"), "tipo": tipo, "lado": lado, "seccion": seccion,
         "circuitoId": circuito_id if tipo == "circuito" else None}
-    tablero.setdefault("canos", []).append(c)
+    canos.append(c)
     return c, ""
 
 
-def eliminar_cano(tablero: dict, cano_id: str) -> bool:
+def liberar_cano(tablero: dict, cano_id: str) -> bool:
     canos = tablero.get("canos") or []
     n = len(canos)
     tablero["canos"] = [c for c in canos if c["id"] != cano_id]
-    tablero["cables"] = [cb for cb in tablero.get("cables") or [] if cb.get("canoId") != cano_id]
+    tablero["cables"] = [cb for cb in tablero.get("cables") or []
+                         if not _endpoint_es_cano(cb.get("origen"), cano_id)
+                         and not _endpoint_es_cano(cb.get("destino"), cano_id)]
     return len(tablero["canos"]) < n
 
 
-def crear_cable(tablero: dict, cano_id: str, dispositivo_id: str) -> tuple[dict | None, str]:
-    cano = next((c for c in tablero.get("canos") or [] if c["id"] == cano_id), None)
-    if cano is None:
-        return None, "Ese caño no existe."
-    d = next((x for x in tablero["dispositivos"] if x["id"] == dispositivo_id), None)
-    if d is None:
-        return None, "Ese dispositivo no existe."
-    if d.get("piso") is None:
-        return None, "Primero colocá el dispositivo en el riel: un cable no puede llegar a la bandeja."
-    cable = {"id": f"cable_{C.ahora()}", "canoId": cano_id, "dispositivoId": dispositivo_id}
+def cambiar_secciones(tablero: dict, lado: str, n: int) -> bool:
+    if lado not in ("arriba", "abajo") or n < 1:
+        return False
+    tablero.setdefault("seccionesCano", {"arriba": 3, "abajo": 3})[lado] = n
+    # las bocas que quedaron fuera de rango se liberan, con sus cables
+    for c in [c for c in tablero.get("canos") or [] if c["lado"] == lado and c["seccion"] >= n]:
+        liberar_cano(tablero, c["id"])
+    return True
+
+
+def _endpoint_es_cano(ep, cano_id) -> bool:
+    return isinstance(ep, dict) and ep.get("tipo") == "cano" and ep.get("id") == cano_id
+
+
+def _endpoint_valido(tablero: dict, ep: dict) -> bool:
+    if not isinstance(ep, dict):
+        return False
+    tipo = ep.get("tipo")
+    if tipo == "cano":
+        return any(c["id"] == ep.get("id") for c in tablero.get("canos") or [])
+    if tipo == "dispositivo":
+        d = next((x for x in tablero["dispositivos"] if x["id"] == ep.get("id")), None)
+        return d is not None and ep.get("lado") in ("arriba", "abajo") and d.get("piso") is not None
+    if tipo == "peine":
+        return any(c["id"] == ep.get("id") for c in tablero.get("conexiones") or [] if c["tipo"] == "peine")
+    return False
+
+
+def crear_cable(tablero: dict, origen: dict, destino: dict) -> tuple[dict | None, str]:
+    """Un cable conecta dos puntos cualquiera: un caño, un peine, o un nodo
+    (arriba/abajo) de un dispositivo. Así se arma la serie real: acometida ->
+    general -> diferencial -> peine -> cada térmica, en vez de que todo tenga
+    que pasar por un solo tipo de conexión."""
+    if not _endpoint_valido(tablero, origen):
+        return None, "El primer punto no es válido, o el dispositivo no está en el riel."
+    if not _endpoint_valido(tablero, destino):
+        return None, "El segundo punto no es válido, o el dispositivo no está en el riel."
+    if origen == destino:
+        return None, "El origen y el destino no pueden ser el mismo punto."
+    cable = {"id": _id("cable"), "origen": origen, "destino": destino}
     tablero.setdefault("cables", []).append(cable)
     return cable, ""
 
@@ -133,7 +185,7 @@ def crear_peine(tablero: dict, piso: int, desde: int, hasta: int) -> tuple[dict 
     for c in tablero["conexiones"]:
         if c["tipo"] == "peine" and c["piso"] == piso and not (hi < c["desde"] or lo > c["hasta"]):
             return None, "Ya hay un peine que se superpone en ese tramo."
-    peine = {"id": f"peine_{C.ahora()}", "tipo": "peine", "piso": piso, "desde": lo, "hasta": hi}
+    peine = {"id": _id("peine"), "tipo": "peine", "piso": piso, "desde": lo, "hasta": hi}
     tablero["conexiones"].append(peine)
     return peine, ""
 
@@ -145,7 +197,7 @@ def crear_puente(tablero: dict, piso_origen: int, x: int, piso_destino: int) -> 
         return None, "Un conector siempre baja al piso inmediatamente siguiente."
     if not (0 <= piso_origen < tablero["pisos"] and 0 <= piso_destino < tablero["pisos"]):
         return None, "Ese piso no existe."
-    puente = {"id": f"puente_{C.ahora()}", "tipo": "puente",
+    puente = {"id": _id("puente"), "tipo": "puente",
              "pisoOrigen": piso_origen, "pisoDestino": piso_destino, "x": x}
     tablero["conexiones"].append(puente)
     return puente, ""
@@ -161,7 +213,7 @@ def agregar_dispositivo(tablero: dict, tipo: str, extra: dict | None = None) -> 
     """Crea un dispositivo suelto (sin ubicar) para que el usuario lo arrastre."""
     extra = extra or {}
     polos = polos_termica(tablero.get("fases", 1))
-    base = {"id": f"disp_{C.ahora()}", "tipo": tipo, "rol": extra.get("rol", "seccional"),
+    base = {"id": _id("disp"), "tipo": tipo, "rol": extra.get("rol", "seccional"),
            "circuitoId": None}
     if tipo == "termica":
         base.update({"polos": extra.get("polos", polos), "corriente": extra.get("corriente", 16)})
