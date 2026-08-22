@@ -66,8 +66,52 @@ def tablero_nuevo(nombre: str, tipo: str, preset_id: str, fases: int) -> dict:
         "alimentaDesde": None,           # {tableroId, dispositivoId} si es seccional
         "dispositivos": dispositivos,
         "conexiones": [],                # peines (bus por piso) y puentes (entre pisos)
+        "canos": [],                      # entradas/salidas de caño arriba y abajo del gabinete
+        "cables": [],                     # cable individual: un caño -> un dispositivo
         "notas": [],
     }
+
+
+TIPOS_CANO = ("acometida", "circuito", "tierra")
+
+
+def agregar_cano(tablero: dict, tipo: str, lado: str, x_px: float, circuito_id=None):
+    if tipo not in TIPOS_CANO:
+        return None, "Ese tipo de caño no existe."
+    if lado not in ("arriba", "abajo"):
+        return None, "El caño entra por arriba o por abajo del tablero."
+    c = {"id": f"cano_{C.ahora()}", "tipo": tipo, "lado": lado, "xPx": x_px,
+        "circuitoId": circuito_id if tipo == "circuito" else None}
+    tablero.setdefault("canos", []).append(c)
+    return c, ""
+
+
+def eliminar_cano(tablero: dict, cano_id: str) -> bool:
+    canos = tablero.get("canos") or []
+    n = len(canos)
+    tablero["canos"] = [c for c in canos if c["id"] != cano_id]
+    tablero["cables"] = [cb for cb in tablero.get("cables") or [] if cb.get("canoId") != cano_id]
+    return len(tablero["canos"]) < n
+
+
+def crear_cable(tablero: dict, cano_id: str, dispositivo_id: str) -> tuple[dict | None, str]:
+    cano = next((c for c in tablero.get("canos") or [] if c["id"] == cano_id), None)
+    if cano is None:
+        return None, "Ese caño no existe."
+    d = next((x for x in tablero["dispositivos"] if x["id"] == dispositivo_id), None)
+    if d is None:
+        return None, "Ese dispositivo no existe."
+    if d.get("piso") is None:
+        return None, "Primero colocá el dispositivo en el riel: un cable no puede llegar a la bandeja."
+    cable = {"id": f"cable_{C.ahora()}", "canoId": cano_id, "dispositivoId": dispositivo_id}
+    tablero.setdefault("cables", []).append(cable)
+    return cable, ""
+
+
+def eliminar_cable(tablero: dict, cable_id: str) -> bool:
+    n = len(tablero.get("cables") or [])
+    tablero["cables"] = [cb for cb in tablero.get("cables") or [] if cb["id"] != cable_id]
+    return len(tablero.get("cables") or []) < n
 
 
 def _dispositivos_en(tablero: dict, piso: int, desde: int, hasta: int) -> list[dict]:
@@ -127,7 +171,7 @@ def agregar_dispositivo(tablero: dict, tipo: str, extra: dict | None = None) -> 
     elif tipo == "bornera":
         base.update({"polos": 1, "rol": "tierra"})
     elif tipo == "protector":
-        base.update({"polos": extra.get("polos", polos)})
+        base.update({"polos": extra.get("polos", polos), "tensionV": extra.get("tensionV", 220)})
     else:
         raise ValueError("Tipo de dispositivo desconocido")
     d = _sin_ubicar(base)

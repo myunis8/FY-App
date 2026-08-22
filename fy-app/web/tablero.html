@@ -56,6 +56,9 @@ h2:first-child{margin-top:0}
 .herramientas-cableado{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;align-items:center}
 .herramientas-cableado .btn.activa{background:var(--copper);border-color:#7a410c;color:#fff}
 .paso-actual{font-size:.76rem;color:var(--copper);font-weight:600}
+.franja-cano{position:absolute;background:#e3e7e5;border:1px dashed #a9b3b0;border-radius:6px}
+.canal-etq{position:absolute;writing-mode:vertical-rl;text-align:center;font-size:.6rem;
+  color:#9aa4a1;display:flex;align-items:center;justify-content:center;letter-spacing:.06em}
 
 .disp{position:absolute;cursor:grab;user-select:none}
 .disp:active{cursor:grabbing}
@@ -125,6 +128,8 @@ h2:first-child{margin-top:0}
       <button class="btn sm" id="h-ninguna" title="Sólo mover térmicas">☞ Mover</button>
       <button class="btn sm" id="h-peine" title="Unir térmicas del mismo riel en paralelo">▭ Peine</button>
       <button class="btn sm" id="h-puente" title="Bajar el bus al riel de abajo">↓ Conector al piso siguiente</button>
+      <button class="btn sm" id="h-cano" title="Un caño que entra o sale del gabinete">+ Caño</button>
+      <button class="btn sm" id="h-cable" title="Cablear desde un caño hasta una térmica">⌁ Cable desde caño</button>
       <span class="paso-actual" id="paso-actual"></span>
     </div>
     <div id="gabinete-cont"></div>
@@ -191,10 +196,16 @@ h2:first-child{margin-top:0}
 const $ = id => document.getElementById(id);
 const OBRA_ID = new URLSearchParams(location.search).get('obra');
 const CELDA = 64;              // ancho de una boca, en px
-const ALTO_DISP = 150;         // alto de la fila de dispositivos. Antes 108: se pidió más alto.
+const ALTO_DISP = 150;         // alto de la fila de dispositivos
 const BANDA = 78;              // alto de cada banda de cableado, arriba y abajo del riel
 const MARGEN_PISO = 22;        // separación visual entre el piso de abajo y el de arriba
+const CANAL = 46;              // canal lateral reservado para el recorrido de los cables:
+                                // así un cable nunca cruza por encima de otra térmica.
+const FRANJA_CANO = 58;        // alto de la franja de entrada/salida de caños, arriba y abajo
 const ALTURA_PISO = BANDA + ALTO_DISP + BANDA + MARGEN_PISO;
+function yPiso(piso){ return FRANJA_CANO + piso * ALTURA_PISO; }   // FRANJA_CANO va incluida
+function yRiel(piso){ return yPiso(piso) + BANDA; }
+function yBandaInf(piso){ return yRiel(piso) + ALTO_DISP; }
 let obra = null, tableros = [], activo = null, presets = [], arrastrando = null, seleccionado = null;
 let herramienta = {tipo: null, paso1: null};   // null | 'peine' | 'puente' — flujo de 2 clics
 
@@ -258,14 +269,16 @@ function svgTermica(w, h, polos, corriente, colorFamilia, circuito){
     tornillosTop += tornilloX(cx, h*0.13, r);
     tornillosBot += tornilloMas(cx, h*0.87, r);
   }
+  // la ventana donde normalmente va la marca del fabricante: ahí va el circuito
   return `<svg viewBox="0 0 ${w} ${h}">
     <rect class="cuerpo-disp" x="1" y="1" width="${w-2}" height="${h-2}" rx="5"
       fill="#fff" stroke="${colorFamilia||TRAZO}" stroke-width="1.6"/>
     ${tornillosTop}
-    <rect x="${w*0.12}" y="${h*0.24}" width="${w*0.76}" height="${h*0.14}" rx="1.5"
+    <rect x="${w*0.1}" y="${h*0.22}" width="${w*0.8}" height="${h*0.16}" rx="1.5"
       fill="none" stroke="${TRAZO}" stroke-width="0.9"/>
-    <line x1="${w*0.16}" y1="${h*0.36}" x2="${w*0.24}" y2="${h*0.26}" stroke="${TRAZO}" stroke-width=".8"/>
-    <line x1="${w*0.72}" y1="${h*0.36}" x2="${w*0.8}" y2="${h*0.26}" stroke="${TRAZO}" stroke-width=".8"/>
+    ${circuito ? `<text x="${w/2}" y="${h*0.335}" text-anchor="middle" font-weight="700"
+      font-family="'IBM Plex Sans',sans-serif" font-size="${Math.min(w*0.15,11)}"
+      fill="${TRAZO}">${esc(circuito)}</text>` : ''}
     <rect x="${w*0.22}" y="${h*0.46}" width="${w*0.56}" height="${h*0.07}" rx="1"
       fill="none" stroke="${TRAZO}" stroke-width="0.9"/>
     <rect x="${w*0.28}" y="${h*0.53}" width="${w*0.16}" height="${h*0.14}" fill="none"
@@ -275,8 +288,6 @@ function svgTermica(w, h, polos, corriente, colorFamilia, circuito){
     ${tornillosBot}
     <text x="${w/2}" y="${h*0.71}" text-anchor="middle" class="etiqueta-corriente"
       font-size="${Math.min(w*0.24,13)}" fill="${TRAZO}">C${corriente??''}</text>
-    ${circuito ? `<text x="${w/2}" y="${h+11}" text-anchor="middle" class="etiqueta-circuito"
-      font-size="9.5" fill="${TRAZO}">${esc(circuito)}</text>` : ''}
   </svg>`;
 }
 function svgDiferencial(w, h, polos, corriente, mA){
@@ -306,7 +317,10 @@ function svgDiferencial(w, h, polos, corriente, mA){
       fill="${TRAZO}">${mA??''}mA</text>
   </svg>`;
 }
-function svgProtector(w, h, corriente, circuito){
+function svgProtector(w, h, tensionV, circuito){
+  // display digital con la tensión de referencia, estilo 7 segmentos: no mide
+  // corriente (no va "A"), es un protector de tensión.
+  const v = tensionV ?? 220;
   return `<svg viewBox="0 0 ${w} ${h}">
     <rect class="cuerpo-disp" x="1" y="1" width="${w-2}" height="${h-2}" rx="5"
       fill="#fff" stroke="${TRAZO}" stroke-width="1.6"/>
@@ -316,19 +330,21 @@ function svgProtector(w, h, corriente, circuito){
     ${tornilloMas(w*0.72, h*0.89, Math.min(w,h)*0.11)}
     <circle cx="${w*0.22}" cy="${h*0.3}" r="2.4" fill="none" stroke="${TRAZO}" stroke-width=".8"/>
     <circle cx="${w*0.22}" cy="${h*0.4}" r="2.4" fill="none" stroke="${TRAZO}" stroke-width=".8"/>
-    <rect x="${w*0.32}" y="${h*0.24}" width="${w*0.54}" height="${h*0.2}" rx="1.5"
-      fill="none" stroke="${TRAZO}" stroke-width="0.9"/>
-    <text x="${w*0.59}" y="${h*0.4}" text-anchor="middle" class="etiqueta-corriente"
-      font-size="${Math.min(w*0.15,10)}" fill="${TRAZO}">${corriente??''}A</text>
-    <rect x="${w*0.16}" y="${h*0.52}" width="${w*0.15}" height="${h*0.1}" rx="1.5"
+    <rect x="${w*0.3}" y="${h*0.22}" width="${w*0.58}" height="${h*0.22}" rx="1.5"
+      fill="#eef3ef" stroke="${TRAZO}" stroke-width="0.9"/>
+    <text x="${w*0.59}" y="${h*0.395}" text-anchor="middle" font-weight="700"
+      font-family="'IBM Plex Mono',monospace" letter-spacing="1"
+      font-size="${Math.min(w*0.17,12)}" fill="#1c6b3a">${v}</text>
+    <text x="${w*0.59}" y="${h*0.46}" text-anchor="middle" font-size="6.5" fill="${TRAZO}">V</text>
+    <rect x="${w*0.16}" y="${h*0.54}" width="${w*0.15}" height="${h*0.1}" rx="1.5"
       fill="none" stroke="${TRAZO}" stroke-width=".8"/>
-    <rect x="${w*0.34}" y="${h*0.52}" width="${w*0.15}" height="${h*0.1}" rx="1.5"
+    <rect x="${w*0.34}" y="${h*0.54}" width="${w*0.15}" height="${h*0.1}" rx="1.5"
       fill="none" stroke="${TRAZO}" stroke-width=".8"/>
-    <rect x="${w*0.52}" y="${h*0.52}" width="${w*0.15}" height="${h*0.1}" rx="1.5"
+    <rect x="${w*0.52}" y="${h*0.54}" width="${w*0.15}" height="${h*0.1}" rx="1.5"
       fill="none" stroke="${TRAZO}" stroke-width=".8"/>
-    <rect x="${w*0.7}" y="${h*0.52}" width="${w*0.16}" height="${h*0.1}" rx="1.5"
+    <rect x="${w*0.7}" y="${h*0.54}" width="${w*0.16}" height="${h*0.1}" rx="1.5"
       fill="none" stroke="${TRAZO}" stroke-width=".8"/>
-    <text x="${w/2}" y="${h*0.72}" text-anchor="middle" font-size="8" fill="${TRAZO}">DPS</text>
+    <text x="${w/2}" y="${h*0.73}" text-anchor="middle" font-size="8" fill="${TRAZO}">DPS</text>
     ${circuito ? `<text x="${w/2}" y="${h+11}" text-anchor="middle" class="etiqueta-circuito"
       font-size="9.5" fill="${TRAZO}">${esc(circuito)}</text>` : ''}
   </svg>`;
@@ -355,7 +371,7 @@ function svgDispositivo(d, w, h){
   w = w||64; h = h||96;
   if(d.tipo === 'diferencial') return svgDiferencial(w, h, d.polos, d.corriente, d.sensibilidadMa);
   if(d.tipo === 'bornera') return svgBornera(w, h);
-  if(d.tipo === 'protector') return svgProtector(w, h, d.corriente, etiquetaCircuito(d));
+  if(d.tipo === 'protector') return svgProtector(w, h, d.tensionV, etiquetaCircuito(d));
   const color = d.rol==='general' ? '#16283f' : (d.color || null);
   return svgTermica(w, h, d.polos, d.corriente, color,
     etiquetaCircuito(d) || (d.rol==='general' ? 'General' : ''));
@@ -380,71 +396,146 @@ function svgRielFondo(w, h){
    así un conector puede cruzar de un piso al de abajo con coordenadas simples.
    Cada piso tiene banda superior (llegada), riel con los dispositivos, y
    banda inferior (salida hacia el circuito o hacia el conector que baja). */
-function yPiso(piso){ return piso * ALTURA_PISO; }
-function yRiel(piso){ return yPiso(piso) + BANDA; }
-function yBandaInf(piso){ return yRiel(piso) + ALTO_DISP; }
-
 function pintarGabinete(){
   const t = tableroActivo();
   const cont = $('gabinete-cont');
   if(!t){ cont.innerHTML = ''; return; }
   const ancho = t.bocasPorPiso * CELDA;
-  const alto = t.pisos * ALTURA_PISO - MARGEN_PISO;
-  let html = `<div class="gabinete" style="width:${ancho+40}px">
-    <div class="lienzo-pisos" style="width:${ancho}px;height:${alto}px" id="lienzo-pisos">`;
+  const anchoTotal = ancho + CANAL;
+  const altoPisos = t.pisos * ALTURA_PISO - MARGEN_PISO;
+  const altoTotal = FRANJA_CANO + altoPisos + FRANJA_CANO;
+  let html = `<div class="gabinete" style="width:${anchoTotal+40}px">
+    <div class="lienzo-pisos" style="width:${anchoTotal}px;height:${altoTotal}px" id="lienzo-pisos">
+    <div class="canal-etq" style="left:2px;top:${FRANJA_CANO+4}px;height:${altoPisos-8}px;
+      width:${CANAL-6}px">Canal</div>
+    <div class="franja-cano" style="top:0;left:0;width:${anchoTotal}px;height:${FRANJA_CANO}px">
+      <span class="banda-etq">Entradas de caño — arriba de todo</span></div>
+    <div class="franja-cano" style="top:${FRANJA_CANO+altoPisos}px;left:0;width:${anchoTotal}px;
+      height:${FRANJA_CANO}px"><span class="banda-etq">Salidas de caño — abajo de todo</span></div>`;
 
   for(let piso = 0; piso < t.pisos; piso++){
-    html += `<div class="banda" style="top:${yPiso(piso)}px;height:${BANDA}px;width:${ancho}px">
-      <span class="banda-etq">Llegada — piso ${piso+1}</span></div>`;
-    html += `<div class="riel" data-piso="${piso}" style="top:${yRiel(piso)}px;
+    html += `<div class="banda" style="top:${yPiso(piso)}px;left:${CANAL}px;
+      height:${BANDA}px;width:${ancho}px"><span class="banda-etq">Llegada — piso ${piso+1}</span></div>`;
+    html += `<div class="riel" data-piso="${piso}" style="top:${yRiel(piso)}px;left:${CANAL}px;
       width:${ancho}px;height:${ALTO_DISP}px">${svgRielFondo(ancho, ALTO_DISP)}`;
     for(let c=0;c<=t.bocasPorPiso;c++)
       html += `<div class="celda-fantasma" style="left:${c*CELDA}px"></div>`;
     t.dispositivos.filter(d=>d.piso===piso).forEach(d => { html += bloqueDisp(d); });
     html += `</div>`;
-    html += `<div class="banda banda-inf" data-piso-banda="${piso}"
-      style="top:${yBandaInf(piso)}px;height:${BANDA}px;width:${ancho}px">
+    html += `<div class="banda banda-inf" data-piso-banda="${piso}" style="top:${yBandaInf(piso)}px;
+      left:${CANAL}px;width:${ancho}px;height:${BANDA}px">
       <span class="banda-etq">Salida hacia el circuito</span></div>`;
   }
   (t.conexiones||[]).forEach(c => { html += dibujoConexion(t, c); });
+  (t.cables||[]).forEach(cb => { html += dibujoCable(t, cb); });
+  html += pintarFranjas(t, anchoTotal, altoTotal);
   if(herramienta.tipo) html += dibujoPendienteHerramienta(t);
   html += `</div></div>`;
   cont.innerHTML = html;
   cablearGabinete();
 }
 
+/* ---------------- franjas de caño (acometida, circuitos, tierra) ---------------- */
+function iconoCano(c){
+  const color = c.tipo==='tierra' ? '#2f7d5c' : c.tipo==='acometida' ? '#8a5a2b' : '#2b6ca3';
+  return `<circle r="9" fill="#fff" stroke="${color}" stroke-width="2"/>
+    <circle r="4" fill="${color}"/>`;
+}
+function etiquetaCano(c){
+  if(c.tipo === 'acometida') return 'Acometida';
+  if(c.tipo === 'tierra') return 'Jabalina';
+  const circ = (obra.circuitos||[]).find(x=>x.id===c.circuitoId);
+  return circ ? circ.nombre : 'Circuito';
+}
+function pintarFranjas(t, anchoTotal, altoTotal){
+  const yTop = FRANJA_CANO, yBot = FRANJA_CANO + (altoTotal - 2*FRANJA_CANO);
+  let g = '';
+  (t.canos||[]).forEach(c => {
+    const y = c.lado === 'arriba' ? yTop : yBot;
+    g += `<g transform="translate(${c.xPx},${y})" style="pointer-events:all;cursor:pointer"
+      data-cano-click="${c.id}">${iconoCano(c)}
+      <text y="${c.lado==='arriba' ? -13 : 22}" text-anchor="middle" font-size="8"
+        fill="#33506e">${esc(etiquetaCano(c))}</text></g>`;
+  });
+  return `<svg style="position:absolute;left:0;top:0;width:${anchoTotal}px;height:${altoTotal}px;
+    overflow:visible;pointer-events:none">${g}</svg>`;
+}
+
+/* ---------------- cable individual: caño -> dispositivo ----------------
+   Recorre el canal lateral para bajar o subir sin cruzar nunca por encima
+   de otra térmica: sale del caño, entra al canal, viaja por el canal hasta
+   la altura del piso destino, y recién ahí se mete hacia la térmica. */
+function dibujoCable(t, cable){
+  const cano = (t.canos||[]).find(c=>c.id===cable.canoId);
+  const d = t.dispositivos.find(x=>x.id===cable.dispositivoId);
+  if(!cano || !d || d.piso===null || d.piso===undefined) return '';
+  const color = cano.tipo==='tierra' ? '#2f7d5c' : cano.tipo==='acometida' ? '#8a5a2b' : '#5b6b7a';
+  const anchoTotal = t.bocasPorPiso*CELDA + CANAL;
+  const altoTotal = 2*FRANJA_CANO + t.pisos*ALTURA_PISO - MARGEN_PISO;
+  const yEntrada = cano.lado==='arriba' ? FRANJA_CANO : altoTotal - FRANJA_CANO;
+  const xCanal = CANAL/2;
+  const feedArriba = d.alimentacion !== 'abajo';
+  const yFuera = feedArriba ? yRiel(d.piso) - 6 : yRiel(d.piso) + ALTO_DISP + 6;
+  const yBorde = feedArriba ? yRiel(d.piso) - 1 : yRiel(d.piso) + ALTO_DISP + 1;
+  const xDevice = CANAL + (d.posicion + d.polos/2) * CELDA;
+  const pts = [[cano.xPx,yEntrada],[xCanal,yEntrada],[xCanal,yFuera],[xDevice,yFuera],[xDevice,yBorde]];
+  const path = pts.map((p,i)=>(i===0?'M':'L')+p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ');
+  return `<svg style="position:absolute;left:0;top:0;width:${anchoTotal}px;height:${altoTotal}px;
+    overflow:visible;pointer-events:none">
+    <path d="${path}" fill="none" stroke="${color}" stroke-width="2.6" stroke-linejoin="round"/>
+    <circle cx="${cano.xPx}" cy="${yEntrada}" r="3.5" fill="${color}"
+      style="pointer-events:all;cursor:pointer" data-con-click-cable="${cable.id}"/>
+  </svg>`;
+}
+
 /* ---------------- peine y conectores (esquema del cableado) ----------------
    El peine es la tira que junta en paralelo las térmicas de un mismo riel
    (como en la foto de referencia). El conector es la pieza que baja el bus
    del peine (o la salida de una térmica) al riel del piso siguiente. */
+function _anchoAltoOverlay(t){
+  return [t.bocasPorPiso*CELDA + CANAL, 2*FRANJA_CANO + t.pisos*ALTURA_PISO - MARGEN_PISO];
+}
 function dibujoConexion(t, c){
+  const [anchoTotal, altoTotal] = _anchoAltoOverlay(t);
   if(c.tipo === 'peine'){
     const dispEnPeine = t.dispositivos.filter(d=>d.piso===c.piso && d.posicion>=c.desde
       && d.posicion+d.polos-1<=c.hasta);
-    const x0 = c.desde*CELDA + 8, x1 = (c.hasta+1)*CELDA - 8;
-    const y = yRiel(c.piso) - 16;
-    let pines = '';
+    // convención: el polo de la izquierda siempre es fase (marrón). Si el
+    // dispositivo tiene neutro (bipolar, o tetrapolar con corte de neutro),
+    // el último polo es neutro (celeste); un tripolar sin neutro es todo fase.
+    const faseCols = [], neutroCols = [];
     dispEnPeine.forEach(d => {
-      const cx = (d.posicion + d.polos/2) * CELDA;
-      pines += `<line x1="${cx}" y1="${y+7}" x2="${cx}" y2="${yRiel(c.piso)+6}"
-        stroke="#8a5a2b" stroke-width="4"/>`;
+      const tieneNeutro = d.polos===2 || d.polos===4;
+      for(let i=0;i<d.polos;i++){
+        const cx = CANAL + (d.posicion+i+0.5)*CELDA;
+        (tieneNeutro && i===d.polos-1 ? neutroCols : faseCols).push(cx);
+      }
     });
+    const yFase = yRiel(c.piso) - 16, yNeutro = yFase - 15;
+    let svgBarras = '';
+    function barra(cols, y, color, etq){
+      if(!cols.length) return;
+      const x0 = Math.min(...cols) - 8, x1 = Math.max(...cols) + 8;
+      let pines = cols.map(cx => `<line x1="${cx}" y1="${y+7}" x2="${cx}" y2="${yRiel(c.piso)+6}"
+        stroke="${color}" stroke-width="3.4"/>`).join('');
+      svgBarras += `${pines}
+        <rect x="${x0}" y="${y}" width="${x1-x0}" height="12" rx="3.5" fill="${color}"
+          stroke="#00000030" stroke-width="1" style="pointer-events:all;cursor:pointer"
+          data-con-click="${c.id}"/>
+        <text x="${(x0+x1)/2}" y="${y+9.5}" text-anchor="middle" font-size="7.5" fill="#fff"
+          style="pointer-events:none">${etq}</text>`;
+    }
+    barra(faseCols, yFase, '#8a5a2b', 'F');
+    barra(neutroCols, yNeutro, '#2b6ca3', 'N');
     return `<svg class="conexion" data-con="${c.id}" style="position:absolute;left:0;top:0;
-      width:${t.bocasPorPiso*CELDA}px;height:${t.pisos*ALTURA_PISO}px;overflow:visible;
-      pointer-events:none">
-      ${pines}
-      <rect x="${x0}" y="${y}" width="${x1-x0}" height="14" rx="4" fill="#8a5a2b"
-        stroke="#5c3a1a" stroke-width="1" style="pointer-events:all;cursor:pointer"
-        data-con-click="${c.id}"/>
-      <text x="${(x0+x1)/2}" y="${y+11}" text-anchor="middle" font-size="8.5" fill="#fff"
-        style="pointer-events:none">PEINE</text>
-    </svg>`;
+      width:${anchoTotal}px;height:${altoTotal}px;overflow:visible;
+      pointer-events:none">${svgBarras}</svg>`;
   }
   // puente: baja desde la banda inferior del piso origen a la banda superior del siguiente
   const y0 = yBandaInf(c.pisoOrigen) + 10, y1 = yPiso(c.pisoDestino) + BANDA - 10;
-  const x = c.x * CELDA + CELDA/2;
+  const x = CANAL + c.x * CELDA + CELDA/2;
   return `<svg class="conexion" data-con="${c.id}" style="position:absolute;left:0;top:0;
-    width:${t.bocasPorPiso*CELDA}px;height:${t.pisos*ALTURA_PISO}px;overflow:visible;
+    width:${anchoTotal}px;height:${altoTotal}px;overflow:visible;
     pointer-events:none">
     <line x1="${x}" y1="${y0}" x2="${x}" y2="${y1}" stroke="#5b6b7a" stroke-width="3"/>
     <rect x="${x-11}" y="${(y0+y1)/2-9}" width="22" height="18" rx="3" fill="#fff"
@@ -454,12 +545,13 @@ function dibujoConexion(t, c){
   </svg>`;
 }
 function dibujoPendienteHerramienta(t){
-  if(!herramienta.paso1) return '';
+  if(!herramienta.paso1 || herramienta.paso1.piso===undefined) return '';
+  const [anchoTotal, altoTotal] = _anchoAltoOverlay(t);
   const p = herramienta.paso1;
-  const cx = (p.posicion!==undefined ? p.posicion*CELDA+CELDA/2 : p.x*CELDA+CELDA/2);
+  const cx = CANAL + (p.posicion!==undefined ? p.posicion*CELDA+CELDA/2 : p.x*CELDA+CELDA/2);
   const cy = yRiel(p.piso) + ALTO_DISP/2;
-  return `<svg style="position:absolute;left:0;top:0;width:${t.bocasPorPiso*CELDA}px;
-    height:${t.pisos*ALTURA_PISO}px;overflow:visible;pointer-events:none">
+  return `<svg style="position:absolute;left:0;top:0;width:${anchoTotal}px;
+    height:${altoTotal}px;overflow:visible;pointer-events:none">
     <circle cx="${cx}" cy="${cy}" r="7" fill="none" stroke="var(--copper)" stroke-width="2.4"/>
   </svg>`;
 }
@@ -504,6 +596,12 @@ function cablearGabinete(){
   if(lienzo) lienzo.addEventListener('click', manejarClicHerramienta);
   document.querySelectorAll('[data-con-click]').forEach(n => n.addEventListener('click', ev => {
     ev.stopPropagation(); clicConexion(n.dataset.conClick);
+  }));
+  document.querySelectorAll('[data-cano-click]').forEach(n => n.addEventListener('click', ev => {
+    ev.stopPropagation(); clicCano(n.dataset.canoClick);
+  }));
+  document.querySelectorAll('[data-con-click-cable]').forEach(n => n.addEventListener('click', ev => {
+    ev.stopPropagation(); clicCable(n.dataset.conClickCable);
   }));
   document.querySelectorAll('.riel').forEach(riel => {
     riel.addEventListener('dragover', ev => ev.preventDefault());
@@ -562,20 +660,39 @@ function bloqueDispBandeja(d){
 }
 
 /* ---------------- herramientas de cableado ---------------- */
-function elegirHerramienta(tipo){
-  herramienta = {tipo, paso1:null};
+function elegirHerramienta(tipo, pendiente){
+  herramienta = {tipo, paso1:null, pendiente: pendiente||null};
   document.querySelectorAll('.herramientas-cableado .btn').forEach(b=>b.classList.remove('activa'));
-  const idBoton = {peine:'h-peine', puente:'h-puente'}[tipo] || 'h-ninguna';
+  const idBoton = {peine:'h-peine', puente:'h-puente', cable:'h-cable', colocarCano:'h-cano'}[tipo] || 'h-ninguna';
   $(idBoton).classList.add('activa');
   $('paso-actual').textContent = tipo==='peine'
     ? 'Tocá una térmica, después la otra punta del tramo a unir'
-    : tipo==='puente' ? 'Tocá la banda de salida, después la banda de llegada del piso de abajo' : '';
+    : tipo==='puente' ? 'Tocá la banda de salida, después la banda de llegada del piso de abajo'
+    : tipo==='cable' ? 'Tocá un caño, después la térmica a la que llega'
+    : tipo==='colocarCano' ? 'Tocá dónde entra o sale el caño, arriba o abajo del gabinete' : '';
   seleccionado = null;
   pintar();
 }
 $('h-ninguna').onclick = () => elegirHerramienta(null);
 $('h-peine').onclick = () => elegirHerramienta('peine');
 $('h-puente').onclick = () => elegirHerramienta('puente');
+$('h-cable').onclick = () => elegirHerramienta('cable');
+$('h-cano').onclick = () => {
+  const tipo = (prompt('Tipo de caño: acometida / circuito / tierra', 'circuito')||'').trim().toLowerCase();
+  if(!['acometida','circuito','tierra'].includes(tipo)) return;
+  const lado = (prompt('¿Entra por arriba o por abajo del gabinete?', 'arriba')||'').trim().toLowerCase();
+  if(!['arriba','abajo'].includes(lado)) return;
+  let circuitoId = null;
+  if(tipo === 'circuito'){
+    const nombres = (obra.circuitos||[]).map(c=>c.nombre).join(', ');
+    const elegido = prompt('¿Qué circuito? (escribí el nombre tal cual)\n'+nombres, '');
+    if(!elegido) return;
+    const c = (obra.circuitos||[]).find(x=>(x.nombre||'').toLowerCase()===elegido.trim().toLowerCase());
+    if(!c){ toast('No encontré ese circuito.'); return; }
+    circuitoId = c.id;
+  }
+  elegirHerramienta('colocarCano', {tipo, lado, circuitoId});
+};
 
 function manejarClicHerramienta(ev){
   if(!herramienta.tipo) return;
@@ -606,8 +723,8 @@ function manejarClicHerramienta(ev){
   }
 
   if(herramienta.tipo === 'puente'){
-    const piso = Math.max(0, Math.min(t.pisos - 1, Math.floor(y / ALTURA_PISO)));
-    const xBoca = Math.max(0, Math.min(t.bocasPorPiso - 1, Math.floor(x / CELDA)));
+    const piso = Math.max(0, Math.min(t.pisos - 1, Math.floor((y - FRANJA_CANO) / ALTURA_PISO)));
+    const xBoca = Math.max(0, Math.min(t.bocasPorPiso - 1, Math.floor((x - CANAL) / CELDA)));
     if(!herramienta.paso1){
       herramienta.paso1 = {piso, x: xBoca};
       pintarGabinete();
@@ -616,7 +733,73 @@ function manejarClicHerramienta(ev){
     const origen = herramienta.paso1;
     herramienta.paso1 = null;
     crearPuente(origen.piso, origen.x, piso);
+    return;
   }
+
+  if(herramienta.tipo === 'cable'){
+    const dEl = ev.target.closest('.disp');
+    if(!dEl){ toast('Ahora tocá la térmica de destino.'); return; }
+    if(!herramienta.paso1 || !herramienta.paso1.canoId){
+      toast('Primero tocá un caño, arriba o abajo del gabinete.'); return;
+    }
+    const canoId = herramienta.paso1.canoId;
+    herramienta.paso1 = null;
+    crearCable(canoId, dEl.dataset.id);
+    return;
+  }
+
+  if(herramienta.tipo === 'colocarCano'){
+    if(ev.target.closest('.disp') || ev.target.closest('[data-cano-click]')) return;
+    const { tipo, lado, circuitoId } = herramienta.pendiente;
+    elegirHerramienta(null);
+    agregarCanoAPI(tipo, lado, Math.round(x), circuitoId);
+  }
+}
+function clicCano(id){
+  if(herramienta.tipo === 'cable'){
+    herramienta.paso1 = {canoId: id};
+    $('paso-actual').textContent = 'Tocá la térmica de destino';
+    pintarGabinete();
+    return;
+  }
+  eliminarCano(id);
+}
+function clicCable(id){
+  if(!confirm('¿Quitar este cable?')) return;
+  eliminarCableAPI(id);
+}
+async function agregarCanoAPI(tipo, lado, xPx, circuitoId){
+  const t = tableroActivo();
+  try{
+    const r = await api(`/api/obras/${OBRA_ID}/tableros/${t.id}/canos`,
+      {method:'POST', body:JSON.stringify({tipo, lado, xPx, circuitoId})});
+    actualizarTablero(r.tablero, null);
+    toast('Caño agregado. Ahora podés cablearlo con "Cable desde caño".');
+  }catch(e){ toast(e.message); pintarGabinete(); }
+}
+async function crearCable(canoId, dispositivoId){
+  const t = tableroActivo();
+  try{
+    const r = await api(`/api/obras/${OBRA_ID}/tableros/${t.id}/cables`,
+      {method:'POST', body:JSON.stringify({canoId, dispositivoId})});
+    actualizarTablero(r.tablero, null);
+    toast('Cable conectado');
+  }catch(e){ toast(e.message); pintarGabinete(); }
+}
+async function eliminarCano(id){
+  if(!confirm('¿Quitar este caño? Los cables que dependían de él también se van.')) return;
+  const t = tableroActivo();
+  await api(`/api/obras/${OBRA_ID}/tableros/${t.id}/canos/${id}`, {method:'DELETE'});
+  obra = await api('/api/obras/'+OBRA_ID);
+  obra.tableros = obra.tableros || [];
+  tableros = obra.tableros;
+  pintar();
+}
+async function eliminarCableAPI(id){
+  const t = tableroActivo();
+  await api(`/api/obras/${OBRA_ID}/tableros/${t.id}/cables/${id}`, {method:'DELETE'});
+  t.cables = (t.cables||[]).filter(c=>c.id!==id);
+  pintarGabinete();
 }
 async function crearPeine(piso, desde, hasta){
   const t = tableroActivo();
@@ -663,6 +846,9 @@ async function agregarDispositivo(tipo){
     const c = prompt('Corriente del diferencial (A)', '40'); if(!c) return;
     const mA = prompt('Sensibilidad (mA)', '30'); if(!mA) return;
     extra.corriente = parseFloat(c); extra.sensibilidadMa = parseFloat(mA);
+  } else if(tipo === 'protector'){
+    const v = prompt('Tensión de referencia (V)', '220'); if(!v) return;
+    extra.tensionV = parseFloat(v);
   }
   try{
     const r = await api(`/api/obras/${OBRA_ID}/tableros/${t.id}/dispositivos`,
@@ -695,7 +881,9 @@ function pintarDetalle(){
   cont.innerHTML = `<div class="detalle-disp">
     <h3>${d.tipo==='bornera'?'Bornera de tierra':d.tipo==='diferencial'?'Diferencial':
       d.tipo==='protector'?'Protector de sobretensión':(circ?'Térmica · '+esc(circ):'Térmica')}</h3>
-    ${d.tipo!=='bornera' ? `<div class="campo"><label for="dd-corriente">Corriente (A)</label>
+    ${d.tipo==='protector' ? `<div class="campo"><label for="dd-tension">Tensión de referencia (V)</label>
+      <input id="dd-tension" type="number" value="${d.tensionV??220}"></div>`
+      : d.tipo!=='bornera' ? `<div class="campo"><label for="dd-corriente">Corriente (A)</label>
       <input id="dd-corriente" type="number" value="${d.corriente??''}"></div>` : ''}
     ${d.tipo==='diferencial' ? `<div class="campo"><label for="dd-ma">Sensibilidad (mA)</label>
       <input id="dd-ma" type="number" value="${d.sensibilidadMa??''}"></div>` : ''}
@@ -711,6 +899,9 @@ function pintarDetalle(){
   };
   if($('dd-ma')) $('dd-ma').onchange = async () => {
     d.sensibilidadMa = parseFloat($('dd-ma').value)||0; await persistirObra(); pintarGabinete();
+  };
+  if($('dd-tension')) $('dd-tension').onchange = async () => {
+    d.tensionV = parseFloat($('dd-tension').value)||220; await persistirObra(); pintarGabinete();
   };
   $('dd-alim').onchange = async () => {
     d.alimentacion = $('dd-alim').value; await persistirObra(); pintarGabinete();

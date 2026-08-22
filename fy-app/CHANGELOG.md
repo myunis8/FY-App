@@ -3,6 +3,32 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 0.7.0 — caños de entrada/salida y cableado por canal lateral
+
+- **La etiqueta del circuito ahora se lee**: se movió adentro de la térmica, a
+  la ventana donde normalmente iría la marca del fabricante, en negrita.
+  Antes quedaba afuera del dibujo y se recortaba.
+- **Protector corregido**: ya no mostraba una corriente en A como si fuera un
+  amperímetro. Ahora tiene un display estilo 7 segmentos con la tensión de
+  referencia ("220" + "V"), editable desde el panel de detalle.
+- **Peine con fase y neutro diferenciados**: dos barras, marrón (fase, siempre
+  la del polo izquierdo) y celeste (neutro), cada una con sus propios pines a
+  la columna que corresponde. Un tripolar sin neutro sólo tiene barra de fase.
+- **Sistema de caños**: una franja arriba de todo y otra abajo de todo del
+  gabinete, donde se colocan los puntos de entrada/salida — acometida,
+  cada circuito, la jabalina — con su símbolo de caño en corte.
+- **Cable desde caño**: herramienta de dos clics que conecta un caño con la
+  térmica (o la bornera, o la general) que corresponde.
+- **El cable nunca cruza por encima de otra térmica**: viaja por un canal
+  lateral reservado a la izquierda del gabinete hasta la altura del piso de
+  destino, y recién ahí se mete hacia el dispositivo. No es literalmente "por
+  detrás" del riel (en un esquema 2D de arriba, eso lo volvería invisible) —
+  es la alternativa que mantiene el cable siempre visible y nunca superpuesto
+  con ninguna térmica. Si preferís que directamente desaparezca detrás de los
+  pisos intermedios, se puede ofrecer como variante en una próxima entrega.
+- Probado de punta a punta contra el servidor real: caño, cable, borrado en
+  cascada del caño con su cable, y rechazo de tipo de caño inválido.
+
 ## 0.6.0 — conexionado con peines y conectores
 
 - **Mucho más alto en Y**, como se pidió: cada piso pasa de 108px a un riel de

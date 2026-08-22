@@ -74,6 +74,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self._crear_peine(partes[2], partes[4])
             if len(partes) == 6 and partes[:2] == ["api", "obras"] and partes[3] == "tableros" and partes[5] == "puente":
                 return self._crear_puente(partes[2], partes[4])
+            if len(partes) == 6 and partes[:2] == ["api", "obras"] and partes[3] == "tableros" and partes[5] == "canos":
+                return self._agregar_cano(partes[2], partes[4])
+            if len(partes) == 6 and partes[:2] == ["api", "obras"] and partes[3] == "tableros" and partes[5] == "cables":
+                return self._crear_cable(partes[2], partes[4])
             if len(partes) == 5 and partes[:2] == ["api", "obras"] and partes[3] == "tableros":
                 return self._sincronizar_tablero(partes[2], partes[4])
             return self._api_post(ruta)
@@ -116,6 +120,28 @@ class Handler(BaseHTTPRequestHandler):
                 return self._error("Ese tablero no existe.", 404)
             t.setdefault("conexiones", [])
             ok = tablero_mod.eliminar_conexion(t, partes[6])
+            almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
+            return self._json({"ok": ok})
+        if len(partes) == 7 and partes[:2] == ["api", "obras"] and partes[3] == "tableros" and partes[5] == "canos":
+            obra = almacen.leer_obra(partes[2])
+            if obra is None:
+                return self._error("Esa obra no está en este equipo.", 404)
+            t = next((x for x in obra.get("tableros") or [] if x["id"] == partes[4]), None)
+            if t is None:
+                return self._error("Ese tablero no existe.", 404)
+            t.setdefault("canos", []); t.setdefault("cables", [])
+            ok = tablero_mod.eliminar_cano(t, partes[6])
+            almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
+            return self._json({"ok": ok})
+        if len(partes) == 7 and partes[:2] == ["api", "obras"] and partes[3] == "tableros" and partes[5] == "cables":
+            obra = almacen.leer_obra(partes[2])
+            if obra is None:
+                return self._error("Esa obra no está en este equipo.", 404)
+            t = next((x for x in obra.get("tableros") or [] if x["id"] == partes[4]), None)
+            if t is None:
+                return self._error("Ese tablero no existe.", 404)
+            t.setdefault("cables", [])
+            ok = tablero_mod.eliminar_cable(t, partes[6])
             almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
             return self._json({"ok": ok})
         if len(partes) == 5 and partes[:2] == ["api", "obras"] and partes[3] == "tableros":
@@ -395,6 +421,37 @@ class Handler(BaseHTTPRequestHandler):
             return self._error(msg)
         almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
         return self._json({"ok": True, "puente": puente, "tablero": t})
+
+    def _agregar_cano(self, obra_id, tablero_id):
+        obra = almacen.leer_obra(obra_id)
+        if obra is None:
+            return self._error("Esa obra no está en este equipo.", 404)
+        t = next((x for x in obra.get("tableros") or [] if x["id"] == tablero_id), None)
+        if t is None:
+            return self._error("Ese tablero no existe.", 404)
+        t.setdefault("canos", []); t.setdefault("cables", [])
+        cuerpo = self._cuerpo()
+        cano, msg = tablero_mod.agregar_cano(t, cuerpo.get("tipo"), cuerpo.get("lado"),
+                                             cuerpo.get("xPx"), cuerpo.get("circuitoId"))
+        if cano is None:
+            return self._error(msg)
+        almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
+        return self._json({"ok": True, "cano": cano, "tablero": t})
+
+    def _crear_cable(self, obra_id, tablero_id):
+        obra = almacen.leer_obra(obra_id)
+        if obra is None:
+            return self._error("Esa obra no está en este equipo.", 404)
+        t = next((x for x in obra.get("tableros") or [] if x["id"] == tablero_id), None)
+        if t is None:
+            return self._error("Ese tablero no existe.", 404)
+        t.setdefault("cables", [])
+        cuerpo = self._cuerpo()
+        cable, msg = tablero_mod.crear_cable(t, cuerpo.get("canoId"), cuerpo.get("dispositivoId"))
+        if cable is None:
+            return self._error(msg)
+        almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
+        return self._json({"ok": True, "cable": cable, "tablero": t})
 
     def _mover_dispositivo(self, obra_id, tablero_id):
         obra = almacen.leer_obra(obra_id)
