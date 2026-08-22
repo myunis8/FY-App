@@ -79,9 +79,9 @@ h2:first-child{margin-top:0}
   border:2px solid var(--muted);z-index:5;transform:translateX(-50%)}
 .nodo-arriba{top:-6px} .nodo-abajo{bottom:-6px}
 .nodo-lateral{right:-6px;left:auto;transform:translateY(-50%)}
-body.modo-cable .nodo{border-color:var(--copper);cursor:pointer}
-body.modo-cable .nodo:hover{background:var(--copper);transform:translateX(-50%) scale(1.3)}
-body.modo-cable .nodo-lateral:hover{transform:translateY(-50%) scale(1.3)}
+body.modo-cable .nodo{cursor:pointer}
+body.modo-cable .nodo:hover{filter:brightness(0.8);transform:translateX(-50%) scale(1.4)}
+body.modo-cable .nodo-lateral:hover{transform:translateY(-50%) scale(1.4)}
 
 /* ---------- bandeja ---------- */
 .bandeja{margin-top:22px}
@@ -441,6 +441,13 @@ function pintarGabinete(){
     <div class="franja-cano" style="top:${FRANJA_CANO+altoPisos}px;left:0;width:${anchoTotal}px;
       height:${FRANJA_CANO}px"><span class="banda-etq">Salidas de caño — abajo de todo</span></div>`;
 
+  // 1) el cableado se pinta PRIMERO: en el orden normal de apilado, lo que se
+  // agrega antes queda por detrás. Así ninguna térmica se tapa con un cable:
+  // el cable pasa por detrás y sólo se ve donde no hay nada dibujado encima.
+  (t.conexiones||[]).forEach(c => { html += dibujoConexion(t, c); });
+  (t.cables||[]).forEach(cb => { html += dibujoCable(t, cb); });
+
+  // 2) rieles y térmicas se pintan DESPUÉS: quedan por delante del cableado
   for(let piso = 0; piso < t.pisos; piso++){
     html += `<div class="banda" style="top:${yPiso(piso)}px;left:${CANAL}px;
       height:${BANDA}px;width:${ancho}px"><span class="banda-etq">Llegada — piso ${piso+1}</span></div>`;
@@ -454,8 +461,9 @@ function pintarGabinete(){
       left:${CANAL}px;width:${ancho}px;height:${BANDA}px">
       <span class="banda-etq">Salida hacia el circuito</span></div>`;
   }
-  (t.conexiones||[]).forEach(c => { html += dibujoConexion(t, c); });
-  (t.cables||[]).forEach(cb => { html += dibujoCable(t, cb); });
+
+  // 3) las franjas de caño (y sus tramos de cable) van al final: siempre
+  // visibles y clicables, nunca tapadas por nada del gabinete
   html += pintarFranjas(t, anchoTotal, altoTotal);
   if(herramienta.tipo) html += dibujoPendienteHerramienta(t);
   html += `</div></div>`;
@@ -487,6 +495,27 @@ function xSeccion(t, lado, seccion){
   const ancho = t.bocasPorPiso*CELDA;
   return CANAL + (seccion+0.5)*ancho/n;
 }
+/* Al asignar una boca aparece un tramo corto de cable por cada conductor que
+   trae (marrón=fase, celeste=neutro, verde=tierra si el circuito es TUG/TUE
+   o si es la jabalina). Cada tramo termina en su propio nodo: ahí se agarra
+   para cablear, no en el caño en sí. */
+function stubsDeCano(cano, lado, esconderTexto){
+  const pols = polaridadesDeCano(cano);
+  const dir = lado === 'arriba' ? 1 : -1;         // el tramo entra hacia adentro del gabinete
+  const paso = 9, largoBase = 22;
+  const n = pols.length;
+  let html = '';
+  pols.forEach((pol, i) => {
+    const dx = (i - (n-1)/2) * paso;
+    const y1 = 13*dir, y2 = (13+largoBase)*dir;
+    html += `<line x1="${dx}" y1="${y1}" x2="${dx}" y2="${y2}" stroke="${COLOR_POLARIDAD[pol]}"
+      stroke-width="3.4" stroke-linecap="round"/>
+      <circle cx="${dx}" cy="${y2}" r="4.5" fill="${COLOR_POLARIDAD[pol]}" stroke="#00000030"
+        style="pointer-events:all;cursor:pointer" data-nodo-cano="${cano.id}:${pol}"
+        data-nodo-cano-dx="${dx}" data-nodo-cano-y="${y2}"/>`;
+  });
+  return html;
+}
 function pintarFranjas(t, anchoTotal, altoTotal){
   const yTop = FRANJA_CANO, yBot = FRANJA_CANO + (altoTotal - 2*FRANJA_CANO);
   let g = '';
@@ -496,10 +525,14 @@ function pintarFranjas(t, anchoTotal, altoTotal){
     for(let i=0;i<n;i++){
       const cano = buscarCano(t, lado, i);
       const x = xSeccion(t, lado, i);
-      g += `<g transform="translate(${x},${y})" style="pointer-events:all;cursor:pointer"
-        data-slot-lado="${lado}" data-slot-seccion="${i}">${iconoCano(cano)}
-        <text y="${lado==='arriba' ? -15 : 24}" text-anchor="middle" font-size="8"
-          fill="#33506e">${esc(etiquetaCano(cano) || ('Boca '+(i+1)))}</text></g>`;
+      g += `<g transform="translate(${x},${y})">
+        <g style="pointer-events:all;cursor:pointer" data-slot-lado="${lado}" data-slot-seccion="${i}">
+          ${iconoCano(cano)}
+          <text y="${lado==='arriba' ? -15 : 24}" text-anchor="middle" font-size="8"
+            fill="#33506e">${esc(etiquetaCano(cano) || ('Boca '+(i+1)))}</text>
+        </g>
+        ${cano ? stubsDeCano(cano, lado) : ''}
+      </g>`;
     }
   });
   return `<svg style="position:absolute;left:0;top:0;width:${anchoTotal}px;height:${altoTotal}px;
@@ -592,7 +625,7 @@ function dibujoConexion(t, c){
     });
     const yFase = yRiel(c.piso) - 16, yNeutro = yFase - 15;
     let svgBarras = '';
-    function barra(cols, y, color, etq){
+    function barra(cols, y, color, etq, polaridad){
       if(!cols.length) return;
       const x0 = Math.min(...cols) - 8, x1 = Math.max(...cols) + 8;
       let pines = cols.map(cx => `<line x1="${cx}" y1="${y+7}" x2="${cx}" y2="${yRiel(c.piso)+6}"
@@ -600,12 +633,12 @@ function dibujoConexion(t, c){
       svgBarras += `${pines}
         <rect x="${x0}" y="${y}" width="${x1-x0}" height="12" rx="3.5" fill="${color}"
           stroke="#00000030" stroke-width="1" style="pointer-events:all;cursor:pointer"
-          data-con-click="${c.id}"/>
+          data-con-click="${c.id}" data-con-polaridad="${polaridad}"/>
         <text x="${(x0+x1)/2}" y="${y+9.5}" text-anchor="middle" font-size="7.5" fill="#fff"
           style="pointer-events:none">${etq}</text>`;
     }
-    barra(faseCols, yFase, '#8a5a2b', 'F');
-    barra(neutroCols, yNeutro, '#2b6ca3', 'N');
+    barra(faseCols, yFase, '#8a5a2b', 'F', 'fase');
+    barra(neutroCols, yNeutro, '#2b6ca3', 'N', 'neutro');
     return `<svg class="conexion" data-con="${c.id}" style="position:absolute;left:0;top:0;
       width:${anchoTotal}px;height:${altoTotal}px;overflow:visible;
       pointer-events:none">${svgBarras}</svg>`;
@@ -667,24 +700,40 @@ function dibujoPendienteHerramienta(t){
 }
 
 const BOCAS_BORNERA = 6;   // igual que en el motor: terminales laterales de la bornera
+const COLOR_POLARIDAD = {fase:'#8a5a2b', neutro:'#2b6ca3', tierra:'#2f7d5c'};
+function polaridadDePolo(d, polo){
+  if(d.tipo === 'bornera') return 'tierra';
+  const polos = d.polos || 1;
+  if(polos === 2) return polo === 0 ? 'fase' : 'neutro';
+  if(polos === 4) return polo < 3 ? 'fase' : 'neutro';
+  return 'fase';
+}
+function polaridadesDeCano(cano){
+  if(cano.tipo === 'tierra') return ['tierra'];
+  const base = ['fase','neutro'];
+  if(cano.tipo === 'circuito' && ['TUG','TUE'].includes(cano.circuitoTipo)) base.push('tierra');
+  return base;
+}
 function nodosDeDispositivo(d, w, h){
   if(herramienta.tipo !== 'cable') return '';   // sólo se muestran con la herramienta activa
   if(d.tipo === 'bornera'){
     let html = '';
     for(let i=0;i<BOCAS_BORNERA;i++){
       const cy = h*0.07 + (h*0.86/BOCAS_BORNERA)*(i+0.5);
-      html += `<div class="nodo nodo-lateral" style="top:${cy}px"
-        data-nodo="${d.id}:costado:${i}" title="Terminal ${i+1}"></div>`;
+      html += `<div class="nodo nodo-lateral" style="top:${cy}px;border-color:${COLOR_POLARIDAD.tierra}"
+        data-nodo="${d.id}:costado:${i}" title="Terminal ${i+1} (tierra)"></div>`;
     }
     return html;
   }
   let html = '';
   for(let i=0;i<d.polos;i++){
     const cx = (i+0.5)*100/d.polos;
-    html += `<div class="nodo nodo-arriba" style="left:${cx}%"
-      data-nodo="${d.id}:arriba:${i}" title="Polo ${i+1}, arriba"></div>`;
-    html += `<div class="nodo nodo-abajo" style="left:${cx}%"
-      data-nodo="${d.id}:abajo:${i}" title="Polo ${i+1}, abajo"></div>`;
+    const pol = polaridadDePolo(d, i);
+    const color = COLOR_POLARIDAD[pol];
+    html += `<div class="nodo nodo-arriba" style="left:${cx}%;border-color:${color}"
+      data-nodo="${d.id}:arriba:${i}" title="Polo ${i+1} (${pol}), arriba"></div>`;
+    html += `<div class="nodo nodo-abajo" style="left:${cx}%;border-color:${color}"
+      data-nodo="${d.id}:abajo:${i}" title="Polo ${i+1} (${pol}), abajo"></div>`;
   }
   return html;
 }
@@ -727,10 +776,16 @@ function cablearGabinete(){
   const lienzo = document.getElementById('lienzo-pisos');
   if(lienzo) lienzo.addEventListener('click', manejarClicHerramienta);
   document.querySelectorAll('[data-con-click]').forEach(n => n.addEventListener('click', ev => {
-    ev.stopPropagation(); clicConexion(n.dataset.conClick);
+    ev.stopPropagation(); clicConexion(n.dataset.conClick, n.dataset.conPolaridad);
   }));
   document.querySelectorAll('[data-slot-lado]').forEach(n => n.addEventListener('click', ev => {
     ev.stopPropagation(); clicSlotCano(n.dataset.slotLado, +n.dataset.slotSeccion);
+  }));
+  document.querySelectorAll('[data-nodo-cano]').forEach(n => n.addEventListener('click', ev => {
+    ev.stopPropagation();
+    if(herramienta.tipo !== 'cable') return;
+    const [canoId, polaridad] = n.dataset.nodoCano.split(':');
+    manejarEndpointHerramienta({tipo:'cano', id: canoId, polaridad});
   }));
   document.querySelectorAll('[data-con-click-cable]').forEach(n => n.addEventListener('click', ev => {
     ev.stopPropagation(); clicCable(n.dataset.conClickCable);
@@ -988,12 +1043,13 @@ async function crearPuente(pisoOrigen, x, pisoDestino){
     toast('Conector agregado');
   }catch(e){ toast(e.message); pintarGabinete(); }
 }
-async function clicConexion(id){
+async function clicConexion(id, polaridad){
   const t = tableroActivo();
   const con = (t.conexiones||[]).find(c=>c.id===id);
-  if(herramienta.tipo === 'cable' && con && con.tipo === 'peine'){
-    manejarEndpointHerramienta({tipo:'peine', id});
-    return;
+  if(!con) return;
+  if(herramienta.tipo === 'cable'){
+    if(con.tipo === 'peine') manejarEndpointHerramienta({tipo:'peine', id, polaridad: polaridad || 'fase'});
+    return;   // un puente no es un extremo válido; en modo cable no se borra nada con un click
   }
   if(herramienta.tipo === 'peine' || herramienta.tipo === 'puente') return;
   if(!confirm('¿Quitar esta conexión?')) return;

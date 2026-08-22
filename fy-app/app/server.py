@@ -434,8 +434,10 @@ class Handler(BaseHTTPRequestHandler):
         t.setdefault("canos", []); t.setdefault("cables", [])
         t.setdefault("seccionesCano", {"arriba": 3, "abajo": 3})
         cuerpo = self._cuerpo()
+        circ = next((c for c in obra.get("circuitos") or [] if c["id"] == cuerpo.get("circuitoId")), None)
         cano, msg = tablero_mod.asignar_cano(t, cuerpo.get("lado"), cuerpo.get("seccion"),
-                                            cuerpo.get("tipo"), cuerpo.get("circuitoId"))
+                                            cuerpo.get("tipo"), cuerpo.get("circuitoId"),
+                                            circ.get("tipo") if circ else None)
         if cano is None:
             return self._error(msg)
         almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))

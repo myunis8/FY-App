@@ -3,6 +3,32 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 0.10.0 — polaridad, cortocircuito, y cableado siempre por detrás
+
+- **Verificación de cortocircuito**: antes de crear cualquier cable se
+  compara la polaridad de los dos extremos (fase, neutro o tierra) y se
+  rechaza si no coinciden — "Eso conecta fase con neutro: es un
+  cortocircuito." Aplica a caños, peines y nodos de dispositivo por igual.
+- **Colores por polaridad en todos lados**: los nodos de cada polo se pintan
+  marrón (fase), celeste (neutro) o verde (tierra) según la convención "el de
+  la izquierda es fase". Ya no hay que adivinar cuál es cuál.
+- **Tramos de cable en cada boca de caño**: al asignar una boca aparece un
+  pedazo corto de cable por cada conductor que trae — marrón y celeste para
+  acometida o un circuito común, más uno verde si el circuito es TUG o TUE
+  (que necesitan tierra además de fase y neutro). La jabalina es un solo
+  tramo verde. Cada tramo termina en su propio nodo: de ahí se cablea, no
+  del caño en sí.
+- **El cableado pasa siempre por detrás**: se pintan primero los cables,
+  peines y conectores, y recién después los rieles y las térmicas — así una
+  térmica nunca queda tapada por un cable. El cable se ve en los huecos entre
+  pisos y en el canal lateral, y desaparece donde el gabinete lo tapa, como en
+  una instalación real. Si se prefiere ver el recorrido completo siempre,
+  conviene rutearlo a mano por el canal (con la herramienta de puntos
+  intermedios) en vez de ir directo.
+- Circuitos IUG/IUE/ACU/OCE siguen sin el conductor de tierra extra, tal como
+  se pidió; si se quiere sumarlo también a ACU se puede extender igual que
+  con TUG/TUE.
+
 ## 0.9.0 — nodos por polo, ruta libre, y selector de bocas por botones
 
 - **Un nodo por polo, no uno por lado**: una térmica bipolar ahora tiene 2
