@@ -64,10 +64,53 @@ def tablero_nuevo(nombre: str, tipo: str, preset_id: str, fases: int) -> dict:
         "fases": fases, "bocas": bocas, "pisos": pisos,
         "bocasPorPiso": bocas_por_piso(bocas, pisos),
         "alimentaDesde": None,           # {tableroId, dispositivoId} si es seccional
-        "conexionPiso": {},              # {piso: "peine" | "individual"}, por defecto "individual"
         "dispositivos": dispositivos,
+        "conexiones": [],                # peines (bus por piso) y puentes (entre pisos)
         "notas": [],
     }
+
+
+def _dispositivos_en(tablero: dict, piso: int, desde: int, hasta: int) -> list[dict]:
+    lo, hi = min(desde, hasta), max(desde, hasta)
+    return [d for d in tablero["dispositivos"] if d.get("piso") == piso
+            and d["posicion"] is not None and d["posicion"] >= lo
+            and d["posicion"] + d["polos"] - 1 <= hi]
+
+
+def crear_peine(tablero: dict, piso: int, desde: int, hasta: int) -> tuple[dict | None, str]:
+    """Un peine junta en paralelo todas las térmicas contiguas de un mismo
+    riel que caen dentro del rango [desde, hasta] (en bocas)."""
+    if not (0 <= piso < tablero["pisos"]):
+        return None, "Ese piso no existe."
+    lo, hi = min(desde, hasta), max(desde, hasta)
+    alcanzados = _dispositivos_en(tablero, piso, lo, hi)
+    if len(alcanzados) < 2:
+        return None, "Un peine necesita al menos dos térmicas colocadas en ese tramo."
+    for c in tablero["conexiones"]:
+        if c["tipo"] == "peine" and c["piso"] == piso and not (hi < c["desde"] or lo > c["hasta"]):
+            return None, "Ya hay un peine que se superpone en ese tramo."
+    peine = {"id": f"peine_{C.ahora()}", "tipo": "peine", "piso": piso, "desde": lo, "hasta": hi}
+    tablero["conexiones"].append(peine)
+    return peine, ""
+
+
+def crear_puente(tablero: dict, piso_origen: int, x: int, piso_destino: int) -> tuple[dict | None, str]:
+    """El conector que baja el peine (o la salida de una térmica) de un piso
+    al riel del piso siguiente, tal como en la foto de referencia."""
+    if piso_destino != piso_origen + 1:
+        return None, "Un conector siempre baja al piso inmediatamente siguiente."
+    if not (0 <= piso_origen < tablero["pisos"] and 0 <= piso_destino < tablero["pisos"]):
+        return None, "Ese piso no existe."
+    puente = {"id": f"puente_{C.ahora()}", "tipo": "puente",
+             "pisoOrigen": piso_origen, "pisoDestino": piso_destino, "x": x}
+    tablero["conexiones"].append(puente)
+    return puente, ""
+
+
+def eliminar_conexion(tablero: dict, con_id: str) -> bool:
+    n = len(tablero["conexiones"])
+    tablero["conexiones"] = [c for c in tablero["conexiones"] if c["id"] != con_id]
+    return len(tablero["conexiones"]) < n
 
 
 def agregar_dispositivo(tablero: dict, tipo: str, extra: dict | None = None) -> dict:

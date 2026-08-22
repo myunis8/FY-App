@@ -45,16 +45,17 @@ h2:first-child{margin-top:0}
 /* ---------- gabinete ---------- */
 .gabinete{background:#e9edec;border:2px solid #c3cbc9;border-radius:12px;padding:22px 24px;
   display:inline-block}
-.riel-fila{display:flex;align-items:center;gap:10px;margin-bottom:16px}
-.riel-fila:last-child{margin-bottom:0}
-.riel{position:relative;background:#d7dcda;border:1px dashed #a9b3b0;border-radius:7px}
+.lienzo-pisos{position:relative}
+.banda{position:absolute;left:0;background:repeating-linear-gradient(135deg,#eef1f3,#eef1f3 8px,
+  #e6eae8 8px,#e6eae8 16px);border:1px dashed #c3cbc9;border-radius:6px}
+.banda-etq{position:absolute;left:8px;top:4px;font-size:.63rem;color:var(--muted);font-weight:600}
+.banda.objetivo{outline:2px solid var(--copper);outline-offset:-2px}
+.riel{position:absolute;left:0;background:#d7dcda;border:1px dashed #a9b3b0;border-radius:7px}
 .riel .etiqueta{position:absolute;left:6px;top:-19px;font-size:.68rem;color:var(--muted);font-weight:600}
-.riel .cablebus{position:absolute;height:5px;background:#8a5a2b;border-radius:3px;top:8px;
-  box-shadow:0 1px 2px rgba(0,0,0,.2)}
-.riel .cablebus.n{background:#2b6ca3;top:15px}
 .celda-fantasma{position:absolute;top:0;bottom:0;border-right:1px dashed #c3cbc9}
-.conexion-sel{font-size:.68rem;padding:3px 7px;border:1px solid var(--line);border-radius:6px;
-  background:#fff;color:var(--muted)}
+.herramientas-cableado{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;align-items:center}
+.herramientas-cableado .btn.activa{background:var(--copper);border-color:#7a410c;color:#fff}
+.paso-actual{font-size:.76rem;color:var(--copper);font-weight:600}
 
 .disp{position:absolute;cursor:grab;user-select:none}
 .disp:active{cursor:grabbing}
@@ -120,6 +121,12 @@ h2:first-child{margin-top:0}
 
 <main>
   <div class="centro">
+    <div class="herramientas-cableado">
+      <button class="btn sm" id="h-ninguna" title="Sólo mover térmicas">☞ Mover</button>
+      <button class="btn sm" id="h-peine" title="Unir térmicas del mismo riel en paralelo">▭ Peine</button>
+      <button class="btn sm" id="h-puente" title="Bajar el bus al riel de abajo">↓ Conector al piso siguiente</button>
+      <span class="paso-actual" id="paso-actual"></span>
+    </div>
     <div id="gabinete-cont"></div>
     <div class="bandeja" id="bandeja-cont"></div>
   </div>
@@ -183,9 +190,13 @@ h2:first-child{margin-top:0}
 <script>
 const $ = id => document.getElementById(id);
 const OBRA_ID = new URLSearchParams(location.search).get('obra');
-const CELDA = 64;             // ancho de una boca, en px. Antes 42: se pidió más grande.
-const ALTO_RIEL = 108;
+const CELDA = 64;              // ancho de una boca, en px
+const ALTO_DISP = 150;         // alto de la fila de dispositivos. Antes 108: se pidió más alto.
+const BANDA = 78;              // alto de cada banda de cableado, arriba y abajo del riel
+const MARGEN_PISO = 22;        // separación visual entre el piso de abajo y el de arriba
+const ALTURA_PISO = BANDA + ALTO_DISP + BANDA + MARGEN_PISO;
 let obra = null, tableros = [], activo = null, presets = [], arrastrando = null, seleccionado = null;
+let herramienta = {tipo: null, paso1: null};   // null | 'peine' | 'puente' — flujo de 2 clics
 
 const api = async (r,o={}) => {
   const res = await fetch(r,{headers:{'Content-Type':'application/json'},...o});
@@ -364,61 +375,101 @@ function svgRielFondo(w, h){
   </svg>`;
 }
 
-/* ---------------- gabinete ---------------- */
+/* ---------------- gabinete ----------------
+   Un único contenedor para todos los pisos, en vez de filas independientes:
+   así un conector puede cruzar de un piso al de abajo con coordenadas simples.
+   Cada piso tiene banda superior (llegada), riel con los dispositivos, y
+   banda inferior (salida hacia el circuito o hacia el conector que baja). */
+function yPiso(piso){ return piso * ALTURA_PISO; }
+function yRiel(piso){ return yPiso(piso) + BANDA; }
+function yBandaInf(piso){ return yRiel(piso) + ALTO_DISP; }
+
 function pintarGabinete(){
   const t = tableroActivo();
   const cont = $('gabinete-cont');
   if(!t){ cont.innerHTML = ''; return; }
   const ancho = t.bocasPorPiso * CELDA;
-  let html = `<div class="gabinete">`;
+  const alto = t.pisos * ALTURA_PISO - MARGEN_PISO;
+  let html = `<div class="gabinete" style="width:${ancho+40}px">
+    <div class="lienzo-pisos" style="width:${ancho}px;height:${alto}px" id="lienzo-pisos">`;
+
   for(let piso = 0; piso < t.pisos; piso++){
-    const modo = (t.conexionPiso||{})[piso] || 'individual';
-    html += `<div class="riel-fila">
-      <div class="riel" data-piso="${piso}" style="width:${ancho}px;height:${ALTO_RIEL}px">
-        <span class="etiqueta">Piso ${piso+1}</span>
-        ${svgRielFondo(ancho, ALTO_RIEL)}`;
+    html += `<div class="banda" style="top:${yPiso(piso)}px;height:${BANDA}px;width:${ancho}px">
+      <span class="banda-etq">Llegada — piso ${piso+1}</span></div>`;
+    html += `<div class="riel" data-piso="${piso}" style="top:${yRiel(piso)}px;
+      width:${ancho}px;height:${ALTO_DISP}px">${svgRielFondo(ancho, ALTO_DISP)}`;
     for(let c=0;c<=t.bocasPorPiso;c++)
       html += `<div class="celda-fantasma" style="left:${c*CELDA}px"></div>`;
-    html += dibujoBus(t, piso, modo);
-    t.dispositivos.filter(d=>d.piso===piso).forEach(d => { html += bloqueDisp(d, true); });
-    html += `</div>
-      <select class="conexion-sel" data-piso-conexion="${piso}">
-        <option value="individual" ${modo==='individual'?'selected':''}>Conectores individuales</option>
-        <option value="peine" ${modo==='peine'?'selected':''}>Peine</option>
-      </select>
-    </div>`;
+    t.dispositivos.filter(d=>d.piso===piso).forEach(d => { html += bloqueDisp(d); });
+    html += `</div>`;
+    html += `<div class="banda banda-inf" data-piso-banda="${piso}"
+      style="top:${yBandaInf(piso)}px;height:${BANDA}px;width:${ancho}px">
+      <span class="banda-etq">Salida hacia el circuito</span></div>`;
   }
-  html += `</div>`;
+  (t.conexiones||[]).forEach(c => { html += dibujoConexion(t, c); });
+  if(herramienta.tipo) html += dibujoPendienteHerramienta(t);
+  html += `</div></div>`;
   cont.innerHTML = html;
   cablearGabinete();
 }
-function dibujoBus(t, piso, modo){
-  const puestos = t.dispositivos.filter(d=>d.piso===piso && d.tipo!=='bornera')
-    .sort((a,b)=>a.posicion-b.posicion);
-  if(puestos.length < 2) return '';
-  const x0 = puestos[0].posicion*CELDA + 6;
-  const x1 = (puestos[puestos.length-1].posicion + puestos[puestos.length-1].polos)*CELDA - 6;
-  if(modo === 'peine'){
-    return `<div class="cablebus" style="left:${x0}px;width:${x1-x0}px"></div>
-            <div class="cablebus n" style="left:${x0}px;width:${x1-x0}px"></div>`;
+
+/* ---------------- peine y conectores (esquema del cableado) ----------------
+   El peine es la tira que junta en paralelo las térmicas de un mismo riel
+   (como en la foto de referencia). El conector es la pieza que baja el bus
+   del peine (o la salida de una térmica) al riel del piso siguiente. */
+function dibujoConexion(t, c){
+  if(c.tipo === 'peine'){
+    const dispEnPeine = t.dispositivos.filter(d=>d.piso===c.piso && d.posicion>=c.desde
+      && d.posicion+d.polos-1<=c.hasta);
+    const x0 = c.desde*CELDA + 8, x1 = (c.hasta+1)*CELDA - 8;
+    const y = yRiel(c.piso) - 16;
+    let pines = '';
+    dispEnPeine.forEach(d => {
+      const cx = (d.posicion + d.polos/2) * CELDA;
+      pines += `<line x1="${cx}" y1="${y+7}" x2="${cx}" y2="${yRiel(c.piso)+6}"
+        stroke="#8a5a2b" stroke-width="4"/>`;
+    });
+    return `<svg class="conexion" data-con="${c.id}" style="position:absolute;left:0;top:0;
+      width:${t.bocasPorPiso*CELDA}px;height:${t.pisos*ALTURA_PISO}px;overflow:visible;
+      pointer-events:none">
+      ${pines}
+      <rect x="${x0}" y="${y}" width="${x1-x0}" height="14" rx="4" fill="#8a5a2b"
+        stroke="#5c3a1a" stroke-width="1" style="pointer-events:all;cursor:pointer"
+        data-con-click="${c.id}"/>
+      <text x="${(x0+x1)/2}" y="${y+11}" text-anchor="middle" font-size="8.5" fill="#fff"
+        style="pointer-events:none">PEINE</text>
+    </svg>`;
   }
-  // individual: un segmento corto entre cada par de dispositivos adyacentes
-  let html = '';
-  for(let i=0;i<puestos.length-1;i++){
-    const a = puestos[i], b = puestos[i+1];
-    const xa = (a.posicion+a.polos)*CELDA - 4, xb = b.posicion*CELDA + 4;
-    if(xb > xa) html += `<div class="cablebus" style="left:${xa}px;width:${xb-xa}px"></div>`;
-  }
-  return html;
+  // puente: baja desde la banda inferior del piso origen a la banda superior del siguiente
+  const y0 = yBandaInf(c.pisoOrigen) + 10, y1 = yPiso(c.pisoDestino) + BANDA - 10;
+  const x = c.x * CELDA + CELDA/2;
+  return `<svg class="conexion" data-con="${c.id}" style="position:absolute;left:0;top:0;
+    width:${t.bocasPorPiso*CELDA}px;height:${t.pisos*ALTURA_PISO}px;overflow:visible;
+    pointer-events:none">
+    <line x1="${x}" y1="${y0}" x2="${x}" y2="${y1}" stroke="#5b6b7a" stroke-width="3"/>
+    <rect x="${x-11}" y="${(y0+y1)/2-9}" width="22" height="18" rx="3" fill="#fff"
+      stroke="#33506e" stroke-width="1.4" style="pointer-events:all;cursor:pointer"
+      data-con-click="${c.id}"/>
+    <line x1="${x-6}" y1="${(y0+y1)/2}" x2="${x+6}" y2="${(y0+y1)/2}" stroke="#33506e" stroke-width="1.4"/>
+  </svg>`;
 }
-function bloqueDisp(d, enRiel){
-  const w = d.polos*CELDA - 4, h = ALTO_RIEL - 10;
-  const pos = enRiel ? `left:${d.posicion*CELDA+2}px;top:5px` : `left:0;top:0`;
-  const flechas = enRiel ? `
-    <div class="flecha-alim ${d.alimentacion==='arriba'?'arriba':'abajo'}"
-      data-alim="${d.id}" title="Cambiar por dónde entra"></div>` : '';
+function dibujoPendienteHerramienta(t){
+  if(!herramienta.paso1) return '';
+  const p = herramienta.paso1;
+  const cx = (p.posicion!==undefined ? p.posicion*CELDA+CELDA/2 : p.x*CELDA+CELDA/2);
+  const cy = yRiel(p.piso) + ALTO_DISP/2;
+  return `<svg style="position:absolute;left:0;top:0;width:${t.bocasPorPiso*CELDA}px;
+    height:${t.pisos*ALTURA_PISO}px;overflow:visible;pointer-events:none">
+    <circle cx="${cx}" cy="${cy}" r="7" fill="none" stroke="var(--copper)" stroke-width="2.4"/>
+  </svg>`;
+}
+
+function bloqueDisp(d){
+  const w = d.polos*CELDA - 4, h = ALTO_DISP - 14;
+  const flechas = `<div class="flecha-alim ${d.alimentacion==='arriba'?'arriba':'abajo'}"
+      data-alim="${d.id}" title="Cambiar por dónde entra"></div>`;
   return `<div class="disp ${seleccionado===d.id?'seleccionado':''}" draggable="true"
-    data-id="${d.id}" style="${pos};width:${w}px;height:${h}px">
+    data-id="${d.id}" style="left:${d.posicion*CELDA+2}px;top:6px;width:${w}px;height:${h}px">
     ${svgDispositivo(d, w, h)}${flechas}
   </div>`;
 }
@@ -431,6 +482,7 @@ function cablearGabinete(){
     });
     n.addEventListener('dragend', () => n.classList.remove('arrastrando'));
     n.addEventListener('click', ev => {
+      if(herramienta.tipo) return;      // el click lo procesa la herramienta activa
       if(ev.target.dataset.alim) return;
       seleccionado = n.dataset.id; pintar();
     });
@@ -448,6 +500,11 @@ function cablearGabinete(){
     t.conexionPiso[n.dataset.pisoConexion] = n.value;
     await persistirObra(); pintarGabinete();
   });
+  const lienzo = document.getElementById('lienzo-pisos');
+  if(lienzo) lienzo.addEventListener('click', manejarClicHerramienta);
+  document.querySelectorAll('[data-con-click]').forEach(n => n.addEventListener('click', ev => {
+    ev.stopPropagation(); clicConexion(n.dataset.conClick);
+  }));
   document.querySelectorAll('.riel').forEach(riel => {
     riel.addEventListener('dragover', ev => ev.preventDefault());
     riel.addEventListener('drop', async ev => {
@@ -502,6 +559,89 @@ function bloqueDispBandeja(d){
   const w = Math.max(48, d.polos*CELDA*0.85), h = 78;
   return `<div class="disp ${seleccionado===d.id?'seleccionado':''}"
     style="position:static;width:${w}px;height:${h}px">${svgDispositivo(d, w, h)}</div>`;
+}
+
+/* ---------------- herramientas de cableado ---------------- */
+function elegirHerramienta(tipo){
+  herramienta = {tipo, paso1:null};
+  document.querySelectorAll('.herramientas-cableado .btn').forEach(b=>b.classList.remove('activa'));
+  const idBoton = {peine:'h-peine', puente:'h-puente'}[tipo] || 'h-ninguna';
+  $(idBoton).classList.add('activa');
+  $('paso-actual').textContent = tipo==='peine'
+    ? 'Tocá una térmica, después la otra punta del tramo a unir'
+    : tipo==='puente' ? 'Tocá la banda de salida, después la banda de llegada del piso de abajo' : '';
+  seleccionado = null;
+  pintar();
+}
+$('h-ninguna').onclick = () => elegirHerramienta(null);
+$('h-peine').onclick = () => elegirHerramienta('peine');
+$('h-puente').onclick = () => elegirHerramienta('puente');
+
+function manejarClicHerramienta(ev){
+  if(!herramienta.tipo) return;
+  const t = tableroActivo(); if(!t) return;
+  const rect = $('lienzo-pisos').getBoundingClientRect();
+  const x = ev.clientX - rect.left, y = ev.clientY - rect.top;
+
+  if(herramienta.tipo === 'peine'){
+    const dEl = ev.target.closest('.disp');
+    if(!dEl){ toast('Tocá una térmica del riel.'); return; }
+    const d = t.dispositivos.find(z=>z.id===dEl.dataset.id);
+    if(!d || d.tipo === 'bornera'){ toast('La bornera no se une con peine.'); return; }
+    if(!herramienta.paso1){
+      herramienta.paso1 = {piso:d.piso, posicion:d.posicion, polos:d.polos};
+      pintarGabinete();
+      return;
+    }
+    if(d.piso !== herramienta.paso1.piso){
+      toast('Las dos puntas tienen que estar en el mismo riel.');
+      herramienta.paso1 = null; pintarGabinete(); return;
+    }
+    const desde = Math.min(herramienta.paso1.posicion, d.posicion);
+    const hasta = Math.max(herramienta.paso1.posicion + herramienta.paso1.polos - 1,
+                           d.posicion + d.polos - 1);
+    herramienta.paso1 = null;
+    crearPeine(d.piso, desde, hasta);
+    return;
+  }
+
+  if(herramienta.tipo === 'puente'){
+    const piso = Math.max(0, Math.min(t.pisos - 1, Math.floor(y / ALTURA_PISO)));
+    const xBoca = Math.max(0, Math.min(t.bocasPorPiso - 1, Math.floor(x / CELDA)));
+    if(!herramienta.paso1){
+      herramienta.paso1 = {piso, x: xBoca};
+      pintarGabinete();
+      return;
+    }
+    const origen = herramienta.paso1;
+    herramienta.paso1 = null;
+    crearPuente(origen.piso, origen.x, piso);
+  }
+}
+async function crearPeine(piso, desde, hasta){
+  const t = tableroActivo();
+  try{
+    const r = await api(`/api/obras/${OBRA_ID}/tableros/${t.id}/peine`,
+      {method:'POST', body:JSON.stringify({piso, desde, hasta})});
+    actualizarTablero(r.tablero, null);
+    toast('Peine creado');
+  }catch(e){ toast(e.message); pintarGabinete(); }
+}
+async function crearPuente(pisoOrigen, x, pisoDestino){
+  const t = tableroActivo();
+  try{
+    const r = await api(`/api/obras/${OBRA_ID}/tableros/${t.id}/puente`,
+      {method:'POST', body:JSON.stringify({pisoOrigen, x, pisoDestino})});
+    actualizarTablero(r.tablero, null);
+    toast('Conector agregado');
+  }catch(e){ toast(e.message); pintarGabinete(); }
+}
+async function clicConexion(id){
+  if(!confirm('¿Quitar esta conexión?')) return;
+  const t = tableroActivo();
+  await api(`/api/obras/${OBRA_ID}/tableros/${t.id}/conexiones/${id}`, {method:'DELETE'});
+  t.conexiones = (t.conexiones||[]).filter(c=>c.id!==id);
+  pintarGabinete();
 }
 
 /* ---------------- acciones de dispositivo ---------------- */

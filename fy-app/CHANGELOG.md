@@ -3,6 +3,27 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 0.6.0 — conexionado con peines y conectores
+
+- **Mucho más alto en Y**, como se pidió: cada piso pasa de 108px a un riel de
+  150px, más dos bandas de cableado de 78px arriba y abajo (llegada y salida).
+- **El peine deja de ser un simple interruptor visual** y pasa a ser un objeto
+  real: herramienta "Peine" → tocás la primera térmica del tramo, tocás la
+  última, y el peine las une en paralelo. Se dibuja en la banda superior, con
+  pines bajando a cada térmica alcanzada, tal como en la foto de referencia.
+- **Conector entre pisos**, la pieza de la foto: herramienta "Conector al piso
+  siguiente" → tocás la banda de salida de un piso, tocás la banda de llegada
+  del piso de abajo, y se dibuja el puente que baja el bus. Sólo se permite al
+  piso inmediatamente siguiente, como corresponde físicamente.
+- Tocar un peine o un conector ya puesto permite borrarlo (con confirmación).
+- Validado con Node: la geometría dio las coordenadas esperadas (el peine
+  queda en la banda superior con pines hasta el riel; el puente recorre
+  exactamente la altura de un piso completo, de banda inferior a banda
+  superior del siguiente) y las llamadas reales a la API crean, rechazan y
+  validan peines y conectores como corresponde.
+- Se retira el selector "peine / individual" por riel de la versión anterior:
+  quedó reemplazado por este sistema.
+
 ## 0.5.2 — causa real del bug de las térmicas, y esquemas nuevos
 
 - **Encontrada la causa de fondo** de que las térmicas de los circuitos no
