@@ -3,6 +3,27 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 0.12.0 — ruteo en vivo, saltos de cruce, y arreglo del desconecte en los caños
+
+- **Ruteo en vivo, como un diseñador de PCB**: desde el último punto puesto,
+  el tramo en escuadra ahora sigue al mouse en tiempo real hasta el próximo
+  click, en vez de recién mostrar el resultado una vez confirmado. Se
+  actualiza en un overlay aparte, sin repintar todo el gabinete, para que
+  sea fluido.
+- **Arreglado el desconecte en los caños**: el tramo grueso (fase/neutro/
+  tierra) y el cable fino que salía de ahí usaban dos cálculos de posición
+  distintos que no coincidían — por eso el cable parecía nacer de la nada.
+  Ahora comparten un único cálculo (`puntaDeStub`) y quedan pegados siempre.
+- **Salto esquemático en los cruces**: cuando dos cables se cruzan en un
+  punto (uno horizontal, otro vertical, de dos cables distintos), el más
+  nuevo de los dos dibuja un saltito en arco por encima, como en un esquema
+  eléctrico de mano. Sólo salta cruces puntuales — dos tramos paralelos
+  superpuestos no generan ningún salto, porque ahí no hay forma de dibujarlo
+  sin que deje de verse.
+- Verificado con Node: dos cables perpendiculares generan exactamente un
+  salto en el más nuevo y ninguno en el más viejo; dos tramos paralelos
+  solapados no generan salto.
+
 ## 0.11.0 — caños sin límite fijo, cables ortogonales, Escape y Delete
 
 - **Se saca el concepto de "N bocas fijas"**: ahora se van agregando entradas

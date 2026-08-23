@@ -451,7 +451,16 @@ function pintarGabinete(){
   // 2) el cableado se pinta SEGUNDO: ya se ve por encima del fondo decorativo
   // (bandas y rieles), que ya no tiene nada opaco de sobra tapándolo.
   (t.conexiones||[]).forEach(c => { html += dibujoConexion(t, c); });
-  (t.cables||[]).forEach(cb => { html += dibujoCable(t, cb); });
+  // los cruces se calculan una vez para todos los cables, para saber a cuál
+  // de los dos que se cruzan le toca el saltito por encima
+  const listaCables = (t.cables||[]).map(cb => {
+    const a = puntoDeEndpoint(t, cb.origen), b = puntoDeEndpoint(t, cb.destino);
+    if(!a || !b) return null;
+    const ruta = (cb.ruta && cb.ruta.length) ? cb.ruta : [];
+    return {id: cb.id, pts: ortogonalizar([[a.x,a.y], ...ruta, [b.x,b.y]])};
+  }).filter(Boolean);
+  const saltos = calcularSaltos(listaCables);
+  (t.cables||[]).forEach(cb => { html += dibujoCable(t, cb, saltos[cb.id]); });
 
   // 3) las térmicas van AL FINAL: son lo único que tapa el cableado, y sólo
   // exactamente donde están paradas — no todo el riel ni toda la banda.
@@ -462,11 +471,38 @@ function pintarGabinete(){
   // visibles y clicables, nunca tapadas por nada del gabinete
   html += pintarFranjas(t, anchoTotal, altoTotal);
   if(herramienta.tipo) html += dibujoPendienteHerramienta(t);
+  // overlay vacío y liviano: el mousemove escribe acá directamente sin
+  // rehacer todo el gabinete, para que el trazo siga al mouse en vivo
+  html += `<svg id="preview-cable" style="position:absolute;left:0;top:0;
+    width:${anchoTotal}px;height:${altoTotal}px;overflow:visible;pointer-events:none"></svg>`;
   html += `</div></div>`;
   cont.innerHTML = html;
   cablearGabinete();
 }
 
+/* ---------------- vista previa en vivo, estilo ruteador de PCB ----------------
+   Desde el último punto puesto (el origen, o el último punto intermedio),
+   un tramo en escuadra sigue al mouse hasta el próximo click. Se actualiza
+   directo sobre el overlay, sin repintar todo el gabinete, para que sea fluido. */
+function actualizarPreviewCable(mx, my){
+  const el = document.getElementById('preview-cable');
+  if(!el) return;
+  if(herramienta.tipo !== 'cable' || !herramienta.paso1){ el.innerHTML = ''; return; }
+  const t = tableroActivo();
+  const ruta = herramienta.ruta || [];
+  let ultimo;
+  if(ruta.length) ultimo = ruta[ruta.length-1];
+  else {
+    const a = puntoDeEndpoint(t, herramienta.paso1);
+    if(!a){ el.innerHTML = ''; return; }
+    ultimo = [a.x, a.y];
+  }
+  const pts = ortogonalizar([ultimo, [mx, my]]);
+  const path = pts.map((p,i)=>(i===0?'M':'L')+p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ');
+  el.innerHTML = `<path d="${path}" fill="none" stroke="var(--copper)" stroke-width="2"
+      stroke-dasharray="4 3" opacity=".85"/>
+    <circle cx="${mx}" cy="${my}" r="3" fill="var(--copper)" opacity=".85"/>`;
+}
 /* ---------------- franjas de caño: bocas fijas, como en la foto de referencia
    (los caños en corte que entran al gabinete). No se elige una posición
    libre: se elige CUÁNTAS bocas hay, y qué entra por cada una. ---------------- */
@@ -498,6 +534,24 @@ function xEntradaCano(t, cano){
    que trae (marrón=fase, celeste=neutro, verde=tierra si el circuito es
    TUG/TUE o si es la jabalina). Cada tramo termina en su propio nodo: ahí se
    agarra para cablear, no en el caño en sí. */
+/* Un solo cálculo para la punta de cada tramo (fase/neutro/tierra), usado
+   tanto para dibujar el tramo como para saber dónde empieza realmente el
+   cable. Antes vivían por separado y se desalineaban: el tramo grueso
+   quedaba en un punto y el cable fino salía del centro del caño, sin tocarse. */
+function puntaDeStub(t, cano, polaridad){
+  const pols = polaridadesDeCano(cano);
+  const idx = pols.indexOf(polaridad);
+  if(idx < 0) return null;
+  const dir = cano.lado === 'arriba' ? 1 : -1;
+  const paso = 9, largoBase = 22;
+  const n = pols.length;
+  const dx = (idx - (n-1)/2) * paso;
+  const y2 = (13+largoBase)*dir;
+  const [, altoTotal] = _anchoAltoOverlay(t);
+  const xBase = xEntradaCano(t, cano);
+  const yBase = cano.lado === 'arriba' ? FRANJA_CANO : altoTotal - FRANJA_CANO;
+  return {x: xBase + dx, y: yBase + y2};
+}
 function stubsDeCano(cano, lado){
   const pols = polaridadesDeCano(cano);
   const dir = lado === 'arriba' ? 1 : -1;
@@ -567,9 +621,7 @@ function puntoDeEndpoint(t, ep){
   if(ep.tipo === 'cano'){
     const cano = (t.canos||[]).find(c=>c.id===ep.id);
     if(!cano) return null;
-    const [, altoTotal] = _anchoAltoOverlay(t);
-    return {x: xEntradaCano(t, cano),
-            y: cano.lado==='arriba' ? FRANJA_CANO : altoTotal - FRANJA_CANO};
+    return puntaDeStub(t, cano, ep.polaridad);
   }
   if(ep.tipo === 'dispositivo'){
     const d = t.dispositivos.find(x=>x.id===ep.id);
@@ -614,14 +666,78 @@ function ortogonalizar(pts){
   }
   return out;
 }
-function dibujoCable(t, cable){
+
+/* --- salto esquemático donde dos cables se cruzan sin conectarse ---
+   Sólo se salta un cruce puntual entre un tramo horizontal y uno vertical de
+   OTRO cable — nunca un tramo solapado sobre el mismo eje, porque ahí no hay
+   forma de dibujar el salto sin que deje de verse. */
+function segmentosDe(pts){
+  const segs = [];
+  for(let i=0;i<pts.length-1;i++){
+    const [x0,y0] = pts[i], [x1,y1] = pts[i+1];
+    if(x0 === x1 && y0 === y1) continue;
+    segs.push({x0,y0,x1,y1, horiz: y0 === y1});
+  }
+  return segs;
+}
+function interseccionSimple(a, b){
+  if(a.horiz === b.horiz) return null;         // paralelos: no es un cruce puntual
+  const h = a.horiz ? a : b, v = a.horiz ? b : a;
+  const hx0 = Math.min(h.x0,h.x1), hx1 = Math.max(h.x0,h.x1);
+  const vy0 = Math.min(v.y0,v.y1), vy1 = Math.max(v.y0,v.y1);
+  const m = 4;   // margen: no saltar pegado a una esquina o a un extremo
+  if(v.x0 > hx0+m && v.x0 < hx1-m && h.y0 > vy0+m && h.y0 < vy1-m) return [v.x0, h.y0];
+  return null;
+}
+function calcularSaltos(listaCables){
+  const saltos = {};   // cableId -> [[x,y], ...] puntos donde ESTE cable salta
+  for(let i=0;i<listaCables.length;i++){
+    for(let j=i+1;j<listaCables.length;j++){
+      const A = listaCables[i], B = listaCables[j];
+      segmentosDe(A.pts).forEach(sa => segmentosDe(B.pts).forEach(sb => {
+        const p = interseccionSimple(sa, sb);
+        if(p) (saltos[B.id] = saltos[B.id] || []).push(p);   // el cable "más nuevo" salta
+      }));
+    }
+  }
+  return saltos;
+}
+function pathConSaltos(pts, saltos){
+  if(!saltos || !saltos.length)
+    return pts.map((p,i)=>(i===0?'M':'L')+p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ');
+  let d = `M${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)}`;
+  for(let i=1;i<pts.length;i++){
+    const [x0,y0] = pts[i-1], [x1,y1] = pts[i];
+    const horiz = y0 === y1;
+    const enTramo = saltos.filter(([sx,sy]) => horiz
+      ? Math.abs(sy-y0)<0.6 && sx>Math.min(x0,x1)+5 && sx<Math.max(x0,x1)-5
+      : Math.abs(sx-x0)<0.6 && sy>Math.min(y0,y1)+5 && sy<Math.max(y0,y1)-5
+    ).sort((p,q) => horiz
+      ? (x1>x0 ? p[0]-q[0] : q[0]-p[0])
+      : (y1>y0 ? p[1]-q[1] : q[1]-p[1]));
+    enTramo.forEach(([sx,sy]) => {
+      if(horiz){
+        const dir = x1>x0 ? 1 : -1;
+        d += ` L${(sx-dir*5).toFixed(1)},${y0.toFixed(1)}`;
+        d += ` A5,5 0 0 ${dir>0?1:0} ${(sx+dir*5).toFixed(1)},${y0.toFixed(1)}`;
+      } else {
+        const dir = y1>y0 ? 1 : -1;
+        d += ` L${x0.toFixed(1)},${(sy-dir*5).toFixed(1)}`;
+        d += ` A5,5 0 0 ${dir>0?0:1} ${x0.toFixed(1)},${(sy+dir*5).toFixed(1)}`;
+      }
+    });
+    d += ` L${x1.toFixed(1)},${y1.toFixed(1)}`;
+  }
+  return d;
+}
+function dibujoCable(t, cable, saltosDeEste){
   const a = puntoDeEndpoint(t, cable.origen), b = puntoDeEndpoint(t, cable.destino);
   if(!a || !b) return '';
   const [anchoTotal, altoTotal] = _anchoAltoOverlay(t);
   const color = colorDeCable(t, cable);
   const ruta = (cable.ruta && cable.ruta.length) ? cable.ruta : [];
   const pts = ortogonalizar([[a.x,a.y], ...ruta, [b.x,b.y]]);
-  const path = pts.map((p,i)=>(i===0?'M':'L')+p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ');
+  const path = pathConSaltos(pts, saltosDeEste);
   const sel = cable.id === cableSeleccionado;
   return `<svg style="position:absolute;left:0;top:0;width:${anchoTotal}px;height:${altoTotal}px;
     overflow:visible;pointer-events:none">
@@ -811,6 +927,11 @@ function cablearGabinete(){
   });
   const lienzo = document.getElementById('lienzo-pisos');
   if(lienzo) lienzo.addEventListener('click', manejarClicHerramienta);
+  if(lienzo) lienzo.addEventListener('mousemove', ev => {
+    if(herramienta.tipo !== 'cable' || !herramienta.paso1) return;
+    const rect = lienzo.getBoundingClientRect();
+    actualizarPreviewCable(ev.clientX - rect.left, ev.clientY - rect.top);
+  });
   document.querySelectorAll('[data-con-click]').forEach(n => n.addEventListener('click', ev => {
     ev.stopPropagation(); clicConexion(n.dataset.conClick, n.dataset.conPolaridad);
   }));
