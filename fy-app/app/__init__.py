@@ -1,2 +1,2 @@
 """FY-App — sistema modular de instalaciones eléctricas."""
-__version__ = "0.13.0"
+__version__ = "0.14.0"

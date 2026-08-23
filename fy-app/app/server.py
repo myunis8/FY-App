@@ -420,7 +420,7 @@ class Handler(BaseHTTPRequestHandler):
         t.setdefault("conexiones", [])
         cuerpo = self._cuerpo()
         puente, msg = tablero_mod.crear_puente(t, cuerpo.get("pisoOrigen"), cuerpo.get("x"),
-                                               cuerpo.get("pisoDestino"))
+                                               cuerpo.get("pisoDestino"), cuerpo.get("polaridad", "fase"))
         if puente is None:
             return self._error(msg)
         almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))

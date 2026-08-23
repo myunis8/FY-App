@@ -26,7 +26,12 @@ def _marca_de_agua(pg, cfg: dict):
     ruta = cfgmod.ruta_imagen("marca")
     if ruta is None or ruta.suffix.lower() == ".svg":
         return
-    op = max(0.02, min(0.5, (cfg.get("opacidadMarca") or 14) / 100))
+    # OJO: "cfg.get(...) or 16" no sirve de piso si ya hay un valor guardado
+    # en disco (8 es "truthy" en Python, así que nunca caía al default nuevo).
+    # Por eso el cambio de la entrega anterior no se notaba: quien ya había
+    # tocado la configuración seguía con el valor viejo de siempre. El piso
+    # de abajo tiene que ser incondicional.
+    op = max(0.16, min(0.55, (cfg.get("opacidadMarca") or 16) / 100))
     # el ancho/alto real del logo importa: forzarlo a un recuadro cuadrado
     # deforma cualquier logo que no sea 1:1 (la mayoría no lo son).
     try:
@@ -34,9 +39,9 @@ def _marca_de_agua(pg, cfg: dict):
         aspecto = pix.width / max(pix.height, 1)
     except Exception:
         aspecto = 1.0
-    ancho = ANCHO * 0.74                       # bastante más grande que antes
+    ancho = ANCHO * 0.86                       # bien grande, no sutil
     alto = ancho / aspecto if aspecto > 0 else ancho
-    alto_max = ALTO * 0.46                     # no invade encabezado ni pie
+    alto_max = ALTO * 0.58
     if alto > alto_max:
         alto = alto_max
         ancho = alto * aspecto

@@ -128,6 +128,8 @@ body.modo-cable .nodo-lateral:hover{transform:translateY(-50%) scale(1.4)}
   <div class="spacer"></div>
   <select class="sel-tab" id="sel-tablero"></select>
   <button class="btn ghost" id="b-nuevo">Nuevo tablero</button>
+  <button class="btn ghost" id="b-deshacer" title="Ctrl+Z" disabled>↶</button>
+  <button class="btn ghost" id="b-rehacer" title="Ctrl+Y" disabled>↷</button>
   <button class="btn ghost" id="b-sincronizar">Sincronizar circuitos</button>
   <button class="btn ghost" id="b-volver">Volver</button>
 </header>
@@ -164,6 +166,9 @@ body.modo-cable .nodo-lateral:hover{transform:translateY(-50%) scale(1.4)}
           <input id="t-pisos" type="number" min="1"></div>
       </div>
       <div class="nota" id="t-resumen" style="margin-bottom:12px"></div>
+
+      <div class="campo"><label for="t-grilla">Grilla para rutear cables (px)</label>
+        <input id="t-grilla" type="number" min="2" max="40"></div>
 
       <button class="btn sm danger" id="b-borrar-tablero" style="width:100%">Borrar este tablero</button>
 
@@ -250,13 +255,16 @@ async function cargar(){
   $('n-preset').onchange = () => $('n-custom').style.display =
     $('n-preset').value === 'custom' ? 'grid' : 'none';
   if(tableros.length) activo = tableros[0].id;
+  iniciarHistorial();
   pintar();
 }
 function tableroActivo(){ return tableros.find(t=>t.id===activo); }
 function pintarSelector(){
   $('sel-tablero').innerHTML = tableros.map(t=>
     `<option value="${t.id}" ${t.id===activo?'selected':''}>${esc(t.nombre)}</option>`).join('');
-  $('sel-tablero').onchange = () => { activo = $('sel-tablero').value; seleccionado=null; pintar(); };
+  $('sel-tablero').onchange = () => {
+    activo = $('sel-tablero').value; seleccionado=null; iniciarHistorial(); pintar();
+  };
 }
 
 /* ---------------- dibujo de un dispositivo (esquemático) ----------------
@@ -497,11 +505,12 @@ function actualizarPreviewCable(mx, my){
     if(!a){ el.innerHTML = ''; return; }
     ultimo = [a.x, a.y];
   }
-  const pts = ortogonalizar([ultimo, [mx, my]]);
+  const [gx, gy] = ajustarAGrilla(t, mx, my);
+  const pts = ortogonalizar([ultimo, [gx, gy]]);
   const path = pts.map((p,i)=>(i===0?'M':'L')+p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ');
   el.innerHTML = `<path d="${path}" fill="none" stroke="var(--copper)" stroke-width="2"
       stroke-dasharray="4 3" opacity=".85"/>
-    <circle cx="${mx}" cy="${my}" r="3" fill="var(--copper)" opacity=".85"/>`;
+    <circle cx="${gx}" cy="${gy}" r="3" fill="var(--copper)" opacity=".85"/>`;
 }
 /* ---------------- franjas de caño: bocas fijas, como en la foto de referencia
    (los caños en corte que entran al gabinete). No se elige una posición
@@ -569,12 +578,16 @@ function stubsDeCano(cano, lado){
   return html;
 }
 function flechasReorden(cano, lado, esPrimero, esUltimo){
-  const y = lado === 'arriba' ? -15 : 26;
+  const y = lado === 'arriba' ? -22 : 33;
   let html = '';
-  if(!esPrimero) html += `<text x="-16" y="${y}" font-size="10" text-anchor="middle"
-    style="pointer-events:all;cursor:pointer" fill="#33506e" data-mover-cano="${cano.id}:-1">◀</text>`;
-  if(!esUltimo) html += `<text x="16" y="${y}" font-size="10" text-anchor="middle"
-    style="pointer-events:all;cursor:pointer" fill="#33506e" data-mover-cano="${cano.id}:1">▶</text>`;
+  if(!esPrimero) html += `<g style="pointer-events:all;cursor:pointer" data-mover-cano="${cano.id}:-1">
+    <circle cx="-16" cy="${y-3}" r="8" fill="#fff" stroke="${TRAZO}" stroke-width="1.1"/>
+    <text x="-16" y="${y}" font-size="10" font-weight="700" text-anchor="middle"
+      fill="${TRAZO}">◀</text></g>`;
+  if(!esUltimo) html += `<g style="pointer-events:all;cursor:pointer" data-mover-cano="${cano.id}:1">
+    <circle cx="16" cy="${y-3}" r="8" fill="#fff" stroke="${TRAZO}" stroke-width="1.1"/>
+    <text x="16" y="${y}" font-size="10" font-weight="700" text-anchor="middle"
+      fill="${TRAZO}">▶</text></g>`;
   return html;
 }
 function pintarFranjas(t, anchoTotal, altoTotal){
@@ -642,7 +655,7 @@ function puntoDeEndpoint(t, ep){
   if(ep.tipo === 'puente'){
     const pu = (t.conexiones||[]).find(c=>c.id===ep.id);
     if(!pu) return null;
-    const x = CANAL + pu.x*CELDA + CELDA/2 + (ep.polaridad==='fase' ? -6 : 6);
+    const x = CANAL + pu.x*CELDA + CELDA/2;
     const y = ep.lado==='abajo'
       ? yPiso(pu.pisoDestino) + BANDA - 10
       : yBandaInf(pu.pisoOrigen) + 10;
@@ -666,6 +679,10 @@ function colorDeCable(t, cable){
    no comparten ni x ni y, se inserta una esquina entre ellos (primero
    horizontal, después vertical). Así el que dibuja el cable puede tocar
    cualquier punto intermedio sin que aparezca una línea inclinada. */
+function ajustarAGrilla(t, x, y){
+  const g = Math.max(2, t.grillaPx || 8);
+  return [Math.round(x/g)*g, Math.round(y/g)*g];
+}
 function ortogonalizar(pts){
   const out = [pts[0]];
   for(let i=1;i<pts.length;i++){
@@ -754,9 +771,11 @@ function dibujoCable(t, cable, saltosDeEste){
   const sel = cable.id === cableSeleccionado;
   return `<svg style="position:absolute;left:0;top:0;width:${anchoTotal}px;height:${altoTotal}px;
     overflow:visible;pointer-events:none">
+    <path d="${path}" fill="none" stroke="transparent" stroke-width="14"
+      style="pointer-events:all;cursor:pointer" data-con-click-cable="${cable.id}"/>
     <path d="${path}" fill="none" stroke="${sel ? 'var(--copper)' : color}"
       stroke-width="${sel ? 4 : 2.6}" stroke-linejoin="round" stroke-linecap="round"
-      ${sel ? 'stroke-dasharray="6 3"' : ''}/>
+      ${sel ? 'stroke-dasharray="6 3"' : ''} style="pointer-events:none"/>
     <circle cx="${a.x}" cy="${a.y}" r="3.5" fill="${color}"
       style="pointer-events:all;cursor:pointer" data-con-click-cable="${cable.id}"/>
     <circle cx="${b.x}" cy="${b.y}" r="3.5" fill="${color}"
@@ -807,36 +826,25 @@ function dibujoConexion(t, c){
       width:${anchoTotal}px;height:${altoTotal}px;overflow:visible;
       pointer-events:none">${svgBarras}</svg>`;
   }
-  // puente: baja desde la banda inferior del piso origen a la banda superior
-  // del siguiente. Lleva fase y neutro por separado, igual que un peine, para
-  // poder cablear cualquiera de los dos por separado.
+  // puente: baja UN conductor (fase o neutro, el que se haya elegido al
+  // crearlo) desde la banda inferior del piso origen a la banda superior del
+  // siguiente. Uno de fase y otro de neutro son dos objetos independientes,
+  // cada uno donde haga falta — no van pegados por la fuerza.
   const y0 = yBandaInf(c.pisoOrigen) + 10, y1 = yPiso(c.pisoDestino) + BANDA - 10;
   const x = CANAL + c.x * CELDA + CELDA/2;
-  const ancho = 24, alto = 38, cy = (y0+y1)/2;
-  const offFase = -6, offNeutro = 6;
+  const ancho = 20, alto = 32, cy = (y0+y1)/2;
+  const color = COLOR_POLARIDAD[c.polaridad || 'fase'];
   return `<svg class="conexion" data-con="${c.id}" style="position:absolute;left:0;top:0;
     width:${anchoTotal}px;height:${altoTotal}px;overflow:visible;
     pointer-events:none">
-    <line x1="${x+offFase}" y1="${y0}" x2="${x+offFase}" y2="${cy-alto/2}"
-      stroke="${COLOR_POLARIDAD.fase}" stroke-width="3"/>
-    <line x1="${x+offFase}" y1="${cy+alto/2}" x2="${x+offFase}" y2="${y1}"
-      stroke="${COLOR_POLARIDAD.fase}" stroke-width="3"/>
-    <line x1="${x+offNeutro}" y1="${y0}" x2="${x+offNeutro}" y2="${cy-alto/2}"
-      stroke="${COLOR_POLARIDAD.neutro}" stroke-width="3"/>
-    <line x1="${x+offNeutro}" y1="${cy+alto/2}" x2="${x+offNeutro}" y2="${y1}"
-      stroke="${COLOR_POLARIDAD.neutro}" stroke-width="3"/>
-    <circle cx="${x+offFase}" cy="${y0}" r="3.5" fill="${COLOR_POLARIDAD.fase}"
+    <line x1="${x}" y1="${y0}" x2="${x}" y2="${cy-alto/2}" stroke="${color}" stroke-width="3"/>
+    <line x1="${x}" y1="${cy+alto/2}" x2="${x}" y2="${y1}" stroke="${color}" stroke-width="3"/>
+    <circle cx="${x}" cy="${y0}" r="3.5" fill="${color}"
       style="pointer-events:all;cursor:pointer" data-con-click="${c.id}"
-      data-con-polaridad="fase" data-con-lado="arriba"/>
-    <circle cx="${x+offNeutro}" cy="${y0}" r="3.5" fill="${COLOR_POLARIDAD.neutro}"
+      data-con-polaridad="${c.polaridad||'fase'}" data-con-lado="arriba"/>
+    <circle cx="${x}" cy="${y1}" r="3.5" fill="${color}"
       style="pointer-events:all;cursor:pointer" data-con-click="${c.id}"
-      data-con-polaridad="neutro" data-con-lado="arriba"/>
-    <circle cx="${x+offFase}" cy="${y1}" r="3.5" fill="${COLOR_POLARIDAD.fase}"
-      style="pointer-events:all;cursor:pointer" data-con-click="${c.id}"
-      data-con-polaridad="fase" data-con-lado="abajo"/>
-    <circle cx="${x+offNeutro}" cy="${y1}" r="3.5" fill="${COLOR_POLARIDAD.neutro}"
-      style="pointer-events:all;cursor:pointer" data-con-click="${c.id}"
-      data-con-polaridad="neutro" data-con-lado="abajo"/>
+      data-con-polaridad="${c.polaridad||'fase'}" data-con-lado="abajo"/>
     <g transform="translate(${x-ancho/2},${cy-alto/2})" style="pointer-events:all;cursor:pointer"
       data-con-click="${c.id}">${svgConectorPeine(ancho, alto)}</g>
   </svg>`;
@@ -1071,7 +1079,11 @@ function elegirHerramienta(tipo, pendiente){
 }
 $('h-ninguna').onclick = () => elegirHerramienta(null);
 $('h-peine').onclick = () => elegirHerramienta('peine');
-$('h-puente').onclick = () => elegirHerramienta('puente');
+$('h-puente').onclick = () => {
+  const pol = (prompt('¿Este conector es de fase o de neutro?', 'fase')||'').trim().toLowerCase();
+  if(!['fase','neutro'].includes(pol)) return;
+  elegirHerramienta('puente', {polaridad: pol});
+};
 $('h-cable').onclick = () => elegirHerramienta('cable');
 
 function manejarClicHerramienta(ev){
@@ -1116,7 +1128,7 @@ function manejarClicHerramienta(ev){
     // punto intermedio de la ruta, para poder llevar el cable por donde
     // se quiera en vez de ir siempre directo.
     if(herramienta.paso1){
-      herramienta.ruta.push([Math.round(x), Math.round(y)]);
+      herramienta.ruta.push(ajustarAGrilla(t, x, y));
       pintarGabinete();
     }
   }
@@ -1248,13 +1260,14 @@ function avanzarPuente(piso, xBoca){
   }
   const origen = herramienta.paso1;
   herramienta.paso1 = null;
-  crearPuente(origen.piso, origen.x, piso);
+  const pol = (herramienta.pendiente && herramienta.pendiente.polaridad) || 'fase';
+  crearPuente(origen.piso, origen.x, piso, pol);
 }
-async function crearPuente(pisoOrigen, x, pisoDestino){
+async function crearPuente(pisoOrigen, x, pisoDestino, polaridad){
   const t = tableroActivo();
   try{
     const r = await api(`/api/obras/${OBRA_ID}/tableros/${t.id}/puente`,
-      {method:'POST', body:JSON.stringify({pisoOrigen, x, pisoDestino})});
+      {method:'POST', body:JSON.stringify({pisoOrigen, x, pisoDestino, polaridad})});
     actualizarTablero(r.tablero, null);
     toast('Conector agregado');
   }catch(e){ toast(e.message); pintarGabinete(); }
@@ -1374,10 +1387,17 @@ function pintarPanel(){
   if(!t) return;
   $('t-nombre').value = t.nombre; $('t-tipo').value = t.tipo;
   $('t-bocas').value = t.bocas; $('t-pisos').value = t.pisos;
+  $('t-grilla').value = t.grillaPx ?? 8;
   const usados = t.dispositivos.filter(d=>d.piso!==null).reduce((s,d)=>s+d.polos,0);
   $('t-resumen').textContent = `${t.fases===3?'Trifásico':'Monofásico'} · `
     + `${t.bocasPorPiso} bocas por piso · ${usados} de ${t.bocas} colocadas`;
 }
+$('t-grilla').onchange = async () => {
+  const t = tableroActivo(); if(!t) return;
+  t.grillaPx = Math.max(2, +$('t-grilla').value || 8);
+  await api(`/api/obras/${OBRA_ID}/tableros/${t.id}`,
+    {method:'POST', body:JSON.stringify({tablero:{grillaPx:t.grillaPx}})});
+};
 function pintarAvisos(avisos){
   if(avisos) ultimosAvisos = avisos;
   const rel = (ultimosAvisos||[]).filter(a =>
@@ -1390,9 +1410,56 @@ let ultimosAvisos = [];
 function pintar(){ pintarSelector(); pintarGabinete(); pintarBandeja(); pintarPanel(); pintarDetalle(); pintarAvisos();
   $('h-sub').textContent = tableros.length ? `${tableros.length} tablero(s)` : 'Sin tableros todavía'; }
 
-function actualizarTablero(t, avisos){
+let historial = [], indiceHistorial = -1;
+function iniciarHistorial(){
+  const t = tableroActivo();
+  historial = t ? [JSON.stringify(t)] : [];
+  indiceHistorial = t ? 0 : -1;
+  pintarBotonesHistorial();
+}
+function pintarBotonesHistorial(){
+  const bd = $('b-deshacer'), br = $('b-rehacer');
+  if(!bd || !br) return;
+  bd.disabled = indiceHistorial <= 0;
+  br.disabled = indiceHistorial >= historial.length - 1;
+}
+async function persistirEstadoTablero(t){
   const i = tableros.findIndex(x=>x.id===t.id);
   if(i>=0) tableros[i] = t; else tableros.push(t);
+  obra.tableros = tableros;
+  try{ await api('/api/obras/'+OBRA_ID, {method:'PUT', body:JSON.stringify(obra)}); }
+  catch(e){ toast(e.message); }
+  pintar();
+}
+async function deshacer(){
+  if(indiceHistorial <= 0) return;
+  indiceHistorial--;
+  await persistirEstadoTablero(JSON.parse(historial[indiceHistorial]));
+  pintarBotonesHistorial();
+}
+async function rehacer(){
+  if(indiceHistorial >= historial.length - 1) return;
+  indiceHistorial++;
+  await persistirEstadoTablero(JSON.parse(historial[indiceHistorial]));
+  pintarBotonesHistorial();
+}
+function actualizarTablero(t, avisos){
+  const i = tableros.findIndex(x=>x.id===t.id);
+  if(i>=0){
+    // historial[indiceHistorial] tiene que ser SIEMPRE el estado que se está
+    // mostrando. Guardar el estado viejo acá (en vez del nuevo) hacía que el
+    // historial quedara un paso atrasado: el primer "deshacer" saltaba dos
+    // pasos de una, y el estado más reciente se perdía sin que "rehacer"
+    // pudiera traerlo de vuelta.
+    historial = historial.slice(0, indiceHistorial+1);
+    historial.push(JSON.stringify(t));
+    indiceHistorial++;
+    if(historial.length > 60){ historial.shift(); indiceHistorial--; }
+    tableros[i] = t;
+  } else {
+    tableros.push(t);
+  }
+  pintarBotonesHistorial();
   pintar(); if(avisos) pintarAvisos(avisos);
 }
 
@@ -1407,7 +1474,7 @@ $('n-crear').onclick = async () => {
   if($('n-preset').value === 'custom'){ cuerpo.bocas=+$('n-bocas').value; cuerpo.pisos=+$('n-pisos').value; }
   try{
     const r = await api('/api/obras/'+OBRA_ID+'/tableros', {method:'POST', body:JSON.stringify(cuerpo)});
-    tableros.push(r.tablero); activo = r.tablero.id;
+    tableros.push(r.tablero); activo = r.tablero.id; iniciarHistorial();
     $('ov-nuevo').classList.remove('abierto');
     pintar(); toast('Tablero creado. Arrastrá los dispositivos de la bandeja al riel.');
   }catch(e){ toast(e.message); }
@@ -1445,6 +1512,8 @@ $('b-borrar-tablero').onclick = async () => {
   actualizarTablero(r.tablero, r.avisos);
 });
 $('b-volver').onclick = () => location.href = '/circuitos.html?obra='+OBRA_ID;
+$('b-deshacer').onclick = deshacer;
+$('b-rehacer').onclick = rehacer;
 
 let cableSeleccionado = null;
 document.addEventListener('keydown', e => {
@@ -1458,6 +1527,13 @@ document.addEventListener('keydown', e => {
     e.preventDefault();
     eliminarCableAPI(cableSeleccionado);
     cableSeleccionado = null;
+  }
+  if(!enCampo && (e.ctrlKey||e.metaKey) && !e.shiftKey && e.key.toLowerCase()==='z'){
+    e.preventDefault(); deshacer();
+  }
+  if(!enCampo && (e.ctrlKey||e.metaKey) &&
+     (e.key.toLowerCase()==='y' || (e.shiftKey && e.key.toLowerCase()==='z'))){
+    e.preventDefault(); rehacer();
   }
 });
 

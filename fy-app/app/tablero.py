@@ -73,6 +73,7 @@ def tablero_nuevo(nombre: str, tipo: str, preset_id: str, fases: int) -> dict:
         "alimentaDesde": None,           # {tableroId, dispositivoId} si es seccional
         "dispositivos": dispositivos,
         "conexiones": [],                # peines (bus por piso) y puentes (entre pisos)
+        "grillaPx": 8,                    # separación de la grilla para rutear cables, editable
         "canos": [],                      # entradas de circuito/acometida/tierra, se van agregando
         "cables": [],                     # conexión entre dos puntos: caño, peine o nodo de un dispositivo
         "notas": [],
@@ -241,8 +242,7 @@ def _polaridad_endpoint(tablero: dict, ep: dict) -> str | None:
                        if c["id"] == ep.get("id") and c["tipo"] == "puente"), None)
         if puente is None:
             return None
-        pol = ep.get("polaridad")
-        return pol if pol in ("fase", "neutro") else None
+        return puente.get("polaridad", "fase")
     return None
 
 
@@ -316,14 +316,19 @@ def crear_peine(tablero: dict, piso: int, desde: int, hasta: int) -> tuple[dict 
     return peine, ""
 
 
-def crear_puente(tablero: dict, piso_origen: int, x: int, piso_destino: int) -> tuple[dict | None, str]:
-    """El conector que baja el peine (o la salida de una térmica) de un piso
-    al riel del piso siguiente, tal como en la foto de referencia."""
+def crear_puente(tablero: dict, piso_origen: int, x: int, piso_destino: int,
+                 polaridad: str = "fase") -> tuple[dict | None, str]:
+    """El conector que baja un solo conductor (fase o neutro) de un piso al
+    riel del piso siguiente, tal como en la foto de referencia. Uno para fase
+    y otro para neutro, cada uno donde corresponda — no van pegados: no
+    siempre hace falta bajar los dos al mismo lugar."""
     if piso_destino != piso_origen + 1:
         return None, "Un conector siempre baja al piso inmediatamente siguiente."
     if not (0 <= piso_origen < tablero["pisos"] and 0 <= piso_destino < tablero["pisos"]):
         return None, "Ese piso no existe."
-    puente = {"id": _id("puente"), "tipo": "puente",
+    if polaridad not in ("fase", "neutro"):
+        return None, "Un conector es de fase o de neutro."
+    puente = {"id": _id("puente"), "tipo": "puente", "polaridad": polaridad,
              "pisoOrigen": piso_origen, "pisoDestino": piso_destino, "x": x}
     tablero["conexiones"].append(puente)
     return puente, ""

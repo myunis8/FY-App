@@ -3,6 +3,37 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 0.14.0 — conectores independientes, deshacer/rehacer, grilla, y arreglos
+
+- **El conector vuelve a ser de un solo conductor**, no un par fase+neutro
+  forzado: se elige la polaridad al activar la herramienta, y cada uno se
+  coloca donde haga falta — uno de fase acá, uno de neutro allá, sin que
+  tengan que ir pegados.
+- **Deshacer / rehacer con atajos de teclado** (Ctrl+Z, Ctrl+Y o Ctrl+Shift+Z),
+  con botones ↶↷ en la cabecera. Se encontró y corrigió un bug real de lógica
+  antes de entregarlo: el historial guardaba el estado anterior al cambio en
+  vez del nuevo, así que quedaba siempre un paso atrasado — el primer
+  "deshacer" saltaba dos pasos de una, y el estado más reciente se perdía sin
+  que "rehacer" pudiera traerlo de vuelta. Se corrigió y se verificó paso a
+  paso con Node: 3 ediciones, deshacer x3, rehacer x3, cada valor exacto y sin
+  saltos ni pérdidas; también se probó el recorte a 60 pasos de historial.
+- **Ahora se puede borrar un tramo de cable ya conectado**: antes sólo los dos
+  círculos de las puntas (3.5px) eran clicables, y si estaban pegados a una
+  térmica quedaban tapados. Se agregó un trazo invisible de 14px a lo largo
+  de todo el cable, así que cualquier parte visible se puede tocar para
+  seleccionarlo y borrarlo con Delete.
+- **Grilla configurable** para rutear cables (editable por tablero, 8px por
+  defecto), con snap aplicado tanto al punto que se toca como a la vista
+  previa en vivo.
+- Las flechas ◀▶ para reordenar las bocas de caño ya funcionaban; se les puso
+  un fondo circular porque el problema real era que no se notaban, perdidas
+  entre el resto de los elementos.
+- **Marca de agua, arreglada de fondo**: el problema real de la entrega
+  anterior era que el valor de opacidad ya guardado en disco (8) nunca caía
+  al nuevo valor por defecto, porque en Python `8 or 16` da 8, no 16. Ahora el
+  piso de opacidad es incondicional (16% mínimo, sin importar lo guardado) y
+  el tamaño subió a 86% del ancho de la hoja.
+
 ## 0.13.0 — ruteo vertical primero, conector con polaridad, marca de agua corregida
 
 - **El cable ahora sale recto en vertical y recién al final dobla**, no al
