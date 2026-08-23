@@ -441,13 +441,8 @@ function pintarGabinete(){
     <div class="franja-cano" style="top:${FRANJA_CANO+altoPisos}px;left:0;width:${anchoTotal}px;
       height:${FRANJA_CANO}px"><span class="banda-etq">Salidas de caño — abajo de todo</span></div>`;
 
-  // 1) el cableado se pinta PRIMERO: en el orden normal de apilado, lo que se
-  // agrega antes queda por detrás. Así ninguna térmica se tapa con un cable:
-  // el cable pasa por detrás y sólo se ve donde no hay nada dibujado encima.
-  (t.conexiones||[]).forEach(c => { html += dibujoConexion(t, c); });
-  (t.cables||[]).forEach(cb => { html += dibujoCable(t, cb); });
-
-  // 2) rieles y térmicas se pintan DESPUÉS: quedan por delante del cableado
+  // 1) fondo decorativo y zona de arrastre (bandas y rieles, SIN las térmicas
+  // adentro). Esto pinta primero para no taparse con nada.
   for(let piso = 0; piso < t.pisos; piso++){
     html += `<div class="banda" style="top:${yPiso(piso)}px;left:${CANAL}px;
       height:${BANDA}px;width:${ancho}px"><span class="banda-etq">Llegada — piso ${piso+1}</span></div>`;
@@ -455,14 +450,23 @@ function pintarGabinete(){
       width:${ancho}px;height:${ALTO_DISP}px">${svgRielFondo(ancho, ALTO_DISP)}`;
     for(let c=0;c<=t.bocasPorPiso;c++)
       html += `<div class="celda-fantasma" style="left:${c*CELDA}px"></div>`;
-    t.dispositivos.filter(d=>d.piso===piso).forEach(d => { html += bloqueDisp(d); });
     html += `</div>`;
     html += `<div class="banda banda-inf" data-piso-banda="${piso}" style="top:${yBandaInf(piso)}px;
       left:${CANAL}px;width:${ancho}px;height:${BANDA}px">
       <span class="banda-etq">Salida hacia el circuito</span></div>`;
   }
 
-  // 3) las franjas de caño (y sus tramos de cable) van al final: siempre
+  // 2) el cableado se pinta SEGUNDO: ya se ve por encima del fondo decorativo
+  // (bandas y rieles), que ya no tiene nada opaco de sobra tapándolo.
+  (t.conexiones||[]).forEach(c => { html += dibujoConexion(t, c); });
+  (t.cables||[]).forEach(cb => { html += dibujoCable(t, cb); });
+
+  // 3) las térmicas van AL FINAL: son lo único que tapa el cableado, y sólo
+  // exactamente donde están paradas — no todo el riel ni toda la banda.
+  t.dispositivos.filter(d => d.piso !== null && d.piso !== undefined)
+    .forEach(d => { html += bloqueDisp(d); });
+
+  // 4) las franjas de caño (y sus tramos de cable) van arriba de todo: siempre
   // visibles y clicables, nunca tapadas por nada del gabinete
   html += pintarFranjas(t, anchoTotal, altoTotal);
   if(herramienta.tipo) html += dibujoPendienteHerramienta(t);
@@ -572,6 +576,8 @@ function puntoDeEndpoint(t, ep){
   return null;
 }
 function colorDeCable(t, cable){
+  if(cable.polaridad && COLOR_POLARIDAD[cable.polaridad]) return COLOR_POLARIDAD[cable.polaridad];
+  // datos viejos sin polaridad guardada: se estima por si algún extremo es un caño
   for(const ep of [cable.origen, cable.destino]){
     if(ep && ep.tipo === 'cano'){
       const cano = (t.canos||[]).find(c=>c.id===ep.id);
@@ -739,10 +745,11 @@ function nodosDeDispositivo(d, w, h){
 }
 function bloqueDisp(d){
   const w = d.polos*CELDA - 4, h = ALTO_DISP - 14;
+  const left = CANAL + d.posicion*CELDA + 2, top = yRiel(d.piso) + 6;
   const flechas = `<div class="flecha-alim ${d.alimentacion==='arriba'?'arriba':'abajo'}"
       data-alim="${d.id}" title="Cambiar por dónde entra"></div>`;
   return `<div class="disp ${seleccionado===d.id?'seleccionado':''}" draggable="true"
-    data-id="${d.id}" style="left:${d.posicion*CELDA+2}px;top:6px;width:${w}px;height:${h}px">
+    data-id="${d.id}" style="left:${left}px;top:${top}px;width:${w}px;height:${h}px">
     ${svgDispositivo(d, w, h)}${flechas}${nodosDeDispositivo(d, w, h)}
   </div>`;
 }

@@ -3,6 +3,27 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 0.10.1 — el cableado se tapaba con todo, no sólo con las térmicas
+
+- **Encontrado el error real**: al poner el cableado "por detrás" en 0.10.0,
+  quedó detrás del fondo decorativo del riel y de las bandas también (que no
+  son térmicas, son sólo el dibujo de fondo) — por eso no se veía nada, no se
+  podía clickear para editar, y los peines desaparecían. Ahora el orden es:
+  primero el fondo decorativo, después el cableado (ya visible), y al final
+  las térmicas — que son lo único que debe taparlo, y sólo donde están
+  paradas.
+- Esto también arregla la edición: antes el riel entero (todo su rectángulo)
+  interceptaba el clic así estuviera vacío. Ahora sólo el cuerpo real de una
+  térmica lo hace; en cualquier zona sin térmica, el clic llega al cable o al
+  peine que está debajo.
+- **Corregido el cable gris**: el color por polaridad se calculaba y se
+  guardaba en el cable (fase/neutro/tierra) desde la entrega anterior, pero
+  el dibujo nunca lo usaba — seguía con el color viejo. Ahora toma
+  `cable.polaridad` directo.
+- Verificado con Node armando un tablero completo (general, caño de
+  acometida, un peine, un cable) y comprobando que el color, la posición de
+  la térmica y el trazo del peine dan los valores esperados.
+
 ## 0.10.0 — polaridad, cortocircuito, y cableado siempre por detrás
 
 - **Verificación de cortocircuito**: antes de crear cualquier cable se
