@@ -43,7 +43,7 @@ CONFIG_POR_DEFECTO = {
     "empresa": "",
     "cuit": "",
     "contacto": "",
-    "opacidadMarca": 8,          # % de opacidad de la marca de agua en el PDF
+    "opacidadMarca": 14,          # % de opacidad de la marca de agua en el PDF
 }
 
 

@@ -639,6 +639,15 @@ function puntoDeEndpoint(t, ep){
     if(!pe) return null;
     return {x: CANAL + (pe.desde+pe.hasta+1)/2*CELDA, y: yRiel(pe.piso)-16};
   }
+  if(ep.tipo === 'puente'){
+    const pu = (t.conexiones||[]).find(c=>c.id===ep.id);
+    if(!pu) return null;
+    const x = CANAL + pu.x*CELDA + CELDA/2 + (ep.polaridad==='fase' ? -6 : 6);
+    const y = ep.lado==='abajo'
+      ? yPiso(pu.pisoDestino) + BANDA - 10
+      : yBandaInf(pu.pisoOrigen) + 10;
+    return {x, y};
+  }
   return null;
 }
 function colorDeCable(t, cable){
@@ -661,7 +670,11 @@ function ortogonalizar(pts){
   const out = [pts[0]];
   for(let i=1;i<pts.length;i++){
     const [x0,y0] = out[out.length-1], [x1,y1] = pts[i];
-    if(x0 !== x1 && y0 !== y1) out.push([x1, y0]);
+    // todo nodo de este tablero sale en vertical (el tramo de un caño, el
+    // polo de un dispositivo, el propio conector entre pisos): por eso el
+    // cable sale recto en vertical primero y sólo al final dobla en horizontal
+    // para alinearse — al revés se sentía "raro" justo al salir del nodo.
+    if(x0 !== x1 && y0 !== y1) out.push([x0, y1]);
     out.push([x1, y1]);
   }
   return out;
@@ -794,15 +807,36 @@ function dibujoConexion(t, c){
       width:${anchoTotal}px;height:${altoTotal}px;overflow:visible;
       pointer-events:none">${svgBarras}</svg>`;
   }
-  // puente: baja desde la banda inferior del piso origen a la banda superior del siguiente
+  // puente: baja desde la banda inferior del piso origen a la banda superior
+  // del siguiente. Lleva fase y neutro por separado, igual que un peine, para
+  // poder cablear cualquiera de los dos por separado.
   const y0 = yBandaInf(c.pisoOrigen) + 10, y1 = yPiso(c.pisoDestino) + BANDA - 10;
   const x = CANAL + c.x * CELDA + CELDA/2;
   const ancho = 24, alto = 38, cy = (y0+y1)/2;
+  const offFase = -6, offNeutro = 6;
   return `<svg class="conexion" data-con="${c.id}" style="position:absolute;left:0;top:0;
     width:${anchoTotal}px;height:${altoTotal}px;overflow:visible;
     pointer-events:none">
-    <line x1="${x}" y1="${y0}" x2="${x}" y2="${cy-alto/2}" stroke="#5b6b7a" stroke-width="3"/>
-    <line x1="${x}" y1="${cy+alto/2}" x2="${x}" y2="${y1}" stroke="#5b6b7a" stroke-width="3"/>
+    <line x1="${x+offFase}" y1="${y0}" x2="${x+offFase}" y2="${cy-alto/2}"
+      stroke="${COLOR_POLARIDAD.fase}" stroke-width="3"/>
+    <line x1="${x+offFase}" y1="${cy+alto/2}" x2="${x+offFase}" y2="${y1}"
+      stroke="${COLOR_POLARIDAD.fase}" stroke-width="3"/>
+    <line x1="${x+offNeutro}" y1="${y0}" x2="${x+offNeutro}" y2="${cy-alto/2}"
+      stroke="${COLOR_POLARIDAD.neutro}" stroke-width="3"/>
+    <line x1="${x+offNeutro}" y1="${cy+alto/2}" x2="${x+offNeutro}" y2="${y1}"
+      stroke="${COLOR_POLARIDAD.neutro}" stroke-width="3"/>
+    <circle cx="${x+offFase}" cy="${y0}" r="3.5" fill="${COLOR_POLARIDAD.fase}"
+      style="pointer-events:all;cursor:pointer" data-con-click="${c.id}"
+      data-con-polaridad="fase" data-con-lado="arriba"/>
+    <circle cx="${x+offNeutro}" cy="${y0}" r="3.5" fill="${COLOR_POLARIDAD.neutro}"
+      style="pointer-events:all;cursor:pointer" data-con-click="${c.id}"
+      data-con-polaridad="neutro" data-con-lado="arriba"/>
+    <circle cx="${x+offFase}" cy="${y1}" r="3.5" fill="${COLOR_POLARIDAD.fase}"
+      style="pointer-events:all;cursor:pointer" data-con-click="${c.id}"
+      data-con-polaridad="fase" data-con-lado="abajo"/>
+    <circle cx="${x+offNeutro}" cy="${y1}" r="3.5" fill="${COLOR_POLARIDAD.neutro}"
+      style="pointer-events:all;cursor:pointer" data-con-click="${c.id}"
+      data-con-polaridad="neutro" data-con-lado="abajo"/>
     <g transform="translate(${x-ancho/2},${cy-alto/2})" style="pointer-events:all;cursor:pointer"
       data-con-click="${c.id}">${svgConectorPeine(ancho, alto)}</g>
   </svg>`;
@@ -933,7 +967,7 @@ function cablearGabinete(){
     actualizarPreviewCable(ev.clientX - rect.left, ev.clientY - rect.top);
   });
   document.querySelectorAll('[data-con-click]').forEach(n => n.addEventListener('click', ev => {
-    ev.stopPropagation(); clicConexion(n.dataset.conClick, n.dataset.conPolaridad);
+    ev.stopPropagation(); clicConexion(n.dataset.conClick, n.dataset.conPolaridad, n.dataset.conLado);
   }));
   document.querySelectorAll('[data-editar-cano]').forEach(n => n.addEventListener('click', ev => {
     ev.stopPropagation();
@@ -1071,14 +1105,7 @@ function manejarClicHerramienta(ev){
   if(herramienta.tipo === 'puente'){
     const piso = Math.max(0, Math.min(t.pisos - 1, Math.floor((y - FRANJA_CANO) / ALTURA_PISO)));
     const xBoca = Math.max(0, Math.min(t.bocasPorPiso - 1, Math.floor((x - CANAL) / CELDA)));
-    if(!herramienta.paso1){
-      herramienta.paso1 = {piso, x: xBoca};
-      pintarGabinete();
-      return;
-    }
-    const origen = herramienta.paso1;
-    herramienta.paso1 = null;
-    crearPuente(origen.piso, origen.x, piso);
+    avanzarPuente(piso, xBoca);
     return;
   }
 
@@ -1213,6 +1240,16 @@ async function crearPeine(piso, desde, hasta){
     toast('Peine creado');
   }catch(e){ toast(e.message); pintarGabinete(); }
 }
+function avanzarPuente(piso, xBoca){
+  if(!herramienta.paso1){
+    herramienta.paso1 = {piso, x: xBoca};
+    pintarGabinete();
+    return;
+  }
+  const origen = herramienta.paso1;
+  herramienta.paso1 = null;
+  crearPuente(origen.piso, origen.x, piso);
+}
 async function crearPuente(pisoOrigen, x, pisoDestino){
   const t = tableroActivo();
   try{
@@ -1222,13 +1259,22 @@ async function crearPuente(pisoOrigen, x, pisoDestino){
     toast('Conector agregado');
   }catch(e){ toast(e.message); pintarGabinete(); }
 }
-async function clicConexion(id, polaridad){
+async function clicConexion(id, polaridad, lado){
   const t = tableroActivo();
   const con = (t.conexiones||[]).find(c=>c.id===id);
   if(!con) return;
   if(herramienta.tipo === 'cable'){
     if(con.tipo === 'peine') manejarEndpointHerramienta({tipo:'peine', id, polaridad: polaridad || 'fase'});
-    return;   // un puente no es un extremo válido; en modo cable no se borra nada con un click
+    else if(con.tipo === 'puente' && polaridad)
+      manejarEndpointHerramienta({tipo:'puente', id, polaridad, lado: lado || 'arriba'});
+    return;
+  }
+  if(herramienta.tipo === 'puente' && con.tipo === 'peine'){
+    // anclar la creación del puente a un peine ya puesto, en vez de exigir
+    // un click preciso en un punto vacío de la banda
+    const xBoca = Math.round((con.desde + con.hasta + 1) / 2);
+    avanzarPuente(con.piso, xBoca);
+    return;
   }
   if(herramienta.tipo === 'peine' || herramienta.tipo === 'puente') return;
   if(!confirm('¿Quitar esta conexión?')) return;

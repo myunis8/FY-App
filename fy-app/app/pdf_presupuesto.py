@@ -26,10 +26,23 @@ def _marca_de_agua(pg, cfg: dict):
     ruta = cfgmod.ruta_imagen("marca")
     if ruta is None or ruta.suffix.lower() == ".svg":
         return
-    op = max(0.02, min(0.4, (cfg.get("opacidadMarca") or 8) / 100))
-    lado = 340
-    rect = pymupdf.Rect((ANCHO - lado) / 2, (ALTO - lado) / 2 - 40,
-                        (ANCHO + lado) / 2, (ALTO + lado) / 2 - 40)
+    op = max(0.02, min(0.5, (cfg.get("opacidadMarca") or 14) / 100))
+    # el ancho/alto real del logo importa: forzarlo a un recuadro cuadrado
+    # deforma cualquier logo que no sea 1:1 (la mayoría no lo son).
+    try:
+        pix = pymupdf.Pixmap(str(ruta))
+        aspecto = pix.width / max(pix.height, 1)
+    except Exception:
+        aspecto = 1.0
+    ancho = ANCHO * 0.74                       # bastante más grande que antes
+    alto = ancho / aspecto if aspecto > 0 else ancho
+    alto_max = ALTO * 0.46                     # no invade encabezado ni pie
+    if alto > alto_max:
+        alto = alto_max
+        ancho = alto * aspecto
+    x0 = (ANCHO - ancho) / 2
+    y0 = (ALTO - alto) / 2
+    rect = pymupdf.Rect(x0, y0, x0 + ancho, y0 + alto)
     pg.insert_image(rect, filename=str(ruta), overlay=True, alpha=op)
 
 

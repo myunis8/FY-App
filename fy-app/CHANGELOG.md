@@ -3,6 +3,31 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 0.13.0 — ruteo vertical primero, conector con polaridad, marca de agua corregida
+
+- **El cable ahora sale recto en vertical y recién al final dobla**, no al
+  revés. Todo nodo de este tablero (un tramo de caño, el polo de un
+  dispositivo, el propio conector) sale físicamente en vertical; salir
+  doblando en horizontal justo al lado del nodo era lo que se sentía raro.
+- **El conector entre pisos, mejorado de fondo**: antes era una sola línea
+  gris sin polaridad, y crearlo exigía tocar un punto vacío exacto en la
+  banda (impreciso). Ahora:
+  - Lleva fase y neutro por separado, con sus propios nodos arriba y abajo,
+    igual que un peine.
+  - Es un extremo válido de cable: se puede cablear un peine a un conector,
+    un conector a otro conector, siempre con la misma verificación de
+    cortocircuito que todo lo demás.
+  - Se puede anclar tocando un peine ya puesto (usa su centro exacto), en vez
+    de sólo aceptar un click a ciegas en la banda vacía.
+- **Marca de agua corregida**: se forzaba a un recuadro cuadrado, así que
+  cualquier logo que no fuera 1:1 quedaba deformado. Ahora se lee la
+  proporción real de la imagen y se respeta. También bastante más grande
+  (74% del ancho de la hoja) y algo más visible por defecto (14% en vez de
+  8%), pensado para logos con trazo fino como el que se probó.
+- Validado con Node (el ruteo) y contra el servidor real (conector con
+  polaridad, cortocircuito entre dos conectores, proporción del logo real
+  preservada 2051×1576 → 1.30).
+
 ## 0.12.0 — ruteo en vivo, saltos de cruce, y arreglo del desconecte en los caños
 
 - **Ruteo en vivo, como un diseñador de PCB**: desde el último punto puesto,

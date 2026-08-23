@@ -236,6 +236,13 @@ def _polaridad_endpoint(tablero: dict, ep: dict) -> str | None:
             return None
         pol = ep.get("polaridad")
         return pol if pol in ("fase", "neutro") else None
+    if tipo == "puente":
+        puente = next((c for c in tablero.get("conexiones") or []
+                       if c["id"] == ep.get("id") and c["tipo"] == "puente"), None)
+        if puente is None:
+            return None
+        pol = ep.get("polaridad")
+        return pol if pol in ("fase", "neutro") else None
     return None
 
 
