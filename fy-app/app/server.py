@@ -75,11 +75,13 @@ class Handler(BaseHTTPRequestHandler):
             if len(partes) == 6 and partes[:2] == ["api", "obras"] and partes[3] == "tableros" and partes[5] == "puente":
                 return self._crear_puente(partes[2], partes[4])
             if len(partes) == 6 and partes[:2] == ["api", "obras"] and partes[3] == "tableros" and partes[5] == "canos":
-                return self._asignar_cano(partes[2], partes[4])
+                return self._agregar_entrada_cano(partes[2], partes[4])
+            if len(partes) == 7 and partes[:2] == ["api", "obras"] and partes[3] == "tableros" and partes[5] == "canos":
+                return self._editar_entrada_cano(partes[2], partes[4], partes[6])
+            if len(partes) == 8 and partes[:2] == ["api", "obras"] and partes[3] == "tableros" and partes[5] == "canos" and partes[7] == "mover":
+                return self._mover_entrada_cano(partes[2], partes[4], partes[6])
             if len(partes) == 6 and partes[:2] == ["api", "obras"] and partes[3] == "tableros" and partes[5] == "cables":
                 return self._crear_cable(partes[2], partes[4])
-            if len(partes) == 6 and partes[:2] == ["api", "obras"] and partes[3] == "tableros" and partes[5] == "secciones-cano":
-                return self._cambiar_secciones(partes[2], partes[4])
             if len(partes) == 5 and partes[:2] == ["api", "obras"] and partes[3] == "tableros":
                 return self._sincronizar_tablero(partes[2], partes[4])
             return self._api_post(ruta)
@@ -132,7 +134,7 @@ class Handler(BaseHTTPRequestHandler):
             if t is None:
                 return self._error("Ese tablero no existe.", 404)
             t.setdefault("canos", []); t.setdefault("cables", [])
-            ok = tablero_mod.liberar_cano(t, partes[6])
+            ok = tablero_mod.eliminar_entrada_cano(t, partes[6])
             almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
             return self._json({"ok": ok})
         if len(partes) == 7 and partes[:2] == ["api", "obras"] and partes[3] == "tableros" and partes[5] == "cables":
@@ -424,7 +426,7 @@ class Handler(BaseHTTPRequestHandler):
         almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
         return self._json({"ok": True, "puente": puente, "tablero": t})
 
-    def _asignar_cano(self, obra_id, tablero_id):
+    def _agregar_entrada_cano(self, obra_id, tablero_id):
         obra = almacen.leer_obra(obra_id)
         if obra is None:
             return self._error("Esa obra no está en este equipo.", 404)
@@ -432,32 +434,44 @@ class Handler(BaseHTTPRequestHandler):
         if t is None:
             return self._error("Ese tablero no existe.", 404)
         t.setdefault("canos", []); t.setdefault("cables", [])
-        t.setdefault("seccionesCano", {"arriba": 3, "abajo": 3})
         cuerpo = self._cuerpo()
         circ = next((c for c in obra.get("circuitos") or [] if c["id"] == cuerpo.get("circuitoId")), None)
-        cano, msg = tablero_mod.asignar_cano(t, cuerpo.get("lado"), cuerpo.get("seccion"),
-                                            cuerpo.get("tipo"), cuerpo.get("circuitoId"),
-                                            circ.get("tipo") if circ else None)
+        cano, msg = tablero_mod.agregar_entrada_cano(t, cuerpo.get("lado"), cuerpo.get("tipo"),
+                                                     cuerpo.get("circuitoId"),
+                                                     circ.get("tipo") if circ else None)
         if cano is None:
             return self._error(msg)
         almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
         return self._json({"ok": True, "cano": cano, "tablero": t})
 
-    def _cambiar_secciones(self, obra_id, tablero_id):
+    def _editar_entrada_cano(self, obra_id, tablero_id, cano_id):
         obra = almacen.leer_obra(obra_id)
         if obra is None:
             return self._error("Esa obra no está en este equipo.", 404)
         t = next((x for x in obra.get("tableros") or [] if x["id"] == tablero_id), None)
         if t is None:
             return self._error("Ese tablero no existe.", 404)
-        t.setdefault("seccionesCano", {"arriba": 3, "abajo": 3})
         cuerpo = self._cuerpo()
-        try:
-            n = int(cuerpo.get("n", 3))
-        except (TypeError, ValueError):
-            return self._error("La cantidad de bocas tiene que ser un número.")
-        if not tablero_mod.cambiar_secciones(t, cuerpo.get("lado"), n):
-            return self._error("No se pudo cambiar la cantidad de bocas de caño.")
+        circ = next((c for c in obra.get("circuitos") or [] if c["id"] == cuerpo.get("circuitoId")), None)
+        cano, msg = tablero_mod.editar_entrada_cano(t, cano_id, cuerpo.get("tipo"),
+                                                    cuerpo.get("circuitoId"),
+                                                    circ.get("tipo") if circ else None)
+        if cano is None:
+            return self._error(msg)
+        almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
+        return self._json({"ok": True, "cano": cano, "tablero": t})
+
+    def _mover_entrada_cano(self, obra_id, tablero_id, cano_id):
+        obra = almacen.leer_obra(obra_id)
+        if obra is None:
+            return self._error("Esa obra no está en este equipo.", 404)
+        t = next((x for x in obra.get("tableros") or [] if x["id"] == tablero_id), None)
+        if t is None:
+            return self._error("Ese tablero no existe.", 404)
+        cuerpo = self._cuerpo()
+        ok, msg = tablero_mod.mover_entrada_cano(t, cano_id, int(cuerpo.get("direccion", 1)))
+        if not ok:
+            return self._error(msg)
         almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
         return self._json({"ok": True, "tablero": t})
 

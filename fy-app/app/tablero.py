@@ -73,8 +73,7 @@ def tablero_nuevo(nombre: str, tipo: str, preset_id: str, fases: int) -> dict:
         "alimentaDesde": None,           # {tableroId, dispositivoId} si es seccional
         "dispositivos": dispositivos,
         "conexiones": [],                # peines (bus por piso) y puentes (entre pisos)
-        "seccionesCano": {"arriba": 3, "abajo": 3},   # cantidad de bocas de caño fijas
-        "canos": [],                      # qué entra por cada boca de caño
+        "canos": [],                      # entradas de circuito/acometida/tierra, se van agregando
         "cables": [],                     # conexión entre dos puntos: caño, peine o nodo de un dispositivo
         "notas": [],
     }
@@ -83,11 +82,12 @@ def tablero_nuevo(nombre: str, tipo: str, preset_id: str, fases: int) -> dict:
 TIPOS_CANO = ("acometida", "circuito", "tierra")
 
 
-def asignar_cano(tablero: dict, lado: str, seccion: int, tipo: str,
-                 circuito_id=None, circuito_tipo=None):
-    """Cada boca de caño es un lugar fijo (no una posición libre): 'seccion'
-    es el índice de la boca dentro de esa cantidad. Tocar una boca ya asignada
-    la reemplaza, no crea una segunda.
+def agregar_entrada_cano(tablero: dict, lado: str, tipo: str,
+                        circuito_id=None, circuito_tipo=None):
+    """Una boca de caño ya no es un lugar fijo entre N posibles: se agrega
+    una entrada por vez, en el orden en que se van creando los circuitos, y
+    se puede reordenar después. Así entran tantos circuitos como haga falta
+    por el mismo lado, sin un tope artificial.
 
     circuito_tipo (IUG/TUG/TUE/...) se guarda junto al caño para saber si ese
     circuito necesita también un conductor de tierra (TUG y TUE sí; el resto,
@@ -95,23 +95,46 @@ def asignar_cano(tablero: dict, lado: str, seccion: int, tipo: str,
     """
     if lado not in ("arriba", "abajo"):
         return None, "El caño entra por arriba o por abajo del tablero."
-    n = (tablero.get("seccionesCano") or {}).get(lado, 3)
-    if not (0 <= seccion < n):
-        return None, "Esa boca de caño no existe."
     if tipo not in TIPOS_CANO:
         return None, "Ese tipo de caño no existe."
     canos = tablero.setdefault("canos", [])
-    actual = next((c for c in canos if c["lado"] == lado and c["seccion"] == seccion), None)
-    if actual:
-        actual["tipo"] = tipo
-        actual["circuitoId"] = circuito_id if tipo == "circuito" else None
-        actual["circuitoTipo"] = circuito_tipo if tipo == "circuito" else None
-        return actual, ""
-    c = {"id": _id("cano"), "tipo": tipo, "lado": lado, "seccion": seccion,
+    orden = sum(1 for c in canos if c["lado"] == lado)   # se agrega al final de esa fila
+    c = {"id": _id("cano"), "tipo": tipo, "lado": lado, "orden": orden,
         "circuitoId": circuito_id if tipo == "circuito" else None,
         "circuitoTipo": circuito_tipo if tipo == "circuito" else None}
     canos.append(c)
     return c, ""
+
+
+def editar_entrada_cano(tablero: dict, cano_id: str, tipo: str,
+                        circuito_id=None, circuito_tipo=None):
+    """Cambia qué es una entrada ya puesta, sin tocar su posición ni sus cables."""
+    cano = next((c for c in tablero.get("canos") or [] if c["id"] == cano_id), None)
+    if cano is None:
+        return None, "Esa entrada no existe."
+    if tipo not in TIPOS_CANO:
+        return None, "Ese tipo de caño no existe."
+    cano["tipo"] = tipo
+    cano["circuitoId"] = circuito_id if tipo == "circuito" else None
+    cano["circuitoTipo"] = circuito_tipo if tipo == "circuito" else None
+    return cano, ""
+
+
+def mover_entrada_cano(tablero: dict, cano_id: str, direccion: int) -> tuple[bool, str]:
+    """Reordena de izquierda a derecha dentro de su mismo lado. direccion es
+    -1 (una posición a la izquierda) o +1 (a la derecha)."""
+    canos = tablero.get("canos") or []
+    objetivo = next((c for c in canos if c["id"] == cano_id), None)
+    if objetivo is None:
+        return False, "Esa entrada no existe."
+    hermanos = sorted([c for c in canos if c["lado"] == objetivo["lado"]], key=lambda c: c["orden"])
+    idx = hermanos.index(objetivo)
+    vecino_idx = idx + (1 if direccion > 0 else -1)
+    if not (0 <= vecino_idx < len(hermanos)):
+        return False, "Ya está en la punta."
+    vecino = hermanos[vecino_idx]
+    objetivo["orden"], vecino["orden"] = vecino["orden"], objetivo["orden"]
+    return True, ""
 
 
 TIPOS_CON_TIERRA = ("TUG", "TUE")   # a estos circuitos se les suma el conductor de tierra
@@ -144,24 +167,21 @@ def polaridad_de_polo(d: dict, polo: int) -> str:
     return "fase"
 
 
-def liberar_cano(tablero: dict, cano_id: str) -> bool:
+def eliminar_entrada_cano(tablero: dict, cano_id: str) -> bool:
     canos = tablero.get("canos") or []
-    n = len(canos)
+    objetivo = next((c for c in canos if c["id"] == cano_id), None)
+    if objetivo is None:
+        return False
+    lado, orden_borrado = objetivo["lado"], objetivo["orden"]
     tablero["canos"] = [c for c in canos if c["id"] != cano_id]
+    for c in tablero["canos"]:                    # se corre el orden de los que quedaron atrás
+        if c["lado"] == lado and c["orden"] > orden_borrado:
+            c["orden"] -= 1
     tablero["cables"] = [cb for cb in tablero.get("cables") or []
                          if not _endpoint_es_cano(cb.get("origen"), cano_id)
                          and not _endpoint_es_cano(cb.get("destino"), cano_id)]
-    return len(tablero["canos"]) < n
-
-
-def cambiar_secciones(tablero: dict, lado: str, n: int) -> bool:
-    if lado not in ("arriba", "abajo") or n < 1:
-        return False
-    tablero.setdefault("seccionesCano", {"arriba": 3, "abajo": 3})[lado] = n
-    # las bocas que quedaron fuera de rango se liberan, con sus cables
-    for c in [c for c in tablero.get("canos") or [] if c["lado"] == lado and c["seccion"] >= n]:
-        liberar_cano(tablero, c["id"])
     return True
+
 
 
 def _endpoint_es_cano(ep, cano_id) -> bool:

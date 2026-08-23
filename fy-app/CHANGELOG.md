@@ -3,6 +3,23 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 0.11.0 — caños sin límite fijo, cables ortogonales, Escape y Delete
+
+- **Se saca el concepto de "N bocas fijas"**: ahora se van agregando entradas
+  una por una (Acometida, Jabalina, o cualquier circuito ya creado), tantas
+  como haga falta por el mismo lado — más de un circuito puede entrar por
+  arriba o por abajo sin ningún tope artificial. Cada entrada se puede mover
+  de izquierda a derecha con las flechitas ◀▶, y editarse o eliminarse
+  tocándola de nuevo.
+- **Cables siempre ortogonales**: ya no hay líneas inclinadas. Cualquier
+  segmento entre dos puntos (el origen, un punto intermedio que se toque, o
+  el destino) se dibuja en escuadra — horizontal y después vertical — tanto
+  en el cable final como en la vista previa mientras se traza.
+- **Escape vuelve a la herramienta Mover**, sea cual sea la que esté activa.
+- **Seleccionar y borrar un cable con Delete**: tocar un cable ya no lo borra
+  al toque — lo selecciona (se resalta punteado en cobre) y recién se quita
+  al apretar Delete o Backspace. Escape también lo deselecciona.
+
 ## 0.10.1 — el cableado se tapaba con todo, no sólo con las térmicas
 
 - **Encontrado el error real**: al poner el cableado "por detrás" en 0.10.0,
