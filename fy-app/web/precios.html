@@ -162,12 +162,18 @@ function actualizarTotalizador(){
     (lista.actualizadoEl ? ` · actualizada ${new Date(lista.actualizadoEl).toLocaleDateString('es-AR')}` : '');
 }
 $('b-agregar').onclick = () => {
-  const cat = $('f-cat').value || 'Otros';
+  let cat = $('f-cat').value;
+  if(!cat){
+    const elegida = prompt('¿En qué categoría va? Elegí una:\n' + CATEGORIAS.join(', '), CATEGORIAS[0]);
+    if(!elegida) return;
+    cat = CATEGORIAS.find(c => c.toLowerCase() === elegida.trim().toLowerCase()) || elegida.trim();
+  }
   lista.items.push({id:'pr_'+Date.now().toString(36), categoria:cat,
                     item:'Ítem nuevo', unidad:'u', precio:0, orden:itemsDeCategoria(cat).length});
   pintar();
   const filas = $('cuerpo').querySelectorAll('tr[data-id] input[data-c="item"]');
   filas[filas.length-1]?.focus();
+  toast(`Agregado en "${cat}" — editá el nombre y el precio, y no te olvides de Guardar.`);
 };
 $('b-ajustar').onclick = () => {
   const p = parseFloat($('i-ajuste').value);

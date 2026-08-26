@@ -3,6 +3,32 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 0.18.0 — el PDF del tablero rehecho con detalle real, y ajustes finos
+
+- **El PDF del tablero, rehecho de fondo**: la entrega anterior lo simplificó
+  demasiado (rectángulos lisos), justo lo contrario de lo pedido. Ahora usa
+  el mismo lenguaje visual que el editor interactivo — tornillos con cruz o
+  más, ventana con el nombre del circuito, teclas de la térmica, Δ y botón de
+  test del diferencial, display del protector, terminales de la bornera — y
+  el mismo ruteo de cables en escuadra con salto donde dos se cruzan (antes
+  eran líneas rectas cruzándose sin ningún criterio).
+- En el camino se encontró un bug de verdad: `insert_textbox` no dibuja nada
+  si la caja es más angosta que el texto (fallaba en silencio), por eso las
+  ventanas de las térmicas se veían vacías en el primer intento. Se cambió
+  por un centrado manual con `insert_text` que siempre dibuja.
+- **Marca de agua, otra vez ajustada**: 4,5% quedó casi invisible ahora que
+  la opacidad se aplica de verdad (antes el bug del parámetro la dejaba
+  siempre opaca, así que un número bajo no se notaba). 12% es un punto medio
+  genuinamente visible. Además, en vez de "piso" o "techo" —que se rompían
+  cada vez que cambiaba el default—, ahora se detecta si el valor guardado es
+  uno de mis propios defaults de una entrega anterior (8, 14, 16, 4.5) y en
+  ese caso se reemplaza por el vigente; un valor puesto a mano por el usuario
+  se respeta tal cual.
+- **Agregar ítem a la lista de precios, corregido**: si no había una
+  categoría elegida en el filtro (que por defecto dice "Todas"), el ítem
+  nuevo caía en "Otros" sin avisar — parecía que el botón no hacía nada.
+  Ahora pregunta la categoría si hace falta, y confirma con un aviso.
+
 ## 0.17.0 — exportar el tablero a PDF, y el bug de fondo de la marca de agua
 
 - **Exportar el tablero a PDF**, con dos páginas: una de conexionado a color

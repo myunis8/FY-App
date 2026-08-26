@@ -24,10 +24,12 @@ GAP_CAT_A_TABLA = 12
 GAP_TABLA_A_CAT = 18
 FIELD_LINEA = 16
 
-# tamaño y alpha de la marca de agua: más grande y más translúcida que la
-# referencia original a pedido explícito (la referencia daba 55%/7%).
+# tamaño y alpha de la marca de agua: 4.5% quedó casi invisible ahora que la
+# opacidad se aplica de verdad (antes el bug del parámetro alpha= la dejaba
+# siempre opaca, así que un número bajo no se notaba). 12% es un punto medio
+# genuinamente visible sin tapar el contenido.
 MARCA_FRACCION_ANCHO = 0.8
-MARCA_ALPHA = 0.045
+MARCA_ALPHA = 0.12
 LOGO_LADO = 46
 LOGO_MARGEN_DER = 40
 LOGO_MARGEN_SUP = 24
@@ -51,9 +53,18 @@ def _marca_de_agua(pg, cfg: dict):
     # pusiera acá. Esta vez el pedido es "más traslúcido" (mas bajo), así que
     # el límite tiene que ser un TECHO, no un piso — el resultado nunca puede
     # ser más visible que MARCA_ALPHA, pase lo que pase con lo guardado.
+    # Iba por el tercer round de "piso" y "techo" y seguía rompiéndose cada
+    # vez que cambiaba el default: si el usuario nunca tocó el control, lo
+    # que hay guardado es un default MÍO de una entrega anterior (8, 14, 16,
+    # 4.5...), no una elección real. En vez de acotar el valor, detecto esos
+    # números puntuales y los reemplazo por el default vigente. Si el
+    # usuario puso otro número explícito, se respeta tal cual.
+    _DEFAULTS_VIEJOS = {8, 14, 16, 4.5, 4, 5}
     guardado = cfg.get("opacidadMarca")
-    op = MARCA_ALPHA if guardado is None else min(float(guardado) / 100, MARCA_ALPHA)
-    op = max(0.01, op)
+    if guardado is None or float(guardado) in _DEFAULTS_VIEJOS:
+        op = MARCA_ALPHA
+    else:
+        op = max(0.01, min(0.6, float(guardado) / 100))
     ancho = ANCHO * MARCA_FRACCION_ANCHO
     alto = ancho / aspecto if aspecto > 0 else ancho
     x0 = (ANCHO - ancho) / 2
