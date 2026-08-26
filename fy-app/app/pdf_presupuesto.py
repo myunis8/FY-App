@@ -1,7 +1,9 @@
-"""Genera el PDF de presupuesto con PyMuPDF: logo, marca de agua, ítems y totales.
-
-No se suma ninguna librería nueva: PyMuPDF ya es una dependencia del extractor
-y alcanza para maquetar texto e imágenes en un PDF simple.
+"""Genera el PDF de presupuesto con PyMuPDF, con un formato fijo y exacto:
+el mismo que ya se usó y se validó, para no estar cambiando de formato entre
+una entrega y la siguiente. Los números de esta plantilla (posiciones,
+tamaños, colores, alpha de la marca de agua) se sacaron directo de un PDF de
+referencia ya aprobado, leyendo su contenido con PyMuPDF en vez de calcular
+a ojo desde una captura de pantalla.
 """
 from __future__ import annotations
 import io
@@ -9,162 +11,207 @@ from datetime import datetime
 import pymupdf
 from . import config as cfgmod, precios as precios_mod, presupuesto as pres_mod
 
-ANCHO, ALTO = 595, 842                      # A4 en puntos
-MARGEN = 46
+ANCHO, ALTO = 595.28, 841.89                # A4 en puntos, igual que la referencia
+MARGEN = 40
 NAVY = (0x16/255, 0x28/255, 0x3f/255)
-COPPER = (0xb5/255, 0x65/255, 0x1d/255)
-MUTED = (0x5b/255, 0x6b/255, 0x7a/255)
-LINE = (0xdd/255, 0xe3/255, 0xe2/255)
-INK = (0x1c/255, 0x27/255, 0x33/255)
+FIELD_COLOR = (0x28/255, 0x28/255, 0x28/255)
+ITEM_COLOR = (0x50/255, 0x50/255, 0x50/255)
+FOOTER_COLOR = (0x6e/255, 0x6e/255, 0x6e/255)
+ZEBRA = (0.95, 0.95, 0.95)
+
+FILA_ALTO = 20.35
+GAP_CAT_A_TABLA = 12
+GAP_TABLA_A_CAT = 18
+FIELD_LINEA = 16
+
+# tamaño y posición de la marca de agua y el logo: sacados de un PDF de
+# referencia ya aprobado (leídos con PyMuPDF, no estimados a ojo).
+MARCA_FRACCION_ANCHO = 0.55                 # ~327pt de 595pt de hoja
+MARCA_ALPHA = 0.07
+LOGO_LADO = 46
+LOGO_MARGEN_DER = 40
+LOGO_MARGEN_SUP = 24
 
 
 def _plata(n: float) -> str:
-    return f"$ {n:,.0f}".replace(",", ".")
+    return f"$ {n:,.2f}".replace(",", "@").replace(".", ",").replace("@", ".")
 
 
 def _marca_de_agua(pg, cfg: dict):
     ruta = cfgmod.ruta_imagen("marca")
     if ruta is None or ruta.suffix.lower() == ".svg":
         return
-    # OJO: "cfg.get(...) or 16" no sirve de piso si ya hay un valor guardado
-    # en disco (8 es "truthy" en Python, así que nunca caía al default nuevo).
-    # Por eso el cambio de la entrega anterior no se notaba: quien ya había
-    # tocado la configuración seguía con el valor viejo de siempre. El piso
-    # de abajo tiene que ser incondicional.
-    op = max(0.16, min(0.55, (cfg.get("opacidadMarca") or 16) / 100))
-    # el ancho/alto real del logo importa: forzarlo a un recuadro cuadrado
-    # deforma cualquier logo que no sea 1:1 (la mayoría no lo son).
     try:
         pix = pymupdf.Pixmap(str(ruta))
         aspecto = pix.width / max(pix.height, 1)
     except Exception:
         aspecto = 1.0
-    ancho = ANCHO * 0.86                       # bien grande, no sutil
+    op = max(0.02, min(0.6, (cfg.get("opacidadMarca") if cfg.get("opacidadMarca") is not None
+                             else MARCA_ALPHA * 100) / 100))
+    ancho = ANCHO * MARCA_FRACCION_ANCHO
     alto = ancho / aspecto if aspecto > 0 else ancho
-    alto_max = ALTO * 0.58
-    if alto > alto_max:
-        alto = alto_max
-        ancho = alto * aspecto
     x0 = (ANCHO - ancho) / 2
-    y0 = (ALTO - alto) / 2
+    y0 = (ALTO - alto) / 2                  # centrada exacto, como en la referencia
     rect = pymupdf.Rect(x0, y0, x0 + ancho, y0 + alto)
     pg.insert_image(rect, filename=str(ruta), overlay=True, alpha=op)
 
 
-def _encabezado(pg, obra: dict, cfg: dict) -> float:
-    y = MARGEN
+def _logo(pg):
     ruta = cfgmod.ruta_imagen("logo")
-    if ruta is not None and ruta.suffix.lower() != ".svg":
+    if ruta is None or ruta.suffix.lower() == ".svg":
+        return
+    try:
         pix = pymupdf.Pixmap(str(ruta))
-        alto_logo = 46
-        ancho_logo = alto_logo * pix.width / max(pix.height, 1)
-        pg.insert_image(pymupdf.Rect(MARGEN, y, MARGEN + ancho_logo, y + alto_logo),
-                        filename=str(ruta))
-        x_texto = MARGEN + ancho_logo + 16
-    else:
-        x_texto = MARGEN
-    empresa = cfg.get("empresa") or ""
-    if empresa:
-        pg.insert_text((x_texto, y + 16), empresa, fontsize=13,
-                       fontname="hebo", color=NAVY)
-    contacto = cfg.get("contacto") or ""
-    if contacto:
-        pg.insert_text((x_texto, y + 32), contacto, fontsize=8, color=MUTED)
-
-    fecha = datetime.now().strftime("%d/%m/%Y")
-    pg.insert_text((ANCHO - MARGEN - 130, y + 10), "PRESUPUESTO",
-                   fontsize=15, fontname="hebo", color=NAVY)
-    pg.insert_text((ANCHO - MARGEN - 130, y + 26), f"Fecha: {fecha}", fontsize=8, color=MUTED)
-    pg.insert_text((ANCHO - MARGEN - 130, y + 38),
-                   f"Obra: {obra['obra'].get('nombre','')}"[:40], fontsize=8, color=MUTED)
-    if obra["obra"].get("cliente"):
-        pg.insert_text((ANCHO - MARGEN - 130, y + 50),
-                       f"Cliente: {obra['obra']['cliente']}"[:40], fontsize=8, color=MUTED)
-
-    y2 = y + 62
-    pg.draw_line((MARGEN, y2), (ANCHO - MARGEN, y2), color=LINE, width=0.8)
-    return y2 + 20
+        aspecto = pix.width / max(pix.height, 1)
+    except Exception:
+        aspecto = 1.0
+    alto = LOGO_LADO
+    ancho = alto * aspecto
+    x0 = ANCHO - LOGO_MARGEN_DER - ancho
+    y0 = LOGO_MARGEN_SUP
+    pg.insert_image(pymupdf.Rect(x0, y0, x0 + ancho, y0 + alto), filename=str(ruta))
 
 
-def _tabla(pg, y: float, titulo: str, items: list[dict]) -> float:
+def _encabezado(pg, obra: dict, cfg: dict) -> float:
+    """Título, logo arriba a la derecha, y los datos de la obra en una lista
+    simple de campo: valor. Sin bloque de empresa/contacto superpuesto: eso
+    ya lo dice el logo."""
+    _logo(pg)
+    pg.insert_text((MARGEN, 50), "Presupuesto - Instalación Eléctrica",
+                   fontsize=18, fontname="hebo", color=NAVY)
+
+    campos = [
+        ("Cliente:", obra["obra"].get("cliente") or "—"),
+        ("Obra / dirección:", obra["obra"].get("nombre") or "—"),
+        ("Fecha:", datetime.now().strftime("%d/%m/%Y")),
+        ("Tipo de instalación:",
+         "Trifásica" if obra["obra"].get("tipoInstalacion") == 3 else "Monofásica"),
+    ]
+    y = 78
+    for etiqueta, valor in campos:
+        pg.insert_text((MARGEN, y), etiqueta, fontsize=10, fontname="hebo", color=FIELD_COLOR)
+        pg.insert_text((MARGEN + 130, y), str(valor)[:60], fontsize=10, color=FIELD_COLOR)
+        y += FIELD_LINEA
+    return y + 26                            # arranca la primera categoría acá
+
+
+def _ancho_columna_item(items: list[dict]) -> float:
+    max_w = max((pymupdf.get_text_length(str(i.get("item") or ""), fontname="helv", fontsize=9)
+                for i in items), default=100)
+    return max(130.0, min(280.0, max_w + 80))
+
+
+def _tabla_categoria(pg, y: float, categoria: str, items: list[dict]) -> float:
+    """Una tabla por categoría, como Puntos / Tomas / Iluminación / etc.
+    Columna de ítem adaptable al texto más largo; el resto, proporcional."""
     if not items:
         return y
-    pg.insert_text((MARGEN, y), titulo, fontsize=10, fontname="hebo", color=NAVY)
-    y += 14
-    cols = [MARGEN, MARGEN + 260, MARGEN + 320, MARGEN + 400, ANCHO - MARGEN]
-    pg.draw_rect(pymupdf.Rect(MARGEN, y, ANCHO - MARGEN, y + 16),
-                color=None, fill=(0.93, 0.95, 0.95))
-    heads = ["Ítem", "Cant.", "Unitario", "Subtotal"]
-    for h, x in zip(heads, cols[:-1]):
-        pg.insert_text((x + 4, y + 11), h, fontsize=7.4, fontname="hebo", color=MUTED)
-    y += 16
-    for it in items:
-        if y > ALTO - 140:
-            return y                        # se corta acá; el llamador pagina
+    x0, x1 = MARGEN, ANCHO - MARGEN
+    ancho_total = x1 - x0
+    col_item = _ancho_columna_item(items)
+    resto = ancho_total - col_item
+    col_unidad = resto * 0.14
+    col_cant = resto * 0.14
+    col_precio = resto * 0.32
+    col_subtotal = resto - col_unidad - col_cant - col_precio
+
+    xs = [x0, x0 + col_item, x0 + col_item + col_unidad,
+         x0 + col_item + col_unidad + col_cant,
+         x0 + col_item + col_unidad + col_cant + col_precio, x1]
+
+    pg.insert_text((x0, y), categoria, fontsize=11, fontname="hebo", color=NAVY)
+    y += GAP_CAT_A_TABLA
+
+    pg.draw_rect(pymupdf.Rect(x0, y, x1, y + FILA_ALTO), color=None, fill=NAVY)
+    heads = ["Ítem", "Unidad", "Cant.", "P. Unitario", "Subtotal"]
+    for i, h in enumerate(heads):
+        pg.insert_text((xs[i] + 5, y + FILA_ALTO - 6), h, fontsize=9, fontname="hebo",
+                       color=(1, 1, 1))
+    y += FILA_ALTO
+
+    for i, it in enumerate(items):
+        if y + FILA_ALTO > ALTO - 120:
+            return -y                        # negativo: aviso al llamador de que hay que paginar
+        fill = ZEBRA if i % 2 == 0 else (1, 1, 1)
+        pg.draw_rect(pymupdf.Rect(x0, y, x1, y + FILA_ALTO), color=None, fill=fill)
         sub = (it.get("precioUnitario") or 0) * (it.get("cantidad") or 0)
-        fila = [str(it.get("item") or "")[:52],
-               f'{it.get("cantidad",0):g} {it.get("unidad","u")}',
-               _plata(it.get("precioUnitario") or 0), _plata(sub)]
-        for val, x in zip(fila, cols[:-1]):
-            pg.insert_text((x + 4, y + 10), val, fontsize=8.2, color=INK)
-        y += 15
-        pg.draw_line((MARGEN, y - 3), (ANCHO - MARGEN, y - 3), color=LINE, width=0.4)
-    return y + 10
+        pg.insert_text((xs[0] + 5, y + FILA_ALTO - 6), str(it.get("item") or "")[:60],
+                       fontsize=9, color=ITEM_COLOR)
+        pg.insert_text((xs[1] + 5, y + FILA_ALTO - 6), str(it.get("unidad") or "u"),
+                       fontsize=9, color=ITEM_COLOR)
+        for valor, xd in ((f'{it.get("cantidad",0):g}', xs[3] - 5),
+                          (_plata(it.get("precioUnitario") or 0), xs[4] - 5),
+                          (_plata(sub), xs[5] - 5)):
+            w = pymupdf.get_text_length(valor, fontname="helv", fontsize=9)
+            pg.insert_text((xd - w, y + FILA_ALTO - 6), valor, fontsize=9, color=ITEM_COLOR)
+        y += FILA_ALTO
+    return y + GAP_TABLA_A_CAT
 
 
-def _totales(pg, y: float, tot: dict, desc: dict | None) -> float:
-    x0 = ANCHO - MARGEN - 210
-    filas = [("Subtotal trabajos", tot["subtotal"])]
-    if tot["extras"]:
-        filas.append(("Extras", tot["extras"]))
-    if tot["descuento"]:
-        etiqueta = "Descuento"
-        if desc and desc.get("motivo"):
-            etiqueta += f" ({desc['motivo']})"
-        filas.append((etiqueta, -tot["descuento"]))
-    if tot["ajuste"]:
-        filas.append(("Ajuste", tot["ajuste"]))
-    for k, v in filas:
-        pg.insert_text((x0, y), k, fontsize=8.6, color=MUTED)
-        pg.insert_text((ANCHO - MARGEN - 4, y), _plata(v), fontsize=8.6,
-                       color=INK, fontname="hebo")
-        y += 15
-    y += 4
-    pg.draw_line((x0, y), (ANCHO - MARGEN, y), color=INK, width=1.1)
-    y += 16
-    pg.insert_text((x0, y), "TOTAL", fontsize=12, fontname="hebo", color=NAVY)
-    pg.insert_text((ANCHO - MARGEN - 110, y), _plata(tot["total"]), fontsize=13,
-                   fontname="hebo", color=NAVY)
-    return y + 24
+def _footer(pg):
+    fecha = datetime.now().strftime("%d/%m/%Y")
+    texto = (f"Los valores originales de este presupuesto corresponden al día de su emisión "
+            f"({fecha}) y podrían sufrir modificaciones por inflación u\n"
+            "otras variaciones de costos hasta el momento de confirmar y ejecutar el trabajo.")
+    pg.insert_textbox(pymupdf.Rect(MARGEN, ALTO - 90, ANCHO - MARGEN, ALTO - 40), texto,
+                      fontsize=8.5, fontname="hebo-i" if False else "helv",
+                      color=FOOTER_COLOR, lineheight=1.35)
 
 
-def _pie(pg, n: int, total: int):
-    pg.insert_text((MARGEN, ALTO - 26), f"Página {n} de {total}", fontsize=7.4, color=MUTED)
-    pg.insert_text((ANCHO - MARGEN - 220, ALTO - 26),
-                   "Presupuesto sujeto a revisión de obra e insumos.",
-                   fontsize=7.4, color=MUTED)
+def _items_por_categoria(items: list[dict]) -> list[tuple[str, list[dict]]]:
+    orden = precios_mod.CATEGORIAS
+    agrupado: dict[str, list[dict]] = {}
+    for it in items:
+        cat = it.get("categoria") or "Otros"
+        agrupado.setdefault(cat, []).append(it)
+    salida = [(cat, agrupado[cat]) for cat in orden if cat in agrupado]
+    salida += [(cat, v) for cat, v in agrupado.items() if cat not in orden]
+    return salida
 
 
 def generar(obra: dict) -> bytes:
     cfg = cfgmod.leer_config()
     pres = obra.get("presupuesto") or {}
     tot = pres_mod.totales(pres)
-    items = [i for i in (pres.get("items") or []) if not i.get("opcional")]
-    extras = [i for i in (pres.get("extras") or []) if not i.get("opcional")]
+    items = [i for i in (pres.get("items") or []) + (pres.get("extras") or [])
+            if not i.get("opcional")]
     opcionales = [i for i in (pres.get("items") or []) + (pres.get("extras") or [])
-                  if i.get("opcional")]
+                 if i.get("opcional")]
 
     doc = pymupdf.open()
     pg = doc.new_page(width=ANCHO, height=ALTO)
     _marca_de_agua(pg, cfg)
     y = _encabezado(pg, obra, cfg)
-    y = _tabla(pg, y, "Trabajos", items)
-    y = _tabla(pg, y + 6, "Extras y adicionales", extras)
+
+    for cat, its in _items_por_categoria(items):
+        y = _tabla_categoria(pg, y, cat, its)
+        if y < 0:                            # se quedó sin lugar: pagina y sigue esa categoría
+            pg = doc.new_page(width=ANCHO, height=ALTO)
+            _marca_de_agua(pg, cfg)
+            y = MARGEN + 10
+            y = _tabla_categoria(pg, y, cat, its)
+
     if opcionales:
-        y = _tabla(pg, y + 6, "Opcionales (no incluidos en el total)", opcionales)
-    y = max(y + 10, ALTO - 190)
-    _totales(pg, y, tot, pres.get("descuento"))
-    _pie(pg, 1, 1)
+        if y > ALTO - 200:
+            pg = doc.new_page(width=ANCHO, height=ALTO)
+            _marca_de_agua(pg, cfg)
+            y = MARGEN + 10
+        for cat, its in _items_por_categoria(opcionales):
+            y = _tabla_categoria(pg, y, f"{cat} (opcional, no incluido en el total)", its)
+
+    if y > ALTO - 130:
+        pg = doc.new_page(width=ANCHO, height=ALTO)
+        _marca_de_agua(pg, cfg)
+        y = MARGEN + 20
+
+    pg.insert_text((MARGEN, y + 12), f"Subtotal instalación: {_plata(tot['subtotal'] + tot['extras'])}",
+                   fontsize=12, fontname="hebo", color=NAVY)
+    y += 12 + 26
+    pg.insert_text((MARGEN, y), f"TOTAL GENERAL: {_plata(tot['total'])}",
+                   fontsize=15, fontname="hebo", color=NAVY)
+
+    for pg2 in doc:
+        _footer(pg2)
 
     salida = io.BytesIO()
     doc.save(salida)

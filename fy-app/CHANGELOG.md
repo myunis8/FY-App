@@ -3,6 +3,36 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 0.16.0 — nodos alineados a los pines, formato de presupuesto fijo, tomas corregidas
+
+- **Nodo y cable ahora coinciden exacto**: el nodo se dibujaba fuera del
+  cuerpo de la térmica, y el cable conectaba al borde de la fila, no al
+  tornillo real dibujado adentro del esquema. Los dos puntos quedaban a unos
+  24px de distancia entre sí. Se unificó todo en una sola constante
+  (`MARGEN_PIN`), verificado con Node: nodo y punto de conexión dan
+  exactamente las mismas coordenadas.
+- **La grilla ahora sí es submúltiplo de la distancia entre pines**: había un
+  padding de ±2/4px en el ancho de cada térmica que rompía la alineación con
+  la grilla. Se sacó ese padding (el margen visual entre térmicas se pasó
+  adentro del propio dibujo SVG, sin tocar la posición de los tornillos) y
+  ahora la distancia entre pines da exactamente 64px — múltiplo limpio de la
+  grilla por defecto (8px).
+- **Entradas de circuito intercaladas**: cada entrada de caño alterna su
+  altura con la siguiente, simulando cómo entran los caños en la realidad
+  (unos más adelante, otros más atrás) tal como en la foto de referencia.
+- **Formato de presupuesto fijo**, leído directamente del PDF de referencia
+  con PyMuPDF (no estimado a ojo desde una captura): marca de agua al 7% de
+  opacidad, cuadrada, centrada exacta (antes estaba mucho más grande y más
+  visible que lo pedido); logo de 46×46pt arriba a la derecha. Se agrupan los
+  ítems por categoría (Puntos, Tomas, Iluminación, Tableros, Puesta a tierra)
+  con tabla propia por categoría, subtotal y TOTAL GENERAL, igual que la
+  referencia. Probado generando el mismo presupuesto de ejemplo: el total dio
+  exactamente $2.709.156,00, idéntico al original.
+- **Arreglado el motivo real de "faltan los tomas"**: `toma_heladera` y
+  `toma_lavarropas` son subtipos que el extractor sí genera, pero
+  `presupuesto.py` no los reconocía y cualquier toma de ese tipo caía
+  silenciosamente en "Tomacorriente común" en vez de su categoría especial.
+
 ## 0.15.0 — el cableado se robaba los clics, y precios que se autocompletan
 
 - **Arreglado: rutear un cable cerca de otro seleccionaba el otro** en vez de

@@ -75,12 +75,11 @@ h2:first-child{margin-top:0}
   border-left:5px solid transparent;border-right:5px solid transparent;cursor:pointer}
 .flecha-alim.arriba{top:-11px;border-bottom:9px solid var(--copper)}
 .flecha-alim.abajo{bottom:-11px;border-top:9px solid var(--copper)}
-.nodo{position:absolute;width:9px;height:9px;border-radius:50%;background:#fff;
-  border:2px solid var(--muted);z-index:5;transform:translateX(-50%)}
-.nodo-arriba{top:-6px} .nodo-abajo{bottom:-6px}
+.nodo{position:absolute;width:8px;height:8px;border-radius:50%;background:#fff;
+  border:2px solid var(--muted);z-index:5;transform:translate(-50%,-50%)}
 .nodo-lateral{right:-6px;left:auto;transform:translateY(-50%)}
 body.modo-cable .nodo{cursor:pointer}
-body.modo-cable .nodo:hover{filter:brightness(0.8);transform:translateX(-50%) scale(1.4)}
+body.modo-cable .nodo:hover{filter:brightness(0.8);transform:translate(-50%,-50%) scale(1.4)}
 body.modo-cable .nodo-lateral:hover{transform:translateY(-50%) scale(1.4)}
 
 /* ---------- bandeja ---------- */
@@ -299,7 +298,7 @@ function svgTermica(w, h, polos, corriente, colorFamilia, circuito){
   }
   // la ventana donde normalmente va la marca del fabricante: ahí va el circuito
   return `<svg viewBox="0 0 ${w} ${h}">
-    <rect class="cuerpo-disp" x="1" y="1" width="${w-2}" height="${h-2}" rx="5"
+    <rect class="cuerpo-disp" x="3" y="1" width="${w-6}" height="${h-2}" rx="5"
       fill="#fff" stroke="${colorFamilia||TRAZO}" stroke-width="1.6"/>
     ${tornillosTop}
     <rect x="${w*0.1}" y="${h*0.22}" width="${w*0.8}" height="${h*0.16}" rx="1.5"
@@ -327,7 +326,7 @@ function svgDiferencial(w, h, polos, corriente, mA){
     tBot += tornilloMas(cx, h*0.89, r*0.85);
   }
   return `<svg viewBox="0 0 ${w} ${h}">
-    <rect class="cuerpo-disp" x="1" y="1" width="${w-2}" height="${h-2}" rx="5"
+    <rect class="cuerpo-disp" x="3" y="1" width="${w-6}" height="${h-2}" rx="5"
       fill="#fff" stroke="${TRAZO}" stroke-width="1.6"/>
     ${tTop}${tBot}
     <rect x="${w*0.1}" y="${h*0.3}" width="${w*0.32}" height="${h*0.32}" fill="none"
@@ -350,7 +349,7 @@ function svgProtector(w, h, tensionV, circuito){
   // corriente (no va "A"), es un protector de tensión.
   const v = tensionV ?? 220;
   return `<svg viewBox="0 0 ${w} ${h}">
-    <rect class="cuerpo-disp" x="1" y="1" width="${w-2}" height="${h-2}" rx="5"
+    <rect class="cuerpo-disp" x="3" y="1" width="${w-6}" height="${h-2}" rx="5"
       fill="#fff" stroke="${TRAZO}" stroke-width="1.6"/>
     ${tornilloMas(w*0.28, h*0.11, Math.min(w,h)*0.11)}
     ${tornilloMas(w*0.72, h*0.11, Math.min(w,h)*0.11)}
@@ -389,7 +388,7 @@ function svgBornera(w, h){
       stroke="${TRAZO}" stroke-width=".7" stroke-dasharray="2 2"/>`;
   }
   return `<svg viewBox="0 0 ${w} ${h}">
-    <rect class="cuerpo-disp" x="1" y="1" width="${w-2}" height="${h-2}" rx="4"
+    <rect class="cuerpo-disp" x="3" y="1" width="${w-6}" height="${h-2}" rx="4"
       fill="#fff" stroke="${TRAZO}" stroke-width="1.6"/>
     ${term}
     <text x="${w/2}" y="${h-4}" text-anchor="middle" font-size="7.5" fill="${TRAZO}">⏚</text>
@@ -547,6 +546,15 @@ function xEntradaCano(t, cano){
    tanto para dibujar el tramo como para saber dónde empieza realmente el
    cable. Antes vivían por separado y se desalineaban: el tramo grueso
    quedaba en un punto y el cable fino salía del centro del caño, sin tocarse. */
+/* Intercala la altura de cada entrada (una normal, la siguiente más lejos del
+   riel) simulando cómo entran los caños en la realidad: no todos al mismo
+   nivel, unos más adelante y otros más atrás. En 2D eso se representa como
+   arriba/abajo dentro de la franja. */
+function desfaseEntrada(indice, lado){
+  if(indice % 2 === 0) return 0;
+  const monto = 16;
+  return lado === 'arriba' ? -monto : monto;
+}
 function puntaDeStub(t, cano, polaridad){
   const pols = polaridadesDeCano(cano);
   const idx = pols.indexOf(polaridad);
@@ -558,7 +566,9 @@ function puntaDeStub(t, cano, polaridad){
   const y2 = (13+largoBase)*dir;
   const [, altoTotal] = _anchoAltoOverlay(t);
   const xBase = xEntradaCano(t, cano);
-  const yBase = cano.lado === 'arriba' ? FRANJA_CANO : altoTotal - FRANJA_CANO;
+  const orden = entradasDeLado(t, cano.lado).findIndex(c => c.id === cano.id);
+  const yBase = (cano.lado === 'arriba' ? FRANJA_CANO : altoTotal - FRANJA_CANO)
+    + desfaseEntrada(orden, cano.lado);
   return {x: xBase + dx, y: yBase + y2};
 }
 function stubsDeCano(cano, lado){
@@ -598,7 +608,8 @@ function pintarFranjas(t, anchoTotal, altoTotal){
     const entradas = entradasDeLado(t, lado);
     entradas.forEach((cano, i) => {
       const x = xEntradaCano(t, cano);
-      g += `<g transform="translate(${x},${y})">
+      const yEntrada = y + desfaseEntrada(i, lado);
+      g += `<g transform="translate(${x},${yEntrada})">
         <g style="pointer-events:all;cursor:pointer" data-editar-cano="${cano.id}">
           ${iconoCano(cano)}
           <text y="${lado==='arriba' ? -28 : 37}" text-anchor="middle" font-size="8"
@@ -644,8 +655,9 @@ function puntoDeEndpoint(t, ep){
       const y0 = yRiel(d.piso) + ALTO_DISP*0.07 + (ALTO_DISP*0.86/BOCAS_BORNERA)*(polo+0.5);
       return {x: CANAL + (d.posicion+1)*CELDA - 6, y: y0};
     }
+    const hDiv = ALTO_DISP - 14, topDiv = yRiel(d.piso) + 6;
     return {x: CANAL + (d.posicion + polo + 0.5)*CELDA,
-            y: ep.lado==='arriba' ? yRiel(d.piso) : yRiel(d.piso)+ALTO_DISP};
+            y: ep.lado==='arriba' ? topDiv + hDiv*MARGEN_PIN : topDiv + hDiv*(1-MARGEN_PIN)};
   }
   if(ep.tipo === 'peine'){
     const pe = (t.conexiones||[]).find(c=>c.id===ep.id);
@@ -899,6 +911,7 @@ function dibujoPendienteHerramienta(t){
 }
 
 const BOCAS_BORNERA = 6;   // igual que en el motor: terminales laterales de la bornera
+const MARGEN_PIN = 0.13;   // % del alto donde está el tornillo real (coincide con svgTermica)
 const COLOR_POLARIDAD = {fase:'#8a5a2b', neutro:'#2b6ca3', tierra:'#2f7d5c'};
 function polaridadDePolo(d, polo){
   if(d.tipo === 'bornera') return 'tierra';
@@ -929,16 +942,16 @@ function nodosDeDispositivo(d, w, h){
     const cx = (i+0.5)*100/d.polos;
     const pol = polaridadDePolo(d, i);
     const color = COLOR_POLARIDAD[pol];
-    html += `<div class="nodo nodo-arriba" style="left:${cx}%;border-color:${color}"
+    html += `<div class="nodo" style="left:${cx}%;top:${MARGEN_PIN*100}%;border-color:${color}"
       data-nodo="${d.id}:arriba:${i}" title="Polo ${i+1} (${pol}), arriba"></div>`;
-    html += `<div class="nodo nodo-abajo" style="left:${cx}%;border-color:${color}"
+    html += `<div class="nodo" style="left:${cx}%;top:${(1-MARGEN_PIN)*100}%;border-color:${color}"
       data-nodo="${d.id}:abajo:${i}" title="Polo ${i+1} (${pol}), abajo"></div>`;
   }
   return html;
 }
 function bloqueDisp(d){
-  const w = d.polos*CELDA - 4, h = ALTO_DISP - 14;
-  const left = CANAL + d.posicion*CELDA + 2, top = yRiel(d.piso) + 6;
+  const w = d.polos*CELDA, h = ALTO_DISP - 14;
+  const left = CANAL + d.posicion*CELDA, top = yRiel(d.piso) + 6;
   const flechas = `<div class="flecha-alim ${d.alimentacion==='arriba'?'arriba':'abajo'}"
       data-alim="${d.id}" title="Cambiar por dónde entra"></div>`;
   return `<div class="disp ${seleccionado===d.id?'seleccionado':''}" draggable="true"

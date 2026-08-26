@@ -17,8 +17,8 @@ EQUIVALENCIAS = [
 
 # categorías que no se calculan solas desde el plano (ver precios.CATEGORIAS_APARTE)
 
-SUB_COCINA = ("toma_horno", "toma_microondas", "toma_anafe", "toma_lavavajillas")
-SUB_TERMO = ("toma_termotanque", "alimentacion_estufa")
+SUB_COCINA = ("toma_horno", "toma_microondas", "toma_anafe", "toma_lavavajillas", "toma_heladera")
+SUB_TERMO = ("toma_termotanque", "alimentacion_estufa", "toma_lavarropas")
 
 
 def cantidades(obra: dict) -> dict:
