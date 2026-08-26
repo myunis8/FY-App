@@ -769,17 +769,23 @@ function dibujoCable(t, cable, saltosDeEste){
   const pts = ortogonalizar([[a.x,a.y], ...ruta, [b.x,b.y]]);
   const path = pathConSaltos(pts, saltosDeEste);
   const sel = cable.id === cableSeleccionado;
+  // mientras hay una herramienta de cableado activa (rutear, peine, puente),
+  // ESTE cable no debe robarle el click a lo que se está por colocar — si no,
+  // pasar cerca de un cable ya hecho lo selecciona en vez de dejar el punto
+  // donde corresponde. Sólo es clicable en modo "mover" (sin herramienta).
+  const clickeable = !herramienta.tipo;
+  const pe = clickeable ? 'all' : 'none';
   return `<svg style="position:absolute;left:0;top:0;width:${anchoTotal}px;height:${altoTotal}px;
     overflow:visible;pointer-events:none">
     <path d="${path}" fill="none" stroke="transparent" stroke-width="14"
-      style="pointer-events:all;cursor:pointer" data-con-click-cable="${cable.id}"/>
+      style="pointer-events:${pe};cursor:pointer" data-con-click-cable="${cable.id}"/>
     <path d="${path}" fill="none" stroke="${sel ? 'var(--copper)' : color}"
       stroke-width="${sel ? 4 : 2.6}" stroke-linejoin="round" stroke-linecap="round"
       ${sel ? 'stroke-dasharray="6 3"' : ''} style="pointer-events:none"/>
     <circle cx="${a.x}" cy="${a.y}" r="3.5" fill="${color}"
-      style="pointer-events:all;cursor:pointer" data-con-click-cable="${cable.id}"/>
+      style="pointer-events:${pe};cursor:pointer" data-con-click-cable="${cable.id}"/>
     <circle cx="${b.x}" cy="${b.y}" r="3.5" fill="${color}"
-      style="pointer-events:all;cursor:pointer" data-con-click-cable="${cable.id}"/>
+      style="pointer-events:${pe};cursor:pointer" data-con-click-cable="${cable.id}"/>
   </svg>`;
 }
 

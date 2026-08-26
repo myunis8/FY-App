@@ -3,6 +3,31 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 0.15.0 — el cableado se robaba los clics, y precios que se autocompletan
+
+- **Arreglado: rutear un cable cerca de otro seleccionaba el otro** en vez de
+  colocar el punto donde correspondía. La causa: el trazo invisible de 14px
+  que agregué para poder seleccionar y borrar un cable quedaba clicable
+  siempre, incluso mientras se estaba trazando uno nuevo. Ahora sólo
+  intercepta el clic en modo "mover" (sin ninguna herramienta de cableado
+  activa) — mientras se rutea, todo cable existente deja pasar el clic de
+  largo.
+- **Precios reales cargados en la semilla**, con los valores de la lista que
+  se pasó: Punto de luz $19.363, Punto combinado $20.842, Tomacorriente común
+  $24.525, las tres tomas especiales a $34.525, Boca combinada $24.525,
+  artefactos a $29.715, los cuatro tableros, PAT $162.585, conexión al medidor
+  $200.000, Flotante a 220V $100.000. "Flotante a 24V" quedó en $0 porque no
+  se veía su valor en la imagen que se pasó — hay que cargarlo a mano.
+- **Migración automática de la lista de precios**: la misma clase de problema
+  que ya había aparecido con la marca de agua — un archivo ya guardado en
+  disco de antes de agregar un ítem nuevo a la semilla nunca lo recibía solo.
+  Ahora, al leer la lista, se completan automáticamente los ítems que falten
+  respecto de la semilla actual, sin tocar ni reordenar los que ya estaban
+  (incluidos los precios que se hubieran editado a mano). Probado: un archivo
+  con sólo 3 ítems y un precio editado a mano (Punto de luz a $50.000) pasó a
+  17 ítems, conservando ese $50.000 intacto y sin duplicar nada en una
+  segunda lectura.
+
 ## 0.14.0 — conectores independientes, deshacer/rehacer, grilla, y arreglos
 
 - **El conector vuelve a ser de un solo conductor**, no un par fase+neutro

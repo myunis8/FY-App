@@ -23,22 +23,22 @@ CATEGORIAS = ["Puntos", "Tomas", "Iluminación", "Tableros", "Puesta a tierra",
 CATEGORIAS_APARTE = {"Trabajos adicionales", "Automatizaciones"}
 
 SEMILLA = [
-    ("Puntos", "Punto de luz", "u", 0),
-    ("Puntos", "Punto combinado", "u", 0),
-    ("Tomas", "Tomacorriente común", "u", 0),
-    ("Tomas", "Toma especial - Cocina", "u", 0),
-    ("Tomas", "Toma especial - Aire acondicionado", "u", 0),
-    ("Tomas", "Toma especial - Termotanque", "u", 0),
-    ("Tomas", "Boca combinada (interruptor + toma)", "u", 0),
-    ("Iluminación", "Artefacto aislado", "u", 0),
-    ("Iluminación", "Artefacto no aislado", "u", 0),
-    ("Tableros", "Tablero seccional monofásico", "u", 0),
-    ("Tableros", "Tablero seccional trifásico", "u", 0),
-    ("Tableros", "Tablero principal monofásico", "u", 0),
-    ("Tableros", "Tablero principal trifásico", "u", 0),
-    ("Puesta a tierra", "Jabalina + cable + conexión (PAT)", "u", 0),
-    ("Trabajos adicionales", "Conexión al medidor (trabajo en tensión)", "u", 0),
-    ("Automatizaciones", "Flotante a 220V", "u", 0),
+    ("Puntos", "Punto de luz", "u", 19363),
+    ("Puntos", "Punto combinado", "u", 20842),
+    ("Tomas", "Tomacorriente común", "u", 24525),
+    ("Tomas", "Toma especial - Cocina", "u", 34525),
+    ("Tomas", "Toma especial - Aire acondicionado", "u", 34525),
+    ("Tomas", "Toma especial - Termotanque", "u", 34525),
+    ("Tomas", "Boca combinada (interruptor + toma)", "u", 24525),
+    ("Iluminación", "Artefacto aislado", "u", 29715),
+    ("Iluminación", "Artefacto no aislado", "u", 29715),
+    ("Tableros", "Tablero seccional monofásico", "u", 227652),
+    ("Tableros", "Tablero seccional trifásico", "u", 325000),
+    ("Tableros", "Tablero principal monofásico", "u", 320310),
+    ("Tableros", "Tablero principal trifásico", "u", 433760),
+    ("Puesta a tierra", "Jabalina + cable + conexión (PAT)", "u", 162585),
+    ("Trabajos adicionales", "Conexión al medidor (trabajo en tensión)", "u", 200000),
+    ("Automatizaciones", "Flotante a 220V", "u", 100000),
     ("Automatizaciones", "Flotante a 24V", "u", 0),
 ]
 
@@ -58,9 +58,33 @@ def leer() -> dict:
         guardar(datos)
         return datos
     try:
-        return json.loads(p.read_text(encoding="utf-8"))
+        datos = json.loads(p.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return {"actualizadoEl": 0, "moneda": "ARS", "items": []}
+    return _completar_faltantes(datos)
+
+
+def _completar_faltantes(datos: dict) -> dict:
+    """Si el archivo ya existía de antes de que se agregara algún ítem nuevo
+    a la semilla, ese ítem nunca aparecía solo — hacía falta escribirlo a
+    mano. Ahora se suma automáticamente al leer, sin tocar ni reordenar nada
+    de lo que ya estaba (precios editados incluidos)."""
+    items = datos.setdefault("items", [])
+    existentes = {(it.get("item") or "").strip().lower() for it in items}
+    faltantes = [s for s in SEMILLA if s[1].strip().lower() not in existentes]
+    if not faltantes:
+        return datos
+    orden_por_categoria: dict[str, int] = {}
+    for it in items:
+        cat = it.get("categoria") or "Otros"
+        orden_por_categoria[cat] = max(orden_por_categoria.get(cat, -1), it.get("orden", -1))
+    for i, (cat, nombre, unidad, precio) in enumerate(faltantes):
+        orden_por_categoria[cat] = orden_por_categoria.get(cat, -1) + 1
+        items.append({"id": f"pr_nuevo_{int(time.time()*1000)}_{i}", "categoria": cat,
+                     "item": nombre, "unidad": unidad, "precio": precio,
+                     "orden": orden_por_categoria[cat]})
+    guardar(datos)
+    return datos
 
 
 def guardar(datos: dict) -> dict:
