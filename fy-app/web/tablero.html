@@ -130,6 +130,7 @@ body.modo-cable .nodo-lateral:hover{transform:translateY(-50%) scale(1.4)}
   <button class="btn ghost" id="b-deshacer" title="Ctrl+Z" disabled>↶</button>
   <button class="btn ghost" id="b-rehacer" title="Ctrl+Y" disabled>↷</button>
   <button class="btn ghost" id="b-sincronizar">Sincronizar circuitos</button>
+  <button class="btn ghost" id="b-pdf-tablero">Exportar PDF</button>
   <button class="btn ghost" id="b-volver">Volver</button>
 </header>
 
@@ -1531,6 +1532,11 @@ $('b-borrar-tablero').onclick = async () => {
   actualizarTablero(r.tablero, r.avisos);
 });
 $('b-volver').onclick = () => location.href = '/circuitos.html?obra='+OBRA_ID;
+$('b-pdf-tablero').onclick = () => {
+  const t = tableroActivo();
+  if(!t){ toast('Elegí un tablero primero.'); return; }
+  window.open(`/api/obras/${OBRA_ID}/tableros/${t.id}/pdf`, '_blank');
+};
 $('b-deshacer').onclick = deshacer;
 $('b-rehacer').onclick = rehacer;
 

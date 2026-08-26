@@ -24,10 +24,10 @@ GAP_CAT_A_TABLA = 12
 GAP_TABLA_A_CAT = 18
 FIELD_LINEA = 16
 
-# tamaño y posición de la marca de agua y el logo: sacados de un PDF de
-# referencia ya aprobado (leídos con PyMuPDF, no estimados a ojo).
-MARCA_FRACCION_ANCHO = 0.55                 # ~327pt de 595pt de hoja
-MARCA_ALPHA = 0.07
+# tamaño y alpha de la marca de agua: más grande y más translúcida que la
+# referencia original a pedido explícito (la referencia daba 55%/7%).
+MARCA_FRACCION_ANCHO = 0.8
+MARCA_ALPHA = 0.045
 LOGO_LADO = 46
 LOGO_MARGEN_DER = 40
 LOGO_MARGEN_SUP = 24
@@ -46,14 +46,36 @@ def _marca_de_agua(pg, cfg: dict):
         aspecto = pix.width / max(pix.height, 1)
     except Exception:
         aspecto = 1.0
-    op = max(0.02, min(0.6, (cfg.get("opacidadMarca") if cfg.get("opacidadMarca") is not None
-                             else MARCA_ALPHA * 100) / 100))
+    # Ya me pasó dos veces: un valor guardado en disco de una entrega
+    # anterior (8, 14, 16...) le ganaba a cualquier default nuevo que yo
+    # pusiera acá. Esta vez el pedido es "más traslúcido" (mas bajo), así que
+    # el límite tiene que ser un TECHO, no un piso — el resultado nunca puede
+    # ser más visible que MARCA_ALPHA, pase lo que pase con lo guardado.
+    guardado = cfg.get("opacidadMarca")
+    op = MARCA_ALPHA if guardado is None else min(float(guardado) / 100, MARCA_ALPHA)
+    op = max(0.01, op)
     ancho = ANCHO * MARCA_FRACCION_ANCHO
     alto = ancho / aspecto if aspecto > 0 else ancho
     x0 = (ANCHO - ancho) / 2
     y0 = (ALTO - alto) / 2                  # centrada exacto, como en la referencia
     rect = pymupdf.Rect(x0, y0, x0 + ancho, y0 + alto)
-    pg.insert_image(rect, filename=str(ruta), overlay=True, alpha=op)
+
+    # OJO — descubrimiento importante: en esta versión de PyMuPDF (1.28.x),
+    # el parámetro alpha= de insert_image() NO es opacidad — es sólo un flag
+    # de rendimiento ("la imagen tiene o no canal alfa propio"). Pasarle 0.07
+    # ahí (como hacía antes) no atenuaba nada; la marca salía siempre a full,
+    # y cualquier aspecto "tenue" que se veía antes era casualidad del gris
+    # del logo, no una transparencia real. La única forma real de bajarle la
+    # opacidad es armar un graphics state con /ca y aplicarlo en el content
+    # stream, que es exactamente lo que hacía el PDF de referencia a mano.
+    gs_nombre = pg._set_opacity(CA=1, ca=op)
+    pg.insert_image(rect, filename=str(ruta), overlay=True)
+    xref_cont = pg.get_contents()[0]
+    contenido = pg.read_contents().decode("latin-1")
+    marcador = contenido.rfind("q\n")       # el bloque que insert_image acaba de agregar
+    if marcador >= 0:
+        nuevo = contenido[:marcador] + f"q\n/{gs_nombre} gs\n" + contenido[marcador + 2:]
+        pg.parent.update_stream(xref_cont, nuevo.encode("latin-1"))
 
 
 def _logo(pg):
@@ -151,11 +173,10 @@ def _tabla_categoria(pg, y: float, categoria: str, items: list[dict]) -> float:
 def _footer(pg):
     fecha = datetime.now().strftime("%d/%m/%Y")
     texto = (f"Los valores originales de este presupuesto corresponden al día de su emisión "
-            f"({fecha}) y podrían sufrir modificaciones por inflación u\n"
-            "otras variaciones de costos hasta el momento de confirmar y ejecutar el trabajo.")
+            f"({fecha}) y podrían sufrir modificaciones por inflación u otras variaciones de "
+            "costos hasta el momento de confirmar y ejecutar el trabajo.")
     pg.insert_textbox(pymupdf.Rect(MARGEN, ALTO - 90, ANCHO - MARGEN, ALTO - 40), texto,
-                      fontsize=8.5, fontname="hebo-i" if False else "helv",
-                      color=FOOTER_COLOR, lineheight=1.35)
+                      fontsize=8.5, fontname="helv", color=FOOTER_COLOR, lineheight=1.35)
 
 
 def _items_por_categoria(items: list[dict]) -> list[tuple[str, list[dict]]]:

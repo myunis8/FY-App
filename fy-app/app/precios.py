@@ -65,25 +65,34 @@ def leer() -> dict:
 
 
 def _completar_faltantes(datos: dict) -> dict:
-    """Si el archivo ya existía de antes de que se agregara algún ítem nuevo
-    a la semilla, ese ítem nunca aparecía solo — hacía falta escribirlo a
-    mano. Ahora se suma automáticamente al leer, sin tocar ni reordenar nada
-    de lo que ya estaba (precios editados incluidos)."""
+    """Dos casos, no uno: un ítem puede faltar del todo (se agrega), o puede
+    ya existir pero con el precio en $0 de una semilla vieja de antes de que
+    se cargaran precios reales — desde afuera eso se ve exactamente como
+    "no lo agregaste", así que también se actualiza. Nunca se toca un precio
+    que ya sea distinto de 0 (ahí sí puede ser una edición real del usuario)."""
     items = datos.setdefault("items", [])
-    existentes = {(it.get("item") or "").strip().lower() for it in items}
-    faltantes = [s for s in SEMILLA if s[1].strip().lower() not in existentes]
-    if not faltantes:
-        return datos
+    por_nombre = {(it.get("item") or "").strip().lower(): it for it in items}
     orden_por_categoria: dict[str, int] = {}
     for it in items:
         cat = it.get("categoria") or "Otros"
         orden_por_categoria[cat] = max(orden_por_categoria.get(cat, -1), it.get("orden", -1))
-    for i, (cat, nombre, unidad, precio) in enumerate(faltantes):
-        orden_por_categoria[cat] = orden_por_categoria.get(cat, -1) + 1
-        items.append({"id": f"pr_nuevo_{int(time.time()*1000)}_{i}", "categoria": cat,
-                     "item": nombre, "unidad": unidad, "precio": precio,
-                     "orden": orden_por_categoria[cat]})
-    guardar(datos)
+    cambio = False
+    for cat, nombre, unidad, precio in SEMILLA:
+        clave = nombre.strip().lower()
+        existente = por_nombre.get(clave)
+        if existente is None:
+            orden_por_categoria[cat] = orden_por_categoria.get(cat, -1) + 1
+            nuevo = {"id": f"pr_nuevo_{int(time.time()*1000)}_{len(items)}", "categoria": cat,
+                    "item": nombre, "unidad": unidad, "precio": precio,
+                    "orden": orden_por_categoria[cat]}
+            items.append(nuevo)
+            por_nombre[clave] = nuevo
+            cambio = True
+        elif not existente.get("precio"):
+            existente["precio"] = precio
+            cambio = True
+    if cambio:
+        guardar(datos)
     return datos
 
 

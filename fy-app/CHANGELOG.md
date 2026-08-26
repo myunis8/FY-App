@@ -3,6 +3,36 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 0.17.0 — exportar el tablero a PDF, y el bug de fondo de la marca de agua
+
+- **Exportar el tablero a PDF**, con dos páginas: una de conexionado a color
+  con fondo claro (térmicas, peines, conectores y cables — estos últimos en
+  línea recta, no en escuadra con saltos: es una versión simplificada del
+  editor interactivo, no una réplica pixel a pixel), y otra de "tapa puesta"
+  con sólo las térmicas y su etiqueta (circuito + corriente), pensada para
+  imprimir y pegar como guía adentro del tablero real.
+- **Encontrado el motivo real de que la marca de agua nunca se viera
+  translúcida de verdad, en ninguna entrega anterior**: en esta versión de
+  PyMuPDF, el parámetro `alpha=` de `insert_image()` no es opacidad — es sólo
+  un flag de rendimiento sobre si la imagen tiene o no canal alfa propio.
+  Nunca hizo nada. La única forma real de bajar la opacidad es armar un
+  graphics state con `/ca` y aplicarlo a mano en el content stream, que es
+  justo lo que hacía el PDF de referencia. Ahora se hace así, y quedó
+  confirmado a ojo: antes se veía opaca a pesar del alpha bajo, ahora se ve
+  genuinamente tenue.
+- Marca de agua más grande (80% del ancho) y más translúcida (4,5%) que la
+  referencia, a pedido explícito — con techo incondicional, para que ningún
+  valor guardado de una entrega anterior la haga más visible de lo pedido.
+- **Corregida la leyenda del pie del presupuesto**: tenía un salto de línea
+  a mano justo en medio de la oración ("...por inflación u" / "otras..."),
+  heredado sin querer del PDF de referencia. Ahora es un solo texto corrido
+  que ajusta de línea donde corresponde por ancho, no a mitad de una idea.
+- **La migración de precios ahora también corrige, no sólo agrega**: si un
+  ítem ya existía pero con precio en $0 (de una semilla vieja, antes de
+  cargar precios reales), se actualiza al precio de la semilla actual. Antes
+  sólo se agregaban los que faltaban del todo, así que un ítem ya presente
+  con $0 se veía igual de "no cargado" aunque el código ya lo tuviera resuelto.
+
 ## 0.16.0 — nodos alineados a los pines, formato de presupuesto fijo, tomas corregidas
 
 - **Nodo y cable ahora coinciden exacto**: el nodo se dibujaba fuera del

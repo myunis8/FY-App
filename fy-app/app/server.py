@@ -6,7 +6,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
 from . import (almacen, config as cfgmod, contrato as C, extraccion, github as gh,
-               pdf_presupuesto, precios as precios_mod, presupuesto as pres_mod,
+               pdf_presupuesto, pdf_tablero, precios as precios_mod, presupuesto as pres_mod,
                sync, tablero as tablero_mod, vinculos)
 
 if getattr(sys, "frozen", False):
@@ -202,6 +202,9 @@ class Handler(BaseHTTPRequestHandler):
             return self._render_plano(partes[2], urlparse(self.path).query)
         if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "presupuesto.pdf":
             return self._pdf_presupuesto(partes[2])
+        if (len(partes) == 6 and partes[:2] == ["api", "obras"] and partes[3] == "tableros"
+                and partes[5] == "pdf"):
+            return self._pdf_tablero(partes[2], partes[4])
         if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "plano":
             obra = almacen.leer_obra(partes[2])
             nombre = ((obra or {}).get("plano") or {}).get("archivo")
@@ -506,6 +509,25 @@ class Handler(BaseHTTPRequestHandler):
         avisos = tablero_mod.validar(t, obra.get("circuitos") or [])
         almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
         return self._json({"ok": True, "tablero": t, "avisos": avisos})
+
+    def _pdf_tablero(self, obra_id, tablero_id):
+        obra = almacen.leer_obra(obra_id)
+        if obra is None:
+            return self._error("Esa obra no está en este equipo.", 404)
+        t = next((x for x in obra.get("tableros") or [] if x["id"] == tablero_id), None)
+        if t is None:
+            return self._error("Ese tablero no existe.", 404)
+        try:
+            datos = pdf_tablero.generar(t, obra)
+        except Exception as e:
+            return self._error(f"No pude generar el PDF: {e}", 500)
+        nombre = (t.get("nombre") or "tablero").replace(" ", "_")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/pdf")
+        self.send_header("Content-Length", str(len(datos)))
+        self.send_header("Content-Disposition", f'inline; filename="{nombre}.pdf"')
+        self.end_headers()
+        self.wfile.write(datos)
 
     def _pdf_presupuesto(self, obra_id):
         obra = almacen.leer_obra(obra_id)
