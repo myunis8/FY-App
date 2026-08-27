@@ -3,6 +3,40 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 0.19.0 — primera etapa de canalización
+
+- **Nuevo módulo: Canalización** (`web/canaliza.html`, `app/canalizacion.py`).
+  Primera etapa, apoyada en la app de referencia que se pasó como base
+  (~2700 líneas) pero deliberadamente acotada: colocar cajas (tablero,
+  octogonal, rectangular, medidor, jabalina, de inspección) sobre el mismo
+  plano ya calibrado del resto de la app, y trazar tramos de caño —siempre
+  ortogonales— entre dos cajas, asignados a un circuito ya existente. El
+  diámetro de caño se sugiere solo, con la misma tabla de llenado real de la
+  app de referencia (validada caso por caso: 3 conductores de 1,5mm² dan
+  5/8", 6 dan 7/8", una mezcla de 2,5mm²+16mm² da 3/4").
+  Borrar una caja borra en cascada los tramos que quedarían con una sola
+  punta — probado contra el servidor real.
+- **Pendiente, con honestidad**: el DRC completo (cruces de caños, cajas con
+  más conductores de los que soportan, protecciones fuera de norma), el
+  sistema de cableado de iluminación (retornos por conductor), el cálculo de
+  longitudes reales, y la exportación a PDF con las hojas de cableado
+  detallado y cómputo de materiales — son módulos grandes en sí mismos, y
+  siguiendo la misma disciplina de todo este proyecto, se entregan probados
+  en una próxima etapa en vez de apurados ahora.
+
+## 0.18.1 — arreglado el recorte del PDF del tablero
+
+- **Encontrado con el PDF real que mandaste, no con el texto extraído** (que
+  se lee en cualquier orden y no muestra el problema real): el ancho de la
+  hoja se calculaba con la cantidad nominal de bocas del tablero
+  (`bocasPorPiso`), no con lo que hay de verdad colocado. Si un dispositivo
+  quedaba más allá de ese ancho nominal —por ejemplo si el tablero se achicó
+  después de ubicar térmicas—, la hoja lo recortaba justo en el borde.
+- Ahora el ancho se calcula sobre el máximo real entre lo nominal y la
+  posición + polos de cada dispositivo colocado. Reproducido el escenario
+  exacto (bocasPorPiso=6 con una bornera en la posición 8) y confirmado con
+  el render: antes se cortaba, ahora la hoja crece y se ve completa.
+
 ## 0.18.0 — el PDF del tablero rehecho con detalle real, y ajustes finos
 
 - **El PDF del tablero, rehecho de fondo**: la entrega anterior lo simplificó

@@ -276,6 +276,11 @@ main{max-width:1180px;margin:0 auto;padding:26px 22px 60px}
       <button class="btn primary sm" id="d-tablero">Abrir</button>
     </div>
     <div class="plano-fila">
+      <div class="txt"><b>Canalización</b><span id="d-ncanalizacion"></span>
+        <div class="nota">Cajas y caños entre ellas, con diámetro sugerido.</div></div>
+      <button class="btn primary sm" id="d-canalizacion">Abrir</button>
+    </div>
+    <div class="plano-fila">
       <div class="txt"><b>Presupuesto</b><span id="d-npresupuesto"></span>
         <div class="nota">Cantidades, extras, descuentos y precio final.</div></div>
       <button class="btn primary sm" id="d-presupuesto">Abrir</button>
@@ -472,6 +477,9 @@ function pintarBloques(obra){
   $('d-ntableros').textContent = (obra.tableros||[]).length
     ? `${obra.tableros.length} armado(s)` : 'Todavía ninguno';
   $('d-tablero').onclick = () => location.href = '/tablero.html?obra=' + obra.obra.id;
+  $('d-ncanalizacion').textContent = (obra.canalizacion?.nodos||[]).length
+    ? `${obra.canalizacion.nodos.length} caja(s)` : 'Todavía ninguna';
+  $('d-canalizacion').onclick = () => location.href = '/canaliza.html?obra=' + obra.obra.id;
   const nit = (obra.presupuesto?.items||[]).length + (obra.presupuesto?.extras||[]).length;
   $('d-npresupuesto').textContent = nit ? `${nit} ítems` +
     (obra.presupuesto?.congeladoEl ? ' · congelado' : ' · sin congelar') : 'Todavía ninguno';

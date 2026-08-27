@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Canalización</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+:root{
+  --navy:#16283f; --navy-deep:#0e1c2e; --paper:#f1f3f2; --panel:#fff; --line:#dde3e2;
+  --ink:#1c2733; --muted:#5b6b7a; --amber:#e2a33d; --amber-deep:#c07f1f;
+  --copper:#b5651d; --copper-soft:#f4e3d3; --slate-soft:#eef1f3; --danger:#b3432f;
+  font-family:'IBM Plex Sans',system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink)}
+button{font:inherit;cursor:pointer} input,select{font:inherit}
+header{background:var(--navy);color:#fff;padding:11px 18px;display:flex;align-items:center;
+  gap:8px;flex-wrap:wrap}
+header h1{font-family:'Space Grotesk',sans-serif;font-size:.98rem;margin:0;font-weight:600}
+header .sub{font-size:.72rem;color:#9db2c7}
+.spacer{flex:1}
+.btn{border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:7px 12px;
+  border-radius:9px;font-size:.8rem;font-weight:500}
+.btn:hover{border-color:var(--muted)}
+.btn.ghost{background:transparent;border-color:#33506e;color:#cfe0f0}
+.btn.primary{background:var(--amber);border-color:var(--amber-deep);color:#2a1e07;font-weight:600}
+.btn.activa{background:var(--copper);border-color:#7a410c;color:#fff}
+.btn.sm{padding:4px 9px;font-size:.72rem}
+main{display:grid;grid-template-columns:1fr 300px}
+.centro{padding:16px;overflow:auto;max-height:calc(100vh - 52px)}
+aside{background:var(--panel);border-left:1px solid var(--line);padding:16px;
+  min-height:calc(100vh - 52px)}
+h2{font-family:'Space Grotesk',sans-serif;font-size:.8rem;margin:16px 0 8px;
+  text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+h2:first-child{margin-top:0}
+.herramientas{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.envoltorio{position:relative;display:inline-block}
+#hoja{display:block;max-width:none}
+#capa{position:absolute;left:0;top:0;width:100%;height:100%}
+.nodo-ic{cursor:pointer}
+.nodo-ic:hover{filter:brightness(1.15)}
+.nodo-sel{stroke:var(--copper)!important;stroke-width:3!important}
+.tramo{fill:none;stroke-linejoin:round;cursor:pointer}
+.tramo:hover{stroke-width:5}
+.campo{margin-bottom:10px}
+.campo label{display:block;font-size:.7rem;font-weight:600;color:var(--muted);margin-bottom:3px}
+.campo select,.campo input{width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:7px}
+.nota{font-size:.76rem;color:var(--muted);line-height:1.5}
+.vacio{color:var(--muted);font-size:.85rem;line-height:1.6;padding:30px 10px;text-align:center}
+.lista-item{font-size:.76rem;padding:6px 8px;border-radius:7px;margin-bottom:4px;
+  background:var(--slate-soft);display:flex;justify-content:space-between;gap:6px}
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--navy-deep);
+  color:#fff;padding:10px 17px;border-radius:10px;font-size:.82rem;display:none;z-index:60}
+</style>
+</head>
+<body>
+<header>
+  <div><h1 id="h-nombre">Canalización</h1><div class="sub" id="h-sub">Cargando…</div></div>
+  <div class="spacer"></div>
+  <span class="sub" id="paso-actual"></span>
+  <button class="btn ghost" id="b-volver">Volver</button>
+</header>
+<main>
+  <div class="centro">
+    <div class="herramientas" id="herramientas"></div>
+    <div class="envoltorio" id="envoltorio">
+      <img id="hoja" alt="Plano">
+      <svg id="capa"></svg>
+    </div>
+  </div>
+  <aside>
+    <h2>Circuito activo</h2>
+    <div class="campo"><select id="f-circuito"></select></div>
+
+    <h2>Cajas</h2>
+    <div id="lista-nodos"></div>
+
+    <h2>Tramos</h2>
+    <div id="lista-tramos"></div>
+
+    <div class="nota" style="margin-top:16px">
+      Primera etapa del módulo: colocar cajas y trazar caños ortogonales entre
+      ellas, con diámetro sugerido según cuántos conductores entran. Todavía
+      no calcula longitudes reales, ni corre las verificaciones de diseño
+      (cruces, protecciones fuera de norma), ni exporta a PDF — eso queda
+      para una próxima entrega.
+    </div>
+  </aside>
+</main>
+<div id="toast"></div>
+<script>
+const $ = id => document.getElementById(id);
+const OBRA_ID = new URLSearchParams(location.search).get('obra');
+const ZOOM = 2;
+let obra = null, constantes = null, conPlano = false;
+let herramienta = null;   // null | 'colocar' | 'tramo'
+let pendiente = {};       // {kind} para colocar, {nodoA} para tramo
+let seleccion = null;     // {tipo:'nodo'|'tramo', id}
+
+const api = async (r,o={}) => {
+  const res = await fetch(r,{headers:{'Content-Type':'application/json'},...o});
+  const d = await res.json().catch(()=>({}));
+  if(!res.ok) throw new Error(d.error||'Error'); return d;
+};
+function toast(m){const t=$('toast');t.textContent=m;t.style.display='block';
+  clearTimeout(t._t);t._t=setTimeout(()=>t.style.display='none',3000);}
+const esc = s => (s==null?'':String(s)).replace(/[&<>"]/g,
+  c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+const COLOR_TIPO = {IUG:'#2b6ca3', IUE:'#1f618d', TUG:'#2f7d5c', TUE:'#117864',
+  ACU:'#b5651d', OCE:'#8e44ad'};
+const ICONO_KIND = {tablero:'■', oct:'⬡', rect:'▭', medidor:'Ⓜ', jabalina:'⏚', insp:'▢'};
+
+async function cargar(){
+  obra = await api('/api/obras/'+OBRA_ID);
+  obra.canalizacion = obra.canalizacion || {nodos:[], tramos:[]};
+  constantes = await api('/api/canalizacion/constantes');
+  $('h-nombre').textContent = obra.obra.nombre;
+  conPlano = !!(obra.plano && obra.plano.referencia);
+  pintarHerramientas();
+  pintarCircuitos();
+  if(conPlano){
+    const img = $('hoja');
+    img.onload = () => { dimensionar(); pintar(); };
+    img.src = '/api/obras/'+OBRA_ID+'/plano.png?zoom='+ZOOM;
+  } else {
+    $('envoltorio').innerHTML = '<div class="vacio">Esta obra no tiene un plano cargado.<br>'
+      + 'La canalización, por ahora, necesita uno.</div>';
+  }
+  pintar();
+}
+function dimensionar(){
+  const img = $('hoja');
+  let p = obra.plano && obra.plano.paginaPt;
+  if(!p && img.naturalWidth) p = {ancho: img.naturalWidth/ZOOM, alto: img.naturalHeight/ZOOM};
+  if(!p) return;
+  $('capa').setAttribute('viewBox', `0 0 ${p.ancho} ${p.alto}`);
+  $('envoltorio').style.width = img.naturalWidth + 'px';
+}
+
+function pintarCircuitos(){
+  $('f-circuito').innerHTML = (obra.circuitos||[]).map(c =>
+    `<option value="${c.id}">${esc(c.nombre)} (${c.tipo})</option>`).join('')
+    || '<option value="">— no hay circuitos —</option>';
+}
+
+function pintarHerramientas(){
+  const kinds = Object.keys(constantes.kinds);
+  $('herramientas').innerHTML = kinds.map(k =>
+    `<button class="btn sm" data-colocar="${k}">+ ${esc(constantes.kinds[k].n)}</button>`).join('')
+    + `<button class="btn sm" id="h-tramo">⌁ Trazar tramo</button>
+       <button class="btn sm" id="h-ninguna">☞ Mover / seleccionar</button>`;
+  document.querySelectorAll('[data-colocar]').forEach(b => b.onclick = () => elegirHerramienta('colocar', {kind:b.dataset.colocar}));
+  $('h-tramo').onclick = () => elegirHerramienta('tramo');
+  $('h-ninguna').onclick = () => elegirHerramienta(null);
+}
+function elegirHerramienta(tipo, datos){
+  herramienta = tipo; pendiente = datos || {};
+  document.querySelectorAll('#herramientas .btn').forEach(b => b.classList.remove('activa'));
+  if(tipo === 'colocar') document.querySelector(`[data-colocar="${pendiente.kind}"]`)?.classList.add('activa');
+  if(tipo === 'tramo') $('h-tramo').classList.add('activa');
+  if(!tipo) $('h-ninguna').classList.add('activa');
+  $('paso-actual').textContent = tipo === 'colocar' ? 'Tocá el plano donde va la caja'
+    : tipo === 'tramo' ? 'Tocá la primera caja, después la segunda' : '';
+  pintar();
+}
+
+/* ---------------- dibujo ---------------- */
+function pintar(){
+  if(!conPlano) return;
+  dimensionar();
+  const canal = obra.canalizacion;
+  let html = '';
+  (canal.tramos||[]).forEach(t => { html += dibujoTramo(t); });
+  (canal.nodos||[]).forEach(n => { html += dibujoNodo(n); });
+  $('capa').innerHTML = html;
+  cablear();
+  pintarListas();
+}
+function colorDeCircuito(circuitoId){
+  const c = (obra.circuitos||[]).find(x=>x.id===circuitoId);
+  return c ? (COLOR_TIPO[c.tipo] || '#5b6b7a') : '#5b6b7a';
+}
+function dibujoNodo(n){
+  const r = n.kind === 'tablero' ? 14 : n.kind === 'insp' ? 10 : 9;
+  const sel = seleccion && seleccion.tipo==='nodo' && seleccion.id===n.id ? 'nodo-sel' : '';
+  return `<g class="nodo-ic ${sel}" data-nodo="${n.id}">
+    <circle cx="${n.x}" cy="${n.y}" r="${r}" fill="#fff" stroke="#33506e" stroke-width="2"/>
+    <text x="${n.x}" y="${n.y+4}" text-anchor="middle" font-size="11" fill="#33506e"
+      font-family="'IBM Plex Sans',sans-serif">${ICONO_KIND[n.kind]||'?'}</text>
+    <text x="${n.x}" y="${n.y+r+11}" text-anchor="middle" font-size="8" fill="#5b6b7a">
+      ${esc(n.label || constantes.kinds[n.kind].ab)}</text>
+  </g>`;
+}
+function dibujoTramo(t){
+  const pts = t.pts || [];
+  if(pts.length < 2) return '';
+  const d = pts.map((p,i)=>(i===0?'M':'L')+p.x+','+p.y).join(' ');
+  const color = colorDeCircuito(t.circuito);
+  const sel = seleccion && seleccion.tipo==='tramo' && seleccion.id===t.id;
+  const medio = pts[Math.floor(pts.length/2)];
+  return `<g>
+    <path class="tramo" data-tramo="${t.id}" d="${d}" stroke="${sel?'var(--copper)':color}"
+      stroke-width="${sel?4:2.6}" stroke-dasharray="${t.route==='techo'?'6 3':''}"/>
+    <text x="${medio.x}" y="${medio.y-5}" text-anchor="middle" font-size="8" fill="${color}"
+      font-family="'IBM Plex Mono',monospace">${esc(diaLbl(t.dia))} · ${t.cables}c</text>
+  </g>`;
+}
+function diaLbl(id){
+  const d = (constantes.dias||[]).find(x=>x.id===id);
+  return d ? d.lbl : id;
+}
+
+function cablear(){
+  const capa = $('capa');
+  capa.onclick = ev => {
+    if(!herramienta) return;
+    const rect = capa.getBoundingClientRect();
+    const vb = capa.viewBox.baseVal;
+    const x = (ev.clientX - rect.left) / rect.width * vb.width;
+    const y = (ev.clientY - rect.top) / rect.height * vb.height;
+    if(ev.target.closest('[data-nodo]')) return;   // lo maneja su propio listener
+    if(herramienta === 'colocar') colocarNodo(pendiente.kind, x, y);
+  };
+  capa.querySelectorAll('[data-nodo]').forEach(g => g.onclick = ev => {
+    ev.stopPropagation();
+    clicNodo(g.dataset.nodo);
+  });
+  capa.querySelectorAll('[data-tramo]').forEach(p => p.onclick = ev => {
+    ev.stopPropagation();
+    clicTramo(p.dataset.tramo);
+  });
+}
+
+/* ---------------- acciones ---------------- */
+async function colocarNodo(kind, x, y){
+  try{
+    const r = await api(`/api/obras/${OBRA_ID}/canalizacion-nodos`,
+      {method:'POST', body:JSON.stringify({kind, x, y})});
+    obra.canalizacion = r.canalizacion;
+    elegirHerramienta(null);
+    toast('Caja agregada');
+  }catch(e){ toast(e.message); }
+}
+function clicNodo(id){
+  if(herramienta === 'tramo'){
+    if(!pendiente.nodoA){
+      pendiente.nodoA = id;
+      $('paso-actual').textContent = 'Tocá la segunda caja';
+      return;
+    }
+    if(pendiente.nodoA === id){ toast('Elegí dos cajas distintas.'); return; }
+    crearTramo(pendiente.nodoA, id);
+    pendiente = {};
+    return;
+  }
+  seleccion = {tipo:'nodo', id};
+  pintar();
+}
+function clicTramo(id){
+  seleccion = {tipo:'tramo', id};
+  pintar();
+}
+function ortogonal(a, b){
+  // siempre en escuadra: primero vertical, después horizontal — como en el
+  // resto de la app, un tramo nunca va en diagonal
+  if(a.x === b.x || a.y === b.y) return [a, b];
+  return [a, {x:a.x, y:b.y}, b];
+}
+async function crearTramo(idA, idB){
+  const canal = obra.canalizacion;
+  const a = canal.nodos.find(n=>n.id===idA), b = canal.nodos.find(n=>n.id===idB);
+  if(!a || !b) return;
+  const circuitoId = $('f-circuito').value;
+  if(!circuitoId){ toast('Elegí un circuito primero.'); return; }
+  const circ = (obra.circuitos||[]).find(c=>c.id===circuitoId);
+  const cables = circ && circ.tipo === 'IUG' ? 2 : circ && circ.tipo === 'TUG' ? 3 : 3;
+  const seccion = circ ? (circ.seccionMm2 || 1.5) : 1.5;
+  const pts = ortogonal(a, b);
+  try{
+    const r = await api(`/api/obras/${OBRA_ID}/canalizacion-tramos`, {method:'POST',
+      body:JSON.stringify({circuito:circuitoId, a:idA, b:idB, pts, cables, seccion})});
+    obra.canalizacion = r.canalizacion;
+    elegirHerramienta(null);
+    toast(`Tramo creado — caño sugerido: ${diaLbl(r.tramo.dia)}`);
+  }catch(e){ toast(e.message); }
+}
+async function eliminarSeleccion(){
+  if(!seleccion) return;
+  const ruta = seleccion.tipo === 'nodo' ? 'canalizacion-nodos' : 'canalizacion-tramos';
+  await api(`/api/obras/${OBRA_ID}/${ruta}/${seleccion.id}`, {method:'DELETE'});
+  obra = await api('/api/obras/'+OBRA_ID);
+  seleccion = null;
+  pintar();
+}
+
+/* ---------------- panel lateral ---------------- */
+function pintarListas(){
+  const canal = obra.canalizacion;
+  $('lista-nodos').innerHTML = (canal.nodos||[]).map(n => `<div class="lista-item">
+      <span>${ICONO_KIND[n.kind]} ${esc(n.label || constantes.kinds[n.kind].n)}</span>
+    </div>`).join('') || '<div class="nota">Todavía no hay cajas.</div>';
+  $('lista-tramos').innerHTML = (canal.tramos||[]).map(t => {
+    const circ = (obra.circuitos||[]).find(c=>c.id===t.circuito);
+    return `<div class="lista-item"><span>${esc(circ?circ.nombre:'?')} · ${diaLbl(t.dia)} · ${t.cables}c</span></div>`;
+  }).join('') || '<div class="nota">Todavía no hay tramos.</div>';
+}
+
+document.addEventListener('keydown', e => {
+  const enCampo = ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName);
+  if(e.key === 'Escape'){ elegirHerramienta(null); seleccion = null; pintar(); }
+  if((e.key === 'Delete' || e.key === 'Backspace') && seleccion && !enCampo){
+    e.preventDefault(); eliminarSeleccion();
+  }
+});
+$('b-volver').onclick = () => location.href = '/circuitos.html?obra='+OBRA_ID;
+
+cargar().catch(e => { $('h-sub').textContent = e.message; toast(e.message); });
+</script>
+</body>
+</html>

@@ -162,7 +162,15 @@ class _Geom:
         self.franja = 34
         self.margen_piso = 20
         self.altura_piso = self.franja + self.banda + self.alto_disp + self.banda + self.margen_piso
-        self.ancho = MARGEN * 2 + t["bocasPorPiso"] * self.celda
+        # el ancho nominal (bocasPorPiso) puede quedar chico frente a lo que
+        # de verdad está colocado —por ejemplo si el tablero se achicó
+        # después de ubicar térmicas—, y eso recortaba la hoja en el borde.
+        # Nunca hay que confiar sólo en el número declarado.
+        boca_maxima = t.get("bocasPorPiso", 0)
+        for d in t.get("dispositivos") or []:
+            if d.get("piso") is not None and d.get("posicion") is not None:
+                boca_maxima = max(boca_maxima, d["posicion"] + d["polos"])
+        self.ancho = MARGEN * 2 + boca_maxima * self.celda
         self.alto = MARGEN * 2 + t["pisos"] * self.altura_piso - self.margen_piso + self.franja
 
     def x(self, posicion: float) -> float:
