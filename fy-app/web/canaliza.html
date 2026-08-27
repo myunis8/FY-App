@@ -112,6 +112,30 @@ const COLOR_TIPO = {IUG:'#2b6ca3', IUE:'#1f618d', TUG:'#2f7d5c', TUE:'#117864',
   ACU:'#b5651d', OCE:'#8e44ad'};
 const ICONO_KIND = {tablero:'■', oct:'⬡', rect:'▭', medidor:'Ⓜ', jabalina:'⏚', insp:'▢'};
 
+const KIND_DE_TIPO = {artefacto: 'oct', toma: 'rect', llave: 'rect', otros: 'rect'};
+function circuitoDeElemento(elId){
+  return (obra.circuitos||[]).find(c => (c.elementos||[]).includes(elId)) || null;
+}
+/* Las cajas octogonales/rectangulares ya se extrajeron del plano y se
+   asignaron a un circuito en el módulo de Circuitos — acá NO se recrean:
+   se leen tal cual, con su posición y su circuito, y sólo sirven como
+   extremos para trazar un tramo. Sólo son editables los nodos agregados a
+   mano en este módulo (tablero, medidor, jabalina, cajas de paso). */
+function nodosVirtuales(){
+  return (obra.elementos||[]).filter(e => e.posicionPdfPt && circuitoDeElemento(e.id))
+    .map(e => {
+      const c = circuitoDeElemento(e.id);
+      return {id: e.id, kind: KIND_DE_TIPO[e.tipo] || 'rect', x: e.posicionPdfPt.x,
+             y: e.posicionPdfPt.y, label: c.nombre, circuitoId: c.id, virtual: true};
+    });
+}
+function todosLosNodos(){
+  return [...nodosVirtuales(), ...(obra.canalizacion.nodos||[])];
+}
+function buscarNodo(id){
+  return todosLosNodos().find(n => n.id === id) || null;
+}
+
 async function cargar(){
   obra = await api('/api/obras/'+OBRA_ID);
   obra.canalizacion = obra.canalizacion || {nodos:[], tramos:[]};
@@ -146,9 +170,13 @@ function pintarCircuitos(){
 }
 
 function pintarHerramientas(){
-  const kinds = Object.keys(constantes.kinds);
-  $('herramientas').innerHTML = kinds.map(k =>
-    `<button class="btn sm" data-colocar="${k}">+ ${esc(constantes.kinds[k].n)}</button>`).join('')
+  // sólo se agrega a mano lo que NO viene ya del plano extraído: el tablero,
+  // por dónde entra la acometida (medidor), la jabalina, y cajas de paso
+  // (octogonales o de inspección) para rutear entre cajas ya existentes.
+  const manuales = ['tablero', 'medidor', 'jabalina', 'oct', 'insp'];
+  const etiqueta = {oct:'Caja de paso octogonal', insp:'Caja de inspección'};
+  $('herramientas').innerHTML = manuales.map(k =>
+    `<button class="btn sm" data-colocar="${k}">+ ${esc(etiqueta[k] || constantes.kinds[k].n)}</button>`).join('')
     + `<button class="btn sm" id="h-tramo">⌁ Trazar tramo</button>
        <button class="btn sm" id="h-ninguna">☞ Mover / seleccionar</button>`;
   document.querySelectorAll('[data-colocar]').forEach(b => b.onclick = () => elegirHerramienta('colocar', {kind:b.dataset.colocar}));
@@ -173,6 +201,7 @@ function pintar(){
   const canal = obra.canalizacion;
   let html = '';
   (canal.tramos||[]).forEach(t => { html += dibujoTramo(t); });
+  nodosVirtuales().forEach(n => { html += dibujoNodo(n); });
   (canal.nodos||[]).forEach(n => { html += dibujoNodo(n); });
   $('capa').innerHTML = html;
   cablear();
@@ -185,9 +214,11 @@ function colorDeCircuito(circuitoId){
 function dibujoNodo(n){
   const r = n.kind === 'tablero' ? 14 : n.kind === 'insp' ? 10 : 9;
   const sel = seleccion && seleccion.tipo==='nodo' && seleccion.id===n.id ? 'nodo-sel' : '';
+  const color = n.virtual ? colorDeCircuito(n.circuitoId) : '#33506e';
+  const trazo = n.virtual ? `stroke-dasharray="2 1.5"` : '';
   return `<g class="nodo-ic ${sel}" data-nodo="${n.id}">
-    <circle cx="${n.x}" cy="${n.y}" r="${r}" fill="#fff" stroke="#33506e" stroke-width="2"/>
-    <text x="${n.x}" y="${n.y+4}" text-anchor="middle" font-size="11" fill="#33506e"
+    <circle cx="${n.x}" cy="${n.y}" r="${r}" fill="#fff" stroke="${color}" stroke-width="2" ${trazo}/>
+    <text x="${n.x}" y="${n.y+4}" text-anchor="middle" font-size="11" fill="${color}"
       font-family="'IBM Plex Sans',sans-serif">${ICONO_KIND[n.kind]||'?'}</text>
     <text x="${n.x}" y="${n.y+r+11}" text-anchor="middle" font-size="8" fill="#5b6b7a">
       ${esc(n.label || constantes.kinds[n.kind].ab)}</text>
@@ -269,8 +300,7 @@ function ortogonal(a, b){
   return [a, {x:a.x, y:b.y}, b];
 }
 async function crearTramo(idA, idB){
-  const canal = obra.canalizacion;
-  const a = canal.nodos.find(n=>n.id===idA), b = canal.nodos.find(n=>n.id===idB);
+  const a = buscarNodo(idA), b = buscarNodo(idB);
   if(!a || !b) return;
   const circuitoId = $('f-circuito').value;
   if(!circuitoId){ toast('Elegí un circuito primero.'); return; }
@@ -288,6 +318,13 @@ async function crearTramo(idA, idB){
 }
 async function eliminarSeleccion(){
   if(!seleccion) return;
+  if(seleccion.tipo === 'nodo'){
+    const n = buscarNodo(seleccion.id);
+    if(n && n.virtual){
+      toast('Esa caja viene del plano extraído — se edita desde Circuitos, no acá.');
+      return;
+    }
+  }
   const ruta = seleccion.tipo === 'nodo' ? 'canalizacion-nodos' : 'canalizacion-tramos';
   await api(`/api/obras/${OBRA_ID}/${ruta}/${seleccion.id}`, {method:'DELETE'});
   obra = await api('/api/obras/'+OBRA_ID);
@@ -298,11 +335,16 @@ async function eliminarSeleccion(){
 /* ---------------- panel lateral ---------------- */
 function pintarListas(){
   const canal = obra.canalizacion;
-  $('lista-nodos').innerHTML = (canal.nodos||[]).map(n => `<div class="lista-item">
+  const virtuales = nodosVirtuales();
+  const filasManuales = (canal.nodos||[]).map(n => `<div class="lista-item">
       <span>${ICONO_KIND[n.kind]} ${esc(n.label || constantes.kinds[n.kind].n)}</span>
-    </div>`).join('') || '<div class="nota">Todavía no hay cajas.</div>';
+    </div>`).join('');
+  $('lista-nodos').innerHTML =
+    `<div class="nota" style="margin-bottom:8px">${virtuales.length} caja(s) ya vienen del plano
+      extraído (línea punteada) — no hace falta agregarlas, sólo conectarlas.</div>`
+    + (filasManuales || '<div class="nota">Todavía no agregaste ninguna caja a mano.</div>');
   $('lista-tramos').innerHTML = (canal.tramos||[]).map(t => {
-    const circ = (obra.circuitos||[]).find(c=>c.id===t.circuito);
+    const circ = (obra.circuitos||[]).find(c => c.id===t.circuito);
     return `<div class="lista-item"><span>${esc(circ?circ.nombre:'?')} · ${diaLbl(t.dia)} · ${t.cables}c</span></div>`;
   }).join('') || '<div class="nota">Todavía no hay tramos.</div>';
 }

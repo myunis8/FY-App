@@ -3,6 +3,26 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 0.19.1 — las cajas ya extraídas aparecen solas en canalización
+
+- **Corrección de fondo**: las cajas octogonales y rectangulares ya se
+  extraen del plano y se asignan a un circuito en el módulo de Circuitos —
+  no tenía sentido pedir que se recrearan acá. Ahora aparecen solas (con
+  línea punteada, del color de su circuito) apenas se abre canalización, y
+  sirven directo como extremo de un tramo sin agregar nada.
+- Sólo se agrega a mano lo que de verdad no viene de la extracción: el
+  tablero, por dónde entra la acometida (medidor), la jabalina, y cajas de
+  paso (octogonales o de inspección) para rutear entre cajas ya existentes.
+- Un elemento extraído no se puede borrar desde este módulo (avisa y manda a
+  Circuitos, que es donde corresponde editarlo).
+- Se encontró y corrigió un bug propio de precedencia de operadores en el
+  panel lateral: el aviso de "todavía no agregaste nada a mano" no se
+  mostraba nunca, porque el `||` de reserva quedaba pegado a toda la
+  concatenación en vez de sólo al resultado de la lista.
+- Probado contra el servidor real: un elemento simulado como "ya extraído y
+  asignado a un circuito" quedó disponible para trazar un tramo sin haber
+  sido agregado manualmente.
+
 ## 0.19.0 — primera etapa de canalización
 
 - **Nuevo módulo: Canalización** (`web/canaliza.html`, `app/canalizacion.py`).

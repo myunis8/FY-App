@@ -120,13 +120,25 @@ def sugerir_diametro(cantidad_por_seccion: dict[float, int]) -> str:
     return DIAS[-1]["id"]
 
 
+def _existe_como_extremo(obra: dict, node_id: str) -> bool:
+    """Un extremo de tramo puede ser una caja agregada a mano en este módulo
+    (tablero, medidor, jabalina, caja de paso) o un elemento que ya viene del
+    plano extraído (luminaria, toma, llave) — no hay que recrearlo acá."""
+    canal = _canal(obra)
+    if any(n["id"] == node_id for n in canal["nodos"]):
+        return True
+    if any(e["id"] == node_id for e in obra.get("elementos") or []):
+        return True
+    return False
+
+
 def agregar_tramo(obra: dict, circuito_id: str, a: str, b: str, pts: list[dict],
                   route: str = "directo", cables: int = 2,
                   seccion: float = 1.5) -> tuple[dict | None, str]:
     canal = _canal(obra)
-    if not any(n["id"] == a for n in canal["nodos"]):
+    if not _existe_como_extremo(obra, a):
         return None, "La caja de origen no existe."
-    if not any(n["id"] == b for n in canal["nodos"]):
+    if not _existe_como_extremo(obra, b):
         return None, "La caja de destino no existe."
     if route not in ROUTES:
         return None, "Ese recorrido no existe."
