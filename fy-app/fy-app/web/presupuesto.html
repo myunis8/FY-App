@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Presupuesto</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+:root{
+  --navy:#16283f; --navy-deep:#0e1c2e; --paper:#f1f3f2; --panel:#fff; --line:#dde3e2;
+  --ink:#1c2733; --muted:#5b6b7a; --amber:#e2a33d; --amber-deep:#c07f1f;
+  --copper:#b5651d; --copper-soft:#f4e3d3; --slate-soft:#eef1f3;
+  --green:#2f7d5c; --green-soft:#dcefe4; --danger:#b3432f; --danger-soft:#f8ded7;
+  --blue:#2b6ca3; --blue-soft:#dce9f3; --radius:10px;
+  font-family:'IBM Plex Sans',system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink)}
+button{font:inherit;cursor:pointer} input,select{font:inherit}
+.mono{font-family:'IBM Plex Mono',Consolas,monospace}
+header{background:var(--navy);color:#fff;padding:11px 18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+header h1{font-family:'Space Grotesk',sans-serif;font-size:.98rem;margin:0;font-weight:600}
+header .sub{font-size:.72rem;color:#9db2c7}
+.spacer{flex:1}
+.btn{border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:7px 13px;
+  border-radius:var(--radius);font-size:.82rem;font-weight:500}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--amber);border-color:var(--amber-deep);color:#2a1e07;font-weight:600}
+.btn.ghost{background:transparent;border-color:#33506e;color:#cfe0f0}
+.btn.sm{padding:4px 9px;font-size:.75rem}
+main{display:grid;grid-template-columns:1fr 300px;gap:0;min-height:calc(100vh - 52px)}
+.centro{padding:20px 22px 60px;overflow-x:auto}
+aside{background:var(--panel);border-left:1px solid var(--line);padding:18px 16px}
+h2{font-family:'Space Grotesk',sans-serif;font-size:.82rem;margin:18px 0 8px;
+  text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+h2:first-child{margin-top:0}
+table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line);
+  border-radius:var(--radius);overflow:hidden;margin-bottom:8px}
+th{text-align:left;font-size:.67rem;text-transform:uppercase;letter-spacing:.05em;
+  color:var(--muted);padding:8px 10px;background:var(--slate-soft);font-weight:600}
+td{padding:5px 10px;border-top:1px solid var(--line);font-size:.83rem}
+td input,td select{width:100%;border:1px solid transparent;background:transparent;
+  padding:5px 6px;border-radius:6px}
+td input:focus{outline:none;border-color:var(--copper);background:#fff}
+td.num{text-align:right;font-family:'IBM Plex Mono',monospace}
+td.num input{text-align:right;font-family:'IBM Plex Mono',monospace}
+tr.opcional{opacity:.72;background:repeating-linear-gradient(45deg,transparent,transparent 8px,#fafbfb 8px,#fafbfb 16px)}
+.acc{width:64px;text-align:right;white-space:nowrap}
+.acc button{border:none;background:transparent;padding:2px 5px;font-size:.9rem}
+.acc .op{color:var(--blue)} .acc .del{color:var(--danger)}
+.tag{font-size:.63rem;padding:2px 6px;border-radius:99px;background:var(--blue-soft);
+  color:var(--blue);font-weight:600}
+.tag.viejo{background:var(--copper-soft);color:var(--copper)}
+.total-fila{display:flex;justify-content:space-between;font-size:.85rem;padding:5px 0}
+.total-fila.grande{font-size:1.15rem;font-weight:700;border-top:2px solid var(--ink);
+  margin-top:7px;padding-top:9px;font-family:'IBM Plex Mono',monospace}
+.total-fila .v{font-family:'IBM Plex Mono',monospace}
+.campo{margin-bottom:9px}
+.campo label{display:block;font-size:.7rem;font-weight:600;color:var(--muted);margin-bottom:3px}
+.campo input,.campo select{width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:7px}
+.fila2{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.nota{font-size:.72rem;color:var(--muted);line-height:1.45}
+.chip{display:inline-block;font-size:.68rem;padding:3px 9px;border-radius:99px;
+  background:var(--green-soft);color:var(--green);font-weight:600}
+.chip.gris{background:var(--slate-soft);color:var(--muted)}
+.aviso{background:var(--copper-soft);color:var(--copper);padding:9px 11px;border-radius:8px;
+  font-size:.78rem;line-height:1.45;margin-bottom:12px}
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--navy-deep);
+  color:#fff;padding:10px 17px;border-radius:var(--radius);font-size:.82rem;display:none}
+@media(max-width:900px){main{grid-template-columns:1fr}aside{border-left:none;border-top:1px solid var(--line)}}
+</style>
+</head>
+<body>
+<header>
+  <div><h1 id="h-nombre">Presupuesto</h1><div class="sub" id="h-sub">Cargando…</div></div>
+  <div class="spacer"></div>
+  <button class="btn ghost" id="b-recalcular">Recalcular del plano</button>
+  <button class="btn ghost" id="b-volver">Volver</button>
+  <button class="btn primary" id="b-guardar">Guardar</button>
+</header>
+
+<main>
+  <div class="centro">
+    <div id="aviso-precios"></div>
+
+    <h2>Trabajos</h2>
+    <table><thead><tr>
+      <th style="width:40%">Ítem</th><th style="width:11%">Cant.</th>
+      <th style="width:8%">Un.</th><th style="width:17%">Unitario</th>
+      <th style="width:17%">Subtotal</th><th class="acc"></th>
+    </tr></thead><tbody id="t-items"></tbody></table>
+
+    <h2>Extras y adicionales</h2>
+    <table><thead><tr>
+      <th style="width:40%">Ítem</th><th style="width:11%">Cant.</th>
+      <th style="width:8%">Un.</th><th style="width:17%">Unitario</th>
+      <th style="width:17%">Subtotal</th><th class="acc"></th>
+    </tr></thead><tbody id="t-extras"></tbody></table>
+    <button class="btn sm" id="b-extra">Agregar extra</button>
+    <span class="nota" style="margin-left:8px">El botón ◇ marca una línea como
+      opcional: se muestra aparte y no suma al total.</span>
+  </div>
+
+  <aside>
+    <h2>Totales</h2>
+    <div id="totales"></div>
+
+    <h2>Descuento</h2>
+    <div class="fila2">
+      <div class="campo"><label for="d-tipo">Tipo</label>
+        <select id="d-tipo">
+          <option value="">Sin descuento</option>
+          <option value="porcentaje">Porcentaje</option>
+          <option value="monto">Monto fijo</option>
+        </select></div>
+      <div class="campo"><label for="d-valor">Valor</label>
+        <input id="d-valor" type="number" step="0.5"></div>
+    </div>
+    <div class="campo"><label for="d-motivo">Motivo (sale en el PDF)</label>
+      <input id="d-motivo" placeholder="Opcional"></div>
+
+    <h2>Precio final</h2>
+    <div class="campo">
+      <label style="font-weight:500;display:flex;gap:7px;align-items:center">
+        <input type="checkbox" id="a-activo" style="width:auto"> Fijar precio final
+      </label>
+      <input id="a-valor" type="number" step="1000" placeholder="Ej. 4.850.000">
+      <div class="nota" style="margin-top:5px">Para redondear. La diferencia contra
+        el neto se muestra como ajuste.</div>
+    </div>
+
+    <h2>Estado</h2>
+    <div id="estado-precios"></div>
+    <button class="btn sm primary" id="b-congelar" style="margin-top:9px;width:100%">
+      Congelar precios</button>
+    <div class="nota" style="margin-top:6px">Al congelar, este presupuesto deja de
+      moverse cuando actualices la lista.</div>
+  </aside>
+</main>
+
+<div id="toast"></div>
+<script>
+const $ = id => document.getElementById(id);
+const OBRA_ID = new URLSearchParams(location.search).get('obra');
+let obra = null, pres = null, totales = null, comparacion = [], cantidades = null;
+
+const api = async (r,o={}) => {
+  const res = await fetch(r,{headers:{'Content-Type':'application/json'},...o});
+  const d = await res.json().catch(()=>({}));
+  if(!res.ok) throw new Error(d.error||'Error'); return d;
+};
+function toast(m){const t=$('toast');t.textContent=m;t.style.display='block';
+  clearTimeout(t._t);t._t=setTimeout(()=>t.style.display='none',3000);}
+const esc = s => (s==null?'':String(s)).replace(/[&<>"]/g,
+  c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const plata = n => (n||0).toLocaleString('es-AR',{style:'currency',currency:'ARS',
+  maximumFractionDigits:0});
+
+async function cargar(){
+  obra = await api('/api/obras/'+OBRA_ID);
+  $('h-nombre').textContent = obra.obra.nombre;
+  await sincronizar({});
+  if(!(pres.items||[]).length) await sincronizar({recalcularCantidades:true});
+  pintarControles();
+}
+async function sincronizar(op){
+  const r = await api('/api/obras/'+OBRA_ID+'/presupuesto',
+    {method:'POST', body:JSON.stringify({presupuesto: pres, ...op})});
+  pres = r.presupuesto; totales = r.totales;
+  comparacion = r.comparacion; cantidades = r.cantidades;
+  pres.items = pres.items || []; pres.extras = pres.extras || [];
+  pintar();
+}
+
+function filaItems(arr, tbody, esExtra){
+  $(tbody).innerHTML = arr.length ? arr.map((it,i)=>{
+    const sub = (it.precioUnitario||0) * (it.cantidad||0);
+    const cmp = comparacion.find(c=>c.id===it.id);
+    const dif = cmp && cmp.variacion && it.congelado ? cmp.variacion : null;
+    return `<tr class="${it.opcional?'opcional':''}" data-i="${i}" data-e="${esExtra?1:0}">
+      <td><input data-c="item" value="${esc(it.item||'')}">
+        ${it.opcional?'<span class="tag">opcional</span>':''}
+        ${dif?`<span class="tag viejo" title="La lista de hoy está ${dif>0?'más cara':'más barata'}">${
+          dif>0?'+':''}${dif}%</span>`:''}</td>
+      <td class="num"><input data-c="cantidad" type="number" step="1" value="${it.cantidad||0}"></td>
+      <td><input data-c="unidad" value="${esc(it.unidad||'u')}" style="text-align:center"></td>
+      <td class="num"><input data-c="precioUnitario" type="number" step="1" value="${it.precioUnitario||0}"></td>
+      <td class="num">${plata(sub)}</td>
+      <td class="acc">
+        <button class="op" data-op="${i}" data-e="${esExtra?1:0}" title="Marcar como opcional">◇</button>
+        <button class="del" data-del="${i}" data-e="${esExtra?1:0}" title="Quitar">×</button></td>
+    </tr>`;}).join('')
+    : `<tr><td colspan="6" style="color:var(--muted);padding:14px">${
+        esExtra ? 'Sin extras cargados.' : 'Sin ítems. Probá “Recalcular del plano”.'}</td></tr>`;
+}
+function pintar(){
+  filaItems(pres.items, 't-items', false);
+  filaItems(pres.extras, 't-extras', true);
+  document.querySelectorAll('[data-c]').forEach(n => n.onchange = async () => {
+    const tr = n.closest('tr');
+    const arr = tr.dataset.e === '1' ? pres.extras : pres.items;
+    const it = arr[+tr.dataset.i];
+    const c = n.dataset.c;
+    it[c] = (c === 'item' || c === 'unidad') ? n.value : parseFloat(n.value||0);
+    if(c === 'precioUnitario') it.congelado = true;   // tocado a mano: no se pisa
+    await sincronizar({});
+  });
+  document.querySelectorAll('[data-op]').forEach(n => n.onclick = async () => {
+    const arr = n.dataset.e === '1' ? pres.extras : pres.items;
+    const it = arr[+n.dataset.op];
+    it.opcional = !it.opcional;
+    await sincronizar({});
+  });
+  document.querySelectorAll('[data-del]').forEach(n => n.onclick = async () => {
+    const esExtra = n.dataset.e === '1';
+    const arr = esExtra ? pres.extras : pres.items;
+    arr.splice(+n.dataset.del, 1);
+    await sincronizar({});
+  });
+
+  const t = totales || {};
+  $('totales').innerHTML = `
+    <div class="total-fila"><span>Trabajos</span><span class="v">${plata(t.subtotal)}</span></div>
+    ${t.extras?`<div class="total-fila"><span>Extras</span><span class="v">${plata(t.extras)}</span></div>`:''}
+    ${t.descuento?`<div class="total-fila" style="color:var(--green)">
+      <span>Descuento</span><span class="v">−${plata(t.descuento)}</span></div>`:''}
+    ${t.ajuste?`<div class="total-fila" style="color:var(--muted)">
+      <span>Ajuste</span><span class="v">${t.ajuste>0?'+':'−'}${plata(Math.abs(t.ajuste))}</span></div>`:''}
+    <div class="total-fila grande"><span>Total</span><span>${plata(t.total)}</span></div>
+    ${t.nOpcionales?`<div class="total-fila" style="color:var(--blue);margin-top:8px">
+      <span>${t.nOpcionales} opcionales</span><span class="v">${plata(t.opcionales)}</span></div>`:''}`;
+
+  $('h-sub').textContent = cantidades
+    ? `${cantidades.punto_simple} puntos · ${cantidades.punto_combinado} combinados · `
+      + `${cantidades.artefacto} artefactos · ${cantidades.toma_comun + cantidades.toma_aa
+        + cantidades.toma_cocina + cantidades.toma_termo} tomas`
+    : '';
+
+  const cong = pres.congeladoEl;
+  $('estado-precios').innerHTML = cong
+    ? `<span class="chip">Congelado el ${new Date(cong).toLocaleDateString('es-AR')}</span>`
+    : '<span class="chip gris">Con precios de hoy, sin congelar</span>';
+  $('b-congelar').textContent = cong ? 'Volver a congelar con precios de hoy' : 'Congelar precios';
+
+  const movidos = comparacion.filter(c => c.variacion && Math.abs(c.variacion) >= 1);
+  $('aviso-precios').innerHTML = (cong && movidos.length)
+    ? `<div class="aviso">Desde que congelaste, ${movidos.length} ítems cambiaron de
+        precio en la lista. El presupuesto sigue con los valores viejos, como
+        corresponde. Si querés reajustar, volvé a congelar con los precios de hoy.</div>`
+    : '';
+}
+
+function pintarControles(){
+  const d = pres.descuento || {};
+  $('d-tipo').value = d.tipo || '';
+  $('d-valor').value = d.valor ?? '';
+  $('d-motivo').value = d.motivo || '';
+  const a = pres.ajusteFinal || {};
+  $('a-activo').checked = !!a.activo;
+  $('a-valor').value = a.valor ?? '';
+}
+['d-tipo','d-valor','d-motivo'].forEach(id => $(id).onchange = async () => {
+  const tipo = $('d-tipo').value;
+  pres.descuento = tipo ? {tipo, valor: parseFloat($('d-valor').value||0),
+                           motivo: $('d-motivo').value} : null;
+  await sincronizar({});
+});
+['a-activo','a-valor'].forEach(id => $(id).onchange = async () => {
+  pres.ajusteFinal = {activo: $('a-activo').checked,
+                      valor: $('a-valor').value === '' ? null : parseFloat($('a-valor').value)};
+  await sincronizar({});
+});
+$('b-extra').onclick = async () => {
+  pres.extras.push({id:'ex_'+Date.now().toString(36), item:'Trabajo extra',
+                    unidad:'u', cantidad:1, precioUnitario:0, opcional:false, origen:'usuario'});
+  await sincronizar({});
+};
+$('b-recalcular').onclick = async () => {
+  if(!confirm('Vuelve a contar del plano y rearma las líneas de trabajos. '
+    + 'Los extras y los precios que tocaste a mano se conservan. ¿Seguimos?')) return;
+  await sincronizar({recalcularCantidades:true});
+  toast('Cantidades actualizadas');
+};
+$('b-congelar').onclick = async () => {
+  await sincronizar({congelar:true, guardar:true});
+  toast('Precios congelados en esta obra');
+};
+$('b-guardar').onclick = async () => {
+  await sincronizar({guardar:true});
+  toast('Guardado');
+};
+$('b-volver').onclick = () => location.href = '/';
+document.addEventListener('keydown', e => {
+  if((e.ctrlKey||e.metaKey) && e.key==='s'){ e.preventDefault(); $('b-guardar').click(); }
+});
+cargar().catch(e => { $('h-sub').textContent = e.message; toast(e.message); });
+</script>
+</body>
+</html>

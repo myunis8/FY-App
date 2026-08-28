@@ -1,0 +1,2834 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Canaliza — planificador de canalización eléctrica</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#eef0f2; --panel:#fff; --panel-2:#f7f8f9; --line:#d6dade; --line-2:#e6e9ec;
+  --ink:#15181b; --ink-2:#5a6570; --ink-3:#8b959e;
+  --accent:#a9552a; --accent-bg:#fbf1ea;
+  --err:#b3261e; --err-bg:#fdeceb; --warn:#8a6100; --warn-bg:#fdf4e0; --ok:#186a4b;
+  --r:6px;
+  --fs:"IBM Plex Sans",system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+  --fm:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font-family:var(--fs);font-size:13px;color:var(--ink);background:var(--bg);overflow:hidden}
+button,input,select{font-family:inherit;font-size:13px;color:inherit}
+button{cursor:pointer}
+.mono{font-family:var(--fm)}
+
+#app{display:grid;grid-template-rows:auto 1fr;height:100%}
+
+/* ---------- top bar ---------- */
+#top{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--panel);border-bottom:1px solid var(--line);flex-wrap:wrap}
+#brand{display:flex;align-items:baseline;gap:8px;margin-right:6px}
+#brand b{font-weight:600;font-size:14px;letter-spacing:-.01em}
+#brand span{font-size:11px;color:var(--ink-3)}
+.sep{width:1px;height:22px;background:var(--line);margin:0 4px}
+.btn{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:6px 10px;color:var(--ink);white-space:nowrap}
+.btn:hover{background:var(--panel-2);border-color:#c3c9cf}
+.btn:active{background:#eceff1}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary:hover{background:#964a24}
+.btn.sm{padding:4px 8px;font-size:12px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+#scaleChip{margin-left:auto;display:flex;align-items:center;gap:8px;font-family:var(--fm);font-size:12px;color:var(--ink-2);
+  background:var(--panel-2);border:1px solid var(--line);border-radius:var(--r);padding:5px 9px}
+#scaleChip.unset{background:var(--warn-bg);border-color:#e8d49a;color:var(--warn)}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--ok);flex:none}
+#scaleChip.unset .dot{background:var(--warn)}
+
+/* ---------- layout ---------- */
+#main{display:grid;grid-template-columns:216px 1fr 292px;min-height:0}
+aside{background:var(--panel);display:flex;flex-direction:column;min-height:0;overflow-y:auto}
+#left{border-right:1px solid var(--line)}
+#right{border-left:1px solid var(--line)}
+.sect{border-bottom:1px solid var(--line-2);padding:12px}
+.sect>h3{margin:0 0 9px;font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3)}
+.row{display:flex;gap:6px;align-items:center}
+.row+.row{margin-top:6px}
+
+/* tools */
+.tool{display:flex;align-items:center;gap:9px;width:100%;text-align:left;background:none;border:1px solid transparent;border-radius:var(--r);padding:7px 8px;line-height:1.2}
+.tool:hover{background:var(--panel-2)}
+.tool.on{background:var(--accent-bg);border-color:#e5cdbc;color:var(--accent);font-weight:500}
+.tool kbd{margin-left:auto;font-family:var(--fm);font-size:10px;color:var(--ink-3);border:1px solid var(--line);border-radius:3px;padding:1px 4px;background:var(--panel-2)}
+.tool.on kbd{color:var(--accent);border-color:#e5cdbc;background:#fff}
+.gl{width:18px;flex:none;display:grid;place-items:center}
+
+/* circuits */
+.ci{border:1px solid var(--line);border-radius:var(--r);padding:7px 8px;margin-bottom:6px;background:var(--panel)}
+.ci.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+.ci-h{display:flex;align-items:center;gap:7px;cursor:pointer}
+.sw{width:13px;height:13px;border-radius:3px;flex:none;border:1px solid rgba(0,0,0,.18)}
+.ci-n{font-weight:500;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ci-m{font-family:var(--fm);font-size:11px;color:var(--ink-3);white-space:nowrap}
+.ci-b{margin-top:7px;padding-top:7px;border-top:1px solid var(--line-2);display:none}
+.ci.on .ci-b{display:block}
+.ci-d{font-size:11px;color:var(--ink-3);margin:2px 0 0 20px;line-height:1.35}
+.ciVis{margin:0;flex:none}
+.grp{border:1px solid var(--line);border-radius:var(--r);padding:6px 8px;margin-bottom:6px;background:var(--panel)}
+.grp .ci-h{cursor:pointer}
+.wires{display:flex;flex-direction:column;gap:4px}
+.wr{display:flex;align-items:center;gap:6px;padding:4px 6px;border:1px solid var(--line);border-radius:5px;background:var(--panel-2);font-size:11px}
+.wr.on{border-color:#0e7490;background:#e7f4f7}
+.wr-c{flex:none;font-weight:600;min-width:36px}
+.wr-l{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink-2)}
+.wr-n{flex:none;color:var(--ink-3);font-family:var(--fm)}
+.wr .btn{padding:2px 6px;font-size:11px}
+label.f{display:block;font-size:11px;color:var(--ink-2);margin-bottom:3px}
+input.f,select.f{width:100%;background:var(--panel);border:1px solid var(--line);border-radius:5px;padding:5px 7px}
+input.f:focus,select.f:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:var(--accent)}
+input[type=color].f{padding:2px;height:29px}
+.f2{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.f3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+
+/* canvas */
+#stage{position:relative;background:#e2e5e8;min-width:0;overflow:hidden}
+#cv{position:absolute;inset:0;width:100%;height:100%;display:block}
+#empty{position:absolute;inset:0;display:grid;place-content:center;justify-items:center;gap:12px;text-align:center;color:var(--ink-2);padding:24px;pointer-events:none}
+#empty h2{margin:0;font-size:15px;font-weight:600;color:var(--ink)}
+#empty p{margin:0;max-width:330px;line-height:1.55}
+#empty .pe{pointer-events:auto}
+#hint{position:absolute;left:12px;bottom:12px;background:rgba(21,24,27,.9);color:#fff;font-size:12px;
+  padding:7px 11px;border-radius:var(--r);max-width:60%;line-height:1.45;display:none}
+#hint.on{display:block}
+#hint b{color:#ffc79a;font-weight:500}
+#zoomc{position:absolute;right:12px;bottom:12px;display:flex;gap:4px;background:var(--panel);
+  border:1px solid var(--line);border-radius:var(--r);padding:3px}
+#zoomc button{border:none;background:none;padding:4px 8px;border-radius:4px;font-family:var(--fm);font-size:12px}
+#zoomc button:hover{background:var(--panel-2)}
+
+/* readout */
+.kv{display:flex;justify-content:space-between;gap:10px;padding:4px 0;font-size:12px;border-bottom:1px dotted var(--line-2)}
+.kv:last-child{border-bottom:none}
+.kv span:first-child{color:var(--ink-2)}
+.kv span:last-child{font-family:var(--fm);font-weight:500;white-space:nowrap}
+.tot{display:flex;justify-content:space-between;margin-top:8px;padding-top:8px;border-top:1px solid var(--line);font-weight:600}
+.tot span:last-child{font-family:var(--fm)}
+.msg{font-size:12px;color:var(--ink-3);padding:3px 0;line-height:1.5}
+
+/* drc */
+.drc{display:flex;gap:8px;padding:7px 8px;border-radius:5px;margin-bottom:5px;font-size:12px;line-height:1.45;align-items:flex-start}
+.drc.e{background:var(--err-bg);color:var(--err)}
+.drc.w{background:var(--warn-bg);color:var(--warn)}
+.drc .ic{font-family:var(--fm);font-weight:600;flex:none;line-height:1.45}
+.drc .go{margin-left:auto;flex:none;background:none;border:1px solid currentColor;opacity:.6;border-radius:4px;
+  padding:0 5px;font-size:11px;color:inherit;line-height:18px}
+.drc .go:hover{opacity:1}
+#drcOk{display:flex;align-items:center;gap:7px;color:var(--ok);font-size:12px;font-weight:500}
+
+/* table */
+table.t{width:100%;border-collapse:collapse;font-size:12px}
+table.t th{text-align:left;font-weight:500;color:var(--ink-2);font-size:11px;padding:4px 5px;border-bottom:1px solid var(--line)}
+table.t td{padding:3px 5px;border-bottom:1px solid var(--line-2)}
+table.t td.n{font-family:var(--fm);text-align:right}
+table.t input{width:100%;border:1px solid transparent;background:none;border-radius:3px;padding:2px 4px;
+  font-family:var(--fm);font-size:12px;text-align:right}
+table.t input:hover{border-color:var(--line)}
+table.t input:focus{outline:none;border-color:var(--accent);background:#fff}
+
+/* modal */
+.mask{position:fixed;inset:0;background:rgba(21,24,27,.45);display:none;place-items:center;z-index:50;padding:20px}
+.mask.on{display:grid}
+.modal{background:var(--panel);border-radius:9px;padding:18px;width:100%;max-width:480px;max-height:86vh;overflow:auto;
+  box-shadow:0 16px 48px rgba(0,0,0,.25)}
+.modal h2{margin:0 0 4px;font-size:15px;font-weight:600}
+.modal p.sub{margin:0 0 14px;color:var(--ink-2);font-size:12px;line-height:1.5}
+.modal .acts{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+.pgs{display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:8px;max-height:340px;overflow:auto}
+.pg{border:1px solid var(--line);border-radius:5px;padding:5px;background:var(--panel-2);text-align:center}
+.pg:hover{border-color:var(--accent)}
+.pg canvas{width:100%;display:block;background:#fff;border:1px solid var(--line-2)}
+.pg span{font-family:var(--fm);font-size:11px;color:var(--ink-2);display:block;margin-top:4px}
+.chk{display:flex;gap:8px;align-items:flex-start;padding:5px 0;font-size:12px;line-height:1.4}
+.chk input{margin:2px 0 0}
+#busy{position:fixed;inset:0;background:rgba(238,240,242,.82);display:none;place-items:center;z-index:60;
+  font-size:13px;color:var(--ink-2)}
+#busy.on{display:grid}
+</style>
+</head>
+<body>
+<div id="app">
+
+<div id="top">
+  <div id="brand"><b>Canaliza</b><span>planificador de canalización</span></div>
+  <button class="btn" id="bOpen">Abrir plano</button>
+  <input type="file" id="fPlan" accept="image/png,image/jpeg,image/webp,application/pdf" hidden>
+  <div class="sep"></div>
+  <button class="btn" id="bSave">Guardar proyecto</button>
+  <button class="btn" id="bLoad">Abrir proyecto</button>
+  <input type="file" id="fProj" accept=".json,application/json" hidden>
+  <button class="btn primary" id="bGuardarObra" title="Guarda este proyecto en la obra, en el servidor">💾 Guardar en la obra</button>
+  <span id="tagObra" class="msg" style="padding:0 4px;white-space:nowrap"></span>
+  <span id="autosaveTag" class="msg" style="padding:0 4px;white-space:nowrap"></span>
+  <button class="btn sm" id="bNewProj" title="Borra el guardado automático de este navegador y arranca de cero">Nuevo proyecto</button>
+  <div class="sep"></div>
+  <button class="btn" id="bUndo" title="Deshacer (Ctrl+Z)" disabled>↶ Deshacer</button>
+  <button class="btn" id="bRedo" title="Rehacer (Ctrl+Shift+Z)" disabled>↷ Rehacer</button>
+  <div class="sep"></div>
+  <button class="btn primary" id="bPdf">Exportar PDF</button>
+  <div id="scaleChip" class="unset"><span class="dot"></span><span id="scaleTxt">Sin escala</span>
+    <button class="btn sm" id="bCal">Calibrar</button></div>
+</div>
+
+<div id="main">
+
+  <!-- ============ LEFT ============ -->
+  <aside id="left">
+    <div class="sect">
+      <h3>Herramientas</h3>
+      <div id="tools"></div>
+    </div>
+    <div class="sect">
+      <h3>Circuitos</h3>
+      <div id="circuits"></div>
+      <div class="f3" style="margin-top:2px">
+        <button class="btn sm" data-newci="IUG" title="Iluminación · 1.5mm² · 2 cond. · 10A">+ IUG</button>
+        <button class="btn sm" data-newci="TUG" title="Tomacorrientes · 2.5mm² · 3 cond. · 16A">+ TUG</button>
+        <button class="btn sm" data-newci="TUE" title="Especiales · 2.5mm² · 3 cond. · 16A">+ TUE</button>
+      </div>
+      <div class="f2" style="margin-top:4px">
+        <button class="btn sm" data-newci="ACO" title="Acometida: medidor → tablero · 6mm² · 3 cond. · 25A">+ ACO (acometida)</button>
+        <button class="btn sm" data-newci="PAT" title="Puesta a tierra: tablero → jabalina · 16mm² · 1 cond.">+ PAT (tierra)</button>
+      </div>
+      <button class="btn sm" id="bAddCi" style="width:100%;margin-top:6px">+ Circuito personalizado</button>
+    </div>
+    <div class="sect">
+      <h3>Grupos de vista</h3>
+      <p class="msg" style="margin:0 0 6px">Mostrá sólo las cajas de los circuitos que elijas. El tablero siempre se ve.</p>
+      <div id="viewGroups"></div>
+      <button class="btn sm" id="bAddGrp" style="width:100%;margin-top:2px">+ Nuevo grupo</button>
+      <div class="row" style="margin-top:8px">
+        <button class="btn sm" id="bShowAll" style="flex:1">Ver todos</button>
+        <button class="btn sm" id="bShowNone" style="flex:1">Ocultar todos</button>
+      </div>
+    </div>
+    <div class="sect">
+      <h3>Vista</h3>
+      <label class="chk"><input type="checkbox" id="vLbl" checked> Etiquetas de cajas y bocas</label>
+      <label class="chk"><input type="checkbox" id="vLen" checked> Longitud sobre cada caño</label>
+      <label class="chk"><input type="checkbox" id="vZ"> Altura de cada caja</label>
+      <label class="chk"><input type="checkbox" id="vGrid" checked> Grilla (tecla G)</label>
+      <div class="row" style="margin-top:5px">
+        <input class="f mono" id="gridSize" type="number" min="4" max="1000" step="4" value="40" style="width:64px">
+        <span class="msg" id="gridMeta" style="padding:0">px</span>
+        <label class="chk" style="margin-left:auto;padding:0"><input type="checkbox" id="vSnap" checked> Ajustar</label>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ============ CANVAS ============ -->
+  <div id="stage">
+    <canvas id="cv"></canvas>
+    <div id="empty">
+      <h2>Cargá el plano base</h2>
+      <p>Aceptá un PDF (elegís la página) o una imagen PNG/JPG. Después calibrás la escala sobre una cota conocida y ya podés dibujar la canalización.</p>
+      <button class="btn primary pe" id="bOpen2">Abrir plano</button>
+    </div>
+    <div id="hint"></div>
+    <div id="zoomc">
+      <button id="zOut">−</button><button id="zFit">Ajustar</button><button id="zIn">+</button>
+    </div>
+  </div>
+
+  <!-- ============ RIGHT ============ -->
+  <aside id="right">
+    <div class="sect" id="propBox">
+      <h3>Selección</h3>
+      <div id="prop"><p class="msg">Nada seleccionado. Hacé clic en un tramo, una caja o una boca para ver y editar sus datos.</p></div>
+    </div>
+    <div class="sect">
+      <h3>Reglas de diseño</h3>
+      <div id="drc"></div>
+    </div>
+    <div class="sect">
+      <h3>Cómputo de materiales</h3>
+      <div id="bom"></div>
+      <button class="btn sm" id="bRules" style="width:100%;margin-top:10px">Configurar reglas y capacidades</button>
+    </div>
+  </aside>
+
+</div>
+</div>
+
+<!-- ============ MODALS ============ -->
+<div class="mask" id="mPage"><div class="modal">
+  <h2>Elegí la página del PDF</h2>
+  <p class="sub">Se va a usar como plano base. Podés cambiarla después volviendo a abrir el archivo.</p>
+  <div class="pgs" id="pgs"></div>
+  <div class="acts"><button class="btn" data-close>Cancelar</button></div>
+</div></div>
+
+<div class="mask" id="mCal"><div class="modal">
+  <h2>Calibrar escala</h2>
+  <p class="sub">Marcaste dos puntos sobre el plano. Ingresá cuánto miden en la realidad — usá una cota que ya figure en el dibujo.</p>
+  <div class="f2">
+    <div><label class="f" for="calV">Distancia real</label><input class="f mono" id="calV" type="number" step="0.01" min="0.01" value="4.30"></div>
+    <div><label class="f" for="calU">Unidad</label><select class="f" id="calU"><option value="1">metros</option><option value="0.01">centímetros</option><option value="0.001">milímetros</option></select></div>
+  </div>
+  <div class="acts"><button class="btn" data-close>Cancelar</button><button class="btn primary" id="calOk">Aplicar escala</button></div>
+</div></div>
+
+<div class="mask" id="mRules"><div class="modal" style="max-width:660px">
+  <h2>Reglas de diseño</h2>
+  <p class="sub">Cuántos conductores de cada sección entran en cada medida de caño corrugado. Editá los valores según la norma o el criterio que uses en obra.</p>
+  <table class="t" id="capT"></table>
+
+  <h2 style="margin-top:20px;font-size:13px">Alturas</h2>
+  <p class="sub">Definen las bajadas verticales. El recorrido horizontal se mide sobre el plano; la altura agrega el tramo que no se ve en planta.</p>
+  <div class="f3">
+    <div><label class="f" for="zCie">Cielorraso (m)</label><input class="f mono" id="zCie" type="number" step="0.05" min="0" value="2.60"></div>
+    <div><label class="f" for="zTab">Tablero (m)</label><input class="f mono" id="zTab" type="number" step="0.05" min="0" value="1.80"></div>
+    <div><label class="f" for="zTom">Tomacorriente (m)</label><input class="f mono" id="zTom" type="number" step="0.05" min="0" value="0.30"></div>
+  </div>
+  <div class="f3" style="margin-top:6px">
+    <div><label class="f" for="zInt">Interruptor (m)</label><input class="f mono" id="zInt" type="number" step="0.05" min="0" value="1.20"></div>
+    <div><label class="f" for="zEsp">Punto especial (m)</label><input class="f mono" id="zEsp" type="number" step="0.05" min="0" value="1.20"></div>
+    <div><label class="f" for="zLum">Luminaria (m)</label><input class="f mono" id="zLum" type="number" step="0.05" min="0" value="2.60"></div>
+  </div>
+
+  <h2 style="margin-top:20px;font-size:13px">Límites y cómputo</h2>
+  <div class="f3" style="margin-top:8px">
+    <div><label class="f" for="rOct">Caños máx. por caja octogonal</label><input class="f mono" id="rOct" type="number" min="1" value="4"></div>
+    <div><label class="f" for="rRec">Caños máx. por caja rectangular</label><input class="f mono" id="rRec" type="number" min="1" value="3"></div>
+    <div><label class="f" for="rLen">Aviso de tramo largo (m)</label><input class="f mono" id="rLen" type="number" min="1" value="25"></div>
+  </div>
+  <div style="margin-top:6px" class="f2">
+    <div><label class="f" for="rWaste">Desperdicio de cable (%)</label><input class="f mono" id="rWaste" type="number" min="0" value="10"></div>
+    <div><label class="f" for="rSpare">Reserva por boca/caja (cm)</label><input class="f mono" id="rSpare" type="number" min="0" value="15"></div>
+  </div>
+  <div class="acts"><button class="btn" id="rulesReset">Restaurar valores</button><button class="btn primary" data-close>Listo</button></div>
+</div></div>
+
+<div class="mask" id="mPdf"><div class="modal">
+  <h2>Exportar PDF</h2>
+  <p class="sub">Una hoja por circuito, más las hojas generales que elijas. Se abre en cualquier visor, sin necesidad de capas.</p>
+  <div id="pdfList"></div>
+  <div style="margin-top:12px" class="f2">
+    <div><label class="f" for="pdfSize">Tamaño de hoja</label><select class="f" id="pdfSize"><option value="a4">A4</option><option value="a3">A3</option><option value="letter">Carta</option></select></div>
+    <div><label class="f" for="pdfOri">Orientación</label><select class="f" id="pdfOri"><option value="landscape">Apaisada</option><option value="portrait">Vertical</option></select></div>
+  </div>
+  <div class="acts"><button class="btn" data-close>Cancelar</button><button class="btn primary" id="pdfGo">Generar PDF</button></div>
+</div></div>
+
+<div class="mask" id="mGroup"><div class="modal">
+  <h2>Grupo de vista</h2>
+  <p class="sub">Elegí qué circuitos se muestran juntos al aplicar este grupo. Sirve para pensar el trazado de a un par de circuitos por vez, sin manchón. El tablero se ve siempre, esté o no tildado.</p>
+  <div style="margin-bottom:10px"><label class="f" for="grpName">Nombre del grupo</label><input class="f" id="grpName" placeholder="ej: Dormitorios y baño"></div>
+  <div id="grpChecks" style="max-height:260px;overflow:auto"></div>
+  <div class="acts"><button class="btn" data-close>Cancelar</button><button class="btn primary" id="grpOk">Guardar grupo</button></div>
+</div></div>
+
+<div id="busy"><div>Procesando…</div></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+/* ---------------------------------------------------------------------
+   Integración con FY-App. No toca nada de la lógica de Canaliza: sólo usa
+   los hooks que ya expone (window.canalizaExportar/Importar) para conectar
+   esta app con el resto del sistema en vez de con localStorage/archivos.
+--------------------------------------------------------------------- */
+window.CANALIZA_SIN_AUTOSAVE = true;
+const OBRA_ID = new URLSearchParams(location.search).get('obra');
+
+window.addEventListener('canaliza-listo', async () => {
+  const tag = document.getElementById('tagObra');
+  if(!OBRA_ID){
+    if(tag) tag.textContent = 'Sin obra asociada — trabajando suelto, no se guarda en el servidor.';
+    document.getElementById('bGuardarObra')?.setAttribute('disabled', 'disabled');
+    return;
+  }
+  try{
+    const res = await fetch(`/api/obras/${OBRA_ID}/canalizacion`);
+    const d = await res.json();
+    if(!res.ok) throw new Error(d.error || 'No se pudo leer la obra.');
+    if(d.proyecto){
+      // ya había un proyecto guardado en el servidor: se carga tal cual
+      await window.canalizaImportar(d.proyecto);
+      if(tag) tag.textContent = 'Cargado desde la obra.';
+    } else {
+      // primera vez: se arranca con el plano, los circuitos y las cajas
+      // (artefactos, tomas, llaves) que ya existen en el resto de la app,
+      // para no tener que redefinir ni volver a marcar nada acá
+      const datos = window.canalizaExportar();
+      datos.circuits = d.circuitos || datos.circuits;
+      datos.nodes = d.nodos || datos.nodes;
+      datos.baseSrc = d.planoUrl || null;
+      if(d.pxPerM) datos.pxPerM = d.pxPerM;   // misma escala ya calibrada en el extractor
+      await window.canalizaImportar(datos);
+      const nCajas = (d.nodos || []).length;
+      if(tag) tag.textContent = d.planoUrl
+        ? `Plano, circuitos${nCajas ? ' y ' + nCajas + ' caja(s) ya extraídas' : ''} traídos de la obra.`
+        : 'Circuitos traídos de la obra (todavía no hay plano cargado).';
+    }
+  }catch(err){
+    if(tag) tag.textContent = 'No se pudo conectar con la obra: ' + err.message;
+  }
+});
+
+document.getElementById('bGuardarObra')?.addEventListener('click', async () => {
+  const tag = document.getElementById('tagObra');
+  if(!OBRA_ID) return;
+  try{
+    const datos = window.canalizaExportar();
+    const res = await fetch(`/api/obras/${OBRA_ID}/canalizacion`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(datos)
+    });
+    if(!res.ok) throw new Error((await res.json()).error || 'Error al guardar.');
+    if(tag) tag.textContent = 'Guardado en la obra · ' + new Date().toLocaleTimeString('es-AR',
+      {hour:'2-digit', minute:'2-digit'});
+  }catch(err){
+    if(tag) tag.textContent = 'No se pudo guardar: ' + err.message;
+  }
+});
+</script>
+<script>
+/* Canaliza — planificador de canalización eléctrica */
+(function(){
+"use strict";
+
+if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc =
+  "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+/* ============================ constantes ============================ */
+
+const SECTIONS = [1.5, 2.5, 4, 6, 10, 16];
+
+// caños corrugados como se comercializan en Argentina
+const DIAS = [
+  {id:"5/8",   lbl:'5/8"',   mm:16},
+  {id:"3/4",   lbl:'3/4"',   mm:19},
+  {id:"7/8",   lbl:'7/8"',   mm:22},
+  {id:"1",     lbl:'1"',     mm:25},
+  {id:"1 1/4", lbl:'1 1/4"', mm:32}
+];
+const DEF_DIA = "7/8";
+const diaOf  = (id)=> DIAS.find(d=>d.id===id) || DIAS[2];
+const diaLbl = (id)=> diaOf(id).lbl;
+
+const CAP0 = {                       // conductores por caño segun seccion
+  "5/8"  :{1.5:3, 2.5:2,  4:2,  6:1,  10:1, 16:0},
+  "3/4"  :{1.5:5, 2.5:4,  4:3,  6:2,  10:2, 16:1},
+  "7/8"  :{1.5:7, 2.5:6,  4:4,  6:3,  10:2, 16:2},
+  "1"    :{1.5:9, 2.5:8,  4:6,  6:4,  10:3, 16:2},
+  "1 1/4":{1.5:14,2.5:12, 4:9,  6:7,  10:5, 16:4}
+};
+const MAXPROT = {1.5:10, 2.5:20, 4:25, 6:32, 10:40, 16:63};
+
+const Z0 = {ceiling:2.60, tablero:1.80, luminaria:2.60, interruptor:1.20, toma:0.30, especial:1.20, paso:2.60, medidor:1.50, jabalina:0};
+
+const KINDS = {
+  tablero:{n:"Tablero",     ab:"TS"},
+  oct:    {n:"Caja octogonal", ab:"CO"},
+  rect:   {n:"Caja rectangular", ab:"CR"},
+  medidor:{n:"Medidor",     ab:"MD"},
+  jabalina:{n:"Jabalina",   ab:"JB"},
+  insp:   {n:"Caja de inspección", ab:"CI"}
+};
+
+// tamaños típicos de caja de inspección plástica cuadrada (de referencia — ajustalos si tu
+// proveedor da otras medidas o capacidades; también se puede dejar en "Personalizada")
+const INSP_SIZES = {
+  "15x15": {label:"15×15 cm", max:6},
+  "20x20": {label:"20×20 cm", max:10},
+  "30x30": {label:"30×30 cm", max:16},
+  custom:  {label:"Personalizada", max:8}
+};
+const INSP_DEFAULT = "20x20";
+const DEVICES = {
+  luminaria:"Luminaria", interruptor:"Interruptor", toma:"Tomacorriente",
+  especial:"Punto especial", paso:"Caja de paso"
+};
+const ROUTES = {techo:"Por cielorraso", directo:"Directo entre cajas"};
+const PALETTE = ["#c2410c","#1d4ed8","#047857","#7c3aed","#b91c1c","#0e7490","#a16207","#be185d"];
+
+// tipos de circuito normalizados, con sus valores por defecto
+const CIRCUIT_TYPES = {
+  IUG:{label:"IUG · Iluminación",       kind:"iluminacion", section:1.5, cables:2, prot:10},
+  TUG:{label:"TUG · Tomacorrientes",    kind:"tomas",       section:2.5, cables:3, prot:16},
+  TUE:{label:"TUE · Especiales",        kind:"especial",    section:2.5, cables:3, prot:16},
+  ACO:{label:"ACO · Acometida (medidor→tablero)", kind:"acometida", section:6,  cables:3, prot:25},
+  PAT:{label:"PAT · Puesta a tierra (tablero→jabalina)", kind:"tierra", section:16, cables:1, prot:0}
+};
+
+// colores de conductor según el tipo de circuito (para desglosar el cómputo de cable,
+// ya que cada conductor se compra por separado). Si el circuito tiene más o menos
+// conductores que los previstos, el resto se etiqueta genéricamente.
+// (iluminación no usa esto: sus conductores se definen circuito por circuito en "Retornos y cableado")
+const WIRE_COLOR_MAP = {
+  tomas:       ["Marrón (fase)", "Celeste (neutro)", "Verde-amarillo (tierra)"],
+  especial:    ["Marrón (fase)", "Celeste (neutro)", "Verde-amarillo (tierra)"],
+  exterior:    ["Marrón (fase)", "Celeste (neutro)", "Verde-amarillo (tierra)"],
+  acometida:   ["Marrón (fase)", "Celeste (neutro)", "Verde-amarillo (tierra)"],
+  tierra:      ["Verde-amarillo (tierra)"]
+};
+function wireColorsFor(c){
+  const base = WIRE_COLOR_MAP[c.kind] || [];
+  const out = [];
+  for(let i=0;i<c.cables;i++) out.push(base[i] || ("Conductor "+(i+1)));
+  return out;
+}
+
+// separación mínima entre dos caños que se cruzan para considerarlo resuelto en altura
+const CROSS_CLEARANCE_M = 0.08;
+
+// letras para identificar cada luz dentro de un circuito de iluminación
+const LIGHT_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+function nextLightLetter(ciId){
+  const used = new Set(S.wires.filter(w=>w.circuit===ciId && w.light).map(w=>w.light));
+  for(const ch of LIGHT_LETTERS) if(!used.has(ch)) return ch;
+  return "X"+(S.wires.length);
+}
+function wireCode(w){
+  if(w.kind==="F") return "F";
+  if(w.kind==="N") return "N";
+  if(w.kind==="RS") return "RS-"+w.light;
+  if(w.kind==="RC") return "RC-"+w.light+w.branch;
+  return "?";
+}
+function wireLabel(w){
+  if(w.kind==="F") return "Fase";
+  if(w.kind==="N") return "Neutro";
+  if(w.kind==="RS") return "Retorno simple · luz "+w.light;
+  if(w.kind==="RC") return "Viajero "+w.branch+" · combinada "+w.light;
+  return "";
+}
+
+/* ---- colores reales para dibujar cada conductor dentro del caño: fijos por TIPO
+   de conductor (fase/neutro/retorno simple/retorno combinado), nunca por circuito o
+   por luz — así, a golpe de vista, contás "3 blancos, 1 celeste, 1 marrón" sin
+   tener que pensar de qué circuito es cada uno. ---- */
+const WIRE_HEX = {
+  "Marrón (fase)": "#7a4a25",
+  "Celeste (neutro)": "#49a9d8",
+  "Blanco (retorno simple)": "#e9e9e9",
+  "Amarillo (retorno combinado)": "#e8c93a",
+  "Verde-amarillo (tierra)": "#6a9a2e"
+};
+function wireHex(w){
+  if(w.kind==="F") return WIRE_HEX["Marrón (fase)"];
+  if(w.kind==="N") return WIRE_HEX["Celeste (neutro)"];
+  if(w.kind==="RS") return WIRE_HEX["Blanco (retorno simple)"];
+  if(w.kind==="RC") return WIRE_HEX["Amarillo (retorno combinado)"]; // ambas ramas, mismo color
+  return "#5b6470";
+}
+function genericHex(label){ return WIRE_HEX[label] || "#5b6470"; }
+
+// arma la lista de conductores individuales (color + sección) que van dentro de un caño,
+// a partir de los tramos "vis" que efectivamente lo componen (pueden ser de varios circuitos)
+function conduitConductors(vis){
+  const items = [];
+  const order = w => w.kind==="F"?-2 : w.kind==="N"?-1 : (LIGHT_LETTERS.indexOf(w.light)*10 + (w.kind==="RC"?w.branch:0.5));
+  for(const r of vis){
+    const c = ciById(r.circuit); if(!c) continue;
+    if(c.kind==="iluminacion"){
+      const ws = S.wires.filter(w=>w.circuit===c.id && w.runIds.includes(r.id));
+      ws.sort((a,b)=>order(a)-order(b));
+      for(const w of ws) items.push({color:wireHex(w), section:c.section, code:wireCode(w), circuit:c.name});
+    } else {
+      const colors = wireColorsFor(c);
+      for(let i=0;i<r.cables;i++){
+        const label = colors[i] || ("Conductor "+(i+1));
+        items.push({color:genericHex(label), section:c.section, code:label, circuit:c.name});
+      }
+    }
+  }
+  return items;
+}
+
+const uid = (p)=> p + Math.random().toString(36).slice(2,9);
+
+/* ============================ estado ============================ */
+
+const S = {
+  base:null, baseName:"", baseSrc:null,      // Image + dataURL
+  pxPerM:null,
+  circuits:[], nodes:[], runs:[],
+  activeCircuit:null, sel:null,              // sel = {t:'node'|'run', id}
+  tool:"select",
+  view:{x:0,y:0,z:1},
+  draft:null, calib:null,
+  rules:{cap:JSON.parse(JSON.stringify(CAP0)), maxOct:4, maxRect:3, longRun:25, waste:10, spare:15},
+  z:Object.assign({}, Z0),
+  show:{labels:true, lens:true, z:false},
+  hiddenCircuits:new Set(),                  // ids de circuitos ocultos en el plano
+  viewGroups:[],                             // [{id,name,circuits:[ids]}]
+  grid:{on:true, size:40, snap:true},        // grilla de alineación (tamaño en px del plano)
+  wires:[],                                  // [{id,circuit,kind:'F'|'N'|'RS'|'RC',light,branch,runIds:[]}]
+  tracingWire:null,                          // id del conductor que se está trazando ahora
+  counters:{}
+};
+
+function newCircuit(type){
+  const preset = CIRCUIT_TYPES[type];
+  const key = preset ? type : "C";
+  S.counters[key] = (S.counters[key]||0) + 1;
+  const n = S.circuits.length;
+  const c = {
+    id:uid("c"), name:key+S.counters[key],
+    kind: preset ? preset.kind : "iluminacion",
+    ctype: preset ? type : "OTRO",
+    color:PALETTE[n % PALETTE.length],
+    section: preset ? preset.section : 1.5,
+    cables:  preset ? preset.cables  : 3,
+    prot:    preset ? preset.prot    : 10,
+    dash:0, detail:""
+  };
+  S.circuits.push(c); S.activeCircuit = c.id; return c;
+}
+
+function nextLabel(kind){
+  S.counters[kind] = (S.counters[kind]||0) + 1;
+  return KINDS[kind].ab + S.counters[kind];
+}
+
+/* ============================ cableado de retornos (IUG) ============================ */
+
+// asegura que un circuito de iluminación tenga sus conductores de fase y neutro
+function ensureBaseWires(ciId){
+  const c = ciById(ciId); if(!c || c.kind!=="iluminacion") return;
+  if(!S.wires.some(w=>w.circuit===ciId && w.kind==="F"))
+    S.wires.push({id:uid("w"), circuit:ciId, kind:"F", light:null, branch:null, runIds:[]});
+  if(!S.wires.some(w=>w.circuit===ciId && w.kind==="N"))
+    S.wires.push({id:uid("w"), circuit:ciId, kind:"N", light:null, branch:null, runIds:[]});
+}
+function addRetornoSimple(ciId){
+  pushUndo();
+  const letter = nextLightLetter(ciId);
+  const w = {id:uid("w"), circuit:ciId, kind:"RS", light:letter, branch:null, runIds:[]};
+  S.wires.push(w);
+  recalcCablesFor(ciId);
+  return w;
+}
+function addRetornoCombinada(ciId){
+  pushUndo();
+  const letter = nextLightLetter(ciId);
+  const w1 = {id:uid("w"), circuit:ciId, kind:"RC", light:letter, branch:1, runIds:[]};
+  const w2 = {id:uid("w"), circuit:ciId, kind:"RC", light:letter, branch:2, runIds:[]};
+  S.wires.push(w1, w2);
+  recalcCablesFor(ciId);
+  return [w1, w2];
+}
+function deleteWire(id){
+  const w = S.wires.find(x=>x.id===id); if(!w) return;
+  pushUndo();
+  if(S.tracingWire===id) S.tracingWire=null;
+  S.wires = S.wires.filter(x=>x.id!==id);
+  recalcCablesFor(w.circuit);
+}
+// recalcula, para un circuito de iluminación, cuántos conductores pasan por cada uno
+// de sus tramos según los conductores (wires) trazados sobre ellos
+function recalcCablesFor(ciId){
+  const c = ciById(ciId); if(!c || c.kind!=="iluminacion") return;
+  const runs = S.runs.filter(r=>r.circuit===ciId);
+  for(const r of runs){
+    r.cables = S.wires.filter(w=>w.circuit===ciId && w.runIds.includes(r.id)).length;
+  }
+}
+function startTrace(wireId){
+  const w = S.wires.find(x=>x.id===wireId); if(!w) return;
+  S.tracingWire = wireId;
+  S.hiddenCircuits.delete(w.circuit);            // asegura que se vea lo que se está cableando
+  const hint = $("#hint");
+  hint.innerHTML = `Trazando <b>${esc(wireCode(w))}</b> (${esc(wireLabel(w))}): clic en los tramos por los que pasa — un clic más lo destilda. `+
+    `<button class="btn sm" id="hEndTrace" style="margin-left:6px">Listo</button>`;
+  hint.classList.add("on");
+  $("#hEndTrace").onclick = endTrace;
+  render();
+}
+function endTrace(){
+  S.tracingWire = null;
+  const h = $("#hint");
+  if(h){ h.classList.remove("on"); h.innerHTML=""; }
+  refreshAll();
+}
+function toggleRunInWire(wireId, runId){
+  const w = S.wires.find(x=>x.id===wireId); if(!w) return;
+  const run = S.runs.find(r=>r.id===runId); if(!run || run.circuit!==w.circuit) return;
+  pushUndo();
+  const i = w.runIds.indexOf(runId);
+  if(i>=0) w.runIds.splice(i,1); else w.runIds.push(runId);
+  recalcCablesFor(w.circuit);
+  refreshAll();
+}
+
+/* ============================ historial (deshacer/rehacer) ============================ */
+
+let history=[], future=[];
+const MAX_HISTORY = 100;
+
+function snapshotState(){
+  return JSON.stringify({
+    circuits:S.circuits, nodes:S.nodes, runs:S.runs,
+    counters:S.counters, viewGroups:S.viewGroups, wires:S.wires
+  });
+}
+function restoreSnapshot(json){
+  const d = JSON.parse(json);
+  S.circuits=d.circuits; S.nodes=d.nodes; S.runs=d.runs;
+  S.counters=d.counters; S.viewGroups=d.viewGroups||[]; S.wires=d.wires||[];
+  S.tracingWire=null;
+  if(!S.circuits.some(c=>c.id===S.activeCircuit)) S.activeCircuit = S.circuits[0]?S.circuits[0].id:null;
+  if(S.sel){
+    const ok = S.sel.t==="node" ? S.nodes.some(n=>n.id===S.sel.id) : S.runs.some(r=>r.id===S.sel.id);
+    if(!ok) S.sel=null;
+  }
+  refreshAll();
+}
+function pushUndo(){
+  history.push(snapshotState());
+  if(history.length>MAX_HISTORY) history.shift();
+  future = [];
+  paintHistBtns();
+}
+function undo(){
+  if(!history.length) return;
+  future.push(snapshotState());
+  restoreSnapshot(history.pop());
+  paintHistBtns();
+}
+function redo(){
+  if(!future.length) return;
+  history.push(snapshotState());
+  restoreSnapshot(future.pop());
+  paintHistBtns();
+}
+function paintHistBtns(){
+  const bu=$("#bUndo"), br=$("#bRedo");
+  if(bu) bu.disabled = !history.length;
+  if(br) br.disabled = !future.length;
+}
+// arma un snapshot la primera vez que se entra a editar un campo,
+// asi ctrl+z deshace la sesion de edicion completa y no letra por letra
+function armUndoOnFocus(root){
+  if(!root) return;
+  root.querySelectorAll("input, select").forEach(el=>{
+    el.addEventListener("focus", pushUndo);
+  });
+}
+
+/* ============================ helpers ============================ */
+
+const $  = (s)=>document.querySelector(s);
+const $$ = (s)=>Array.from(document.querySelectorAll(s));
+const cv = $("#cv"), ctx = cv.getContext("2d");
+
+const nodeById = (id)=> S.nodes.find(n=>n.id===id);
+const ciById   = (id)=> S.circuits.find(c=>c.id===id);
+const activeCi = ()=> ciById(S.activeCircuit) || S.circuits[0];
+
+function dist(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
+
+function runPolyline(r){ return r.pts; }
+
+/* ---- alturas ---- */
+function resolveZ(n){
+  if(!n) return S.z.ceiling;
+  if(n.z != null && !n.zAuto) return n.z;
+  if(n.kind==="tablero") return S.z.tablero;
+  if(n.kind==="medidor") return S.z.medidor;
+  if(n.kind==="jabalina") return S.z.jabalina;
+  return S.z[n.device] != null ? S.z[n.device] : S.z.ceiling;
+}
+function defaultZ(kind, device){
+  if(kind==="tablero") return S.z.tablero;
+  if(kind==="medidor") return S.z.medidor;
+  if(kind==="jabalina") return S.z.jabalina;
+  return S.z[device] != null ? S.z[device] : S.z.ceiling;
+}
+
+/* ---- longitudes: horizontal (planta) + vertical (bajadas) ---- */
+function runLenPx(r){
+  let L=0; const p=r.pts;
+  for(let i=1;i<p.length;i++) L += dist(p[i-1],p[i]);
+  return L;
+}
+function runHoriz(r){ return S.pxPerM ? runLenPx(r)/S.pxPerM : 0; }
+
+function runVert(r){
+  const za = resolveZ(nodeById(r.a)), zb = resolveZ(nodeById(r.b));
+  if(r.route==="directo") return Math.abs(za-zb);
+  const c = S.z.ceiling;
+  return Math.max(0, c-za) + Math.max(0, c-zb);
+}
+function runLenM(r){ return S.pxPerM ? runHoriz(r) + runVert(r) : 0; }
+
+/* ---- agrupamiento de tramos en un mismo caño ---- */
+function groupKey(r){
+  if(r.share===false || !r.a || !r.b) return "s:"+r.id;
+  return "g:" + [r.a, r.b].sort().join("|") + ":" + (r.route||"techo");
+}
+function conduitGroups(){
+  const m = new Map();
+  for(const r of S.runs){
+    const k = groupKey(r);
+    if(!m.has(k)) m.set(k, {key:k, runs:[], dia:r.dia, a:r.a, b:r.b, route:r.route});
+    const g = m.get(k);
+    g.runs.push(r);
+    if(diaOf(r.dia).mm > diaOf(g.dia).mm) g.dia = r.dia;
+  }
+  for(const g of m.values()){
+    g.horiz = Math.max.apply(null, g.runs.map(runHoriz));
+    g.vert  = Math.max.apply(null, g.runs.map(runVert));
+    g.len   = g.horiz + g.vert;
+    g.cables= g.runs.reduce((a,r)=>a+r.cables, 0);
+    g.fill  = fillRatio(g.dia, g.runs);
+  }
+  return m;
+}
+function groupOf(r){ return conduitGroups().get(groupKey(r)); }
+
+/* fraccion de ocupacion: 1.0 = caño lleno. Permite mezclar secciones. */
+function fillRatio(dia, runs){
+  let f=0;
+  for(const r of runs){
+    const c = ciById(r.circuit); if(!c) continue;
+    const cap = capOf(dia, c.section);
+    if(cap<=0) return Infinity;
+    f += r.cables / cap;
+  }
+  return f;
+}
+function suggestDiaFor(runs){
+  for(const d of DIAS){ if(fillRatio(d.id, runs) <= 1) return d.id; }
+  return DIAS[DIAS.length-1].id;
+}
+
+function fmt(v,d){ if(!isFinite(v)) return "—"; return v.toFixed(d==null?2:d); }
+function fmtM(v){ return S.pxPerM ? fmt(v,2)+" m" : "—"; }
+
+function runsAtNode(id){
+  return S.runs.filter(r=> r.a===id || r.b===id);
+}
+// máximo de caños que admite una caja según su tipo (null = sin límite conocido, ej. tablero)
+function nodeMaxConduits(n){
+  if(n.kind==="oct") return S.rules.maxOct;
+  if(n.kind==="rect") return S.rules.maxRect;
+  if(n.kind==="insp") return n.inspMax || INSP_SIZES[INSP_DEFAULT].max;
+  return null;
+}
+function capOf(dia, sec){
+  const row = S.rules.cap[dia]; if(!row) return 0;
+  return row[sec]|0;
+}
+function isCiVisible(id){
+  return !S.hiddenCircuits.has(id);
+}
+// una caja se ve si es el tablero (siempre), si todavía no tiene ningún caño
+// conectado, o si al menos uno de sus caños pertenece a un circuito visible.
+// con "only" (hojas de PDF por circuito) sólo se ve si tiene un caño de ese circuito.
+function nodeVisible(n, only){
+  if(n.kind==="tablero"||n.kind==="medidor"||n.kind==="jabalina") return true;
+  const rs = runsAtNode(n.id);
+  if(only) return rs.some(r=>r.circuit===only);
+  if(!rs.length) return true;
+  return rs.some(r=> isCiVisible(r.circuit));
+}
+
+/* ============================ vista / coords ============================ */
+
+function resize(){
+  const r = $("#stage").getBoundingClientRect();
+  const dpr = Math.min(window.devicePixelRatio||1, 2);
+  cv.width = Math.max(1, Math.round(r.width*dpr));
+  cv.height= Math.max(1, Math.round(r.height*dpr));
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  render();
+}
+window.addEventListener("resize", resize);
+
+/* ---- grilla de alineación ---- */
+function gridPx(){ return Math.max(2, S.grid.size); }
+function snapToGrid(p){
+  if(!S.grid.on || !S.grid.snap) return p;
+  const gs = gridPx();
+  return {x:Math.round(p.x/gs)*gs, y:Math.round(p.y/gs)*gs};
+}
+function drawGrid(g, z){
+  if(!S.base) return;
+  const gs = gridPx(), W=S.base.width, H=S.base.height;
+  g.save();
+  g.strokeStyle="rgba(21,24,27,.10)"; g.lineWidth=1/z;
+  g.beginPath();
+  for(let x=0; x<=W; x+=gs){ g.moveTo(x,0); g.lineTo(x,H); }
+  for(let y=0; y<=H; y+=gs){ g.moveTo(0,y); g.lineTo(W,y); }
+  g.stroke();
+  g.restore();
+}
+function paintGridMeta(){
+  const m = $("#gridMeta"); if(!m) return;
+  m.textContent = S.pxPerM ? "px ≈ "+fmt(S.grid.size/S.pxPerM*100,1)+" cm" : "px (sin escala aún)";
+}
+
+function toWorld(sx,sy){ return {x:(sx-S.view.x)/S.view.z, y:(sy-S.view.y)/S.view.z}; }
+function toScreen(w){ return {x:w.x*S.view.z+S.view.x, y:w.y*S.view.z+S.view.y}; }
+function mouse(e){
+  const r = cv.getBoundingClientRect();
+  return toWorld(e.clientX-r.left, e.clientY-r.top);
+}
+
+function fitView(){
+  if(!S.base) return;
+  const r = $("#stage").getBoundingClientRect();
+  const pad = 40;
+  const z = Math.min((r.width-pad*2)/S.base.width, (r.height-pad*2)/S.base.height);
+  S.view.z = z>0?z:1;
+  S.view.x = (r.width  - S.base.width *S.view.z)/2;
+  S.view.y = (r.height - S.base.height*S.view.z)/2;
+  render();
+}
+function zoomAt(f, sx, sy){
+  const r = $("#stage").getBoundingClientRect();
+  if(sx==null){ sx = r.width/2; sy = r.height/2; }
+  const w = toWorld(sx,sy);
+  S.view.z = Math.max(.04, Math.min(24, S.view.z*f));
+  S.view.x = sx - w.x*S.view.z;
+  S.view.y = sy - w.y*S.view.z;
+  render();
+}
+
+/* ============================ render ============================ */
+
+function nodeR(){ return 9/S.view.z; }
+function snapRadius(){ return 15/S.view.z; }
+
+function findNode(w, skip){
+  let best=null, bd=snapRadius();
+  for(const n of S.nodes){
+    if(skip && n.id===skip) continue;
+    if(!nodeVisible(n)) continue;
+    const d = dist(n,w);
+    if(d<bd){ bd=d; best=n; }
+  }
+  return best;
+}
+
+function hitRun(w){
+  const tol = 7/S.view.z;
+  for(const r of S.runs){
+    if(!isCiVisible(r.circuit)) continue;
+    const p=r.pts;
+    for(let i=1;i<p.length;i++){
+      if(distToSeg(w,p[i-1],p[i])<tol) return r;
+    }
+  }
+  return null;
+}
+function distToSeg(p,a,b){
+  const dx=b.x-a.x, dy=b.y-a.y, L=dx*dx+dy*dy;
+  if(L===0) return dist(p,a);
+  let t=((p.x-a.x)*dx+(p.y-a.y)*dy)/L; t=Math.max(0,Math.min(1,t));
+  return Math.hypot(p.x-(a.x+t*dx), p.y-(a.y+t*dy));
+}
+
+/* ---- cantidad de codos de 90° reales en un tramo ---- */
+function runBends(r){
+  const p = r.pts; let n=0;
+  for(let i=1;i<p.length-1;i++){
+    const d1x=p[i].x-p[i-1].x, d1y=p[i].y-p[i-1].y;
+    const d2x=p[i+1].x-p[i].x, d2y=p[i+1].y-p[i].y;
+    const cross = d1x*d2y - d1y*d2x, dot = d1x*d2x + d1y*d2y;
+    if(Math.abs(cross) > 1e-6 || dot < 0) n++;   // cambia de dirección de verdad
+  }
+  return n;
+}
+
+/* ---- cruces de caños sin caja: intersección de segmentos ---- */
+function segIntersect(p1,p2,p3,p4){
+  const d1x=p2.x-p1.x, d1y=p2.y-p1.y;
+  const d2x=p4.x-p3.x, d2y=p4.y-p3.y;
+  const denom = d1x*d2y - d1y*d2x;
+  if(Math.abs(denom) < 1e-9) return null; // paralelos o colineales
+  const t = ((p3.x-p1.x)*d2y - (p3.y-p1.y)*d2x) / denom;
+  const u = ((p3.x-p1.x)*d1y - (p3.y-p1.y)*d1x) / denom;
+  // margen chico para no marcar como cruce lo que en realidad toca en una punta
+  if(t>0.03 && t<0.97 && u>0.03 && u<0.97) return {x:p1.x+t*d1x, y:p1.y+t*d1y, t, u};
+  return null;
+}
+// altura de un caño físico (grupo) en un punto a "frac" (0..1) de su recorrido en planta.
+// "por cielorraso" corre siempre pegado al cielorraso; sólo "directo" varía linealmente
+// entre la altura de las dos cajas que conecta.
+function groupZAtFraction(g, frac){
+  if((g.route||"techo")==="techo") return S.z.ceiling;
+  const za = resolveZ(nodeById(g.a)), zb = resolveZ(nodeById(g.b));
+  return za + (zb-za)*frac;
+}
+function pathFraction(pts, segIdx, t){
+  let total=0; for(let i=1;i<pts.length;i++) total+=dist(pts[i-1],pts[i]);
+  if(total<=0) return 0;
+  let acc=0;
+  for(let i=1;i<segIdx;i++) acc+=dist(pts[i-1],pts[i]);
+  acc += dist(pts[segIdx-1],pts[segIdx]) * t;
+  return acc/total;
+}
+// compara caños físicos (grupos), no tramos sueltos: dos tramos del mismo
+// caño compartido se superponen a propósito y no cuentan como cruce.
+function findCrossings(){
+  const groups = Array.from(conduitGroups().values()).filter(g=>g.runs[0].pts.length>1);
+  const out=[];
+  for(let i=0;i<groups.length;i++){
+    for(let j=i+1;j<groups.length;j++){
+      const A=groups[i], B=groups[j];
+      const shared = [A.a,A.b].filter(x=>x && (x===B.a||x===B.b));
+      const pa=A.runs[0].pts, pb=B.runs[0].pts;
+      for(let x=1;x<pa.length;x++){
+        for(let y=1;y<pb.length;y++){
+          const ip = segIntersect(pa[x-1],pa[x],pb[y-1],pb[y]);
+          if(!ip) continue;
+          if(shared.length){
+            const near = shared.some(id=>{ const nn=nodeById(id); return nn && dist(nn,ip) < snapRadius()*2; });
+            if(near) continue; // es el mismo empalme en una caja, no un cruce real
+          }
+          const zA = groupZAtFraction(A, pathFraction(pa, x, ip.t));
+          const zB = groupZAtFraction(B, pathFraction(pb, y, ip.u));
+          const diff = Math.abs(zA-zB);
+          out.push({a:A, b:B, pt:ip, zA, zB, diff, safe: diff >= CROSS_CLEARANCE_M});
+        }
+      }
+    }
+  }
+  return out;
+}
+
+function offsetPoly(pts, d){
+  if(!d) return pts;
+  const out=[];
+  for(let i=0;i<pts.length;i++){
+    const p=pts[i], a=pts[i-1], b=pts[i+1];
+    let nx=0, ny=0, k=0;
+    if(a){ const dx=p.x-a.x, dy=p.y-a.y, L=Math.hypot(dx,dy)||1; nx+=-dy/L; ny+= dx/L; k++; }
+    if(b){ const dx=b.x-p.x, dy=b.y-p.y, L=Math.hypot(dx,dy)||1; nx+=-dy/L; ny+= dx/L; k++; }
+    if(k){ const L=Math.hypot(nx,ny)||1; nx/=L; ny/=L; }
+    out.push({x:p.x+nx*d, y:p.y+ny*d});
+  }
+  return out;
+}
+
+function condWidth(section){
+  if(section>=10) return 4.4;
+  if(section>=6)  return 3.7;
+  if(section>=4)  return 3.1;
+  if(section>=2.5) return 2.5;
+  return 1.4;
+}
+
+function drawConduit(g, grp, bad, z, vis, detailed){
+  const base = grp.runs[0].pts;
+
+  if(detailed){
+    const items = conduitConductors(vis);
+    const n = Math.max(items.length, 1);
+    const maxW = items.reduce((a,it)=>Math.max(a,condWidth(it.section)), 1.4);
+    const pipeW = Math.min(26, 9 + n*(maxW+0.6));
+    g.save(); g.lineJoin="round"; g.lineCap="round"; g.setLineDash([]);
+    g.strokeStyle="rgba(255,255,255,.9)"; g.lineWidth=(pipeW+4)/z;
+    tracePath(g, base); g.stroke();
+    g.strokeStyle = bad ? "#b3261e" : "#9aa4ad"; g.lineWidth=(bad?pipeW+1.2:pipeW)/z;
+    tracePath(g, base); g.stroke();
+    g.strokeStyle="#ffffff"; g.lineWidth=(pipeW-2.6)/z;
+    tracePath(g, base); g.stroke();
+    g.restore();
+
+    const sp = Math.min(5.6, (pipeW-2.5)/n);
+    items.forEach((it,i)=>{
+      const off = n>1 ? (i-(n-1)/2)*sp : 0;
+      const pts = offsetPoly(base, off);
+      const w = condWidth(it.section);
+      g.save(); g.lineJoin="round"; g.lineCap="round";
+      g.strokeStyle="rgba(15,18,20,.6)"; g.lineWidth=(w+1.1)/z;
+      tracePath(g, pts); g.stroke();
+      g.strokeStyle = it.color; g.lineWidth = w/z;
+      tracePath(g, pts); g.stroke();
+      g.restore();
+    });
+    return;
+  }
+
+  // envoltura gris del caño
+  g.save(); g.lineJoin="round"; g.lineCap="round"; g.setLineDash([]);
+  g.strokeStyle="rgba(255,255,255,.9)"; g.lineWidth=11/z;
+  tracePath(g, base); g.stroke();
+  g.strokeStyle = bad ? "#b3261e" : "#9aa4ad"; g.lineWidth=(bad?8.5:7.5)/z;
+  tracePath(g, base); g.stroke();
+  g.strokeStyle="#ffffff"; g.lineWidth=5.5/z;
+  tracePath(g, base); g.stroke();
+  g.restore();
+
+  // cables del grupo, en paralelo
+  const n = grp.runs.length, sp = 3.4/z;
+  grp.runs.forEach((r, i)=>{
+    if(vis.indexOf(r)<0) return;
+    const c = ciById(r.circuit); if(!c) return;
+    const off = n>1 ? (i-(n-1)/2)*sp : 0;
+    const pts = offsetPoly(base, off);
+    g.save(); g.lineJoin="round"; g.lineCap="round";
+    g.strokeStyle = c.color; g.lineWidth = (n>1?2.2:2.8)/z;
+    g.setLineDash(c.dash ? [9/z, 6/z] : []);
+    tracePath(g, pts); g.stroke();
+    g.restore();
+  });
+}
+
+function drawScene(g, opt){
+  opt = opt||{};
+  const only = opt.only || null;                 // circuito único
+  const z = opt.z != null ? opt.z : S.view.z;
+  const problems = opt.problems || new Set();
+  const detailed = !!opt.detailed;
+
+  if(S.base) g.drawImage(S.base,0,0);
+
+  // --- caños (agrupados) y cables
+  const groups = conduitGroups();
+  for(const grp of groups.values()){
+    // en las hojas detalladas por circuito, si el caño es compartido con otros
+    // circuitos mostramos también SUS conductores (son los tramos más congestionados)
+    const relevant = only ? grp.runs.some(r=>r.circuit===only) : grp.runs.some(r=>isCiVisible(r.circuit));
+    if(!relevant) continue;
+    const vis = (only && detailed) ? grp.runs.slice()
+      : grp.runs.filter(r=> only ? r.circuit===only : isCiVisible(r.circuit));
+    if(!vis.length) continue;
+    const bad = vis.some(r=>problems.has(r.id)) || problems.has(grp.key);
+    drawConduit(g, grp, bad, z, vis, detailed);
+  }
+
+  // --- etiquetas sobre el caño
+  if((opt.lens!=null?opt.lens:S.show.lens) && S.pxPerM){
+    for(const grp of groups.values()){
+      const vis = grp.runs.filter(r=> only ? r.circuit===only : isCiVisible(r.circuit));
+      if(!vis.length) continue;
+      const p = grp.runs[0].pts; if(p.length<2) continue;
+      let acc=0, half=runLenPx(grp.runs[0])/2, mid=p[0], ang=0;
+      for(let i=1;i<p.length;i++){
+        const d=dist(p[i-1],p[i]);
+        if(acc+d>=half){
+          const t=(half-acc)/d;
+          mid={x:p[i-1].x+(p[i].x-p[i-1].x)*t, y:p[i-1].y+(p[i].y-p[i-1].y)*t};
+          ang=Math.atan2(p[i].y-p[i-1].y, p[i].x-p[i-1].x); break;
+        }
+        acc+=d;
+      }
+      if(Math.abs(ang)>Math.PI/2) ang+=Math.PI;
+      const shown = only ? vis : grp.runs;
+      const cab = shown.reduce((a,r)=>a+r.cables,0);
+      let txt = fmt(grp.len,2)+" m · "+diaLbl(grp.dia)+" · "+cab+" cond.";
+      if(grp.vert>0.01) txt += "  (h "+fmt(grp.horiz,2)+" + v "+fmt(grp.vert,2)+")";
+      if(grp.runs.length>1 && !only) txt += " · "+grp.runs.length+" circ.";
+      g.save();
+      g.translate(mid.x, mid.y); g.rotate(ang);
+      g.font = (11/z)+"px 'IBM Plex Mono',monospace";
+      g.textAlign="center"; g.textBaseline="bottom";
+      const w = g.measureText(txt).width;
+      g.fillStyle="rgba(255,255,255,.93)";
+      g.fillRect(-w/2-3/z, -16/z, w+6/z, 13/z);
+      g.fillStyle="#15181b"; g.fillText(txt, 0, -5/z);
+      g.restore();
+    }
+  }
+
+  // --- nodos
+  for(const n of S.nodes){
+    if(!nodeVisible(n, only)) continue;
+    const bad = problems.has(n.id);
+    const R = 9/z;
+    g.save();
+    g.translate(n.x, n.y);
+    g.lineWidth = 2/z;
+    g.strokeStyle = bad ? "#b3261e" : "#15181b";
+    g.fillStyle = "#ffffff";
+    if(n.kind==="tablero"){
+      g.beginPath(); g.rect(-R*1.25,-R,R*2.5,R*2); g.fill(); g.stroke();
+      g.beginPath();
+      for(let i=0;i<3;i++){ g.moveTo(-R*.7+i*R*.7, -R*.55); g.lineTo(-R*.7+i*R*.7, R*.55); }
+      g.stroke();
+    } else if(n.kind==="medidor"){
+      g.beginPath(); g.arc(0,0,R*1.15,0,7); g.fill(); g.stroke();
+      g.beginPath(); g.moveTo(0,0); g.lineTo(-R*.55,-R*.35); g.stroke();
+      g.beginPath(); g.arc(0,0,R*.14,0,7); g.fillStyle="#15181b"; g.fill();
+    } else if(n.kind==="jabalina"){
+      g.beginPath(); g.moveTo(0,-R*1.15); g.lineTo(0,R*.05); g.stroke();
+      g.beginPath();
+      g.moveTo(-R*.85,R*.05); g.lineTo(R*.85,R*.05);
+      g.moveTo(-R*.55,R*.45); g.lineTo(R*.55,R*.45);
+      g.moveTo(-R*.25,R*.85); g.lineTo(R*.25,R*.85);
+      g.stroke();
+    } else if(n.kind==="insp"){
+      g.beginPath(); g.rect(-R*1.15,-R*1.15,R*2.3,R*2.3); g.fill(); g.stroke();
+      g.beginPath();
+      g.moveTo(-R*.75,-R*.75); g.lineTo(R*.75,R*.75);
+      g.moveTo(R*.75,-R*.75); g.lineTo(-R*.75,R*.75);
+      g.stroke();
+    } else if(n.kind==="oct"){
+      g.beginPath();
+      for(let i=0;i<8;i++){
+        const a=Math.PI/8 + i*Math.PI/4;
+        const x=Math.cos(a)*R*1.15, y=Math.sin(a)*R*1.15;
+        i?g.lineTo(x,y):g.moveTo(x,y);
+      }
+      g.closePath(); g.fill(); g.stroke();
+      drawDevice(g, n.device, R, z);
+    } else {
+      g.beginPath(); g.rect(-R,-R*.78,R*2,R*1.56); g.fill(); g.stroke();
+      drawDevice(g, n.device, R, z);
+    }
+    g.restore();
+
+    if(opt.labels!=null?opt.labels:S.show.labels){
+      g.save();
+      g.font = "500 "+(11/z)+"px 'IBM Plex Mono',monospace";
+      g.textAlign="left"; g.textBaseline="middle";
+      const t = n.label + (S.show.z ? "  " + fmt(resolveZ(n),2) + "m" : "");
+      const w = g.measureText(t).width;
+      g.fillStyle="rgba(255,255,255,.9)";
+      g.fillRect(n.x+R*1.5, n.y-R*1.5-6/z, w+5/z, 13/z);
+      g.fillStyle="#15181b";
+      g.fillText(t, n.x+R*1.5+2.5/z, n.y-R*1.5);
+      g.restore();
+    }
+  }
+}
+
+function drawDevice(g, dev, R, z){
+  g.save(); g.lineWidth=1.6/z; g.strokeStyle=g.strokeStyle;
+  if(dev==="luminaria"){
+    g.beginPath(); g.moveTo(-R*.5,-R*.5); g.lineTo(R*.5,R*.5);
+    g.moveTo(R*.5,-R*.5); g.lineTo(-R*.5,R*.5); g.stroke();
+  } else if(dev==="interruptor"){
+    g.beginPath(); g.moveTo(-R*.45,R*.35); g.lineTo(R*.45,-R*.4); g.stroke();
+  } else if(dev==="toma"){
+    g.beginPath(); g.arc(0,0,R*.42,Math.PI,0); g.stroke();
+    g.beginPath(); g.moveTo(-R*.42,0); g.lineTo(R*.42,0); g.stroke();
+  } else if(dev==="especial"){
+    g.beginPath(); g.moveTo(-R*.15,-R*.5); g.lineTo(-R*.45,R*.05);
+    g.lineTo(R*.05,R*.05); g.lineTo(-R*.1,R*.5); g.stroke();
+  } else {
+    g.beginPath(); g.arc(0,0,R*.2,0,7); g.stroke();
+  }
+  g.restore();
+}
+
+function tracePath(g, pts){
+  g.beginPath(); g.moveTo(pts[0].x, pts[0].y);
+  for(let i=1;i<pts.length;i++) g.lineTo(pts[i].x, pts[i].y);
+}
+
+// dibuja el símbolo de cruce en (cr.pt): × roja si está a la misma altura (no lo vio),
+// triángulo de cuidado ámbar si está resuelto en altura pero conviene verificar
+function drawCrossingMark(g, cr, z){
+  g.save();
+  g.translate(cr.pt.x, cr.pt.y);
+  if(cr.safe){
+    const s = 8/z;
+    g.beginPath();
+    g.moveTo(0,-s); g.lineTo(s*0.87, s*0.62); g.lineTo(-s*0.87, s*0.62); g.closePath();
+    g.fillStyle="#fff"; g.fill();
+    g.lineJoin="round"; g.strokeStyle="#8a6100"; g.lineWidth=2/z; g.stroke();
+    g.fillStyle="#8a6100";
+    g.fillRect(-0.9/z, -s*0.32, 1.8/z, s*0.5);
+    g.beginPath(); g.arc(0, s*0.35, 1.15/z, 0, 7); g.fill();
+  } else {
+    g.rotate(Math.PI/4);
+    g.strokeStyle="#b3261e"; g.lineWidth=2.6/z;
+    const s=7.5/z;
+    g.beginPath(); g.moveTo(-s,0); g.lineTo(s,0); g.moveTo(0,-s); g.lineTo(0,s); g.stroke();
+  }
+  g.restore();
+}
+
+function render(){
+  const r = $("#stage").getBoundingClientRect();
+  ctx.save();
+  ctx.fillStyle="#e2e5e8"; ctx.fillRect(0,0,r.width,r.height);
+  ctx.restore();
+  if(!S.base){ $("#empty").style.display="grid"; return; }
+  $("#empty").style.display="none";
+
+  const problems = drcTargets();
+
+  ctx.save();
+  ctx.translate(S.view.x, S.view.y); ctx.scale(S.view.z, S.view.z);
+
+  // sombra de hoja
+  ctx.save(); ctx.fillStyle="rgba(0,0,0,.12)";
+  ctx.fillRect(4/S.view.z,4/S.view.z,S.base.width,S.base.height); ctx.restore();
+  ctx.fillStyle="#fff"; ctx.fillRect(0,0,S.base.width,S.base.height);
+
+  if(S.grid.on) drawGrid(ctx, S.view.z);
+
+  drawScene(ctx, {problems});
+
+  // cruces de caños distintos: × roja si están a la misma altura (sin resolver),
+  // triángulo de cuidado si están resueltos en altura (verificar que alcance)
+  for(const cr of findCrossings()){
+    drawCrossingMark(ctx, cr, S.view.z);
+  }
+
+  // resalta el conductor que se está trazando ahora (modo cableado de retornos)
+  if(S.tracingWire){
+    const w = S.wires.find(x=>x.id===S.tracingWire);
+    if(w){
+      ctx.save();
+      ctx.strokeStyle="#0e7490"; ctx.lineWidth=6/S.view.z;
+      ctx.setLineDash([3/S.view.z,3/S.view.z]); ctx.lineCap="round"; ctx.lineJoin="round";
+      for(const rid of w.runIds){
+        const run = S.runs.find(x=>x.id===rid); if(!run) continue;
+        tracePath(ctx, run.pts); ctx.stroke();
+      }
+      ctx.restore();
+    }
+  }
+
+  // selección
+  if(S.sel){
+    ctx.save();
+    ctx.strokeStyle="#a9552a"; ctx.lineWidth=2.5/S.view.z; ctx.setLineDash([6/S.view.z,4/S.view.z]);
+    if(S.sel.t==="run"){
+      const r2=S.runs.find(x=>x.id===S.sel.id);
+      if(r2){ tracePath(ctx, r2.pts); ctx.stroke();
+        ctx.setLineDash([]); ctx.fillStyle="#a9552a";
+        for(const p of r2.pts){ ctx.beginPath(); ctx.arc(p.x,p.y,3.5/S.view.z,0,7); ctx.fill(); } }
+    } else {
+      const n=nodeById(S.sel.id);
+      if(n){ ctx.beginPath(); ctx.arc(n.x,n.y,16/S.view.z,0,7); ctx.stroke(); }
+    }
+    ctx.restore();
+  }
+
+  // borrador
+  if(S.draft && S.draft.pts.length){
+    const c = activeCi();
+    ctx.save();
+    ctx.strokeStyle=c?c.color:"#a9552a"; ctx.lineWidth=3/S.view.z;
+    ctx.setLineDash([8/S.view.z,5/S.view.z]); ctx.lineJoin="round"; ctx.lineCap="round";
+    const pts = S.draft.pts.concat(S.draft.cursor?[S.draft.cursor]:[]);
+    tracePath(ctx, pts); ctx.stroke();
+    ctx.setLineDash([]); ctx.fillStyle=c?c.color:"#a9552a";
+    for(const p of S.draft.pts){ ctx.beginPath(); ctx.arc(p.x,p.y,3.5/S.view.z,0,7); ctx.fill(); }
+    ctx.restore();
+  }
+
+  // calibración
+  if(S.calib && S.calib.a){
+    ctx.save();
+    ctx.strokeStyle="#a9552a"; ctx.lineWidth=2/S.view.z;
+    const b = S.calib.b || S.calib.cursor;
+    if(b){ ctx.beginPath(); ctx.moveTo(S.calib.a.x,S.calib.a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+      for(const p of [S.calib.a,b]){
+        ctx.beginPath(); ctx.moveTo(p.x,p.y-8/S.view.z); ctx.lineTo(p.x,p.y+8/S.view.z);
+        ctx.moveTo(p.x-8/S.view.z,p.y); ctx.lineTo(p.x+8/S.view.z,p.y); ctx.stroke(); } }
+    ctx.restore();
+  }
+
+  // snap highlight
+  if((S.tool==="run") && S.hoverNode){
+    ctx.save(); ctx.strokeStyle="#a9552a"; ctx.lineWidth=2/S.view.z;
+    ctx.beginPath(); ctx.arc(S.hoverNode.x,S.hoverNode.y,14/S.view.z,0,7); ctx.stroke(); ctx.restore();
+  }
+
+  ctx.restore();
+}
+
+/* ============================ herramientas ============================ */
+
+const TOOLS = [
+  {id:"select", n:"Seleccionar", k:"V", g:'<svg width="14" height="14" viewBox="0 0 16 16"><path d="M3 2l9 5.5-4 1L6.5 13z" fill="currentColor"/></svg>'},
+  {id:"tablero",n:"Tablero",     k:"T", g:'<svg width="14" height="14" viewBox="0 0 16 16"><rect x="2" y="4" width="12" height="8" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M5.5 6v4M8 6v4M10.5 6v4" stroke="currentColor" stroke-width="1.2"/></svg>'},
+  {id:"oct",    n:"Caja octogonal", k:"O", g:'<svg width="14" height="14" viewBox="0 0 16 16"><path d="M5.5 2h5L14 5.5v5L10.5 14h-5L2 10.5v-5z" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>'},
+  {id:"rect",   n:"Caja rectangular", k:"R", g:'<svg width="14" height="14" viewBox="0 0 16 16"><rect x="2.5" y="4.5" width="11" height="7" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>'},
+  {id:"medidor",n:"Medidor",    k:"M", g:'<svg width="14" height="14" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 8L5.7 5.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>'},
+  {id:"jabalina",n:"Jabalina",  k:"J", g:'<svg width="14" height="14" viewBox="0 0 16 16"><path d="M8 2v6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M3.5 10h9M4.7 12h6.6M5.9 14h3.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>'},
+  {id:"insp",   n:"Caja de inspección", k:"I", g:'<svg width="14" height="14" viewBox="0 0 16 16"><rect x="2" y="2" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>'},
+  {id:"run",    n:"Tramo de caño", k:"C", g:'<svg width="14" height="14" viewBox="0 0 16 16"><path d="M2 12h5V4h7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>'},
+  {id:"calib",  n:"Calibrar escala", k:"K", g:'<svg width="14" height="14" viewBox="0 0 16 16"><path d="M2 8h12M2 5.5v5M14 5.5v5M6 6.5v3M10 6.5v3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>'}
+];
+
+const HINTS = {
+  select:"",
+  tablero:"Hacé clic en el plano para ubicar el <b>tablero</b>. Es el origen de todos los circuitos.",
+  oct:"Clic para ubicar una <b>caja octogonal</b> (techo). Después elegí qué va en ella desde el panel derecho.",
+  rect:"Clic para ubicar una <b>caja rectangular</b> (pared). Después elegí qué va en ella desde el panel derecho.",
+  medidor:"Clic para ubicar el <b>medidor</b> de la compañía eléctrica. Después conectalo al tablero con un tramo del circuito ACO (Acometida).",
+  jabalina:"Clic para ubicar la <b>jabalina</b> de puesta a tierra. Después conectala al tablero con un tramo del circuito PAT (Puesta a tierra).",
+  insp:"Clic para ubicar una <b>caja de inspección</b>, para derivaciones grandes donde conviene dejar tapa accesible. Elegí el tamaño desde el panel derecho.",
+  run:"Clic en una caja para arrancar, clic para cada quiebre (siempre en escuadra), y clic en otra caja para cerrar. <b>Esc</b> cancela · <b>Enter</b> corta suelto.",
+  calib:"Marcá los <b>dos extremos de una cota conocida</b> del plano. Después ingresás cuánto mide en la realidad."
+};
+
+function setTool(t){
+  S.tool = t;
+  S.draft = null;
+  if(t!=="calib") S.calib = null;
+  else S.calib = {a:null,b:null};
+  $$("#tools .tool").forEach(b=> b.classList.toggle("on", b.dataset.t===t));
+  const h = HINTS[t];
+  $("#hint").innerHTML = h; $("#hint").classList.toggle("on", !!h);
+  cv.style.cursor = t==="select" ? "default" : "crosshair";
+  render();
+}
+
+function buildTools(){
+  $("#tools").innerHTML = TOOLS.map(t=>
+    `<button class="tool${t.id==="select"?" on":""}" data-t="${t.id}"><span class="gl">${t.g}</span>${t.n}<kbd>${t.k}</kbd></button>`
+  ).join("");
+  $$("#tools .tool").forEach(b=> b.onclick = ()=> setTool(b.dataset.t));
+}
+
+/* ============================ interacción ============================ */
+
+let panning=null, dragging=null;
+
+cv.addEventListener("contextmenu", e=>{
+  e.preventDefault();
+  if(S.draft) finishRun(null);
+});
+
+cv.addEventListener("wheel", e=>{
+  e.preventDefault();
+  const r=cv.getBoundingClientRect();
+  zoomAt(e.deltaY<0?1.12:1/1.12, e.clientX-r.left, e.clientY-r.top);
+},{passive:false});
+
+cv.addEventListener("pointerdown", e=>{
+  if(!S.base) return;
+  cv.setPointerCapture(e.pointerId);
+  const w = mouse(e);
+
+  if(e.button===1 || e.button===2 || (e.button===0 && e.altKey)){
+    panning={x:e.clientX,y:e.clientY,vx:S.view.x,vy:S.view.y}; return;
+  }
+  if(e.button!==0) return;
+
+  if(S.tracingWire){
+    const rr = hitRun(w);
+    if(rr) toggleRunInWire(S.tracingWire, rr.id);
+    return;
+  }
+
+  if(S.tool==="calib"){
+    if(!S.calib.a){ S.calib.a=w; }
+    else { S.calib.b=w; openCal(); }
+    render(); return;
+  }
+
+  if(S.tool==="tablero"||S.tool==="oct"||S.tool==="rect"||S.tool==="medidor"||S.tool==="jabalina"||S.tool==="insp"){
+    const dev = S.tool==="oct" ? "luminaria" : (S.tool==="rect" ? "toma" : null);
+    const p0 = snapToGrid(w);
+    pushUndo();
+    const n = {id:uid("n"), kind:S.tool, x:p0.x, y:p0.y, label:nextLabel(S.tool),
+      device:dev, zAuto:true, z:defaultZ(S.tool, dev), note:""};
+    if(S.tool==="insp"){
+      const preset = INSP_SIZES[INSP_DEFAULT];
+      n.inspSize = INSP_DEFAULT; n.inspLabel = preset.label; n.inspMax = preset.max;
+    }
+    S.nodes.push(n); S.sel={t:"node",id:n.id};
+    refreshAll(); return;
+  }
+
+  if(S.tool==="run"){
+    const c = activeCi();
+    if(!c){ alert("Creá al menos un circuito antes de dibujar."); return; }
+    const hit = findNode(w);
+    const p = hit ? {x:hit.x,y:hit.y} : snapToGrid(orthoPoint(w));
+    if(!S.draft){
+      S.draft = {circuit:c.id, pts:[p], a:hit?hit.id:null, cursor:null};
+    } else {
+      S.draft.pts.push(p);
+      if(hit){ finishRun(hit.id); return; }
+    }
+    render(); return;
+  }
+
+  // select
+  const n = findNode(w);
+  if(n){
+    S.sel={t:"node",id:n.id};
+    dragging={t:"node",id:n.id,dx:w.x-n.x,dy:w.y-n.y,moved:false};
+    refreshAll(); return;
+  }
+  const r = hitRun(w);
+  if(r){
+    const vi = r.pts.findIndex(p=>dist(p,w)<snapRadius());
+    S.sel={t:"run",id:r.id};
+    if(vi>=0 && vi!==0 && vi!==r.pts.length-1) dragging={t:"vtx",id:r.id,i:vi,moved:false};
+    refreshAll(); return;
+  }
+  S.sel=null; refreshAll();
+  panning={x:e.clientX,y:e.clientY,vx:S.view.x,vy:S.view.y};
+});
+
+function orthoPoint(w){
+  // los tramos siempre corren horizontales o verticales, con codos de 90°
+  if(!S.draft || !S.draft.pts.length) return {x:w.x,y:w.y};
+  const last = S.draft.pts[S.draft.pts.length-1];
+  return Math.abs(w.x-last.x) > Math.abs(w.y-last.y) ? {x:w.x,y:last.y} : {x:last.x,y:w.y};
+}
+
+cv.addEventListener("pointermove", e=>{
+  if(!S.base) return;
+  const w = mouse(e);
+
+  if(panning){
+    S.view.x = panning.vx + (e.clientX-panning.x);
+    S.view.y = panning.vy + (e.clientY-panning.y);
+    render(); return;
+  }
+  if(dragging){
+    if(!dragging.moved) pushUndo();
+    if(dragging.t==="node"){
+      const n=nodeById(dragging.id); if(!n) return;
+      const p0 = snapToGrid({x:w.x-dragging.dx, y:w.y-dragging.dy});
+      n.x = p0.x; n.y = p0.y; dragging.moved=true;
+      for(const r of S.runs){
+        if(r.a===n.id) r.pts[0]={x:n.x,y:n.y};
+        if(r.b===n.id) r.pts[r.pts.length-1]={x:n.x,y:n.y};
+      }
+    } else {
+      const r=S.runs.find(x=>x.id===dragging.id); if(!r) return;
+      r.pts[dragging.i]={x:w.x,y:w.y}; dragging.moved=true;
+    }
+    render(); scheduleRefresh(); return;
+  }
+  if(S.tool==="run"){
+    const hit = findNode(w);
+    S.hoverNode = hit;
+    if(S.draft) S.draft.cursor = hit?{x:hit.x,y:hit.y}:snapToGrid(orthoPoint(w));
+    render(); return;
+  }
+  if(S.tool==="calib" && S.calib && S.calib.a && !S.calib.b){
+    S.calib.cursor=w; render();
+  }
+});
+
+cv.addEventListener("pointerup", e=>{
+  if(dragging && dragging.moved) refreshAll();
+  panning=null; dragging=null;
+});
+
+window.addEventListener("keydown", e=>{
+  const tag = (e.target.tagName||"").toLowerCase();
+  if(tag==="input"||tag==="select"||tag==="textarea") return;
+  const k = e.key.toLowerCase();
+  if(k==="escape"){
+    if(S.tracingWire){ endTrace(); return; }
+    S.draft=null; S.calib=null; S.hoverNode=null;
+    if(S.tool!=="select") setTool("select"); else { S.sel=null; refreshAll(); }
+    return;
+  }
+  if(k==="enter" && S.draft){ finishRun(null); return; }
+  if((k==="delete"||k==="backspace") && S.sel){ e.preventDefault(); delSel(); return; }
+  if(k==="g"){ S.grid.on=!S.grid.on; const cb=$("#vGrid"); if(cb) cb.checked=S.grid.on; render(); return; }
+  if((e.ctrlKey||e.metaKey) && !e.shiftKey && k==="z"){ e.preventDefault(); undo(); return; }
+  if((e.ctrlKey||e.metaKey) && (k==="y" || (e.shiftKey && k==="z"))){ e.preventDefault(); redo(); return; }
+  const t = TOOLS.find(t=>t.k.toLowerCase()===k);
+  if(t){ setTool(t.id); return; }
+  if(k==="+"||k==="=") zoomAt(1.15);
+  if(k==="-") zoomAt(1/1.15);
+});
+
+function finishRun(bId){
+  const d = S.draft; S.draft=null;
+  if(!d || d.pts.length<2){ render(); return; }
+  pushUndo();
+  const c = ciById(d.circuit);
+  const r = {id:uid("r"), circuit:d.circuit, pts:d.pts.map(p=>({x:p.x,y:p.y})),
+    a:d.a, b:bId, route:"techo", share:true, dia:DEF_DIA,
+    cables: c.kind==="iluminacion" ? 0 : c.cables, note:""};
+  S.runs.push(r);
+  // si se suma a un caño existente, adopta su medida y la agranda si hace falta
+  const g = groupOf(r);
+  if(g){
+    const need = suggestDiaFor(g.runs);
+    const dia = diaOf(need).mm > diaOf(g.dia).mm ? need : g.dia;
+    g.runs.forEach(x=> x.dia = dia);
+  } else {
+    r.dia = suggestDiaFor([r]);
+  }
+  S.sel={t:"run",id:r.id};
+  refreshAll();
+}
+function setGroupDia(r, dia){
+  const g = groupOf(r);
+  (g ? g.runs : [r]).forEach(x=> x.dia = dia);
+}
+function delSel(){
+  if(!S.sel) return;
+  pushUndo();
+  let removedIds = [];
+  const touchedCircuits = new Set();
+  if(S.sel.t==="node"){
+    const gone = S.runs.filter(r=> r.a===S.sel.id || r.b===S.sel.id);
+    removedIds = gone.map(r=>r.id);
+    gone.forEach(r=>touchedCircuits.add(r.circuit));
+    S.runs = S.runs.filter(r=> r.a!==S.sel.id && r.b!==S.sel.id);
+    S.nodes = S.nodes.filter(n=> n.id!==S.sel.id);
+  } else {
+    const gone = S.runs.find(r=>r.id===S.sel.id);
+    if(gone){ removedIds=[gone.id]; touchedCircuits.add(gone.circuit); }
+    S.runs = S.runs.filter(r=> r.id!==S.sel.id);
+  }
+  if(removedIds.length){
+    const removedSet = new Set(removedIds);
+    for(const w of S.wires) w.runIds = w.runIds.filter(id=>!removedSet.has(id));
+    touchedCircuits.forEach(recalcCablesFor);
+  }
+  S.sel=null; refreshAll();
+}
+
+/* ---- insertar una caja de paso en la mitad de un caño existente ---- */
+function insertBoxOnRun(r, kind){
+  const g = groupOf(r);
+  const targets = g ? g.runs.slice() : [r];
+  pushUndo();
+
+  // punto medio (por longitud) sobre el trazado base del caño físico
+  const basePts = targets[0].pts;
+  let total=0; for(let i=1;i<basePts.length;i++) total+=dist(basePts[i-1],basePts[i]);
+  let half=total/2, acc=0, mid=basePts[0], idx=1;
+  for(let i=1;i<basePts.length;i++){
+    const d=dist(basePts[i-1],basePts[i]);
+    if(acc+d>=half){ const t=d?(half-acc)/d:0;
+      mid={x:basePts[i-1].x+(basePts[i].x-basePts[i-1].x)*t, y:basePts[i-1].y+(basePts[i].y-basePts[i-1].y)*t};
+      idx=i; break; }
+    acc+=d;
+  }
+  mid = snapToGrid(mid);
+  const n = {id:uid("n"), kind, x:mid.x, y:mid.y, label:nextLabel(kind),
+    device:"paso", zAuto:true, z:defaultZ(kind,"paso"), note:""};
+  S.nodes.push(n);
+
+  const newRuns = [];
+  const splitMap = new Map(); // id de tramo viejo -> [id nuevo1, id nuevo2]
+  for(const run of targets){
+    const rp = run.pts;
+    let rt=0; for(let i=1;i<rp.length;i++) rt+=dist(rp[i-1],rp[i]);
+    let rhalf=rt/2, racc=0, ridx=1;
+    for(let i=1;i<rp.length;i++){
+      const d=dist(rp[i-1],rp[i]);
+      if(racc+d>=rhalf){ ridx=i; break; }
+      racc+=d;
+    }
+    const pts1 = rp.slice(0, ridx).concat([{x:mid.x,y:mid.y}]);
+    const pts2 = [{x:mid.x,y:mid.y}].concat(rp.slice(ridx));
+    const r1 = Object.assign({}, run, {id:uid("r"), pts:pts1, b:n.id});
+    const r2 = Object.assign({}, run, {id:uid("r"), pts:pts2, a:n.id});
+    newRuns.push(r1, r2);
+    splitMap.set(run.id, [r1.id, r2.id]);
+  }
+  const targetIds = new Set(targets.map(x=>x.id));
+  S.runs = S.runs.filter(x=>!targetIds.has(x.id)).concat(newRuns);
+  // los conductores (wires) que pasaban por el tramo viejo ahora pasan por los dos nuevos
+  for(const w of S.wires){
+    let changed = false;
+    const next = [];
+    for(const rid of w.runIds){
+      if(splitMap.has(rid)){ next.push(...splitMap.get(rid)); changed = true; }
+      else next.push(rid);
+    }
+    if(changed) w.runIds = next;
+  }
+  const affectedCircuits = new Set(targets.map(x=>x.circuit));
+  affectedCircuits.forEach(recalcCablesFor);
+  S.sel = {t:"node", id:n.id};
+  refreshAll();
+}
+
+let rt=null;
+function scheduleRefresh(){ clearTimeout(rt); rt=setTimeout(refreshAll, 140); }
+function refreshAll(){ drcInvalidate(); render(); paintCircuits(); paintViewGroups(); paintProp(); paintDrc(); paintBom(); scheduleAutosave(); }
+
+/* ============================ circuitos UI ============================ */
+
+function paintCircuits(){
+  const el = $("#circuits");
+  el.innerHTML = S.circuits.map(c=>{
+    const runs = S.runs.filter(r=>r.circuit===c.id);
+    const L = runs.reduce((a,r)=>a+runLenM(r),0);
+    return `<div class="ci${c.id===S.activeCircuit?" on":""}" data-id="${c.id}">
+      <div class="ci-h">
+        <input type="checkbox" class="ciVis" data-vis="${c.id}"${isCiVisible(c.id)?" checked":""} title="Mostrar/ocultar en el plano">
+        <span class="sw" style="background:${c.color}"></span>
+        <span class="ci-n">${esc(c.name)}</span>
+        <span class="ci-m">${runs.length}t · ${S.pxPerM?fmt(L,1)+"m":"—"}</span></div>
+      ${c.detail?`<div class="ci-d">${esc(c.detail)}</div>`:""}
+      <div class="ci-b">
+        <div class="f2" style="margin-bottom:6px">
+          <div><label class="f">Nombre</label><input class="f" data-k="name" value="${esc(c.name)}"></div>
+          <div><label class="f">Color</label><input class="f" type="color" data-k="color" value="${c.color}"></div>
+        </div>
+        <div class="f3" style="margin-bottom:6px">
+          <div><label class="f">Sección</label><select class="f" data-k="section">${
+            SECTIONS.map(s=>`<option value="${s}"${s==c.section?" selected":""}>${s} mm²</option>`).join("")}</select></div>
+          <div><label class="f">Conduct.</label>${c.kind==="iluminacion"
+            ? `<div class="f mono" style="background:var(--panel-2);color:var(--ink-3);height:29px;display:flex;align-items:center;justify-content:center" title="Se calcula según los conductores trazados abajo">según cableado</div>`
+            : `<input class="f" type="number" min="1" max="30" data-k="cables" value="${c.cables}">`}</div>
+          <div><label class="f">Protec.</label><input class="f" type="number" min="1" data-k="prot" value="${c.prot}"></div>
+        </div>
+        <div class="f2" style="margin-bottom:6px">
+          <div><label class="f">Tipo</label><select class="f" data-k="kind">
+            <option value="iluminacion"${c.kind==="iluminacion"?" selected":""}>Iluminación</option>
+            <option value="tomas"${c.kind==="tomas"?" selected":""}>Tomacorrientes</option>
+            <option value="especial"${c.kind==="especial"?" selected":""}>Especial</option>
+            <option value="exterior"${c.kind==="exterior"?" selected":""}>Exterior</option>
+            <option value="acometida"${c.kind==="acometida"?" selected":""}>Acometida</option>
+            <option value="tierra"${c.kind==="tierra"?" selected":""}>Puesta a tierra</option>
+          </select></div>
+          <div><label class="f">Trazo</label><select class="f" data-k="dash">
+            <option value="0"${!c.dash?" selected":""}>Continuo</option>
+            <option value="1"${c.dash?" selected":""}>Punteado</option>
+          </select></div>
+        </div>
+        <div><label class="f">Detalle / ayuda-memoria</label><input class="f" data-k="detail" value="${esc(c.detail||"")}" placeholder="ej: dormitorios y baño"></div>
+        ${c.kind==="iluminacion" ? renderWiringPanel(c) : ""}
+        <button class="btn sm" data-del="${c.id}" style="width:100%;margin-top:8px">Eliminar circuito</button>
+      </div></div>`;
+  }).join("") || `<p class="msg">Todavía no hay circuitos.</p>`;
+
+  $$("#circuits .ci-h").forEach(h=> h.onclick=(e)=>{
+    if(e.target.classList.contains("ciVis")) return;
+    S.activeCircuit = h.parentElement.dataset.id; refreshAll();
+  });
+  $$("#circuits .ciVis").forEach(cb=>{
+    cb.onclick = e=> e.stopPropagation();
+    cb.onchange = e=>{
+      const id = e.target.dataset.vis;
+      if(e.target.checked) S.hiddenCircuits.delete(id); else S.hiddenCircuits.add(id);
+      render();
+    };
+  });
+  $$("#circuits [data-k]").forEach(inp=>{
+    const id = inp.closest(".ci").dataset.id, k = inp.dataset.k;
+    inp.oninput = ()=>{
+      const c = ciById(id); if(!c) return;
+      let v = inp.value;
+      if(k==="section") v=parseFloat(v);
+      if(k==="cables"||k==="prot"||k==="dash") v=parseInt(v)||0;
+      c[k]=v;
+      if(k==="cables"||k==="section"){
+        if(k==="cables" && c.kind!=="iluminacion")
+          S.runs.filter(r=>r.circuit===id).forEach(r=>{ r.cables=c.cables; });
+      }
+      drcInvalidate(); render(); paintDrc(); paintBom();
+      if(k==="name"||k==="color"){
+        const h=inp.closest(".ci").querySelector(".ci-n"); if(k==="name") h.textContent=v;
+        if(k==="color") inp.closest(".ci").querySelector(".sw").style.background=v;
+      }
+    };
+  });
+  $$("#circuits [data-trace]").forEach(b=> b.onclick=(e)=>{
+    e.stopPropagation();
+    const id=b.dataset.trace;
+    if(S.tracingWire===id) endTrace(); else startTrace(id);
+    refreshAll();
+  });
+  $$("#circuits [data-delwire]").forEach(b=> b.onclick=(e)=>{
+    e.stopPropagation();
+    if(!confirm("¿Eliminar este conductor y su trazado?")) return;
+    deleteWire(b.dataset.delwire);
+    refreshAll();
+  });
+  $$("#circuits [data-addrs]").forEach(b=> b.onclick=(e)=>{
+    e.stopPropagation();
+    const w = addRetornoSimple(b.dataset.addrs);
+    startTrace(w.id);
+    refreshAll();
+  });
+  $$("#circuits [data-addrc]").forEach(b=> b.onclick=(e)=>{
+    e.stopPropagation();
+    const ws = addRetornoCombinada(b.dataset.addrc);
+    startTrace(ws[0].id);
+    refreshAll();
+  });
+  $$("#circuits [data-del]").forEach(b=> b.onclick=()=>{
+    const id=b.dataset.del;
+    if(!confirm("¿Eliminar el circuito y todos sus tramos?")) return;
+    pushUndo();
+    S.runs = S.runs.filter(r=>r.circuit!==id);
+    S.circuits = S.circuits.filter(c=>c.id!==id);
+    if(S.activeCircuit===id) S.activeCircuit = S.circuits[0]?S.circuits[0].id:null;
+    refreshAll();
+  });
+  armUndoOnFocus(el);
+}
+
+function esc(s){ return String(s).replace(/[&<>"]/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m])); }
+
+function renderWiringPanel(c){
+  ensureBaseWires(c.id);
+  const wires = S.wires.filter(w=>w.circuit===c.id);
+  const order = w => w.kind==="F" ? -2 : w.kind==="N" ? -1 :
+    w.light.charCodeAt(0)*10 + (w.kind==="RC" ? w.branch : 0.5);
+  wires.sort((a,b)=>order(a)-order(b));
+  const rows = wires.map(w=>{
+    const active = S.tracingWire===w.id;
+    const removable = w.kind==="RS" || w.kind==="RC";
+    return `<div class="wr${active?" on":""}">
+      <span class="wr-c mono">${esc(wireCode(w))}</span>
+      <span class="wr-l">${esc(wireLabel(w))}</span>
+      <span class="wr-n">${w.runIds.length} tr.</span>
+      <button class="btn sm" data-trace="${w.id}">${active?"Trazando…":"Trazar"}</button>
+      ${removable?`<button class="btn sm" data-delwire="${w.id}" title="Eliminar">×</button>`:""}
+    </div>`;
+  }).join("");
+  return `<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--line-2)">
+    <label class="f" style="margin-bottom:5px">Retornos y cableado</label>
+    <div class="wires">${rows}</div>
+    <div class="row" style="margin-top:6px">
+      <button class="btn sm" data-addrs="${c.id}" style="flex:1">+ Retorno simple</button>
+      <button class="btn sm" data-addrc="${c.id}" style="flex:1">+ Combinada</button>
+    </div>
+  </div>`;
+}
+
+/* ============================ propiedades ============================ */
+
+function paintProp(){
+  const el = $("#prop");
+  if(!S.sel){ el.innerHTML=`<p class="msg">Nada seleccionado. Hacé clic en un tramo, una caja o una boca para ver y editar sus datos.</p>`; return; }
+
+  /* ---------- NODO ---------- */
+  if(S.sel.t==="node"){
+    const n = nodeById(S.sel.id); if(!n){ S.sel=null; return paintProp(); }
+    const gs = new Set(runsAtNode(n.id).map(groupKey));
+    const max = nodeMaxConduits(n);
+    const zv = resolveZ(n);
+    const hasDevice = n.kind==="oct" || n.kind==="rect";
+    const canConvertInsp = n.kind==="oct" || n.kind==="rect";
+    el.innerHTML = `
+      <div class="kv"><span>Tipo</span><span>${KINDS[n.kind].n}${n.kind==="insp"&&n.inspLabel?" · "+esc(n.inspLabel):""}</span></div>
+      <div class="kv"><span>Caños que llegan</span><span style="color:${max!==null&&gs.size>max?"var(--err)":"inherit"}">${gs.size}${max!==null?" / "+max:""}</span></div>
+      <div class="kv"><span>Bajada al cielorraso</span><span>${fmt(Math.max(0,S.z.ceiling-zv),2)} m</span></div>
+      <div style="margin-top:10px" class="f2">
+        <div><label class="f">Etiqueta</label><input class="f mono" id="pLbl" value="${esc(n.label)}"></div>
+        ${hasDevice?`<div><label class="f">Contiene</label><select class="f" id="pDev">${
+          Object.entries(DEVICES).map(([k,v])=>`<option value="${k}"${n.device===k?" selected":""}>${v}</option>`).join("")
+        }</select></div>`:"<div></div>"}
+      </div>
+      <div style="margin-top:6px" class="f2">
+        <div><label class="f">Altura (m)</label><input class="f mono" id="pZ" type="number" step="0.05" min="0" value="${fmt(zv,2)}"></div>
+        <div style="display:flex;align-items:flex-end;padding-bottom:5px">
+          <label class="chk" style="padding:0"><input type="checkbox" id="pZa"${n.zAuto?" checked":""}> Altura por defecto</label></div>
+      </div>
+      ${n.kind==="insp" ? `
+      <div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--line-2)">
+        <label class="f" style="margin-bottom:5px">Caja de inspección</label>
+        <div class="f2" style="margin-bottom:6px">
+          <div><label class="f">Tamaño</label><select class="f" id="pInspPreset">${
+            Object.entries(INSP_SIZES).map(([k,v])=>`<option value="${k}"${n.inspSize===k?" selected":""}>${v.label}</option>`).join("")
+          }</select></div>
+          <div><label class="f">Máx. caños</label><input class="f mono" id="pInspMax" type="number" min="1" max="60" value="${n.inspMax}"></div>
+        </div>
+        <div><label class="f">Medida (editable)</label><input class="f" id="pInspLabel" value="${esc(n.inspLabel||"")}" placeholder="ej: 20×20 cm"></div>
+      </div>` : ""}
+      <div style="margin-top:6px"><label class="f">Nota</label><input class="f" id="pNote" value="${esc(n.note||"")}" placeholder="opcional"></div>
+      ${canConvertInsp?`<button class="btn sm" id="pToInsp" style="width:100%;margin-top:8px">Convertir en caja de inspección</button>`:""}
+      <button class="btn sm" id="pDel" style="width:100%;margin-top:8px">Eliminar</button>`;
+    $("#pLbl").oninput = e=>{ n.label=e.target.value; render(); };
+    if($("#pDev")) $("#pDev").onchange = e=>{
+      n.device=e.target.value;
+      if(n.zAuto) n.z = defaultZ(n.kind, n.device);
+      refreshAll();
+    };
+    $("#pZ").oninput = e=>{
+      const v=parseFloat(e.target.value);
+      if(isFinite(v)){ n.z=v; n.zAuto=false; const cb=$("#pZa"); if(cb) cb.checked=false; drcInvalidate(); render(); paintDrc(); paintBom(); }
+    };
+    $("#pZa").onchange = e=>{
+      n.zAuto=e.target.checked;
+      if(n.zAuto) n.z = defaultZ(n.kind, n.device);
+      refreshAll();
+    };
+    if($("#pInspPreset")) $("#pInspPreset").onchange = e=>{
+      const preset = INSP_SIZES[e.target.value];
+      n.inspSize = e.target.value; n.inspLabel = preset.label; n.inspMax = preset.max;
+      refreshAll();
+    };
+    if($("#pInspMax")) $("#pInspMax").oninput = e=>{
+      n.inspMax = Math.max(1, parseInt(e.target.value)||1);
+      drcInvalidate(); render(); paintDrc(); paintBom();
+    };
+    if($("#pInspLabel")) $("#pInspLabel").oninput = e=>{ n.inspLabel = e.target.value; paintBom(); };
+    $("#pNote").oninput = e=>{ n.note=e.target.value; };
+    if($("#pToInsp")) $("#pToInsp").onclick = ()=>{
+      pushUndo();
+      n.kind = "insp"; n.label = nextLabel("insp"); n.device = null;
+      const preset = INSP_SIZES[INSP_DEFAULT];
+      n.inspSize = INSP_DEFAULT; n.inspLabel = preset.label; n.inspMax = preset.max;
+      if(n.zAuto) n.z = defaultZ(n.kind, n.device);
+      refreshAll();
+    };
+    $("#pDel").onclick = delSel;
+    armUndoOnFocus(el);
+    return;
+  }
+
+  /* ---------- TRAMO ---------- */
+  const r = S.runs.find(x=>x.id===S.sel.id); if(!r){ S.sel=null; return paintProp(); }
+  const c = ciById(r.circuit);
+  const g = groupOf(r);
+  const fill = g ? g.fill : fillRatio(r.dia,[r]);
+  const over = fill>1;
+  const pct = isFinite(fill) ? Math.round(fill*100)+"%" : "no entra";
+  const shared = g && g.runs.length>1;
+  const wiresHere = c.kind==="iluminacion" ? S.wires.filter(w=>w.circuit===c.id && w.runIds.includes(r.id)) : [];
+
+  el.innerHTML = `
+    <div class="kv"><span>Circuito</span><span>${esc(c.name)}</span></div>
+    <div class="kv"><span>Horizontal (planta)</span><span>${S.pxPerM?fmt(runHoriz(r),2)+" m":"—"}</span></div>
+    <div class="kv"><span>Vertical (bajadas)</span><span>${S.pxPerM?fmt(runVert(r),2)+" m":"—"}</span></div>
+    <div class="kv"><span>Largo total</span><span>${S.pxPerM?fmt(runLenM(r),2)+" m":"—"}</span></div>
+    <div class="kv"><span>Cable de este circuito</span><span>${S.pxPerM?fmt(runLenM(r)*r.cables,2)+" m":"—"}</span></div>
+    <div class="kv"><span>Ocupación del caño</span><span style="color:${over?"var(--err)":"var(--ok)"}">${pct}</span></div>
+    <div style="margin-top:10px" class="f2">
+      <div><label class="f">Caño</label><select class="f" id="pDia">${
+        DIAS.map(d=>`<option value="${d.id}"${d.id===r.dia?" selected":""}>${d.lbl} · ${d.mm} mm</option>`).join("")}</select></div>
+      <div><label class="f">Conductores</label>${c.kind==="iluminacion"
+        ? `<div class="f mono" style="background:var(--panel-2);color:var(--ink-3);height:29px;display:flex;align-items:center;padding:0 7px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(wiresHere.map(wireCode).join(', ')||'ninguno')}">${r.cables} (${esc(wiresHere.map(wireCode).join(', ')||'—')})</div>`
+        : `<input class="f mono" id="pCab" type="number" min="1" max="40" value="${r.cables}">`}</div>
+    </div>
+    <div style="margin-top:6px" class="f2">
+      <div><label class="f">Recorrido</label><select class="f" id="pRt">${
+        Object.entries(ROUTES).map(([k,v])=>`<option value="${k}"${(r.route||"techo")===k?" selected":""}>${v}</option>`).join("")}</select></div>
+      <div><label class="f">Circuito</label><select class="f" id="pCi">${
+        S.circuits.map(x=>`<option value="${x.id}"${x.id===r.circuit?" selected":""}>${esc(x.name)}</option>`).join("")}</select></div>
+    </div>
+    <label class="chk" style="margin-top:8px"><input type="checkbox" id="pSh"${r.share!==false?" checked":""}>
+      Compartir caño con otros circuitos entre las mismas cajas</label>
+    ${shared?`<div style="margin-top:6px;padding:7px 8px;background:var(--panel-2);border:1px solid var(--line);border-radius:5px">
+      <div style="font-size:11px;color:var(--ink-2);margin-bottom:4px">Caño compartido — ${g.cables} conductores en total</div>
+      ${g.runs.map(x=>{const cc=ciById(x.circuit);return `<div class="kv" style="padding:2px 0;border:none"><span><span class="sw" style="display:inline-block;background:${cc.color};vertical-align:-2px;margin-right:5px"></span>${esc(cc.name)}</span><span>${x.cables} × ${cc.section} mm²</span></div>`}).join("")}
+      </div>`:""}
+    ${over?`<button class="btn sm" id="pFix" style="width:100%;margin-top:8px">Pasar a ${diaLbl(suggestDiaFor(g?g.runs:[r]))}</button>`:""}
+    <div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--line-2)">
+      <label class="f" style="margin-bottom:5px">Insertar caja de paso en el medio${shared?" (afecta a los "+g.runs.length+" circuitos del caño)":""}</label>
+      <div class="row">
+        <button class="btn sm" id="pInsOct" style="flex:1">+ Octogonal</button>
+        <button class="btn sm" id="pInsRect" style="flex:1">+ Rectangular</button>
+      </div>
+    </div>
+    <div style="margin-top:6px"><label class="f">Nota</label><input class="f" id="pNote2" value="${esc(r.note||"")}" placeholder="opcional"></div>
+    <button class="btn sm" id="pDel2" style="width:100%;margin-top:8px">Eliminar tramo</button>`;
+
+  $("#pDia").onchange = e=>{ setGroupDia(r, e.target.value); refreshAll(); };
+  if($("#pCab")) $("#pCab").oninput  = e=>{ r.cables=Math.max(1,parseInt(e.target.value)||1); refreshAll(); };
+  $("#pRt").onchange  = e=>{ r.route=e.target.value; refreshAll(); };
+  $("#pCi").onchange  = e=>{
+    const oldCi = r.circuit;
+    r.circuit = e.target.value;
+    // si el tramo cambia de circuito, ya no forma parte de los conductores del circuito anterior
+    for(const w of S.wires){
+      const i = w.runIds.indexOf(r.id);
+      if(i>=0 && w.circuit!==r.circuit) w.runIds.splice(i,1);
+    }
+    recalcCablesFor(oldCi); recalcCablesFor(r.circuit);
+    refreshAll();
+  };
+  $("#pSh").onchange  = e=>{ r.share=e.target.checked; refreshAll(); };
+  if($("#pFix")) $("#pFix").onclick = ()=>{ pushUndo(); setGroupDia(r, suggestDiaFor(g?g.runs:[r])); refreshAll(); };
+  $("#pInsOct").onclick  = ()=> insertBoxOnRun(r, "oct");
+  $("#pInsRect").onclick = ()=> insertBoxOnRun(r, "rect");
+  $("#pNote2").oninput= e=>{ r.note=e.target.value; };
+  $("#pDel2").onclick = delSel;
+  armUndoOnFocus(el);
+}
+
+/* ============================ DRC ============================ */
+
+function drcRun(){
+  const out=[];
+  const push=(lvl,txt,target)=> out.push({lvl,txt,target});
+  const groups = conduitGroups();
+
+  // llenado del caño: se evalua por caño fisico, no por circuito
+  for(const g of groups.values()){
+    const names = g.runs.map(r=>ciById(r.circuit)).filter(Boolean).map(c=>c.name).join(" + ");
+    const a=nodeById(g.a), b=nodeById(g.b);
+    const where = (a&&b) ? a.label+" → "+b.label : "tramo suelto";
+    if(!isFinite(g.fill)){
+      push("e", `Caño ${where} (${names}): un ${diaLbl(g.dia)} no admite alguna de las secciones que pasan por él.`, g.runs[0].id);
+    } else if(g.fill>1){
+      push("e", `Caño ${where}: ${g.cables} conductores de ${names} ocupan el ${Math.round(g.fill*100)}% de un ${diaLbl(g.dia)}. Pasá a ${diaLbl(suggestDiaFor(g.runs))}.`, g.runs[0].id);
+    } else if(g.fill>0.85){
+      push("w", `Caño ${where} al ${Math.round(g.fill*100)}% de ocupación. Queda poco margen para agregar cables.`, g.runs[0].id);
+    }
+  }
+
+  for(const r of S.runs){
+    const c = ciById(r.circuit); if(!c) continue;
+    if(!r.a || !r.b)
+      push("w", `Tramo de ${esc(c.name)} sin cerrar en ${!r.a&&!r.b?"ninguno de los dos extremos":"un extremo"}. Enganchalo a una caja.`, r.id);
+    const L = runLenM(r);
+    if(S.pxPerM && L>S.rules.longRun)
+      push("w", `Tramo de ${esc(c.name)} de ${fmt(L,1)} m supera los ${S.rules.longRun} m. Verificá caída de tensión.`, r.id);
+    const bends = runBends(r);
+    if(bends > 1)
+      push("w", `Tramo de ${esc(c.name)} con ${bends} codos de 90°. Con más de un codo conviene partirlo en tramos o insertar una caja de paso en el quiebre.`, r.id);
+  }
+
+  // cajas: se cuentan caños fisicos, no circuitos
+  for(const n of S.nodes){
+    const gs = new Set(runsAtNode(n.id).map(groupKey));
+    const max = nodeMaxConduits(n);
+    if(max!==null && gs.size>max)
+      push("e", `${n.label}: ${gs.size} caños en una ${KINDS[n.kind].n.toLowerCase()} (máx. ${max}).`, n.id);
+    if(gs.size===0)
+      push("w", `${n.label} no tiene ningún caño conectado.`, n.id);
+    if(resolveZ(n) > S.z.ceiling + 0.001)
+      push("w", `${n.label} está a ${fmt(resolveZ(n),2)} m, por encima del cielorraso (${fmt(S.z.ceiling,2)} m).`, n.id);
+  }
+
+  for(const c of S.circuits){
+    const max = MAXPROT[c.section];
+    if(max && c.prot>max)
+      push("e", `${esc(c.name)}: protección de ${c.prot} A para ${c.section} mm² (máx. ${max} A).`, null);
+  }
+
+  const tabs = S.nodes.filter(n=>n.kind==="tablero").map(n=>n.id);
+  if(tabs.length===0 && S.runs.length)
+    push("w","No hay ningún tablero en el plano. Agregá uno como origen de los circuitos.",null);
+  else if(tabs.length){
+    for(const c of S.circuits){
+      const rs = S.runs.filter(r=>r.circuit===c.id);
+      if(!rs.length) continue;
+      const seen=new Set(tabs); let grew=true;
+      while(grew){ grew=false;
+        for(const r of rs){
+          if(r.a&&r.b){
+            if(seen.has(r.a)&&!seen.has(r.b)){seen.add(r.b);grew=true;}
+            if(seen.has(r.b)&&!seen.has(r.a)){seen.add(r.a);grew=true;}
+          }
+        }
+      }
+      const orphan = rs.filter(r=> !(r.a&&seen.has(r.a)) && !(r.b&&seen.has(r.b)));
+      if(orphan.length)
+        push("w", `${esc(c.name)}: ${orphan.length} tramo(s) no llegan al tablero por ningún camino.`, orphan[0].id);
+    }
+  }
+
+  if(!S.pxPerM && (S.runs.length||S.nodes.length))
+    push("w","El plano no está calibrado: no se pueden calcular longitudes ni cómputo de cable.",null);
+
+  // cruces entre caños distintos que no se resuelven en una caja
+  const seenPairs = new Set();
+  for(const cr of findCrossings()){
+    const key = [cr.a.key, cr.b.key].sort().join("~");
+    if(seenPairs.has(key)) continue; seenPairs.add(key);
+    const namesA = Array.from(new Set(cr.a.runs.map(r=>ciById(r.circuit)).filter(Boolean).map(c=>c.name))).join("+");
+    const namesB = Array.from(new Set(cr.b.runs.map(r=>ciById(r.circuit)).filter(Boolean).map(c=>c.name))).join("+");
+    if(cr.safe){
+      push("w", `Los caños de ${namesA} y ${namesB} se cruzan pero quedan resueltos en altura (≈${Math.round(cr.diff*100)} cm de diferencia, marcado con ⚠ en el plano). Verificá que sea suficiente margen.`, cr.a.runs[0].id);
+    } else {
+      push("w", `Los caños de ${namesA} y ${namesB} se cruzan a la misma altura sin compartir una caja (marcado con × en el plano). Agregá una caja de paso en el cruce, desviá uno de los trazados, o poné una de las cajas a otra altura y pasá ese tramo a recorrido "Directo entre cajas".`, cr.a.runs[0].id);
+    }
+  }
+
+  return out;
+}
+
+let _drcCache=null, _drcT=new Set();
+function drcCached(){
+  if(_drcCache) return _drcCache;
+  _drcCache = drcRun(); _drcT = new Set();
+  for(const d of _drcCache) if(d.lvl==="e" && d.target) _drcT.add(d.target);
+  return _drcCache;
+}
+function drcInvalidate(){ _drcCache=null; }
+function drcTargets(){ drcCached(); return _drcT; }
+
+function paintDrc(){
+  const list = drcCached(), el=$("#drc");
+  if(!list.length){
+    el.innerHTML = `<div id="drcOk"><svg width="14" height="14" viewBox="0 0 16 16"><path d="M3 8.5l3.2 3.2L13 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Sin observaciones.</div>`;
+    return;
+  }
+  const es=list.filter(d=>d.lvl==="e").length, ws=list.length-es;
+  el.innerHTML = `<p class="msg" style="margin:0 0 7px">${es} error${es===1?"":"es"} · ${ws} aviso${ws===1?"":"s"}</p>` +
+    list.map((d,i)=>`<div class="drc ${d.lvl}"><span class="ic">${d.lvl==="e"?"!":"?"}</span><span>${d.txt}</span>${
+      d.target?`<button class="go" data-i="${i}">ir</button>`:""}</div>`).join("");
+  $$("#drc .go").forEach(b=> b.onclick=()=>{
+    const d = list[+b.dataset.i]; if(!d.target) return;
+    const n = nodeById(d.target);
+    if(n){ S.sel={t:"node",id:n.id}; centerOn(n); }
+    else { const r=S.runs.find(x=>x.id===d.target); if(r){ S.sel={t:"run",id:r.id}; centerOn(r.pts[0]); } }
+    refreshAll();
+  });
+}
+
+function centerOn(p){
+  const r=$("#stage").getBoundingClientRect();
+  S.view.x = r.width/2 - p.x*S.view.z;
+  S.view.y = r.height/2 - p.y*S.view.z;
+}
+
+/* ============================ cómputo ============================ */
+
+function computeBom(){
+  const cable={}, cableColor={}, conduit={}, boxes={tablero:0,oct:0,rect:0,medidor:0,jabalina:0,insp:0}, boxesInsp={}, byCircuit=[];
+  const spare = S.rules.spare/100, waste = 1 + S.rules.waste/100;
+  const groups = conduitGroups();
+
+  for(const n of S.nodes){
+    boxes[n.kind]=(boxes[n.kind]||0)+1;
+    if(n.kind==="insp"){
+      const key = n.inspLabel || "Sin medida especificada";
+      boxesInsp[key] = (boxesInsp[key]||0)+1;
+    }
+  }
+
+  // el caño se computa una vez por caño fisico, aunque lo compartan varios circuitos
+  for(const g of groups.values()) conduit[g.dia] = (conduit[g.dia]||0) + g.len;
+
+  for(const c of S.circuits){
+    const rs = S.runs.filter(r=>r.circuit===c.id);
+    let len=0, vert=0;
+    for(const r of rs){ len += runLenM(r); vert += runVert(r); }
+
+    cableColor[c.section] = cableColor[c.section] || {};
+    let cab = 0;
+
+    if(c.kind==="iluminacion"){
+      // en iluminación, el cable se desglosa por conductor trazado (F, N, RS-A, RC-B1...)
+      const wires = S.wires.filter(w=>w.circuit===c.id && w.runIds.length);
+      for(const w of wires){
+        let wl = 0;
+        for(const rid of w.runIds){
+          const run = S.runs.find(x=>x.id===rid); if(!run) continue;
+          const ends = (run.a?1:0)+(run.b?1:0);
+          wl += runLenM(run) + ends*spare;   // metros de este conductor en este tramo
+        }
+        const code = wireCode(w);
+        cableColor[c.section][code] = (cableColor[c.section][code]||0) + wl;
+        cab += wl;
+      }
+    } else {
+      const colors = wireColorsFor(c);
+      for(const r of rs){
+        const L = runLenM(r);
+        const ends = (r.a?1:0)+(r.b?1:0);
+        const perConductor = L + ends*spare;      // metros de UN conductor en este tramo
+        cab += perConductor * r.cables;
+        // cada conductor se compra en un rollo de un color distinto
+        for(let i=0;i<r.cables;i++){
+          const col = colors[i] || ("Conductor "+(i+1));
+          cableColor[c.section][col] = (cableColor[c.section][col]||0) + perConductor;
+        }
+      }
+    }
+
+    cable[c.section] = (cable[c.section]||0) + cab;
+    byCircuit.push({c, runs:rs.length, len, vert, cab});
+  }
+  for(const k in cable) cable[k] *= waste;
+  for(const s in cableColor) for(const col in cableColor[s]) cableColor[s][col] *= waste;
+
+  const shared = Array.from(groups.values()).filter(g=>g.runs.length>1).length;
+
+  return {cable, cableColor, conduit, boxes, boxesInsp, byCircuit, shared, nGroups:groups.size,
+    totalCable:Object.values(cable).reduce((a,b)=>a+b,0),
+    totalConduit:Object.values(conduit).reduce((a,b)=>a+b,0)};
+}
+
+function paintBom(){
+  const b = computeBom(), el=$("#bom");
+  if(!S.pxPerM){ el.innerHTML=`<p class="msg">Calibrá la escala del plano para obtener el cómputo de materiales.</p>`; return; }
+  const rows=[];
+
+  rows.push(`<h3 style="margin:0 0 6px;font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3)">Cable por sección</h3>`);
+  const cs = Object.keys(b.cable).filter(k=>b.cable[k]>0).sort((x,y)=>x-y);
+  rows.push(cs.length ? cs.map(s=>{
+    const colors = b.cableColor[s]||{};
+    const colorRows = Object.keys(colors).sort().map(col=>
+      `<div class="kv" style="padding-left:10px;border:none"><span style="color:var(--ink-3)">${esc(col)}</span><span>${fmt(colors[col],1)} m</span></div>`).join("");
+    return `<div class="kv"><span>${s} mm²</span><span>${fmt(b.cable[s],1)} m</span></div>${colorRows}`;
+  }).join("") : `<p class="msg">Sin tramos dibujados.</p>`);
+  if(cs.length) rows.push(`<div class="tot"><span>Total cable</span><span>${fmt(b.totalCable,1)} m</span></div>`);
+
+  rows.push(`<h3 style="margin:14px 0 6px;font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3)">Caño corrugado</h3>`);
+  const ds = Object.keys(b.conduit).filter(k=>b.conduit[k]>0).sort((x,y)=>diaOf(x).mm-diaOf(y).mm);
+  rows.push(ds.length ? ds.map(d=>`<div class="kv"><span>${diaLbl(d)} · ${diaOf(d).mm} mm</span><span>${fmt(b.conduit[d],1)} m</span></div>`).join("")
+    : `<p class="msg">Sin tramos dibujados.</p>`);
+  if(ds.length) rows.push(`<div class="tot"><span>Total caño</span><span>${fmt(b.totalConduit,1)} m</span></div>`);
+
+  rows.push(`<h3 style="margin:14px 0 6px;font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3)">Cajas</h3>`);
+  rows.push(`<div class="kv"><span>Octogonales</span><span>${b.boxes.oct||0}</span></div>
+    <div class="kv"><span>Rectangulares</span><span>${b.boxes.rect||0}</span></div>
+    <div class="kv"><span>Tableros</span><span>${b.boxes.tablero||0}</span></div>`
+    + (b.boxes.medidor?`<div class="kv"><span>Medidores</span><span>${b.boxes.medidor}</span></div>`:"")
+    + (b.boxes.jabalina?`<div class="kv"><span>Jabalinas</span><span>${b.boxes.jabalina}</span></div>`:"")
+  );
+  if(b.boxes.insp){
+    rows.push(`<div class="kv"><span>De inspección</span><span>${b.boxes.insp}</span></div>`);
+    rows.push(Object.keys(b.boxesInsp).sort().map(k=>
+      `<div class="kv" style="padding-left:10px;border:none"><span style="color:var(--ink-3)">${esc(k)}</span><span>${b.boxesInsp[k]}</span></div>`).join(""));
+  }
+
+  rows.push(`<p class="msg" style="margin-top:10px">Incluye ${S.rules.waste}% de desperdicio, ${S.rules.spare} cm de reserva por conexión y las bajadas verticales al cielorraso de ${fmt(S.z.ceiling,2)} m.${
+    b.shared?" "+b.shared+" caño(s) compartido(s) entre circuitos, computados una sola vez.":""}</p>`);
+  el.innerHTML = rows.join("");
+}
+
+/* ============================ carga de plano ============================ */
+
+$("#bOpen").onclick = $("#bOpen2").onclick = ()=> $("#fPlan").click();
+
+$("#fPlan").onchange = async (e)=>{
+  const f = e.target.files[0]; if(!f) return;
+  S.baseName = f.name;
+  busy(true);
+  try{
+    if(f.type==="application/pdf" || /\.pdf$/i.test(f.name)) await loadPdf(f);
+    else await loadImg(f);
+  }catch(err){ alert("No se pudo abrir el archivo: "+err.message); }
+  busy(false);
+  e.target.value="";
+};
+
+function busy(on){ $("#busy").classList.toggle("on", on); }
+
+function loadImg(file){
+  return new Promise((res,rej)=>{
+    const fr=new FileReader();
+    fr.onload=()=>{ setBase(fr.result).then(res,rej); };
+    fr.onerror=()=>rej(new Error("lectura"));
+    fr.readAsDataURL(file);
+  });
+}
+
+function setBase(src){
+  return new Promise((res,rej)=>{
+    const im=new Image();
+    im.onload=()=>{ S.base=im; S.baseSrc=src; fitView(); refreshAll(); res(); };
+    im.onerror=()=>rej(new Error("imagen inválida"));
+    im.src=src;
+  });
+}
+
+async function loadPdf(file){
+  const buf = await file.arrayBuffer();
+  const doc = await pdfjsLib.getDocument({data:buf}).promise;
+  if(doc.numPages===1){ await usePdfPage(doc,1); return; }
+  const box=$("#pgs"); box.innerHTML="";
+  for(let i=1;i<=doc.numPages;i++){
+    const p=await doc.getPage(i);
+    const vp=p.getViewport({scale:1});
+    const s=Math.min(150/vp.width, 190/vp.height);
+    const v2=p.getViewport({scale:s});
+    const c=document.createElement("canvas");
+    c.width=v2.width; c.height=v2.height;
+    await p.render({canvasContext:c.getContext("2d"), viewport:v2}).promise;
+    const b=document.createElement("button");
+    b.className="pg"; b.appendChild(c);
+    const sp=document.createElement("span"); sp.textContent="Pág. "+i; b.appendChild(sp);
+    b.onclick=async ()=>{ close$("#mPage"); busy(true); await usePdfPage(doc,i); busy(false); };
+    box.appendChild(b);
+  }
+  open$("#mPage");
+}
+
+async function usePdfPage(doc,i){
+  const p=await doc.getPage(i);
+  const vp0=p.getViewport({scale:1});
+  const scale=Math.min(2600/vp0.width, 2600/vp0.height, 4);
+  const vp=p.getViewport({scale:Math.max(1.5,scale)});
+  const c=document.createElement("canvas");
+  c.width=Math.round(vp.width); c.height=Math.round(vp.height);
+  const g=c.getContext("2d");
+  g.fillStyle="#fff"; g.fillRect(0,0,c.width,c.height);
+  await p.render({canvasContext:g, viewport:vp}).promise;
+  await setBase(c.toDataURL("image/png"));
+}
+
+/* ============================ calibración ============================ */
+
+function openCal(){ open$("#mCal"); setTimeout(()=>$("#calV").select(),50); }
+$("#calOk").onclick = ()=>{
+  const v = parseFloat($("#calV").value), u = parseFloat($("#calU").value);
+  if(!(v>0)){ alert("Ingresá una distancia válida."); return; }
+  const px = dist(S.calib.a, S.calib.b);
+  S.pxPerM = px/(v*u);
+  S.calib=null; close$("#mCal"); setTool("select"); paintScale(); paintGridMeta(); refreshAll();
+};
+$("#bCal").onclick = ()=> setTool("calib");
+
+function paintScale(){
+  const chip=$("#scaleChip");
+  if(S.pxPerM){
+    chip.classList.remove("unset");
+    $("#scaleTxt").textContent = fmt(S.pxPerM,1)+" px/m";
+    $("#bCal").textContent="Recalibrar";
+  } else {
+    chip.classList.add("unset");
+    $("#scaleTxt").textContent="Sin escala";
+    $("#bCal").textContent="Calibrar";
+  }
+}
+
+/* ============================ modales ============================ */
+
+function open$(s){ $(s).classList.add("on"); }
+function close$(s){ $(s).classList.remove("on"); }
+$$("[data-close]").forEach(b=> b.onclick=()=> b.closest(".mask").classList.remove("on"));
+$$(".mask").forEach(m=> m.onclick=e=>{ if(e.target===m) m.classList.remove("on"); });
+
+/* ---- reglas ---- */
+$("#bRules").onclick = ()=>{ buildCapTable(); open$("#mRules"); };
+
+function buildCapTable(){
+  const t=$("#capT");
+  t.innerHTML = `<tr><th>Caño</th>${SECTIONS.map(s=>`<th style="text-align:right">${s} mm²</th>`).join("")}</tr>` +
+    DIAS.map(d=>`<tr><td class="mono">${d.lbl}<span style="color:var(--ink-3)"> · ${d.mm}mm</span></td>${
+      SECTIONS.map(s=>`<td class="n"><input type="number" min="0" max="60" data-d="${d.id}" data-s="${s}" value="${capOf(d.id,s)}"></td>`).join("")
+    }</tr>`).join("");
+  $$("#capT input").forEach(i=> i.oninput=()=>{
+    S.rules.cap[i.dataset.d][i.dataset.s] = Math.max(0, parseInt(i.value)||0);
+    refreshAll();
+  });
+  $("#rOct").value=S.rules.maxOct; $("#rRec").value=S.rules.maxRect;
+  $("#rLen").value=S.rules.longRun; $("#rWaste").value=S.rules.waste; $("#rSpare").value=S.rules.spare;
+  $("#zCie").value=S.z.ceiling; $("#zTab").value=S.z.tablero; $("#zTom").value=S.z.toma;
+  $("#zInt").value=S.z.interruptor; $("#zEsp").value=S.z.especial; $("#zLum").value=S.z.luminaria;
+}
+const ZMAP = {zCie:"ceiling", zTab:"tablero", zTom:"toma", zInt:"interruptor", zEsp:"especial", zLum:"luminaria"};
+Object.keys(ZMAP).forEach(id=>{
+  $("#"+id).oninput = ()=>{
+    const v = parseFloat($("#"+id).value);
+    if(!isFinite(v) || v<0) return;
+    S.z[ZMAP[id]] = v;
+    if(ZMAP[id]==="luminaria" || ZMAP[id]==="ceiling") S.z.paso = S.z.ceiling;
+    S.nodes.forEach(n=>{ if(n.zAuto) n.z = defaultZ(n.kind, n.device); });
+    refreshAll();
+  };
+});
+["rOct","rRec","rLen","rWaste","rSpare"].forEach(id=>{
+  $("#"+id).oninput=()=>{
+    const map={rOct:"maxOct",rRec:"maxRect",rLen:"longRun",rWaste:"waste",rSpare:"spare"};
+    S.rules[map[id]] = parseFloat($("#"+id).value)||0; refreshAll();
+  };
+});
+$("#rulesReset").onclick=()=>{
+  S.rules.cap=JSON.parse(JSON.stringify(CAP0));
+  S.rules.maxOct=4; S.rules.maxRect=3; S.rules.longRun=25; S.rules.waste=10; S.rules.spare=15;
+  S.z=Object.assign({}, Z0);
+  S.nodes.forEach(n=>{ if(n.zAuto) n.z = defaultZ(n.kind, n.device); });
+  buildCapTable(); refreshAll();
+};
+
+/* ============================ guardar / abrir ============================ */
+
+function buildProjectData(){
+  return {v:3, baseName:S.baseName, baseSrc:S.baseSrc, pxPerM:S.pxPerM,
+    circuits:S.circuits, nodes:S.nodes, runs:S.runs, rules:S.rules, z:S.z, counters:S.counters,
+    grid:S.grid, viewGroups:S.viewGroups, hiddenCircuits:Array.from(S.hiddenCircuits), wires:S.wires,
+    savedAt: Date.now()};
+}
+async function applyProjectData(d){
+  S.circuits=d.circuits||[]; S.nodes=d.nodes||[]; S.runs=d.runs||[];
+  S.pxPerM=d.pxPerM||null; S.rules=Object.assign(S.rules,d.rules||{});
+  S.z=Object.assign({}, Z0, d.z||{});
+  S.runs.forEach(r=>{ if(r.route==null) r.route="techo"; if(r.share==null) r.share=true;
+    if(!DIAS.some(x=>x.id===r.dia)) r.dia=DEF_DIA; });
+  S.nodes.forEach(n=>{ if(n.zAuto==null) n.zAuto=true; if(n.z==null) n.z=defaultZ(n.kind,n.device); });
+  S.circuits.forEach(c=>{ if(c.detail==null) c.detail=""; if(c.ctype==null) c.ctype="OTRO"; });
+  S.counters=d.counters||{}; S.baseName=d.baseName||"";
+  S.grid = Object.assign({on:true,size:40,snap:true}, d.grid||{});
+  S.viewGroups = d.viewGroups||[];
+  S.hiddenCircuits = new Set(d.hiddenCircuits||[]);
+  S.wires = d.wires||[];
+  S.tracingWire = null;
+  S.activeCircuit = S.circuits[0]?S.circuits[0].id:null; S.sel=null;
+  history=[]; future=[]; paintHistBtns();
+  if(d.baseSrc) await setBase(d.baseSrc);
+  paintScale(); paintGridMeta();
+  $("#vGrid").checked=S.grid.on; $("#gridSize").value=S.grid.size; $("#vSnap").checked=S.grid.snap;
+  refreshAll();
+}
+
+$("#bSave").onclick = ()=>{
+  const data = buildProjectData();
+  const blob = new Blob([JSON.stringify(data)], {type:"application/json"});
+  dl(blob, (S.baseName.replace(/\.[^.]+$/,"")||"canalizacion")+".canaliza.json");
+};
+$("#bLoad").onclick = ()=> $("#fProj").click();
+$("#fProj").onchange = async e=>{
+  const f=e.target.files[0]; if(!f) return;
+  busy(true);
+  try{
+    const d = JSON.parse(await f.text());
+    await applyProjectData(d);
+  }catch(err){ alert("Archivo de proyecto inválido."); }
+  busy(false); e.target.value="";
+};
+
+/* ============================ guardado automático en el navegador ============================ */
+
+const AUTOSAVE_KEY = "canaliza_autosave_v1";
+let autosaveTimer = null, autosaveEnabled = true;
+
+function paintAutosaveTag(txt){ const el=$("#autosaveTag"); if(el) el.textContent = txt; }
+
+function scheduleAutosave(){
+  if(!autosaveEnabled) return;
+  clearTimeout(autosaveTimer);
+  autosaveTimer = setTimeout(doAutosave, 900);
+}
+function doAutosave(){
+  if(!autosaveEnabled) return;
+  const data = buildProjectData();
+  try{
+    localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(data));
+    paintAutosaveTag("Guardado automático · "+new Date(data.savedAt).toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"}));
+  }catch(err){
+    // probablemente se llenó el almacenamiento (la foto del plano pesa) - reintentamos sin ella
+    try{
+      localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(Object.assign({}, data, {baseSrc:null})));
+      paintAutosaveTag("Guardado automático (sin la imagen del plano — no entra en el navegador)");
+    }catch(err2){
+      autosaveEnabled = false;
+      paintAutosaveTag("Guardado automático no disponible en este navegador");
+    }
+  }
+}
+function clearAutosave(){
+  try{ localStorage.removeItem(AUTOSAVE_KEY); }catch(err){}
+  paintAutosaveTag("");
+}
+// intenta restaurar lo guardado en este navegador; devuelve true si efectivamente restauró algo
+async function tryRestoreAutosave(){
+  let raw = null;
+  try{ raw = localStorage.getItem(AUTOSAVE_KEY); }
+  catch(err){ autosaveEnabled=false; return false; }
+  if(!raw) return false;
+  let d;
+  try{ d = JSON.parse(raw); }catch(err){ return false; }
+  const when = d.savedAt ? new Date(d.savedAt).toLocaleString("es-AR") : "fecha desconocida";
+  const ok = confirm(
+    "Encontré un proyecto guardado automáticamente en este navegador (última edición: "+when+").\n\n"+
+    "¿Querés continuar donde lo dejaste?\n\n"+
+    "Cancelar arranca con un proyecto en blanco (esto no borra el guardado automático)."
+  );
+  if(!ok) return false;
+  busy(true);
+  try{ await applyProjectData(d); }
+  catch(err){ alert("No se pudo restaurar el guardado automático."); busy(false); return false; }
+  busy(false);
+  return true;
+}
+$("#bNewProj").onclick = ()=>{
+  if(!confirm("¿Empezar un proyecto nuevo? Se borra el guardado automático de este navegador (los archivos .json que ya exportaste no se tocan).")) return;
+  clearAutosave();
+  location.reload();
+};
+function dl(blob, name){
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob); a.download=name; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+}
+
+/* ============================ exportar PDF ============================ */
+
+$("#bPdf").onclick = ()=>{
+  if(!S.base){ alert("Cargá primero un plano base."); return; }
+  const l=$("#pdfList");
+  l.innerHTML =
+    `<label class="chk"><input type="checkbox" id="pxAll" checked> Hoja con todos los circuitos juntos</label>` +
+    `<label class="chk"><input type="checkbox" id="pxDetail" checked> Hoja de cableado detallado (todos los circuitos, cables adentro de cada caño)</label>` +
+    S.circuits.map(c=>`<label class="chk"><input type="checkbox" class="pxC" value="${c.id}" checked>
+      <span class="sw" style="background:${c.color};margin-top:2px"></span> Hoja de ${esc(c.name)}</label>`).join("") +
+    `<label class="chk"><input type="checkbox" id="pxBom" checked> Hoja de cómputo de materiales y observaciones</label>`;
+  open$("#mPdf");
+};
+
+$("#pdfGo").onclick = async ()=>{
+  close$("#mPdf"); busy(true);
+  try{ await makePdf(); }catch(e){ alert("Error al generar el PDF: "+e.message); }
+  busy(false);
+};
+
+function planCanvas(opt){
+  const W = S.base.width, H = S.base.height;
+  const max = opt.res || 3200;
+  // permitimos agrandar un poco planos de baja resolución (hasta 2.5x) para que las
+  // cajas/caños dibujados queden nítidos aunque la foto de fondo sea de baja calidad;
+  // si el plano ya es grande, lo achicamos para no generar archivos gigantes
+  const s = Math.min(2.5, max/Math.max(W,H));
+  const c = document.createElement("canvas");
+  c.width=Math.round(W*s); c.height=Math.round(H*s);
+  const g=c.getContext("2d");
+  g.imageSmoothingEnabled = true; g.imageSmoothingQuality = "high";
+  g.fillStyle="#fff"; g.fillRect(0,0,c.width,c.height);
+  g.save(); g.scale(s,s);
+  drawScene(g, Object.assign({z:s}, opt));
+  for(const cr of findCrossings()){
+    if(opt.only && !cr.a.runs.some(r=>r.circuit===opt.only) && !cr.b.runs.some(r=>r.circuit===opt.only)) continue;
+    drawCrossingMark(g, cr, s);
+  }
+  g.restore();
+  return c;
+}
+
+async function makePdf(){
+  const {jsPDF} = window.jspdf;
+  const fmtP = $("#pdfSize").value, ori = $("#pdfOri").value;
+  const doc = new jsPDF({orientation:ori, unit:"mm", format:fmtP});
+  const PW = doc.internal.pageSize.getWidth(), PH = doc.internal.pageSize.getHeight();
+  const M = 12;
+  let first = true;
+
+  const wanted = Array.from(document.querySelectorAll(".pxC:checked")).map(i=>i.value);
+  const bom = computeBom();
+
+  function header(title, sub){
+    if(!first) doc.addPage(); first=false;
+    doc.setDrawColor(200); doc.setLineWidth(.3);
+    doc.line(M, M+9, PW-M, M+9);
+    doc.setFont("helvetica","bold"); doc.setFontSize(12); doc.setTextColor(20);
+    doc.text(title, M, M+5);
+    doc.setFont("helvetica","normal"); doc.setFontSize(8); doc.setTextColor(120);
+    doc.text(sub, PW-M, M+5, {align:"right"});
+  }
+  function foot(n){
+    doc.setFont("helvetica","normal"); doc.setFontSize(7); doc.setTextColor(150);
+    doc.text((S.baseName||"plano")+"  ·  "+new Date().toLocaleDateString("es-AR"), M, PH-6);
+    doc.text(n, PW-M, PH-6, {align:"right"});
+  }
+  function putPlan(c, top, bottom, opt){
+    opt = opt || {};
+    const availW = PW-M*2, availH = (bottom||PH-14)-top;
+    const s = Math.min(availW/c.width, availH/c.height);
+    const w=c.width*s, h=c.height*s;
+    // PNG (sin pérdida) para las hojas donde importa distinguir bien el color de cada
+    // cable — el JPEG "corre" el color en líneas finas y las hace ilegibles al hacer zoom
+    if(opt.png) doc.addImage(c.toDataURL("image/png"), "PNG", M+(availW-w)/2, top, w, h);
+    else doc.addImage(c.toDataURL("image/jpeg",.95), "JPEG", M+(availW-w)/2, top, w, h);
+  }
+
+  // ---- hoja general
+  if($("#pxAll").checked){
+    header("Canalización — todos los circuitos", S.pxPerM?fmt(S.pxPerM,1)+" px/m":"sin escala");
+    const c = planCanvas({labels:true, lens:false, res:3200});
+    putPlan(c, M+14, PH-40);
+    // leyenda
+    let y = PH-34;
+    doc.setFontSize(8); doc.setTextColor(20); doc.setFont("helvetica","bold");
+    doc.text("Referencias", M, y); y+=4.5;
+    doc.setFont("helvetica","normal");
+    let x=M;
+    for(const cc of S.circuits){
+      const rgb = hex2rgb(cc.color);
+      doc.setDrawColor(rgb[0],rgb[1],rgb[2]); doc.setLineWidth(1);
+      doc.line(x, y-1.2, x+7, y-1.2);
+      doc.setTextColor(40);
+      const t = cc.name+(cc.detail?" ("+cc.detail+")":"")+"  "+cc.section+"mm² · "+cc.prot+"A";
+      doc.text(t, x+9, y);
+      x += 11 + doc.getTextWidth(t);
+      if(x > PW-M-45){ x=M; y+=4.5; }
+    }
+    foot("Hoja general");
+  }
+
+  // ---- hoja de cableado detallado (todos los circuitos, con los conductores reales dentro de cada caño)
+  if($("#pxDetail").checked){
+    header("Cableado detallado — todos los circuitos", "cables reales dentro de cada caño");
+    const c = planCanvas({labels:false, lens:false, detailed:true, res:4800});
+    putPlan(c, M+14, PH-40, {png:true});
+    let y = PH-34;
+    doc.setFontSize(8); doc.setTextColor(20); doc.setFont("helvetica","bold");
+    doc.text("Cómo leer los caños", M, y); y+=4.5;
+    doc.setFont("helvetica","normal"); doc.setTextColor(60); doc.setFontSize(7);
+    doc.text("Cada línea de color adentro del caño es un conductor. Cuanto más gruesa, mayor la sección: fino = 1.5 mm² (iluminación), medio = 2.5 mm² (tomas), grueso = 4-6 mm² (especiales/acometida), el más grueso = puesta a tierra de gran sección.", M, y, {maxWidth: PW-M*2});
+    y+=7;
+    doc.setFontSize(8); doc.setFont("helvetica","bold"); doc.setTextColor(20);
+    doc.text("Referencias de color", M, y); y+=4.5;
+    doc.setFont("helvetica","normal"); doc.setFontSize(7);
+    const legend = [
+      ["Marrón (fase)", WIRE_HEX["Marrón (fase)"]],
+      ["Celeste (neutro)", WIRE_HEX["Celeste (neutro)"]],
+      ["Verde-amarillo (tierra)", WIRE_HEX["Verde-amarillo (tierra)"]],
+      ["Blanco (retorno simple)", WIRE_HEX["Blanco (retorno simple)"]],
+      ["Amarillo (retorno combinado, las 2 ramas)", WIRE_HEX["Amarillo (retorno combinado)"]]
+    ];
+    let lx=M;
+    for(const [label, colorOrNote] of legend){
+      if(colorOrNote.startsWith && colorOrNote.startsWith("#")){
+        const rgb = hex2rgb(colorOrNote);
+        doc.setFillColor(rgb[0],rgb[1],rgb[2]); doc.rect(lx, y-2.6, 6, 2.6, "F");
+        doc.setDrawColor(120); doc.setLineWidth(.15); doc.rect(lx, y-2.6, 6, 2.6, "S");
+        doc.setTextColor(40); doc.text(label, lx+8, y);
+        lx += 10 + doc.getTextWidth(label);
+      } else {
+        doc.setTextColor(110); doc.text(label+": "+colorOrNote, lx, y, {maxWidth: PW-M*2-lx});
+        lx = M; y += 4;
+      }
+      if(lx > PW-M-50){ lx=M; y+=4.5; }
+    }
+    foot("Cableado detallado");
+  }
+
+  // ---- una hoja por circuito
+  for(const id of wanted){
+    const c = ciById(id); if(!c) continue;
+    const rs = S.runs.filter(r=>r.circuit===id);
+    const len = rs.reduce((a,r)=>a+runLenM(r),0);
+    const cab = rs.reduce((a,r)=>a+runLenM(r)*r.cables,0);
+    header("Circuito "+c.name, DEV_KIND(c.kind) + (c.detail ? " — "+c.detail : ""));
+    const detailed = c.kind==="iluminacion";
+    const cnv = planCanvas({only:id, labels:true, lens:false, detailed, res: detailed?4800:3200});
+    putPlan(cnv, M+14, PH-34, {png:detailed});
+
+    let y=PH-28;
+    doc.setFontSize(8); doc.setFont("helvetica","bold"); doc.setTextColor(20);
+    doc.text("Datos del circuito", M, y);
+    doc.setFont("helvetica","normal"); doc.setTextColor(60); y+=4.5;
+    const vert = rs.reduce((a,r)=>a+runVert(r),0);
+    const wireCount = c.kind==="iluminacion" ? S.wires.filter(w=>w.circuit===c.id && w.runIds.length).length : c.cables;
+    const cells = [
+      ["Sección", c.section+" mm²"], ["Conductores", String(wireCount)],
+      ["Protección", c.prot+" A"], ["Tramos", String(rs.length)],
+      ["Horizontal", fmt(len-vert,1)+" m"], ["Vertical", fmt(vert,1)+" m"],
+      ["Cable", fmt(cab,1)+" m"]
+    ];
+    let cx=M;
+    for(const [k,v] of cells){
+      doc.setTextColor(130); doc.text(k, cx, y);
+      doc.setTextColor(20); doc.setFont("helvetica","bold"); doc.text(v, cx, y+4);
+      doc.setFont("helvetica","normal");
+      cx += Math.max(26, doc.getTextWidth(v)+14);
+    }
+    // detalle de tramos
+    y+=11;
+    if(rs.length && y < PH-12){
+      doc.setDrawColor(215); doc.setLineWidth(.2); doc.line(M,y-4,PW-M,y-4);
+      doc.setFontSize(7); doc.setTextColor(130);
+      const cols=[M, M+40, M+56, M+72, M+88, M+104, M+122];
+      doc.text("Tramo",cols[0],y); doc.text("Caño",cols[1],y); doc.text("Cond.",cols[2],y);
+      doc.text("Horiz.",cols[3],y); doc.text("Vert.",cols[4],y);
+      doc.text("Total",cols[5],y); doc.text("Cable",cols[6],y);
+      doc.setTextColor(40); y+=3.6;
+      const gAll = conduitGroups();
+      for(const r of rs){
+        if(y>PH-9) break;
+        const a=nodeById(r.a), b=nodeById(r.b);
+        const gg = gAll.get(groupKey(r));
+        const sh = gg && gg.runs.length>1 ? "  (compartido)" : "";
+        doc.text((a?a.label:"libre")+" → "+(b?b.label:"libre")+sh, cols[0], y);
+        doc.text(diaLbl(r.dia), cols[1], y);
+        doc.text(String(r.cables), cols[2], y);
+        doc.text(fmt(runHoriz(r),2), cols[3], y);
+        doc.text(fmt(runVert(r),2), cols[4], y);
+        doc.text(fmt(runLenM(r),2)+" m", cols[5], y);
+        doc.text(fmt(runLenM(r)*r.cables,2)+" m", cols[6], y);
+        y+=3.4;
+      }
+    }
+    foot("Circuito "+c.name);
+  }
+
+  // ---- cómputo
+  if($("#pxBom").checked){
+    header("Cómputo de materiales", S.pxPerM?"escala "+fmt(S.pxPerM,1)+" px/m":"sin escala");
+    let y=M+20;
+    const col2 = PW/2+4;
+
+    doc.setFont("helvetica","bold"); doc.setFontSize(9); doc.setTextColor(20);
+    doc.text("Cable por sección", M, y);
+    doc.setFont("helvetica","normal"); doc.setFontSize(8); y+=5;
+    const cs=Object.keys(bom.cable).filter(k=>bom.cable[k]>0).sort((a,b)=>a-b);
+    for(const s of cs){
+      doc.setTextColor(80); doc.text(s+" mm²", M, y);
+      doc.setTextColor(20); doc.text(fmt(bom.cable[s],1)+" m", M+42, y, {align:"right"}); y+=4.4;
+      const colors = bom.cableColor[s]||{};
+      for(const col of Object.keys(colors).sort()){
+        doc.setFont("helvetica","normal"); doc.setFontSize(7); doc.setTextColor(130);
+        doc.text(col, M+3, y);
+        doc.text(fmt(colors[col],1)+" m", M+42, y, {align:"right"}); y+=3.6;
+        doc.setFontSize(8);
+      }
+    }
+    doc.setFont("helvetica","bold"); doc.setTextColor(20); doc.text("Total", M, y);
+    doc.text(fmt(bom.totalCable,1)+" m", M+42, y, {align:"right"});
+
+    let y2=M+20;
+    doc.setFont("helvetica","bold"); doc.setFontSize(9);
+    doc.text("Caño corrugado", col2, y2);
+    doc.setFont("helvetica","normal"); doc.setFontSize(8); y2+=5;
+    const ds=Object.keys(bom.conduit).filter(k=>bom.conduit[k]>0).sort((a,b)=>diaOf(a).mm-diaOf(b).mm);
+    for(const d of ds){ doc.setTextColor(80); doc.text(diaLbl(d)+"  ("+diaOf(d).mm+" mm)", col2, y2);
+      doc.setTextColor(20); doc.text(fmt(bom.conduit[d],1)+" m", col2+42, y2, {align:"right"}); y2+=4.4; }
+    doc.setFont("helvetica","bold"); doc.text("Total", col2, y2);
+    doc.text(fmt(bom.totalConduit,1)+" m", col2+42, y2, {align:"right"});
+
+    y = Math.max(y,y2)+11;
+    doc.setFont("helvetica","bold"); doc.setFontSize(9); doc.setTextColor(20);
+    doc.text("Cajas", M, y); doc.setFont("helvetica","normal"); doc.setFontSize(8); y+=5;
+    const boxRows = [["Octogonales",bom.boxes.oct||0],["Rectangulares",bom.boxes.rect||0],["Tableros",bom.boxes.tablero||0]];
+    if(bom.boxes.medidor) boxRows.push(["Medidores", bom.boxes.medidor]);
+    if(bom.boxes.jabalina) boxRows.push(["Jabalinas", bom.boxes.jabalina]);
+    for(const [k,v] of boxRows){
+      doc.setTextColor(80); doc.text(k, M, y);
+      doc.setTextColor(20); doc.text(String(v), M+42, y, {align:"right"}); y+=4.4;
+    }
+    if(bom.boxes.insp){
+      doc.setTextColor(80); doc.text("De inspección", M, y);
+      doc.setTextColor(20); doc.text(String(bom.boxes.insp), M+42, y, {align:"right"}); y+=4.4;
+      for(const k of Object.keys(bom.boxesInsp).sort()){
+        doc.setTextColor(120); doc.text("  "+k, M, y);
+        doc.setTextColor(20); doc.text(String(bom.boxesInsp[k]), M+42, y, {align:"right"}); y+=4.4;
+      }
+    }
+
+    y+=7;
+    doc.setFont("helvetica","bold"); doc.setFontSize(9); doc.text("Resumen por circuito", M, y);
+    y+=5.5; doc.setFontSize(7); doc.setTextColor(130); doc.setFont("helvetica","normal");
+    const cc=[M, M+30, M+48, M+64, M+82, M+102, M+124];
+    ["Circuito","Sección","Protec.","Tramos","Recorrido","Cable","Tipo"].forEach((h,i)=>doc.text(h,cc[i],y));
+    y+=3.8; doc.setTextColor(30);
+    for(const r of bom.byCircuit){
+      if(y>PH-30) break;
+      doc.text(r.c.name, cc[0], y);
+      doc.text(r.c.section+" mm²", cc[1], y);
+      doc.text(r.c.prot+" A", cc[2], y);
+      doc.text(String(r.runs), cc[3], y);
+      doc.text(fmt(r.len,1)+" m", cc[4], y);
+      doc.text(fmt(r.cab,1)+" m", cc[5], y);
+      doc.text(DEV_KIND(r.c.kind), cc[6], y);
+      y+=3.8;
+    }
+
+    const obs = drcCached();
+    if(obs.length && y<PH-26){
+      y+=7; doc.setFont("helvetica","bold"); doc.setFontSize(9); doc.setTextColor(20);
+      doc.text("Observaciones de reglas de diseño", M, y);
+      y+=5; doc.setFont("helvetica","normal"); doc.setFontSize(7.5);
+      for(const o of obs){
+        if(y>PH-10) break;
+        doc.setTextColor(o.lvl==="e"?179:138, o.lvl==="e"?38:97, o.lvl==="e"?30:0);
+        const lines = doc.splitTextToSize((o.lvl==="e"?"! ":"? ")+stripTags(o.txt), PW-M*2);
+        doc.text(lines, M, y); y += lines.length*3.4+1;
+      }
+    }
+    doc.setFontSize(7); doc.setTextColor(150);
+    doc.text("Cálculo con "+S.rules.waste+"% de desperdicio, "+S.rules.spare+" cm de reserva por conexión y bajadas verticales sobre cielorraso de "+
+      fmt(S.z.ceiling,2)+" m. Tablero "+fmt(S.z.tablero,2)+" m · tomas "+fmt(S.z.toma,2)+" m · interruptores "+fmt(S.z.interruptor,2)+" m."+
+      (bom.shared?"  "+bom.shared+" caño(s) compartido(s) computados una sola vez.":""), M, PH-11);
+    foot("Cómputo");
+  }
+
+  doc.save((S.baseName.replace(/\.[^.]+$/,"")||"canalizacion")+".pdf");
+}
+
+function DEV_KIND(k){
+  return {iluminacion:"Iluminación", tomas:"Tomacorrientes", especial:"Especial", exterior:"Exterior",
+    acometida:"Acometida", tierra:"Puesta a tierra"}[k]||k;
+}
+function stripTags(s){ return s.replace(/<[^>]+>/g,""); }
+function hex2rgb(h){
+  const m=/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(h);
+  return m?[parseInt(m[1],16),parseInt(m[2],16),parseInt(m[3],16)]:[0,0,0];
+}
+
+/* ============================ misc UI ============================ */
+
+$("#bAddCi").onclick = ()=>{ pushUndo(); newCircuit(); refreshAll(); };
+$$("[data-newci]").forEach(b=> b.onclick = ()=>{ pushUndo(); newCircuit(b.dataset.newci); refreshAll(); });
+$("#bUndo").onclick = undo;
+$("#bRedo").onclick = redo;
+$("#vLbl").onchange = e=>{ S.show.labels=e.target.checked; render(); };
+$("#vLen").onchange = e=>{ S.show.lens=e.target.checked; render(); };
+$("#vZ").onchange   = e=>{ S.show.z=e.target.checked; render(); };
+$("#vGrid").onchange = e=>{ S.grid.on=e.target.checked; render(); };
+$("#vSnap").onchange = e=>{ S.grid.snap=e.target.checked; };
+$("#gridSize").oninput = e=>{
+  S.grid.size = Math.max(2, parseFloat(e.target.value)||40);
+  paintGridMeta(); render();
+};
+$("#zIn").onclick = ()=>zoomAt(1.2);
+$("#zOut").onclick= ()=>zoomAt(1/1.2);
+$("#zFit").onclick= fitView;
+
+/* ---- grupos de vista ---- */
+function paintViewGroups(){
+  const el = $("#viewGroups");
+  if(!S.viewGroups.length){ el.innerHTML = `<p class="msg" style="margin:0">Sin grupos todavía. Creá uno para ver, por ejemplo, sólo IUG1 + TUG2 juntos.</p>`; return; }
+  el.innerHTML = S.viewGroups.map(g=>`
+    <div class="grp" data-id="${g.id}">
+      <div class="ci-h" data-apply="${g.id}">
+        <span class="ci-n">${esc(g.name)}</span>
+        <span class="ci-m">${g.circuits.length} circ.</span>
+      </div>
+      <div class="row" style="margin-top:6px">
+        <button class="btn sm" data-editgrp="${g.id}" style="flex:1">Editar</button>
+        <button class="btn sm" data-delgrp="${g.id}" style="flex:1">Eliminar</button>
+      </div>
+    </div>`).join("");
+  $$("#viewGroups [data-apply]").forEach(h=> h.onclick = ()=>{
+    const g = S.viewGroups.find(x=>x.id===h.dataset.apply); if(g) applyGroup(g);
+  });
+  $$("#viewGroups [data-editgrp]").forEach(b=> b.onclick = ()=>{
+    openGroupModal(S.viewGroups.find(x=>x.id===b.dataset.editgrp));
+  });
+  $$("#viewGroups [data-delgrp]").forEach(b=> b.onclick = ()=>{
+    if(!confirm("¿Eliminar este grupo de vista?")) return;
+    S.viewGroups = S.viewGroups.filter(x=>x.id!==b.dataset.delgrp);
+    paintViewGroups();
+  });
+}
+function applyGroup(g){
+  S.hiddenCircuits = new Set(S.circuits.filter(c=>!g.circuits.includes(c.id)).map(c=>c.id));
+  refreshAll();
+}
+let editingGrp = null;
+function openGroupModal(existing){
+  editingGrp = existing || null;
+  $("#grpName").value = existing ? existing.name : "";
+  $("#grpChecks").innerHTML = S.circuits.length ? S.circuits.map(c=>`
+    <label class="chk"><input type="checkbox" class="grpC" value="${c.id}"${(!existing||existing.circuits.includes(c.id))?" checked":""}>
+      <span class="sw" style="background:${c.color};margin-top:2px"></span> ${esc(c.name)}${c.detail?" — "+esc(c.detail):""}</label>`).join("")
+    : `<p class="msg">Todavía no hay circuitos creados.</p>`;
+  open$("#mGroup");
+}
+$("#bAddGrp").onclick = ()=> openGroupModal(null);
+$("#grpOk").onclick = ()=>{
+  const name = $("#grpName").value.trim() || "Grupo "+(S.viewGroups.length+1);
+  const ids = $$(".grpC:checked").map(i=>i.value);
+  if(editingGrp){ editingGrp.name=name; editingGrp.circuits=ids; }
+  else S.viewGroups.push({id:uid("g"), name, circuits:ids});
+  close$("#mGroup"); paintViewGroups();
+};
+$("#bShowAll").onclick  = ()=>{ S.hiddenCircuits = new Set(); refreshAll(); };
+$("#bShowNone").onclick = ()=>{ S.hiddenCircuits = new Set(S.circuits.map(c=>c.id)); refreshAll(); };
+
+/* ============================ init ============================ */
+
+buildTools();
+
+(async function boot(){
+  resize();
+  if(!window.CANALIZA_SIN_AUTOSAVE){
+    const restored = await tryRestoreAutosave();
+    if(restored){ paintHistBtns(); window.canalizaListo = true;
+      window.dispatchEvent(new Event('canaliza-listo')); return; }
+  }
+  newCircuit("IUG");
+  paintScale(); paintGridMeta(); paintHistBtns();
+  refreshAll();
+  window.canalizaListo = true;
+  window.dispatchEvent(new Event('canaliza-listo'));
+})();
+
+// ---- integración externa: no toca nada de lo existente, sólo expone hooks ----
+window.canalizaExportar = buildProjectData;
+window.canalizaImportar = applyProjectData;
+
+})();
+
+</script>
+</body>
+</html>

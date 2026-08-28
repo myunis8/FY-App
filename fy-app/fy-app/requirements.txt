@@ -1,0 +1,8 @@
+# El servidor y la sincronización no usan nada externo.
+# El extractor sí: lee la geometría del PDF y segmenta los ambientes.
+pymupdf>=1.24
+opencv-python-headless>=4.8
+numpy>=1.24
+
+# Sólo para compilar el .exe:
+pyinstaller>=6.0
