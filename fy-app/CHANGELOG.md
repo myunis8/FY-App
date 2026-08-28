@@ -3,6 +3,27 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 0.20.4 — circuitos también se completan en proyectos guardados, mismo color que en Circuitos, y color por circuito en cada caja
+
+- Mismo patrón de bug que las cajas en la 0.20.3: si el proyecto guardado
+  tenía `circuits: []` (de antes de existir `circuitos_para_canaliza`),
+  quedaba así para siempre y bloqueaba "Tramo de caño" con *"Creá al menos
+  un circuito antes de dibujar"*. `mergeCircuitosExtraidos()` ahora completa
+  los circuitos faltantes en cada apertura, igual que ya se hacía con las
+  cajas — sin pisar uno que el usuario ya haya editado acá.
+- La paleta de colores de `circuitos_para_canaliza()` era propia y no
+  coincidía con la de Circuitos. Ahora usa exactamente `COLORES` de
+  `circuitos.html`, mismo índice por posición — mismo color en los dos
+  módulos.
+- Cada caja extraída ahora lleva `ringColor` con el color de su circuito
+  (calculado igual que `colorDe()`), y el borde de la caja se pinta con ese
+  color en vez del negro por defecto — un solo `if` aditivo en el dibujo del
+  nodo, sin tocar nada más de Canaliza; si una caja no tiene circuito
+  asignado, se ve como antes.
+- Probado en navegador real reproduciendo ambos bugs juntos (circuitos vacíos
+  + plano ok): confirmado que ya no aparece la alerta al trazar y que las
+  cajas se ven con el color de su circuito.
+
 ## 0.20.3 — las cajas seguían sin aparecer si ya había un proyecto guardado, y ahora se ve el circuito de cada una sin hacer clic
 
 - El self-heal de la 0.20.2 completaba plano y escala en un proyecto ya

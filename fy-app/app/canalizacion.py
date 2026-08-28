@@ -18,7 +18,11 @@ KIND_DE_TIPO = {
     "IUG": "iluminacion", "IUE": "iluminacion",
     "TUG": "tomas", "TUE": "especial", "ACU": "especial", "OCE": "especial",
 }
-PALETA = ["#c2410c", "#1d4ed8", "#047857", "#7c3aed", "#b91c1c", "#0e7490", "#a16207", "#be185d"]
+# colores exactos de web/circuitos.html (COLORES + colorDe): mismo índice
+# por posición en obra.circuitos, así el color de cada circuito es idéntico
+# entre los dos módulos.
+PALETA = ['#2b6ca3', '#2f7d5c', '#b5651d', '#8e44ad', '#c0392b', '#16a085',
+          '#d68910', '#5d6d7e', '#1f618d', '#117864']
 
 # tipo de elemento de esta app -> (kind de caja, device) que espera Canaliza
 # (ver KINDS / DEVICES en canaliza.html). "otros" y "desconocido" son casos
@@ -69,14 +73,25 @@ def _circuito_de(obra: dict, elemento_id: str) -> dict | None:
     return None
 
 
+def _color_de(obra: dict, circuito: dict) -> str:
+    """Mismo cálculo que colorDe() en circuitos.html: color por posición del
+    circuito en obra.circuitos, para que sea el mismo en los dos módulos."""
+    ids = [c["id"] for c in (obra.get("circuitos") or [])]
+    i = ids.index(circuito["id"]) if circuito["id"] in ids else 0
+    return PALETA[i % len(PALETA)]
+
+
 def nodos_para_canaliza(obra: dict, zoom: float = ZOOM_PLANO) -> list[dict]:
     """Los elementos ya extraídos del plano (cajas de luz, tomas, llaves),
     traducidos a nodos de Canaliza en la misma posición real sobre el plano
-    (mismo `plano.png?zoom=` que se usa como fondo), con una nota indicando
-    el circuito al que ya pertenecen si tienen uno asignado en el módulo de
-    Circuitos. Sirven directo como extremo de un tramo, sin volver a
-    marcarlos a mano. Igual que `circuitos_para_canaliza()`, sólo se usan la
-    primera vez que se abre el módulo — después manda el proyecto guardado.
+    (mismo `plano.png?zoom=` que se usa como fondo), con el circuito al que
+    ya pertenecen (si tienen uno asignado en el módulo de Circuitos) en la
+    etiqueta, en la nota, y como color de borde (`ringColor`) -- mismo color
+    que usa ese circuito en Circuitos, para identificarlo de un vistazo.
+    Sirven directo como extremo de un tramo, sin volver a marcarlos a mano.
+    Igual que `circuitos_para_canaliza()`, esto se usa la primera vez que se
+    abre el módulo, y para completar cajas nuevas en aperturas siguientes —
+    ver `mergeCajasExtraidas()` en canaliza.html.
     """
     salida = []
     contador: dict[str, int] = {}
@@ -91,12 +106,13 @@ def nodos_para_canaliza(obra: dict, zoom: float = ZOOM_PLANO) -> list[dict]:
             contador[device] = contador.get(device, 0) + 1
             etiqueta = PREFIJO_ETIQUETA.get(device, device[:1].upper()) + str(contador[device])
         circ = _circuito_de(obra, e["id"])
-        nombre_circ = circ.get("nombre") or circ["id"] if circ else None
+        nombre_circ = (circ.get("nombre") or circ["id"]) if circ else None
         salida.append({
             "id": f"fy_{e['id']}", "kind": kind, "device": device,
             "x": round(pos["x"] * zoom, 1), "y": round(pos["y"] * zoom, 1),
             "label": f"{etiqueta}·{nombre_circ}" if nombre_circ else etiqueta,
             "note": f"Circuito: {nombre_circ}" if nombre_circ else "",
+            "ringColor": _color_de(obra, circ) if circ else None,
             "zAuto": True,
         })
     return salida

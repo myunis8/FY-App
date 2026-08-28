@@ -340,6 +340,17 @@ table.t input:focus{outline:none;border-color:var(--accent);background:#fff}
 window.CANALIZA_SIN_AUTOSAVE = true;
 const OBRA_ID = new URLSearchParams(location.search).get('obra');
 
+// agrega al proyecto los circuitos ya armados en el módulo de Circuitos que
+// todavía no estén (por id) -- nunca pisa uno que ya exista, para no perder
+// un color/nombre/sección que se haya ajustado a mano acá. Devuelve cuántos
+// sumó.
+function mergeCircuitosExtraidos(proyecto, circuitosExtraidos){
+  const existentes = new Set((proyecto.circuits||[]).map(c=>c.id));
+  const nuevos = (circuitosExtraidos||[]).filter(c=>!existentes.has(c.id));
+  if(nuevos.length) proyecto.circuits = [...(proyecto.circuits||[]), ...nuevos];
+  return nuevos.length;
+}
+
 // agrega al proyecto las cajas ya extraídas del plano (artefactos, tomas,
 // llaves) que todavía no están -- nunca pisa una que ya exista con ese id,
 // así no se pierde nada que el usuario haya movido, editado o borrado a
@@ -373,6 +384,8 @@ window.addEventListener('canaliza-listo', async () => {
       const arreglos = [];
       if(!proyecto.baseSrc && d.planoUrl){ proyecto.baseSrc = d.planoUrl; arreglos.push('el plano'); }
       if(!proyecto.pxPerM && d.pxPerM){ proyecto.pxPerM = d.pxPerM; arreglos.push('la escala'); }
+      const nCirc = mergeCircuitosExtraidos(proyecto, d.circuitos);
+      if(nCirc) arreglos.push(nCirc + ' circuito(s)');
       const nNuevas = mergeCajasExtraidas(proyecto, d.nodos);
       if(nNuevas) arreglos.push(nNuevas + ' caja(s) nueva(s)');
       await window.canalizaImportar(proyecto);
@@ -1167,7 +1180,7 @@ function drawScene(g, opt){
     g.save();
     g.translate(n.x, n.y);
     g.lineWidth = 2/z;
-    g.strokeStyle = bad ? "#b3261e" : "#15181b";
+    g.strokeStyle = bad ? "#b3261e" : (n.ringColor || "#15181b");
     g.fillStyle = "#ffffff";
     if(n.kind==="tablero"){
       g.beginPath(); g.rect(-R*1.25,-R,R*2.5,R*2); g.fill(); g.stroke();
