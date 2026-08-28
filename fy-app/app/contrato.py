@@ -34,7 +34,7 @@ def obra_vacia(nombre: str = "", cliente: str = "", usuario: str = "") -> dict:
                  "creadoEl": t, "actualizadoEl": t, "actualizadoPor": usuario},
         "plano": None,
         "ambientes": [], "elementos": [], "circuitos": [], "tableros": [],
-        "canalizacion": {"nodos": [], "tramos": [], "conductores": [], "reglas": {}},
+        "canalizacion": None,   # el proyecto tal cual lo produce buildProjectData() de Canaliza
         "computo": None,
         "presupuesto": {"items": [], "descuento": None, "ajusteFinal": None,
                         "fechaEmision": None},
@@ -73,7 +73,7 @@ def progreso(obra: dict) -> dict:
         "extraido": bool(obra.get("elementos")) or sin_plano,
         "sinPlano": sin_plano,
         "circuitosAsignados": bool(obra.get("circuitos")),
-        "canalizado": bool(canal.get("tramos")),
+        "canalizado": bool(canal.get("runs")),
         "presupuestado": bool((obra.get("presupuesto") or {}).get("items")),
     }
 

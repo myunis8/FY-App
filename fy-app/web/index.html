@@ -477,8 +477,8 @@ function pintarBloques(obra){
   $('d-ntableros').textContent = (obra.tableros||[]).length
     ? `${obra.tableros.length} armado(s)` : 'Todavía ninguno';
   $('d-tablero').onclick = () => location.href = '/tablero.html?obra=' + obra.obra.id;
-  $('d-ncanalizacion').textContent = (obra.canalizacion?.nodos||[]).length
-    ? `${obra.canalizacion.nodos.length} caja(s)` : 'Todavía ninguna';
+  $('d-ncanalizacion').textContent = (obra.canalizacion?.runs||[]).length
+    ? `${obra.canalizacion.runs.length} tramo(s)` : 'Todavía ninguno';
   $('d-canalizacion').onclick = () => location.href = '/canaliza.html?obra=' + obra.obra.id;
   const nit = (obra.presupuesto?.items||[]).length + (obra.presupuesto?.extras||[]).length;
   $('d-npresupuesto').textContent = nit ? `${nit} ítems` +

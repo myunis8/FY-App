@@ -3,6 +3,34 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 0.20.0 — Canaliza integrada tal cual, no reimplementada
+
+- **Cambio de estrategia, a pedido explícito**: el intento anterior
+  reimplementaba la app de referencia y perdía todas sus funcionalidades
+  (DRC, cableado de iluminación, PDF multi-hoja). Ahora se integra la app
+  real (`canaliza.html`, ~2770 líneas) tal cual, con sólo tres agregados
+  puntuales que se pidieron hacer en la otra conversación donde se armó:
+  `window.canalizaExportar`/`window.canalizaImportar` expuestos desde el
+  cierre del script, y una bandera para saltear el diálogo de autoguardado
+  del navegador cuando corre integrada. El resto del archivo no se tocó.
+- **`app/canalizacion.py` rehecho** de un modelo de datos propio (nodos,
+  tramos) a algo mucho más simple: leer y guardar el proyecto tal cual lo
+  produce la propia `buildProjectData()` de Canaliza, sin capa de traducción
+  intermedia que mantener sincronizada.
+- Los circuitos ya definidos en el módulo de Circuitos se traducen una sola
+  vez al formato que espera Canaliza (`circuitos_para_canaliza()`) y viajan
+  como punto de partida la primera vez que se abre el módulo — después, el
+  proyecto guardado manda.
+- Dos endpoints nuevos, reemplazando a los seis anteriores:
+  `GET /api/obras/{id}/canalizacion` (proyecto guardado, o si es la primera
+  vez, circuitos traducidos + URL del plano) y
+  `POST /api/obras/{id}/canalizacion` (guarda el proyecto tal cual).
+- Botón "Guardar en la obra" agregado a la barra de Canaliza, junto a los
+  suyos propios de guardar/abrir como archivo — no reemplaza esos, se suma.
+- Probado contra el servidor real: primera carga con circuitos traducidos
+  correctamente (IUG→iluminación, TUG→tomas, con sección real), guardado y
+  relectura del proyecto intactos.
+
 ## 0.19.1 — las cajas ya extraídas aparecen solas en canalización
 
 - **Corrección de fondo**: las cajas octogonales y rectangulares ya se

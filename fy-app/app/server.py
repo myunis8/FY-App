@@ -66,13 +66,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._subir_imagen(partes[3])
             if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "tableros":
                 return self._nuevo_tablero(partes[2])
-            if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "canalizacion-nodos":
-                return self._agregar_nodo_canal(partes[2])
-            if (len(partes) == 6 and partes[:2] == ["api", "obras"] and partes[3] == "canalizacion-nodos"
-                    and partes[5] == "mover"):
-                return self._mover_nodo_canal(partes[2], partes[4])
-            if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "canalizacion-tramos":
-                return self._agregar_tramo_canal(partes[2])
+            if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "canalizacion":
+                return self._guardar_canalizacion(partes[2])
             if len(partes) == 6 and partes[:2] == ["api", "obras"] and partes[3] == "tableros" and partes[5] == "mover":
                 return self._mover_dispositivo(partes[2], partes[4])
             if len(partes) == 6 and partes[:2] == ["api", "obras"] and partes[3] == "tableros" and partes[5] == "dispositivos":
@@ -112,20 +107,6 @@ class Handler(BaseHTTPRequestHandler):
         partes = [p for p in urlparse(self.path).path.split("/") if p]
         if len(partes) == 3 and partes[:2] == ["api", "obras"]:
             return self._json({"ok": almacen.borrar_obra(partes[2])})
-        if len(partes) == 5 and partes[:2] == ["api", "obras"] and partes[3] == "canalizacion-nodos":
-            obra = almacen.leer_obra(partes[2])
-            if obra is None:
-                return self._error("Esa obra no está en este equipo.", 404)
-            ok = canal_mod.eliminar_nodo(obra, partes[4])
-            almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
-            return self._json({"ok": ok})
-        if len(partes) == 5 and partes[:2] == ["api", "obras"] and partes[3] == "canalizacion-tramos":
-            obra = almacen.leer_obra(partes[2])
-            if obra is None:
-                return self._error("Esa obra no está en este equipo.", 404)
-            ok = canal_mod.eliminar_tramo(obra, partes[4])
-            almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
-            return self._json({"ok": ok})
         if len(partes) == 7 and partes[:2] == ["api", "obras"] and partes[3] == "tableros" and partes[5] == "dispositivos":
             obra = almacen.leer_obra(partes[2])
             if obra is None:
@@ -199,11 +180,19 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"obras": almacen.listar_resumenes()})
         if ruta == "/api/precios":
             return self._json(precios_mod.leer())
+        if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "canalizacion":
+            obra = almacen.leer_obra(partes[2])
+            if obra is None:
+                return self._error("Esa obra no está en este equipo.", 404)
+            proyecto = canal_mod.leer_proyecto(obra)
+            return self._json({
+                "proyecto": proyecto,
+                "circuitos": canal_mod.circuitos_para_canaliza(obra),
+                "planoUrl": (f"/api/obras/{partes[2]}/plano.png?zoom=2"
+                            if (obra.get("plano") or {}).get("referencia") else None),
+            })
         if ruta == "/api/tablero/presets":
             return self._json({"presets": tablero_mod.PRESETS})
-        if ruta == "/api/canalizacion/constantes":
-            return self._json({"dias": canal_mod.DIAS, "kinds": canal_mod.KINDS,
-                              "inspSizes": canal_mod.INSP_SIZES, "routes": canal_mod.ROUTES})
         if len(partes) == 4 and partes[:3] == ["api", "config", "imagen"]:
             destino = cfgmod.ruta_imagen(partes[3])
             if destino is None:
@@ -375,43 +364,14 @@ class Handler(BaseHTTPRequestHandler):
                            "elementos": obra.get("elementos") or [],
                            "resumen": vinculos.resumen(obra)})
 
-    def _agregar_nodo_canal(self, obra_id):
+    def _guardar_canalizacion(self, obra_id):
         obra = almacen.leer_obra(obra_id)
         if obra is None:
             return self._error("Esa obra no está en este equipo.", 404)
         cuerpo = self._cuerpo()
-        nodo, msg = canal_mod.agregar_nodo(obra, cuerpo.get("kind"), cuerpo.get("x"), cuerpo.get("y"),
-                                           cuerpo.get("label", ""), cuerpo.get("device"),
-                                           cuerpo.get("inspSize"))
-        if nodo is None:
-            return self._error(msg)
+        canal_mod.guardar_proyecto(obra, cuerpo)
         almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
-        return self._json({"ok": True, "nodo": nodo, "canalizacion": obra["canalizacion"]})
-
-    def _mover_nodo_canal(self, obra_id, nodo_id):
-        obra = almacen.leer_obra(obra_id)
-        if obra is None:
-            return self._error("Esa obra no está en este equipo.", 404)
-        cuerpo = self._cuerpo()
-        ok = canal_mod.mover_nodo(obra, nodo_id, cuerpo.get("x"), cuerpo.get("y"))
-        if not ok:
-            return self._error("Esa caja no existe.", 404)
-        almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
-        return self._json({"ok": True, "canalizacion": obra["canalizacion"]})
-
-    def _agregar_tramo_canal(self, obra_id):
-        obra = almacen.leer_obra(obra_id)
-        if obra is None:
-            return self._error("Esa obra no está en este equipo.", 404)
-        cuerpo = self._cuerpo()
-        tramo, msg = canal_mod.agregar_tramo(
-            obra, cuerpo.get("circuito"), cuerpo.get("a"), cuerpo.get("b"),
-            cuerpo.get("pts") or [], cuerpo.get("route", "directo"),
-            cuerpo.get("cables", 2), cuerpo.get("seccion", 1.5))
-        if tramo is None:
-            return self._error(msg)
-        almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
-        return self._json({"ok": True, "tramo": tramo, "canalizacion": obra["canalizacion"]})
+        return self._json({"ok": True})
 
     def _nuevo_tablero(self, obra_id):
         obra = almacen.leer_obra(obra_id)
