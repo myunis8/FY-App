@@ -36,7 +36,7 @@ KIND_DE_ELEMENTO = {
     "desconocido": ("rect", "especial"),
 }
 PREFIJO_ETIQUETA = {"toma": "T", "especial": "O"}
-ZOOM_PLANO = 2.0  # debe coincidir con el ?zoom= de /api/obras/{id}/plano.png
+ZOOM_PLANO = 3.0  # debe coincidir con el ?zoom= de /api/obras/{id}/plano.png (server.py lo importa de acá)
 
 
 def leer_proyecto(obra: dict) -> dict | None:

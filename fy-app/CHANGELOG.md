@@ -3,6 +3,39 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 0.21.1 — retornos que comparten caño ya se distinguen por color, hojas de tomas con conductores reales, y más resolución para digital
+
+- **Retornos múltiples por el mismo caño, ahora distinguibles**: si dos o
+  más luces con retorno simple (o dos o más combinadas) comparten un caño,
+  antes se dibujaban del mismo color y eran indistinguibles a simple vista.
+  Ahora cada una toma un tono de una escala: retorno simple blanco → gris
+  medio → gris oscuro; combinada amarillo → mostaza → ocre oscuro (hasta 3
+  tonos, alcanza para cualquier instalación normal; de haber una 4ª se
+  repite el tono más oscuro). El orden lo da la letra de la luz dentro del
+  circuito, así que la primera luz agregada mantiene siempre el tono
+  original (blanco/amarillo). Fase, neutro y tierra no cambian. Probado:
+  luz A → blanco (`#e9e9e9`), luz B → gris medio (`#aeaeae`).
+- **Las hojas de circuito de tomas/especiales ahora muestran sus
+  conductores reales** (fase/neutro/tierra) dentro del caño, igual que ya
+  pasaba en la hoja general y en las de iluminación — antes esto sólo se
+  activaba para circuitos de iluminación (`detailed:true` estaba
+  condicionado a `c.kind==="iluminacion"`, sin razón para excluir al resto).
+  Probado renderizando la hoja de un circuito de tomas: se ven los 3
+  conductores de colores dentro del caño.
+- **Más resolución, pensado para digital** (esta app es para pantalla, no
+  para imprimir): la imagen base del plano pasa de calibrarse a `zoom=2` a
+  `zoom=3` (más nítida al hacer zoom, tanto en el editor como en el PDF);
+  las hojas del PDF suben de `res:3200/4800` a `res:6000` parejo en todas, y
+  la hoja general pasa de JPEG a PNG (sin pérdida) igual que ya hacían las
+  hojas detalladas — evita el "corrimiento" de color de JPEG en líneas
+  finas al hacer zoom. De paso se corrigió que el `zoom=2` de la URL del
+  plano estaba hardcodeado por separado en `server.py` y en
+  `canalizacion.py` (`ZOOM_PLANO`); ahora `server.py` lee el valor de
+  `canalizacion.py`, una sola fuente de verdad.
+- Se agregaron `planCanvas`, `wireHex` y `conduitConductors` a
+  `window.canalizaDebug` (sólo lectura), para poder inspeccionar el
+  render exacto que va a un PDF sin tener que generar el PDF completo.
+
 ## 0.21.0 — Routeo: ortogonalidad real, reasignación de circuito con sync a Circuitos, autoguardado al servidor, y limpieza de la UI integrada
 
 Se renombra el módulo a **Routeo** en todo lo visible (título, tarjeta en

@@ -606,7 +606,11 @@ function wireLabel(w){
 /* ---- colores reales para dibujar cada conductor dentro del caño: fijos por TIPO
    de conductor (fase/neutro/retorno simple/retorno combinado), nunca por circuito o
    por luz — así, a golpe de vista, contás "3 blancos, 1 celeste, 1 marrón" sin
-   tener que pensar de qué circuito es cada uno. ---- */
+   tener que pensar de qué circuito es cada uno.
+   Cuando hay más de un retorno del mismo tipo compartiendo caño (más de una luz con
+   retorno simple, o más de una combinada), el primero mantiene el tono de siempre
+   (blanco/amarillo) y los siguientes se oscurecen en escala, para poder diferenciarlos
+   a simple vista sin tener que abrir el circuito. ---- */
 const WIRE_HEX = {
   "Marrón (fase)": "#7a4a25",
   "Celeste (neutro)": "#49a9d8",
@@ -614,11 +618,23 @@ const WIRE_HEX = {
   "Amarillo (retorno combinado)": "#e8c93a",
   "Verde-amarillo (tierra)": "#6a9a2e"
 };
+// hasta 3 luces con retorno del mismo tipo compartiendo caño; de ahí en más se repite
+// el tono más oscuro (en la práctica no debería pasar tan seguido)
+const RS_SHADES = ["#e9e9e9", "#aeaeae", "#767676"];   // blanco -> gris medio -> gris oscuro
+const RC_SHADES = ["#e8c93a", "#c79a2a", "#96701a"];   // amarillo -> mostaza -> ocre oscuro
+
+// orden entre los retornos del MISMO tipo (simple o combinado) del mismo circuito,
+// por letra de luz -- así cada vez que se agrega un retorno del mismo tipo le toca
+// el siguiente tono, sin saltearse tonos por luces de otro tipo en el medio
+function wireShadeIndex(w){
+  const letras = [...new Set(S.wires.filter(x=>x.circuit===w.circuit && x.kind===w.kind).map(x=>x.light))].sort();
+  return Math.max(0, letras.indexOf(w.light));
+}
 function wireHex(w){
   if(w.kind==="F") return WIRE_HEX["Marrón (fase)"];
   if(w.kind==="N") return WIRE_HEX["Celeste (neutro)"];
-  if(w.kind==="RS") return WIRE_HEX["Blanco (retorno simple)"];
-  if(w.kind==="RC") return WIRE_HEX["Amarillo (retorno combinado)"]; // ambas ramas, mismo color
+  if(w.kind==="RS") return RS_SHADES[Math.min(wireShadeIndex(w), RS_SHADES.length-1)];
+  if(w.kind==="RC") return RC_SHADES[Math.min(wireShadeIndex(w), RC_SHADES.length-1)]; // ambas ramas, mismo tono
   return "#5b6470";
 }
 function genericHex(label){ return WIRE_HEX[label] || "#5b6470"; }
@@ -2662,8 +2678,8 @@ async function makePdf(){
   // ---- hoja general
   if($("#pxAll").checked){
     header("Routeo — todos los circuitos", S.pxPerM?fmt(S.pxPerM,1)+" px/m":"sin escala");
-    const c = planCanvas({labels:true, lens:false, res:3200});
-    putPlan(c, M+14, PH-40);
+    const c = planCanvas({labels:true, lens:false, res:6000});
+    putPlan(c, M+14, PH-40, {png:true});
     // leyenda
     let y = PH-34;
     doc.setFontSize(8); doc.setTextColor(20); doc.setFont("helvetica","bold");
@@ -2686,7 +2702,7 @@ async function makePdf(){
   // ---- hoja de cableado detallado (todos los circuitos, con los conductores reales dentro de cada caño)
   if($("#pxDetail").checked){
     header("Cableado detallado — todos los circuitos", "cables reales dentro de cada caño");
-    const c = planCanvas({labels:false, lens:false, detailed:true, res:4800});
+    const c = planCanvas({labels:false, lens:false, detailed:true, res:6000});
     putPlan(c, M+14, PH-40, {png:true});
     let y = PH-34;
     doc.setFontSize(8); doc.setTextColor(20); doc.setFont("helvetica","bold");
@@ -2701,8 +2717,12 @@ async function makePdf(){
       ["Marrón (fase)", WIRE_HEX["Marrón (fase)"]],
       ["Celeste (neutro)", WIRE_HEX["Celeste (neutro)"]],
       ["Verde-amarillo (tierra)", WIRE_HEX["Verde-amarillo (tierra)"]],
-      ["Blanco (retorno simple)", WIRE_HEX["Blanco (retorno simple)"]],
-      ["Amarillo (retorno combinado, las 2 ramas)", WIRE_HEX["Amarillo (retorno combinado)"]]
+      ["Retorno simple, 1ª luz", RS_SHADES[0]],
+      ["Retorno simple, 2ª luz", RS_SHADES[1]],
+      ["Retorno simple, 3ª luz", RS_SHADES[2]],
+      ["Combinada, 1ª luz (las 2 ramas)", RC_SHADES[0]],
+      ["Combinada, 2ª luz (las 2 ramas)", RC_SHADES[1]],
+      ["Combinada, 3ª luz (las 2 ramas)", RC_SHADES[2]]
     ];
     let lx=M;
     for(const [label, colorOrNote] of legend){
@@ -2728,9 +2748,11 @@ async function makePdf(){
     const len = rs.reduce((a,r)=>a+runLenM(r),0);
     const cab = rs.reduce((a,r)=>a+runLenM(r)*r.cables,0);
     header("Circuito "+c.name, DEV_KIND(c.kind) + (c.detail ? " — "+c.detail : ""));
-    const detailed = c.kind==="iluminacion";
-    const cnv = planCanvas({only:id, labels:true, lens:false, detailed, res: detailed?4800:3200});
-    putPlan(cnv, M+14, PH-34, {png:detailed});
+    // antes esto sólo pasaba para iluminación; los circuitos de tomas/especiales
+    // también tienen sus conductores reales (fase/neutro/tierra) y merecen verse
+    // igual de detallados en su propia hoja, no sólo en la general
+    const cnv = planCanvas({only:id, labels:true, lens:false, detailed:true, res:6000});
+    putPlan(cnv, M+14, PH-34, {png:true});
 
     let y=PH-28;
     doc.setFontSize(8); doc.setFont("helvetica","bold"); doc.setTextColor(20);
@@ -2975,7 +2997,7 @@ buildTools();
 // ---- integración externa: no toca nada de lo existente, sólo expone hooks ----
 // solo lectura/depuración: útil para inspeccionar el estado interno desde
 // la consola del navegador sin tener que exportar todo el proyecto
-window.canalizaDebug = {S, activeCi, ciById, nodeById, findNode};
+window.canalizaDebug = {S, activeCi, ciById, nodeById, findNode, planCanvas, wireHex, conduitConductors};
 
 window.canalizaExportar = buildProjectData;
 window.canalizaImportar = applyProjectData;
