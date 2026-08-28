@@ -352,17 +352,32 @@ window.addEventListener('canaliza-listo', async () => {
     const d = await res.json();
     if(!res.ok) throw new Error(d.error || 'No se pudo leer la obra.');
     if(d.proyecto){
-      // ya había un proyecto guardado en el servidor: se carga tal cual
-      await window.canalizaImportar(d.proyecto);
-      if(tag) tag.textContent = 'Cargado desde la obra.';
+      // ya había un proyecto guardado: se carga tal cual, PERO si a ese
+      // guardado le falta el plano (por ejemplo, se guardó una vez antes de
+      // que este puente supiera pasarlo) y la obra sí tiene uno ahora, se
+      // completa sólo eso -- nunca se tocan nodos/circuitos/tramos ya
+      // guardados, para no pisar nada que el usuario ya haya dibujado.
+      const proyecto = d.proyecto;
+      let sanado = false;
+      if(!proyecto.baseSrc && d.planoUrl){ proyecto.baseSrc = d.planoUrl; sanado = true; }
+      if(!proyecto.pxPerM && d.pxPerM){ proyecto.pxPerM = d.pxPerM; sanado = true; }
+      await window.canalizaImportar(proyecto);
+      if(tag) tag.textContent = sanado
+        ? 'Cargado desde la obra (se completó el plano que faltaba).'
+        : 'Cargado desde la obra.';
     } else {
-      // primera vez: se arranca con el plano y los circuitos que ya existen
-      // en el resto de la app, para no tener que redefinirlos acá
+      // primera vez: se arranca con el plano, los circuitos y las cajas
+      // (artefactos, tomas, llaves) que ya existen en el resto de la app,
+      // para no tener que redefinir ni volver a marcar nada acá
       const datos = window.canalizaExportar();
       datos.circuits = d.circuitos || datos.circuits;
+      datos.nodes = d.nodos || datos.nodes;
       datos.baseSrc = d.planoUrl || null;
+      if(d.pxPerM) datos.pxPerM = d.pxPerM;   // misma escala ya calibrada en el extractor
       await window.canalizaImportar(datos);
-      if(tag) tag.textContent = d.planoUrl ? 'Plano y circuitos traídos de la obra.'
+      const nCajas = (d.nodos || []).length;
+      if(tag) tag.textContent = d.planoUrl
+        ? `Plano, circuitos${nCajas ? ' y ' + nCajas + ' caja(s) ya extraídas' : ''} traídos de la obra.`
         : 'Circuitos traídos de la obra (todavía no hay plano cargado).';
     }
   }catch(err){

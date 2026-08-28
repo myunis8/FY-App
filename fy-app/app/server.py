@@ -188,6 +188,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({
                 "proyecto": proyecto,
                 "circuitos": canal_mod.circuitos_para_canaliza(obra),
+                "nodos": canal_mod.nodos_para_canaliza(obra),
+                "pxPerM": canal_mod.pxpermetro_para_canaliza(obra),
                 "planoUrl": (f"/api/obras/{partes[2]}/plano.png?zoom=2"
                             if (obra.get("plano") or {}).get("referencia") else None),
             })

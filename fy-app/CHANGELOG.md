@@ -3,6 +3,53 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 0.20.2 — el plano no se abría si ya había un proyecto de Canaliza guardado sin él
+
+- **Causa**: el arranque de la 0.20.1 (plano/circuitos/cajas traídos solos)
+  sólo corre la primera vez que se abre el módulo, cuando todavía no hay
+  `canalizacion` guardada en la obra. Si en algún momento anterior se guardó
+  un proyecto sin plano (por ejemplo, guardando antes de que este puente
+  supiera pasarlo), esa foto vieja queda fija para siempre y tapa cualquier
+  mejora posterior — el plano nunca vuelve a aparecer aunque la obra sí lo
+  tenga.
+- **Arreglo**: al cargar un proyecto ya guardado, si le falta el plano
+  (`baseSrc`) o la escala (`pxPerM`) y la obra sí los tiene, se completan
+  esos dos campos antes de importar. No se toca nada más del proyecto
+  guardado — nodos, tramos y cableado ya hechos quedan intactos.
+- Reproducido a propósito (un proyecto guardado con `baseSrc: null`) y
+  confirmado en navegador real que ahora sí carga el plano y la escala.
+
+## 0.20.1 — las cajas ya extraídas vuelven a aparecer solas en Canaliza
+
+- **Corrección de fondo, quedó pendiente en el 0.20.0**: al pasar a guardar el
+  proyecto tal cual lo produce `buildProjectData()` de Canaliza, se llevó
+  puesta sin querer la traducción de elementos a `nodes` que sí existía en el
+  0.19.1 (con el modelo de datos propio, ya descartado). Resultado: primera
+  vez que se abría Canaliza para una obra, sólo llegaban el plano y los
+  circuitos — las cajas (artefactos, tomas, llaves) ya extraídas y asignadas
+  a un circuito en el resto de la app había que volver a marcarlas a mano.
+- **`nodos_para_canaliza(obra)`** en `app/canalizacion.py`: traduce cada
+  elemento ya extraído a un nodo de Canaliza (caja octogonal para artefactos,
+  rectangular para tomas y llaves), en la posición real sobre el mismo
+  `plano.png?zoom=2` que Canaliza usa de fondo (`posicionPdfPt * zoom`), con
+  la letra ya asignada en el plano como etiqueta cuando existe, y una nota
+  con el circuito al que ya pertenece (buscado por pertenencia en
+  `circuito.elementos`, que es la fuente real — el campo `circuitoId` del
+  elemento es legado, se conserva por la regla de no borrar claves pero no lo
+  actualiza nada). Sólo se usa la primera vez que se abre el módulo, igual
+  que `circuitos_para_canaliza()` — después manda el proyecto guardado.
+- **`pxpermetro_para_canaliza(obra)`**: de paso, la escala que ya calibró el
+  extractor (`plano.escala.ptPorMetro`) se manda convertida a `pxPerM`, así
+  tampoco hace falta volver a calibrar a mano marcando dos puntos.
+- `GET /api/obras/{id}/canalizacion` devuelve ahora también `nodos` y
+  `pxPerM`. El puente en `canaliza.html` (el script chico, no el de Canaliza)
+  los suma a lo que ya cargaba de circuitos y plano.
+- Probado de punta a punta con un navegador real (Puppeteer): servidor real,
+  obra de prueba con plano + 4 elementos + 2 circuitos, `canaliza.html`
+  abierto tal cual lo abriría el usuario — las 4 cajas aparecen en su lugar
+  exacto sobre el plano, con la escala ya calibrada (56.7 px/m) y sin haber
+  tocado nada a mano.
+
 ## 0.20.0 — Canaliza integrada tal cual, no reimplementada
 
 - **Cambio de estrategia, a pedido explícito**: el intento anterior
