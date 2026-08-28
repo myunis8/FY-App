@@ -91,11 +91,12 @@ def nodos_para_canaliza(obra: dict, zoom: float = ZOOM_PLANO) -> list[dict]:
             contador[device] = contador.get(device, 0) + 1
             etiqueta = PREFIJO_ETIQUETA.get(device, device[:1].upper()) + str(contador[device])
         circ = _circuito_de(obra, e["id"])
+        nombre_circ = circ.get("nombre") or circ["id"] if circ else None
         salida.append({
             "id": f"fy_{e['id']}", "kind": kind, "device": device,
             "x": round(pos["x"] * zoom, 1), "y": round(pos["y"] * zoom, 1),
-            "label": etiqueta,
-            "note": f"Circuito: {circ.get('nombre') or circ['id']}" if circ else "",
+            "label": f"{etiqueta}·{nombre_circ}" if nombre_circ else etiqueta,
+            "note": f"Circuito: {nombre_circ}" if nombre_circ else "",
             "zAuto": True,
         })
     return salida

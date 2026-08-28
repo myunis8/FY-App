@@ -3,6 +3,22 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 0.20.3 — las cajas seguían sin aparecer si ya había un proyecto guardado, y ahora se ve el circuito de cada una sin hacer clic
+
+- El self-heal de la 0.20.2 completaba plano y escala en un proyecto ya
+  guardado, pero **no** las cajas — si ese guardado venía de antes de la
+  0.20.1 (sin `nodes`), seguían sin aparecer. Ahora `mergeCajasExtraidas()`
+  agrega, cada vez que se abre el módulo, las cajas ya extraídas que todavía
+  no estén en el proyecto guardado (por id) — nunca pisa ni borra una que ya
+  esté, así que lo que el usuario ya movió, editó o borró a propósito queda
+  intacto. Se probó reproduciendo exactamente el caso (proyecto guardado con
+  plano y circuitos ok pero 0 cajas) y confirmando en navegador real que las
+  4 cajas de la obra de prueba aparecen solas.
+- El circuito de cada caja ahora se ve directo en la etiqueta sobre el plano
+  (ej. `A·IUG1`, `T1·TUG1`), no sólo al hacer clic — la nota interna
+  (`Circuito: ...`) se mantiene además, para cuando se abre el panel de
+  edición de la caja.
+
 ## 0.20.2 — el plano no se abría si ya había un proyecto de Canaliza guardado sin él
 
 - **Causa**: el arranque de la 0.20.1 (plano/circuitos/cajas traídos solos)

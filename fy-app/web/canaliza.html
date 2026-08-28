@@ -340,6 +340,17 @@ table.t input:focus{outline:none;border-color:var(--accent);background:#fff}
 window.CANALIZA_SIN_AUTOSAVE = true;
 const OBRA_ID = new URLSearchParams(location.search).get('obra');
 
+// agrega al proyecto las cajas ya extraídas del plano (artefactos, tomas,
+// llaves) que todavía no están -- nunca pisa una que ya exista con ese id,
+// así no se pierde nada que el usuario haya movido, editado o borrado a
+// propósito. Devuelve cuántas cajas nuevas sumó.
+function mergeCajasExtraidas(proyecto, nodosExtraidos){
+  const existentes = new Set((proyecto.nodes||[]).map(n=>n.id));
+  const nuevas = (nodosExtraidos||[]).filter(n=>!existentes.has(n.id));
+  if(nuevas.length) proyecto.nodes = [...(proyecto.nodes||[]), ...nuevas];
+  return nuevas.length;
+}
+
 window.addEventListener('canaliza-listo', async () => {
   const tag = document.getElementById('tagObra');
   if(!OBRA_ID){
@@ -352,18 +363,21 @@ window.addEventListener('canaliza-listo', async () => {
     const d = await res.json();
     if(!res.ok) throw new Error(d.error || 'No se pudo leer la obra.');
     if(d.proyecto){
-      // ya había un proyecto guardado: se carga tal cual, PERO si a ese
-      // guardado le falta el plano (por ejemplo, se guardó una vez antes de
-      // que este puente supiera pasarlo) y la obra sí tiene uno ahora, se
-      // completa sólo eso -- nunca se tocan nodos/circuitos/tramos ya
-      // guardados, para no pisar nada que el usuario ya haya dibujado.
+      // ya había un proyecto guardado: se carga tal cual, pero cada vez que
+      // se abre se completa lo que falte respecto de lo que ya sabe el
+      // resto de la app -- el plano, la escala, y las cajas ya extraídas
+      // que todavía no estén acá (por ejemplo, si se volvió a extraer el
+      // plano y aparecieron cajas nuevas). Nunca se toca ni se borra nada
+      // que ya esté en el proyecto guardado.
       const proyecto = d.proyecto;
-      let sanado = false;
-      if(!proyecto.baseSrc && d.planoUrl){ proyecto.baseSrc = d.planoUrl; sanado = true; }
-      if(!proyecto.pxPerM && d.pxPerM){ proyecto.pxPerM = d.pxPerM; sanado = true; }
+      const arreglos = [];
+      if(!proyecto.baseSrc && d.planoUrl){ proyecto.baseSrc = d.planoUrl; arreglos.push('el plano'); }
+      if(!proyecto.pxPerM && d.pxPerM){ proyecto.pxPerM = d.pxPerM; arreglos.push('la escala'); }
+      const nNuevas = mergeCajasExtraidas(proyecto, d.nodos);
+      if(nNuevas) arreglos.push(nNuevas + ' caja(s) nueva(s)');
       await window.canalizaImportar(proyecto);
-      if(tag) tag.textContent = sanado
-        ? 'Cargado desde la obra (se completó el plano que faltaba).'
+      if(tag) tag.textContent = arreglos.length
+        ? `Cargado desde la obra (se completó ${arreglos.join(' y ')}).`
         : 'Cargado desde la obra.';
     } else {
       // primera vez: se arranca con el plano, los circuitos y las cajas
