@@ -3,6 +3,65 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 0.21.0 — Routeo: ortogonalidad real, reasignación de circuito con sync a Circuitos, autoguardado al servidor, y limpieza de la UI integrada
+
+Se renombra el módulo a **Routeo** en todo lo visible (título, tarjeta en
+`index.html`, encabezado del PDF). Internamente sigue siendo
+`canalizacion.py` / `obra.canalizacion` / `/canaliza.html` — cambiar eso
+implicaría tocar rutas, `almacen.py` y el contrato de `obra.json` sin
+ningún beneficio para el usuario, así que se dejó igual a propósito.
+
+- **Ortogonalidad real, incluso con cajas fuera de grilla**: `orthoPoint()`
+  calculaba el punto exacto respecto al anterior pero después
+  `snapToGrid()` redondeaba los dos ejes, así que un tramo que arrancaba de
+  una caja extraída (casi nunca cae justo en la grilla) terminaba en
+  diagonal. Ahora el eje que coincide con el punto anterior queda siempre
+  exacto; sólo el otro eje se redondea. Además, al cerrar un tramo contra
+  una caja que no queda alineada con el último punto, se inserta solo el
+  codo a 90° que hace falta (`draftHopTo()`), tanto al confirmar el clic
+  como en la vista previa mientras se mueve el mouse. Probado con dos cajas
+  fuera de grilla (T1 y T2, separadas 40×40 px) conectadas directo y con un
+  punto intermedio a mano alzada: todos los tramos dieron ortogonales, con
+  los extremos exactos sobre las cajas.
+- **Las cajas extraídas ya no se pueden arrastrar** — su posición es la
+  real relevada en el módulo Plano, no un punto libre para reacomodar.
+- **Reasignar el circuito de una caja, con sync real a Circuitos**: el panel
+  de cada caja tiene ahora un selector de "Circuito". Al cambiarlo, el color
+  del borde, la etiqueta y el resaltado se actualizan en vivo (se resuelven
+  contra `S.circuits` por `circuitId`, no quedan horneados en el nodo). Al
+  guardar (manual o automático), el servidor aplica la reasignación sobre
+  `obra.circuitos` — saca el elemento del circuito viejo y lo agrega al
+  nuevo — así el módulo de Circuitos refleja el cambio. Probado de punta a
+  punta: reasignada una llave sin circuito a IUG1 en Routeo, confirmado por
+  API que `obra.circuitos["IUG1"].elementos` la incluye, sin tocar el botón
+  Guardar (llegó por el autoguardado).
+- **Autoguardado real contra el servidor**: Canaliza ya autoguardaba en
+  `localStorage` del navegador en cada cambio (debounce de 900ms); ahora ese
+  mismo disparador también guarda en la obra (`window.fyGuardarAuto`, un
+  único hook agregado a `doAutosave()`, sin tocar su lógica de guardado
+  local). El guardado manual pasa a llamarse simplemente "Guardar".
+- **Botón "Reiniciar"**: borra todos los tramos y el cableado ya trazados;
+  las cajas y los circuitos quedan igual. Probado: de 1 tramo pasa a 0, las
+  4 cajas y los 2 circuitos no se tocan.
+- **Botón "Volver"**, mismo criterio que el resto de los módulos (vuelve a
+  `/`).
+- **Resaltado de cajas por circuito activo mientras se rutea**: con la
+  herramienta "Tramo de caño" activa, las cajas que pertenecen al circuito
+  seleccionado se destacan con un halo de su color. Verificado por muestreo
+  de píxeles: el halo da exactamente el color hex del circuito activo, y no
+  aparece en cajas de otro circuito.
+- **Limpieza de la UI integrada**: se ocultan "Abrir plano", "Guardar
+  proyecto", "Abrir proyecto", "Nuevo proyecto" y "Calibrar" (top y en la
+  lista de herramientas) — el plano, los circuitos y la escala los maneja el
+  resto de la app. Si todavía no hay plano extraído, el cartel vacío ya no
+  ofrece subir uno a mano: indica que hay que extraerlo en el módulo Plano.
+  Si la escala no está calibrada, el chip existente ("Sin escala") queda
+  como única leyenda — no se agregó nada nuevo ahí, sólo se sacó el botón
+  para recalibrar a mano.
+- Se agregó `window.canalizaDebug` (sólo lectura: `S`, `activeCi`, `ciById`,
+  `nodeById`, `findNode`) para poder inspeccionar el estado desde la consola
+  del navegador sin exportar todo el proyecto — útil para depurar a futuro.
+
 ## 0.20.4 — circuitos también se completan en proyectos guardados, mismo color que en Circuitos, y color por circuito en cada caja
 
 - Mismo patrón de bug que las cajas en la 0.20.3: si el proyecto guardado

@@ -73,22 +73,16 @@ def _circuito_de(obra: dict, elemento_id: str) -> dict | None:
     return None
 
 
-def _color_de(obra: dict, circuito: dict) -> str:
-    """Mismo cálculo que colorDe() en circuitos.html: color por posición del
-    circuito en obra.circuitos, para que sea el mismo en los dos módulos."""
-    ids = [c["id"] for c in (obra.get("circuitos") or [])]
-    i = ids.index(circuito["id"]) if circuito["id"] in ids else 0
-    return PALETA[i % len(PALETA)]
-
-
 def nodos_para_canaliza(obra: dict, zoom: float = ZOOM_PLANO) -> list[dict]:
     """Los elementos ya extraídos del plano (cajas de luz, tomas, llaves),
     traducidos a nodos de Canaliza en la misma posición real sobre el plano
-    (mismo `plano.png?zoom=` que se usa como fondo), con el circuito al que
-    ya pertenecen (si tienen uno asignado en el módulo de Circuitos) en la
-    etiqueta, en la nota, y como color de borde (`ringColor`) -- mismo color
-    que usa ese circuito en Circuitos, para identificarlo de un vistazo.
-    Sirven directo como extremo de un tramo, sin volver a marcarlos a mano.
+    (mismo `plano.png?zoom=` que se usa como fondo), con `circuitId` apuntando
+    al circuito al que ya pertenecen en el módulo de Circuitos (si tienen
+    uno asignado). El color y el nombre del circuito en la etiqueta se
+    resuelven en vivo del lado del cliente contra `S.circuits` -- así, si el
+    usuario reasigna el circuito de una caja acá, todo (color, etiqueta,
+    resaltado al rutear) se actualiza solo, sin volver a tocar el servidor.
+    Sirven directo como extremo de un tramo, sin volver a marcarlas a mano.
     Igual que `circuitos_para_canaliza()`, esto se usa la primera vez que se
     abre el módulo, y para completar cajas nuevas en aperturas siguientes —
     ver `mergeCajasExtraidas()` en canaliza.html.
@@ -106,16 +100,40 @@ def nodos_para_canaliza(obra: dict, zoom: float = ZOOM_PLANO) -> list[dict]:
             contador[device] = contador.get(device, 0) + 1
             etiqueta = PREFIJO_ETIQUETA.get(device, device[:1].upper()) + str(contador[device])
         circ = _circuito_de(obra, e["id"])
-        nombre_circ = (circ.get("nombre") or circ["id"]) if circ else None
         salida.append({
             "id": f"fy_{e['id']}", "kind": kind, "device": device,
             "x": round(pos["x"] * zoom, 1), "y": round(pos["y"] * zoom, 1),
-            "label": f"{etiqueta}·{nombre_circ}" if nombre_circ else etiqueta,
-            "note": f"Circuito: {nombre_circ}" if nombre_circ else "",
-            "ringColor": _color_de(obra, circ) if circ else None,
-            "zAuto": True,
+            "label": etiqueta, "circuitId": circ["id"] if circ else None,
+            "note": "", "zAuto": True,
         })
     return salida
+
+
+def aplicar_reasignaciones(obra: dict, reasignaciones: list[dict]) -> bool:
+    """Si en Routeo se cambió el circuito de una caja ya extraída, se refleja
+    acá: se saca el elemento de cualquier circuito viejo y se agrega al
+    nuevo, para que el módulo de Circuitos quede consistente. Devuelve True
+    si algo cambió (para saber si conviene recalcular validación)."""
+    cambio = False
+    circuitos = obra.get("circuitos") or []
+    por_id = {c["id"]: c for c in circuitos}
+    for r in reasignaciones or []:
+        eid = r.get("elementoId")
+        nuevo = r.get("circuitId")
+        if not eid:
+            continue
+        for c in circuitos:
+            elementos = c.get("elementos") or []
+            if eid in elementos and c["id"] != nuevo:
+                c["elementos"] = [x for x in elementos if x != eid]
+                cambio = True
+        if nuevo and nuevo in por_id:
+            dest = por_id[nuevo]
+            dest.setdefault("elementos", [])
+            if eid not in dest["elementos"]:
+                dest["elementos"].append(eid)
+                cambio = True
+    return cambio
 
 
 def pxpermetro_para_canaliza(obra: dict, zoom: float = ZOOM_PLANO) -> float | None:

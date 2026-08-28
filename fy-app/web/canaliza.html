@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Canaliza — planificador de canalización eléctrica</title>
+<title>Routeo — planificador de canalización eléctrica</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
@@ -159,7 +159,7 @@ table.t input:focus{outline:none;border-color:var(--accent);background:#fff}
 <div id="app">
 
 <div id="top">
-  <div id="brand"><b>Canaliza</b><span>planificador de canalización</span></div>
+  <div id="brand"><b>Routeo</b><span>planificador de canalización</span></div>
   <button class="btn" id="bOpen">Abrir plano</button>
   <input type="file" id="fPlan" accept="image/png,image/jpeg,image/webp,application/pdf" hidden>
   <div class="sep"></div>
@@ -412,21 +412,84 @@ window.addEventListener('canaliza-listo', async () => {
   }
 });
 
+// las cajas ya extraídas llevan id "fy_<elementoId>" -- de ahí se puede
+// recuperar el elementoId original sin guardar un campo aparte
+function reasignacionesDeCajas(nodes){
+  return (nodes||[]).filter(n=>n.id.startsWith('fy_')).map(n=>({
+    elementoId: n.id.slice(3), circuitId: n.circuitId || null
+  }));
+}
+
+async function guardarEnObra(datos, opts){
+  opts = opts || {};
+  const body = JSON.stringify({proyecto: datos, reasignaciones: reasignacionesDeCajas(datos.nodes)});
+  const res = await fetch(`/api/obras/${OBRA_ID}/canalizacion`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body
+  });
+  if(!res.ok) throw new Error((await res.json().catch(()=>({}))).error || 'Error al guardar.');
+}
+
 document.getElementById('bGuardarObra')?.addEventListener('click', async () => {
   const tag = document.getElementById('tagObra');
   if(!OBRA_ID) return;
   try{
-    const datos = window.canalizaExportar();
-    const res = await fetch(`/api/obras/${OBRA_ID}/canalizacion`, {
-      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(datos)
-    });
-    if(!res.ok) throw new Error((await res.json()).error || 'Error al guardar.');
+    await guardarEnObra(window.canalizaExportar());
     if(tag) tag.textContent = 'Guardado en la obra · ' + new Date().toLocaleTimeString('es-AR',
       {hour:'2-digit', minute:'2-digit'});
   }catch(err){
     if(tag) tag.textContent = 'No se pudo guardar: ' + err.message;
   }
 });
+
+// autoguardado real contra el servidor: se engancha al autoguardado que
+// Canaliza ya hace en el navegador (doAutosave, con debounce de 900ms cada
+// vez que hay un cambio) -- se agrega este hook sin tocar esa función más
+// que en la línea que la llama.
+window.fyGuardarAuto = async (datos) => {
+  if(!OBRA_ID) return;
+  try{ await guardarEnObra(datos, {silencioso:true}); }
+  catch(err){ /* sin red: ya queda el respaldo local del navegador */ }
+};
+
+if(OBRA_ID){
+  // "Volver" a la obra
+  const brand = document.getElementById('brand');
+  const bVolver = document.createElement('button');
+  bVolver.className = 'btn'; bVolver.id = 'bVolver'; bVolver.textContent = '← Volver';
+  bVolver.onclick = () => location.href = '/';
+  brand?.after(bVolver);
+
+  // "Reiniciar": borra caños y cableado, las cajas y circuitos quedan igual
+  const bGuardarObra = document.getElementById('bGuardarObra');
+  const bReiniciar = document.createElement('button');
+  bReiniciar.className = 'btn sm'; bReiniciar.id = 'bReiniciar';
+  bReiniciar.title = 'Borra todos los caños y el cableado ya trazados. Las cajas y los circuitos quedan.';
+  bReiniciar.textContent = '↺ Reiniciar';
+  bReiniciar.onclick = () => {
+    if(!confirm('Esto borra todos los caños y el cableado ya trazados. Las cajas quedan donde están. ¿Continuar?')) return;
+    window.canalizaReiniciarRuteo?.();
+  };
+  bGuardarObra?.after(bReiniciar);
+
+  // "Guardar en la obra" pasa a llamarse simplemente "Guardar"
+  if(bGuardarObra) bGuardarObra.textContent = '💾 Guardar';
+
+  // botones que ya no tienen sentido estando integrado a la obra: el plano,
+  // la escala y los circuitos/cajas los maneja el resto de la app
+  ['bOpen','fPlan','bSave','bLoad','fProj','bNewProj','bCal'].forEach(id=>{
+    document.getElementById(id)?.style.setProperty('display','none');
+  });
+  document.querySelector('#tools .tool[data-t="calib"]')?.style.setProperty('display','none');
+
+  // si todavía no hay plano (no se extrajo nada en el módulo Plano), el
+  // cartel vacío deja de ofrecer subir uno a mano
+  const emptyH2 = document.querySelector('#empty h2');
+  const emptyP = document.querySelector('#empty p');
+  const bOpen2 = document.getElementById('bOpen2');
+  if(emptyH2) emptyH2.textContent = 'Todavía no hay un plano extraído en esta obra';
+  if(emptyP) emptyP.textContent = 'Subilo y extraé los elementos en el módulo Plano — acá se va a completar solo, con la escala ya calibrada.';
+  if(bOpen2) bOpen2.style.display = 'none';
+}
 </script>
 <script>
 /* Canaliza — planificador de canalización eléctrica */
@@ -1173,14 +1236,21 @@ function drawScene(g, opt){
   }
 
   // --- nodos
+  const enRuteo = S.tool==="run" ? activeCi() : null;
   for(const n of S.nodes){
     if(!nodeVisible(n, only)) continue;
     const bad = problems.has(n.id);
+    const ci = n.circuitId ? ciById(n.circuitId) : null;
     const R = 9/z;
     g.save();
     g.translate(n.x, n.y);
+    if(enRuteo && n.circuitId===enRuteo.id){
+      // resalta con un halo las cajas del circuito que se está ruteando
+      g.beginPath(); g.arc(0,0,R*2,0,7);
+      g.fillStyle = (enRuteo.color||"#a9552a") + "3a"; g.fill();
+    }
     g.lineWidth = 2/z;
-    g.strokeStyle = bad ? "#b3261e" : (n.ringColor || "#15181b");
+    g.strokeStyle = bad ? "#b3261e" : (ci ? ci.color : "#15181b");
     g.fillStyle = "#ffffff";
     if(n.kind==="tablero"){
       g.beginPath(); g.rect(-R*1.25,-R,R*2.5,R*2); g.fill(); g.stroke();
@@ -1223,7 +1293,7 @@ function drawScene(g, opt){
       g.save();
       g.font = "500 "+(11/z)+"px 'IBM Plex Mono',monospace";
       g.textAlign="left"; g.textBaseline="middle";
-      const t = n.label + (S.show.z ? "  " + fmt(resolveZ(n),2) + "m" : "");
+      const t = n.label + (ci ? " · "+ci.name : "") + (S.show.z ? "  " + fmt(resolveZ(n),2) + "m" : "");
       const w = g.measureText(t).width;
       g.fillStyle="rgba(255,255,255,.9)";
       g.fillRect(n.x+R*1.5, n.y-R*1.5-6/z, w+5/z, 13/z);
@@ -1346,7 +1416,7 @@ function render(){
     ctx.save();
     ctx.strokeStyle=c?c.color:"#a9552a"; ctx.lineWidth=3/S.view.z;
     ctx.setLineDash([8/S.view.z,5/S.view.z]); ctx.lineJoin="round"; ctx.lineCap="round";
-    const pts = S.draft.pts.concat(S.draft.cursor?[S.draft.cursor]:[]);
+    const pts = S.draft.pts.concat(S.draft.cursor||[]);
     tracePath(ctx, pts); ctx.stroke();
     ctx.setLineDash([]); ctx.fillStyle=c?c.color:"#a9552a";
     for(const p of S.draft.pts){ ctx.beginPath(); ctx.arc(p.x,p.y,3.5/S.view.z,0,7); ctx.fill(); }
@@ -1474,12 +1544,14 @@ cv.addEventListener("pointerdown", e=>{
     const c = activeCi();
     if(!c){ alert("Creá al menos un circuito antes de dibujar."); return; }
     const hit = findNode(w);
-    const p = hit ? {x:hit.x,y:hit.y} : snapToGrid(orthoPoint(w));
     if(!S.draft){
+      const p = hit ? {x:hit.x,y:hit.y} : orthoPoint(w);
       S.draft = {circuit:c.id, pts:[p], a:hit?hit.id:null, cursor:null};
+    } else if(hit){
+      S.draft.pts.push(...draftHopTo({x:hit.x,y:hit.y}));
+      finishRun(hit.id); return;
     } else {
-      S.draft.pts.push(p);
-      if(hit){ finishRun(hit.id); return; }
+      S.draft.pts.push(orthoPoint(w));
     }
     render(); return;
   }
@@ -1488,7 +1560,9 @@ cv.addEventListener("pointerdown", e=>{
   const n = findNode(w);
   if(n){
     S.sel={t:"node",id:n.id};
-    dragging={t:"node",id:n.id,dx:w.x-n.x,dy:w.y-n.y,moved:false};
+    // las cajas que vienen ya extraídas del plano (fy_...) no se arrastran:
+    // su posición es la real relevada en el módulo Plano, no un punto libre
+    if(!n.id.startsWith("fy_")) dragging={t:"node",id:n.id,dx:w.x-n.x,dy:w.y-n.y,moved:false};
     refreshAll(); return;
   }
   const r = hitRun(w);
@@ -1503,10 +1577,29 @@ cv.addEventListener("pointerdown", e=>{
 });
 
 function orthoPoint(w){
-  // los tramos siempre corren horizontales o verticales, con codos de 90°
-  if(!S.draft || !S.draft.pts.length) return {x:w.x,y:w.y};
+  // los tramos siempre corren horizontales o verticales, con codos de 90°.
+  // el eje que coincide con el punto anterior queda EXACTO, nunca se
+  // redondea a la grilla -- si no, un tramo que arranca de una caja fuera
+  // de grilla (como las que vienen del extractor) dejaría de ser realmente
+  // recto. El otro eje sí se redondea, para poder enganchar cómodo.
+  if(!S.draft || !S.draft.pts.length) return snapToGrid(w);
   const last = S.draft.pts[S.draft.pts.length-1];
-  return Math.abs(w.x-last.x) > Math.abs(w.y-last.y) ? {x:w.x,y:last.y} : {x:last.x,y:w.y};
+  const s = snapToGrid(w);
+  return Math.abs(w.x-last.x) > Math.abs(w.y-last.y) ? {x:s.x, y:last.y} : {x:last.x, y:s.y};
+}
+
+// puntos de previsualización desde el último punto del borrador hasta el
+// destino: si el destino es una caja y no queda alineada en horizontal o
+// vertical con el último punto (muy común con cajas ya extraídas, que no
+// están sobre la grilla), se intercala automáticamente el codo a 90° que
+// hace falta -- así el tramo nunca sale en diagonal.
+function draftHopTo(target){
+  if(!S.draft || !S.draft.pts.length) return [target];
+  const last = S.draft.pts[S.draft.pts.length-1];
+  if(last.x===target.x || last.y===target.y) return [target];
+  const codo = Math.abs(target.x-last.x) > Math.abs(target.y-last.y)
+    ? {x:target.x, y:last.y} : {x:last.x, y:target.y};
+  return [codo, target];
 }
 
 cv.addEventListener("pointermove", e=>{
@@ -1537,7 +1630,7 @@ cv.addEventListener("pointermove", e=>{
   if(S.tool==="run"){
     const hit = findNode(w);
     S.hoverNode = hit;
-    if(S.draft) S.draft.cursor = hit?{x:hit.x,y:hit.y}:snapToGrid(orthoPoint(w));
+    if(S.draft) S.draft.cursor = hit ? draftHopTo({x:hit.x,y:hit.y}) : [orthoPoint(w)];
     render(); return;
   }
   if(S.tool==="calib" && S.calib && S.calib.a && !S.calib.b){
@@ -1849,6 +1942,11 @@ function paintProp(){
           Object.entries(DEVICES).map(([k,v])=>`<option value="${k}"${n.device===k?" selected":""}>${v}</option>`).join("")
         }</select></div>`:"<div></div>"}
       </div>
+      ${n.kind!=="tablero"&&n.kind!=="medidor"&&n.kind!=="jabalina"?`
+      <div style="margin-top:6px"><label class="f">Circuito</label><select class="f" id="pCirc">
+        <option value=""${!n.circuitId?" selected":""}>Sin asignar</option>
+        ${S.circuits.map(c=>`<option value="${c.id}"${n.circuitId===c.id?" selected":""}>${esc(c.name)}</option>`).join("")}
+      </select></div>`:""}
       <div style="margin-top:6px" class="f2">
         <div><label class="f">Altura (m)</label><input class="f mono" id="pZ" type="number" step="0.05" min="0" value="${fmt(zv,2)}"></div>
         <div style="display:flex;align-items:flex-end;padding-bottom:5px">
@@ -1869,6 +1967,11 @@ function paintProp(){
       ${canConvertInsp?`<button class="btn sm" id="pToInsp" style="width:100%;margin-top:8px">Convertir en caja de inspección</button>`:""}
       <button class="btn sm" id="pDel" style="width:100%;margin-top:8px">Eliminar</button>`;
     $("#pLbl").oninput = e=>{ n.label=e.target.value; render(); };
+    if($("#pCirc")) $("#pCirc").onchange = e=>{
+      pushUndo();
+      n.circuitId = e.target.value || null;
+      refreshAll();
+    };
     if($("#pDev")) $("#pDev").onchange = e=>{
       n.device=e.target.value;
       if(n.zAuto) n.z = defaultZ(n.kind, n.device);
@@ -2388,6 +2491,14 @@ async function applyProjectData(d){
   refreshAll();
 }
 
+// borra todos los caños y el cableado ya trazados; las cajas y los
+// circuitos quedan tal cual. Usado por el botón "Reiniciar" del puente.
+window.canalizaReiniciarRuteo = function(){
+  pushUndo();
+  S.runs = []; S.wires = []; S.tracingWire = null; S.draft = null; S.sel = null;
+  refreshAll();
+};
+
 $("#bSave").onclick = ()=>{
   const data = buildProjectData();
   const blob = new Blob([JSON.stringify(data)], {type:"application/json"});
@@ -2419,6 +2530,7 @@ function scheduleAutosave(){
 function doAutosave(){
   if(!autosaveEnabled) return;
   const data = buildProjectData();
+  if(window.fyGuardarAuto) window.fyGuardarAuto(data);
   try{
     localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(data));
     paintAutosaveTag("Guardado automático · "+new Date(data.savedAt).toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"}));
@@ -2549,7 +2661,7 @@ async function makePdf(){
 
   // ---- hoja general
   if($("#pxAll").checked){
-    header("Canalización — todos los circuitos", S.pxPerM?fmt(S.pxPerM,1)+" px/m":"sin escala");
+    header("Routeo — todos los circuitos", S.pxPerM?fmt(S.pxPerM,1)+" px/m":"sin escala");
     const c = planCanvas({labels:true, lens:false, res:3200});
     putPlan(c, M+14, PH-40);
     // leyenda
@@ -2861,6 +2973,10 @@ buildTools();
 })();
 
 // ---- integración externa: no toca nada de lo existente, sólo expone hooks ----
+// solo lectura/depuración: útil para inspeccionar el estado interno desde
+// la consola del navegador sin tener que exportar todo el proyecto
+window.canalizaDebug = {S, activeCi, ciById, nodeById, findNode};
+
 window.canalizaExportar = buildProjectData;
 window.canalizaImportar = applyProjectData;
 

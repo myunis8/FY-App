@@ -371,7 +371,15 @@ class Handler(BaseHTTPRequestHandler):
         if obra is None:
             return self._error("Esa obra no está en este equipo.", 404)
         cuerpo = self._cuerpo()
-        canal_mod.guardar_proyecto(obra, cuerpo)
+        # formato nuevo: {"proyecto": <lo que produce Canaliza>, "reasignaciones": [...]}
+        # se mantiene compatible con el formato viejo (el proyecto directo, sin envolver)
+        if isinstance(cuerpo, dict) and "proyecto" in cuerpo:
+            proyecto, reasignaciones = cuerpo.get("proyecto"), cuerpo.get("reasignaciones") or []
+        else:
+            proyecto, reasignaciones = cuerpo, []
+        canal_mod.guardar_proyecto(obra, proyecto)
+        if canal_mod.aplicar_reasignaciones(obra, reasignaciones):
+            obra["validacion"] = vinculos.recalcular(obra)
         almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
         return self._json({"ok": True})
 
