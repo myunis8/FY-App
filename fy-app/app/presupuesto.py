@@ -4,12 +4,15 @@ import collections
 from . import contrato as C, precios as precios_mod, vinculos
 
 # Equivalencias entre lo que lee el extractor y los ítems de la lista de precios.
-# El primero que exista en la lista es el que se usa.
+# El primero que exista en la lista es el que se usa. Si ninguno existe, no se
+# omite en silencio: sugerir_items() lo reporta en "avisos" -- un precio que
+# falta significa una línea entera ausente del presupuesto, y eso el usuario
+# tiene que verlo, no descubrirlo por accidente.
 EQUIVALENCIAS = [
     ("punto_simple",  ["Punto de luz"]),
     ("punto_combinado", ["Punto combinado"]),
     ("artefacto",     ["Artefacto aislado", "Artefacto no aislado"]),
-    ("toma_comun",    ["Tomacorriente común"]),
+    ("toma_comun",    ["Tomacorriente doble (dos bocas en una caja)", "Tomacorriente común"]),
     ("toma_aa",       ["Toma especial - Aire acondicionado"]),
     ("toma_cocina",   ["Toma especial - Cocina"]),
     ("toma_termo",    ["Toma especial - Termotanque"]),
@@ -55,18 +58,25 @@ def cantidades(obra: dict) -> dict:
     }
 
 
-def sugerir_items(obra: dict) -> list[dict]:
-    """Arma las líneas del presupuesto con la lista de precios de hoy."""
+def sugerir_items(obra: dict) -> tuple[list[dict], list[str]]:
+    """Arma las líneas del presupuesto con la lista de precios de hoy.
+    Devuelve (items, avisos): si algo que el plano detectó no tiene un ítem
+    correspondiente en la lista de precios, esa línea NO se omite en
+    silencio -- se informa en avisos, porque significa que falta un renglón
+    entero del presupuesto sin que se note a simple vista."""
     lista = precios_mod.leer().get("items") or []
     porNombre = {it["item"]: it for it in lista}
     cant = cantidades(obra)
-    salida = []
+    salida, avisos = [], []
     for clave, nombres in EQUIVALENCIAS:
         n = cant.get(clave, 0)
         if not n:
             continue
         ref = next((porNombre[x] for x in nombres if x in porNombre), None)
         if ref is None:
+            avisos.append(f"Se detectaron {n} de \"{clave}\" en el plano, pero no hay ningún ítem "
+                          f"llamado {' / '.join(repr(x) for x in nombres)} en la lista de precios "
+                          f"-- esta línea falta del presupuesto hasta que lo agregues.")
             continue
         salida.append({
             "id": f"it_{clave}",
@@ -80,7 +90,7 @@ def sugerir_items(obra: dict) -> list[dict]:
             "clave": clave,
             "opcional": False,
         })
-    return salida
+    return salida, avisos
 
 
 def totales(pres: dict) -> dict:

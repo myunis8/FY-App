@@ -1454,6 +1454,8 @@ function pintarDetalle(){
       <input id="dd-corriente" type="number" value="${d.corriente??''}"></div>` : ''}
     ${d.tipo==='diferencial' ? `<div class="campo"><label for="dd-ma">Sensibilidad (mA)</label>
       <input id="dd-ma" type="number" value="${d.sensibilidadMa??''}"></div>` : ''}
+    <div class="campo"><label for="dd-desc">Descripción (sale en la guía de tapa)</label>
+      <input id="dd-desc" value="${esc(d.descripcion||'')}" placeholder="ej: Térmica general, Puesta a tierra"></div>
     <div class="campo"><label for="dd-alim">Entra por</label>
       <select id="dd-alim"><option value="arriba" ${d.alimentacion==='arriba'?'selected':''}>Arriba</option>
         <option value="abajo" ${d.alimentacion==='abajo'?'selected':''}>Abajo</option></select></div>
@@ -1469,6 +1471,9 @@ function pintarDetalle(){
   };
   if($('dd-tension')) $('dd-tension').onchange = async () => {
     d.tensionV = parseFloat($('dd-tension').value)||220; await persistirObra(); pintarGabinete();
+  };
+  $('dd-desc').onchange = async () => {
+    d.descripcion = $('dd-desc').value || null; await persistirObra(); pintarGabinete();
   };
   $('dd-alim').onchange = async () => {
     d.alimentacion = $('dd-alim').value; await persistirObra(); pintarGabinete();

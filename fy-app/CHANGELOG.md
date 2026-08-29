@@ -3,6 +3,42 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 0.24.0 — bug crítico de precios corregido (fallaba en silencio), descripción propia en protecciones, y aviso visible cuando falta un ítem
+
+- **Sobre "de dónde salieron los precios"**: los valores de la semilla
+  (`SEMILLA` en `precios.py`) son estimaciones de referencia que armé yo,
+  no vienen de ninguna lista real ni de un proveedor -- son un punto de
+  partida para no arrancar en $0, pensados para ajustarse a los precios
+  reales de plaza. Esto ya estaba así desde el principio del proyecto, no
+  cambió en esta entrega.
+- **Bug crítico real, encontrado y corregido**: `sugerir_items()` armaba el
+  presupuesto buscando cada ítem por nombre EXACTO contra la lista de
+  precios, y si no encontraba ninguno de los nombres esperados, **omitía
+  esa línea en silencio** -- sin ningún aviso. Si alguien borraba o
+  renombraba un ítem crítico en la lista de precios (o el nombre no
+  coincidía letra por letra, que es justo lo que pasó con "Tomacorriente
+  doble" en la entrega anterior: en el mapeo decía sólo "Tomacorriente
+  doble" pero el nombre real en la lista es "Tomacorriente doble (dos bocas
+  en una caja)"), esa cantidad detectada en el plano desaparecía del
+  presupuesto sin que nadie lo notara. Ahora `sugerir_items()` devuelve
+  también una lista de avisos, y Presupuesto los muestra en un cartel bien
+  visible arriba de todo ("Falta este ítem en la lista de precios: ...").
+  Probado el caso exacto que se reportó: con la lista de precios real,
+  ahora matchea bien y no hay avisos; con un ítem sacado a propósito de la
+  lista, aparece el aviso en vez de desaparecer la línea.
+- **El cómputo de "toma común" ahora prioriza "Tomacorriente doble"**: en
+  una instalación real la boca que se extrae del plano como toma
+  "genérica" casi siempre es una caja con tomacorriente doble, no uno
+  simple -- se corrigió el mapeo para que tome ese precio primero,
+  cayendo a "Tomacorriente común" sólo si "Tomacorriente doble" no
+  existiera en la lista.
+- **Descripción propia en térmica general, diferencial, protector y
+  bornera de tierra**: nuevo campo en el panel de cada dispositivo del
+  Tablero (no sólo en los circuitos), para casos como "Térmica general",
+  "Diferencial principal 40A", "Puesta a tierra", que no están atados a un
+  circuito. La guía de tapa del PDF usa esta descripción propia cuando
+  existe, y si no, cae a la del circuito asignado (como antes).
+
 ## 0.23.5 — descripción de circuito en varios renglones y en negrita en la guía de tapa, térmicas más separadas ahí, y más variedad de tomas en la lista de precios
 
 - **La descripción de circuito ya no se corta**: en vez de truncar a una

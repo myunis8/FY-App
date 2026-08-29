@@ -81,6 +81,7 @@ tr.opcional{opacity:.72;background:repeating-linear-gradient(45deg,transparent,t
 
 <main>
   <div class="centro">
+    <div id="aviso-faltantes"></div>
     <div id="aviso-precios"></div>
 
     <h2>Trabajos</h2>
@@ -282,6 +283,16 @@ function pintar(){
     ? `<div class="aviso">Desde que congelaste, ${movidos.length} ítems cambiaron de
         precio en la lista. El presupuesto sigue con los valores viejos, como
         corresponde. Si querés reajustar, volvé a congelar con los precios de hoy.</div>`
+    : '';
+
+  const avisosPrecios = pres.avisosPrecios || [];
+  $('aviso-faltantes').innerHTML = avisosPrecios.length
+    ? `<div class="aviso" style="border:1px solid #c0392b;background:#fdecea;color:#7a2018">
+        <b>Falta ${avisosPrecios.length>1?'estos ítems':'este ítem'} en la lista de precios:</b>
+        <ul style="margin:6px 0 0 18px;padding:0">
+          ${avisosPrecios.map(a=>`<li>${esc(a)}</li>`).join('')}
+        </ul>
+      </div>`
     : '';
 }
 

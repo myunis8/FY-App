@@ -255,7 +255,7 @@ class Handler(BaseHTTPRequestHandler):
             if pres is not None:
                 obra["presupuesto"] = pres
             if cuerpo.get("recalcularCantidades"):
-                sug = pres_mod.sugerir_items(obra)
+                sug, avisos_precios = pres_mod.sugerir_items(obra)
                 previos = {i.get("clave"): i for i in (obra["presupuesto"].get("items") or [])}
                 for it in sug:                       # conserva precios ya congelados
                     viejo = previos.get(it["clave"])
@@ -263,6 +263,7 @@ class Handler(BaseHTTPRequestHandler):
                         it["precioUnitario"] = viejo["precioUnitario"]
                         it["congelado"] = True
                 obra["presupuesto"]["items"] = sug
+                obra["presupuesto"]["avisosPrecios"] = avisos_precios
             if cuerpo.get("congelar"):
                 pres_mod.congelar(obra, cfg.get("usuario", ""))
                 for it in obra["presupuesto"].get("items") or []:
