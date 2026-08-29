@@ -163,14 +163,22 @@ def _dibujar_dispositivo(pg, x0, y0, w, h, d, circuito):
         _termica(pg, x0, y0, w, h, d, circuito or ("General" if d.get("rol") == "general" else ""))
 
 
-def _terminal_conector_peine(g: "_Geom", con: dict) -> tuple[float, float]:
-    """Dónde engancha un cable a un conector de peine: en la punta de su
-    patita, no sobre la barra misma -- la barra la ocupa el propio peine."""
+def _cuerpo_conector_peine(g: "_Geom", con: dict) -> tuple[float, float]:
+    """El cuerpo del conector siempre se apoya arriba de la barra del
+    peine, sea cual sea la carga -- eso no cambia nunca."""
     x = g.x(con["posicion"])
     y_barra = g.y_riel(con["piso"]) - (13 if con.get("polaridad") == "neutro" else 8)
+    return (x, y_barra - 7.5)
+
+
+def _terminal_conector_peine(g: "_Geom", con: dict) -> tuple[float, float]:
+    """Dónde engancha un cable: en la punta de la patita que sale del
+    cuerpo, hacia arriba (carga superior) o hacia el costado (carga
+    lateral) -- el cuerpo en sí siempre está apoyado arriba de la barra."""
+    x, y = _cuerpo_conector_peine(g, con)
     if con.get("carga") == "lateral":
-        return (x + 14, y_barra)
-    return (x, y_barra - 14)
+        return (x + 11, y)
+    return (x, y - 7.5)
 
 
 def _ruta_a_pdf(g: "_Geom", t: dict, ruta: list) -> list:
@@ -467,28 +475,28 @@ def _pagina_conexionado(doc, t: dict, obra: dict):
         pg.draw_line((x0, y), (x1, y), color=COLOR_POLARIDAD["fase"], width=2.6)
         pg.draw_line((x0, y - 5), (x1, y - 5), color=COLOR_POLARIDAD["neutro"], width=2.6)
 
-    # conectores de peine: un cuerpo apoyado sobre el peine, en la posición
-    # que haya elegido el usuario, con una patita corta hacia arriba (carga
-    # superior) o hacia el costado (carga lateral) donde engancha el cable
-    # real -- ese cable se dibuja aparte, como cualquier otro (más abajo, en
-    # el bloque de "cables"), así se puede rutear a mano hacia donde haga
-    # falta en vez de bajar recto y fijo al piso siguiente. Diseño simple:
-    # un círculo sólido del color de la polaridad con una ranura blanca, sin
-    # nada de más que lo recargue.
+    # conectores de peine: el cuerpo SIEMPRE se apoya arriba de la barra del
+    # peine (nunca al costado) -- lo que cambia con la carga es hacia dónde
+    # sale el cable real desde ese cuerpo: derecho hacia arriba (superior) o
+    # hacia el costado (lateral). Ese cable se dibuja aparte, como cualquier
+    # otro (más abajo, en el bloque de "cables").
     for con in t.get("conexiones") or []:
         if con["tipo"] != "conectorPeine":
             continue
         color = COLOR_POLARIDAD.get(con.get("polaridad"), GRIS)
         x = g.x(con["posicion"])
         y_barra = g.y_riel(con["piso"]) - (13 if con.get("polaridad") == "neutro" else 8)
+        xc, yc = _cuerpo_conector_peine(g, con)
         tx, ty = _terminal_conector_peine(g, con)
-        pg.draw_line((x, y_barra), (tx, ty), color=color, width=2.2)
+        pg.draw_line((x, y_barra), (xc, yc), color=color, width=2.2)
+        pg.draw_line((xc, yc), (tx, ty), color=color, width=1.9)
         w, h = 7.2, 7.8
-        pg.draw_rect(pymupdf.Rect(tx - w / 2, ty - h / 2, tx + w / 2, ty + h / 2),
+        pg.draw_rect(pymupdf.Rect(xc - w / 2, yc - h / 2, xc + w / 2, yc + h / 2),
                     color=(0.6, 0.6, 0.6), fill=color, width=0.7, radius=0.25)
         r = min(w, h) * 0.24
-        pg.draw_circle((tx, ty), r, color=BLANCO, fill=BLANCO)
-        pg.draw_line((tx - r * 0.6, ty), (tx + r * 0.6, ty), color=color, width=1.1)
+        pg.draw_circle((xc, yc), r, color=BLANCO, fill=BLANCO)
+        pg.draw_line((xc - r * 0.6, yc), (xc + r * 0.6, yc), color=color, width=1.1)
+        pg.draw_circle((tx, ty), 1.4, color=color, fill=color)
 
     # cables: ruteo en escuadra (vertical primero), separados en carriles
     # donde varios comparten corredor, con salto donde se cruzan

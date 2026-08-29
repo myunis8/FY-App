@@ -3,6 +3,29 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 0.23.3 — polaridad automática (nada de elegirla a mano), y "carga" bien entendida: el cuerpo siempre va arriba del peine
+
+- **Bug real encontrado**: el selector de polaridad (fase/neutro) que se
+  agregó en la entrega anterior nunca se conectó a nada -- el clic sobre la
+  barra del peine ya traía la polaridad correcta (de qué barra se tocó),
+  pero el código seguía leyendo el valor del selector en vez de usarla. Por
+  eso un conector colocado sobre la barra de neutro salía igual marrón.
+  **Se sacó el selector por completo**: la polaridad ahora es automática,
+  la decide sola la barra que se toque (celeste sobre neutro, marrón sobre
+  fase) -- ya no hay nada que elegir a mano para eso.
+- **"Carga superior/lateral" estaba mal entendida**: no es de dónde se
+  monta el cuerpo del conector (siempre arriba del peine, nunca al
+  costado) -- es hacia dónde sale el cable real desde ese cuerpo: derecho
+  hacia arriba (carga superior) o hacia el costado (carga lateral). Se
+  corrigió la geometría en el editor y en el PDF: el cuerpo se apoya
+  siempre en el mismo lugar sobre la barra; sólo cambia la patita que sale
+  de él.
+- Probado en navegador real y en el PDF: un conector tocando la barra de
+  neutro sale celeste solo, sin elegir nada; uno con carga lateral y otro
+  con carga superior sobre el mismo peine muestran ambos cuerpos montados
+  igual, con la patita saliendo para el costado o para arriba según
+  corresponda.
+
 ## 0.23.2 — la causa real de "fase/neutro/tierra siempre superpuestos" encontrada y corregida, y el conector vuelve a tener diseño de dispositivo
 
 - **Causa real de la superposición, encontrada**: la separación en carriles

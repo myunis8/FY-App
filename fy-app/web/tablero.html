@@ -159,11 +159,8 @@ body.modo-cable .nodo-lateral:hover{transform:translateY(-50%) scale(1.4)}
       <button class="btn sm" id="h-peine" title="Unir térmicas del mismo riel en paralelo">▭ Peine</button>
       <button class="btn sm" id="h-conpe" title="Un conector para enganchar un cable y rutearlo a mano">+ Conector de peine</button>
       <span id="conpe-opciones" style="display:none;gap:6px;align-items:center">
-        <select id="conpe-polaridad" class="sel-conpe" title="Polaridad del conector">
-          <option value="fase">Fase</option>
-          <option value="neutro">Neutro</option>
-        </select>
-        <select id="conpe-carga" class="sel-conpe" title="Cómo entra el cable real">
+        <span class="nota" style="margin:0">La polaridad sale sola, de qué barra toques</span>
+        <select id="conpe-carga" class="sel-conpe" title="Hacia dónde sale el cable del conector">
           <option value="superior">Carga superior</option>
           <option value="lateral">Carga lateral</option>
         </select>
@@ -699,8 +696,8 @@ function puntoDeEndpoint(t, ep){
     const con = (t.conexiones||[]).find(c=>c.id===ep.id);
     if(!con) return null;
     const yBarra = yRiel(con.piso) - (con.polaridad === 'neutro' ? 31 : 16);
-    const xBarra = CANAL + con.posicion*CELDA;
-    return con.carga === 'lateral' ? {x: xBarra+26, y: yBarra} : {x: xBarra, y: yBarra-26};
+    const xCuerpo = CANAL + con.posicion*CELDA, yCuerpo = yBarra - 14;
+    return con.carga === 'lateral' ? {x: xCuerpo+20, y: yCuerpo} : {x: xCuerpo, y: yCuerpo-14};
   }
   return null;
 }
@@ -922,23 +919,28 @@ function dibujoConexion(t, c){
       width:${anchoTotal}px;height:${altoTotal}px;overflow:visible;
       pointer-events:none">${svgBarras}</svg>`;
   }
-  // conector de peine: un cuerpo apoyado sobre el peine, en la posición
-  // que haya elegido el usuario, con una patita corta hacia arriba (carga
-  // superior) o hacia el costado (carga lateral) donde engancha el cable
-  // real -- ese cable se traza aparte, con la herramienta de cable normal,
-  // rumbo a donde haga falta (a otro conector en otro peine, a una
-  // térmica...), en vez de bajar recto y fijo al piso siguiente.
+  // conector de peine: el cuerpo SIEMPRE se apoya arriba del peine (nunca
+  // al costado) -- lo que cambia con la carga es hacia dónde sale el cable
+  // real desde ese cuerpo: derecho hacia arriba (superior) o hacia el
+  // costado (lateral). Ese cable se traza aparte, con la herramienta de
+  // cable normal, rumbo a donde haga falta.
   const yBarra = yRiel(c.piso) - (c.polaridad === 'neutro' ? 31 : 16);
   const xBarra = CANAL + c.posicion*CELDA;
+  const H_CUERPO = 14;                          // el cuerpo siempre a esta altura sobre la barra
+  const xCuerpo = xBarra, yCuerpo = yBarra - H_CUERPO;
   const lateral = c.carga === 'lateral';
-  const tx = lateral ? xBarra + 26 : xBarra, ty = lateral ? yBarra : yBarra - 26;
+  const tx = lateral ? xCuerpo + 20 : xCuerpo;
+  const ty = lateral ? yCuerpo : yCuerpo - 14;
   const color = COLOR_POLARIDAD[c.polaridad || 'fase'];
   const ancho = 20, alto = 22;
   return `<svg class="conexion" data-con="${c.id}" style="position:absolute;left:0;top:0;
     width:${anchoTotal}px;height:${altoTotal}px;overflow:visible;
     pointer-events:none">
-    <line x1="${xBarra}" y1="${yBarra}" x2="${tx}" y2="${ty}" stroke="${color}" stroke-width="3"/>
-    <g transform="translate(${tx-ancho/2},${ty-alto/2})" style="pointer-events:all;cursor:pointer"
+    <line x1="${xBarra}" y1="${yBarra}" x2="${xCuerpo}" y2="${yCuerpo}" stroke="${color}" stroke-width="3"/>
+    <line x1="${xCuerpo}" y1="${yCuerpo}" x2="${tx}" y2="${ty}" stroke="${color}" stroke-width="2.4"/>
+    <circle cx="${tx}" cy="${ty}" r="2.6" fill="${color}"
+      style="pointer-events:all;cursor:pointer" data-con-click="${c.id}"/>
+    <g transform="translate(${xCuerpo-ancho/2},${yCuerpo-alto/2})" style="pointer-events:all;cursor:pointer"
       data-con-click="${c.id}">${svgConectorPeine(ancho, alto, color, sel)}</g>
   </svg>`;
 }
@@ -1165,7 +1167,7 @@ function elegirHerramienta(tipo, pendiente){
   if(tipo !== 'conectorPeine') $('conpe-opciones').style.display = 'none';
   $('paso-actual').textContent = tipo==='peine'
     ? 'Tocá una térmica, después la otra punta del tramo a unir'
-    : tipo==='conectorPeine' ? 'Elegí fase/neutro y carga, y tocá el peine en el lugar donde va'
+    : tipo==='conectorPeine' ? 'Elegí la carga, y tocá la barra de fase o de neutro del peine'
     : tipo==='cable' ? 'Tocá el primer punto (un caño, un peine, un conector, o el nodo de una térmica), '
       + 'después el segundo' : '';
   document.body.classList.toggle('modo-cable', tipo === 'cable');
@@ -1365,12 +1367,12 @@ async function clicConexion(id, polaridad, lado, xPixel){
     return;
   }
   if(herramienta.tipo === 'conectorPeine' && con.tipo === 'peine'){
-    // la posición a lo largo del peine la elige el usuario con el click,
-    // no se fuerza al centro; la polaridad y la carga se leen en vivo de
-    // los selectores, así se pueden cambiar entre un conector y el
-    // siguiente sin reabrir ningún diálogo
+    // la polaridad se toma sola, de qué barra del peine se clickeó (fase o
+    // neutro) -- no hace falta elegirla a mano. La posición a lo largo del
+    // peine también la da el click, no se fuerza al centro. Sólo la carga
+    // (superior/lateral) se elige con el selector.
     const posicion = Math.max(con.desde, Math.min(con.hasta+1, (xPixel - CANAL) / CELDA));
-    crearConectorPeine(con.id, posicion, $('conpe-polaridad').value, $('conpe-carga').value);
+    crearConectorPeine(con.id, posicion, polaridad || 'fase', $('conpe-carga').value);
     return;
   }
   if(herramienta.tipo === 'peine' || herramienta.tipo === 'conectorPeine') return;
