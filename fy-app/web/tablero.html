@@ -54,6 +54,7 @@ h2:first-child{margin-top:0}
 .riel .etiqueta{position:absolute;left:6px;top:-19px;font-size:.68rem;color:var(--muted);font-weight:600}
 .celda-fantasma{position:absolute;top:0;bottom:0;border-right:1px dashed #c3cbc9}
 .herramientas-cableado{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;align-items:center}
+.sel-conpe{border:1px solid var(--line);border-radius:8px;padding:5px 7px;font-size:.78rem;background:#fff}
 .herramientas-cableado .btn.activa{background:var(--copper);border-color:#7a410c;color:#fff}
 .paso-actual{font-size:.76rem;color:var(--copper);font-weight:600}
 .franja-cano{position:absolute;background:#e3e7e5;border:1px dashed #a9b3b0;border-radius:6px}
@@ -157,6 +158,16 @@ body.modo-cable .nodo-lateral:hover{transform:translateY(-50%) scale(1.4)}
       <button class="btn sm" id="h-ninguna" title="Sólo mover térmicas">☞ Mover</button>
       <button class="btn sm" id="h-peine" title="Unir térmicas del mismo riel en paralelo">▭ Peine</button>
       <button class="btn sm" id="h-conpe" title="Un conector para enganchar un cable y rutearlo a mano">+ Conector de peine</button>
+      <span id="conpe-opciones" style="display:none;gap:6px;align-items:center">
+        <select id="conpe-polaridad" class="sel-conpe" title="Polaridad del conector">
+          <option value="fase">Fase</option>
+          <option value="neutro">Neutro</option>
+        </select>
+        <select id="conpe-carga" class="sel-conpe" title="Cómo entra el cable real">
+          <option value="superior">Carga superior</option>
+          <option value="lateral">Carga lateral</option>
+        </select>
+      </span>
       <button class="btn sm" id="h-cable" title="Conectar dos puntos: caño, peine, o el nodo de una térmica">⌁ Cable / serie</button>
       <span class="paso-actual" id="paso-actual"></span>
     </div>
@@ -776,12 +787,12 @@ function pathConSaltos(pts, saltos){
     enTramo.forEach(([sx,sy]) => {
       if(horiz){
         const dir = x1>x0 ? 1 : -1;
-        d += ` L${(sx-dir*5).toFixed(1)},${y0.toFixed(1)}`;
-        d += ` A5,5 0 0 ${dir>0?1:0} ${(sx+dir*5).toFixed(1)},${y0.toFixed(1)}`;
+        d += ` L${(sx-dir*2.6).toFixed(1)},${y0.toFixed(1)}`;
+        d += ` A2.6,2.6 0 0 ${dir>0?1:0} ${(sx+dir*2.6).toFixed(1)},${y0.toFixed(1)}`;
       } else {
         const dir = y1>y0 ? 1 : -1;
-        d += ` L${x0.toFixed(1)},${(sy-dir*5).toFixed(1)}`;
-        d += ` A5,5 0 0 ${dir>0?0:1} ${x0.toFixed(1)},${(sy+dir*5).toFixed(1)}`;
+        d += ` L${x0.toFixed(1)},${(sy-dir*2.6).toFixed(1)}`;
+        d += ` A2.6,2.6 0 0 ${dir>0?0:1} ${x0.toFixed(1)},${(sy+dir*2.6).toFixed(1)}`;
       }
     });
     d += ` L${x1.toFixed(1)},${y1.toFixed(1)}`;
@@ -826,6 +837,7 @@ function _anchoAltoOverlay(t){
 }
 function dibujoConexion(t, c){
   const [anchoTotal, altoTotal] = _anchoAltoOverlay(t);
+  const sel = c.id === conexionSeleccionada;
   if(c.tipo === 'peine'){
     const dispEnPeine = t.dispositivos.filter(d=>d.piso===c.piso && d.posicion>=c.desde
       && d.posicion+d.polos-1<=c.hasta);
@@ -849,7 +861,7 @@ function dibujoConexion(t, c){
         stroke="${color}" stroke-width="3.4"/>`).join('');
       svgBarras += `${pines}
         <rect x="${x0}" y="${y}" width="${x1-x0}" height="12" rx="3.5" fill="${color}"
-          stroke="#00000030" stroke-width="1" style="pointer-events:all;cursor:pointer"
+          stroke="${sel?'var(--copper)':'#00000030'}" stroke-width="${sel?2.5:1}" style="pointer-events:all;cursor:pointer"
           data-con-click="${c.id}" data-con-polaridad="${polaridad}"/>
         <text x="${(x0+x1)/2}" y="${y+9.5}" text-anchor="middle" font-size="7.5" fill="#fff"
           style="pointer-events:none">${etq}</text>`;
@@ -876,34 +888,19 @@ function dibujoConexion(t, c){
     width:${anchoTotal}px;height:${altoTotal}px;overflow:visible;
     pointer-events:none">
     <line x1="${xBarra}" y1="${yBarra}" x2="${tx}" y2="${ty}" stroke="${color}" stroke-width="3"/>
-    <circle cx="${tx}" cy="${ty}" r="3.5" fill="${color}"
-      style="pointer-events:all;cursor:pointer" data-con-click="${c.id}"
-      data-con-polaridad="${c.polaridad||'fase'}"/>
     <g transform="translate(${tx-ancho/2},${ty-alto/2})" style="pointer-events:all;cursor:pointer"
-      data-con-click="${c.id}">${svgConectorPeine(ancho, alto, color)}</g>
+      data-con-click="${c.id}">${svgConectorPeine(ancho, alto, color, sel)}</g>
   </svg>`;
 }
-function svgConectorPeine(w, h, color){
-  // esquema del conector que junta o baja un peine, según la foto de referencia:
-  // cuerpo con tornillo en cruz y una lengüeta inferior a modo de contacto.
-  // El cuerpo se pinta del color de la polaridad (marrón/celeste) en vez de
-  // blanco liso, para reconocerlo de un vistazo sin tener que fijarse en el
-  // hilo del cable.
+function svgConectorPeine(w, h, color, sel){
+  // diseño simple y limpio: un círculo sólido del color de la polaridad,
+  // con una ranura blanca de tornillo en el medio -- nada de detalles de
+  // más que lo recarguen. Si está seleccionado, un anillo alrededor.
   color = color || TRAZO;
-  return `<rect x="1" y="1" width="${w-2}" height="${h*0.52}" rx="4" fill="${color}22"
-      stroke="${color}" stroke-width="1.3"/>
-    <rect x="${w*0.06}" y="${h*0.05}" width="${w*0.14}" height="${h*0.1}" fill="none"
-      stroke="${color}" stroke-width="0.9"/>
-    <rect x="${w*0.8}" y="${h*0.05}" width="${w*0.14}" height="${h*0.1}" fill="none"
-      stroke="${color}" stroke-width="0.9"/>
-    <circle cx="${w/2}" cy="${h*0.28}" r="${w*0.32}" fill="none" stroke="${color}" stroke-width="1.1"/>
-    <line x1="${w*0.34}" y1="${h*0.16}" x2="${w*0.66}" y2="${h*0.4}" stroke="${color}" stroke-width="1.1"/>
-    <line x1="${w*0.34}" y1="${h*0.4}" x2="${w*0.66}" y2="${h*0.16}" stroke="${color}" stroke-width="1.1"/>
-    <rect x="${w*0.3}" y="${h*0.52}" width="${w*0.4}" height="${h*0.3}" fill="none"
-      stroke="${color}" stroke-width="1.1"/>
-    <line x1="${w*0.16}" y1="${h*0.58}" x2="${w*0.3}" y2="${h*0.58}" stroke="${color}" stroke-width="1.1"/>
-    <line x1="${w*0.7}" y1="${h*0.58}" x2="${w*0.84}" y2="${h*0.58}" stroke="${color}" stroke-width="1.1"/>
-    <line x1="${w/2}" y1="${h*0.82}" x2="${w/2}" y2="${h-1}" stroke="${color}" stroke-width="1.6"/>`;
+  const r = Math.min(w, h)/2 - 1, cx = w/2, cy = h/2;
+  return `${sel?`<circle cx="${cx}" cy="${cy}" r="${r+4}" fill="none" stroke="var(--copper)" stroke-width="2"/>`:''}
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="${color}" stroke="#00000030" stroke-width="1"/>
+    <line x1="${cx-r*0.5}" y1="${cy}" x2="${cx+r*0.5}" y2="${cy}" stroke="#fff" stroke-width="1.6"/>`;
 }
 function dibujoPendienteHerramienta(t){
   if(!herramienta.paso1) return '';
@@ -1113,9 +1110,10 @@ function elegirHerramienta(tipo, pendiente){
   document.querySelectorAll('.herramientas-cableado .btn').forEach(b=>b.classList.remove('activa'));
   const idBoton = {peine:'h-peine', conectorPeine:'h-conpe', cable:'h-cable'}[tipo] || 'h-ninguna';
   $(idBoton).classList.add('activa');
+  if(tipo !== 'conectorPeine') $('conpe-opciones').style.display = 'none';
   $('paso-actual').textContent = tipo==='peine'
     ? 'Tocá una térmica, después la otra punta del tramo a unir'
-    : tipo==='conectorPeine' ? 'Tocá el peine, en el lugar donde va el conector'
+    : tipo==='conectorPeine' ? 'Elegí fase/neutro y carga, y tocá el peine en el lugar donde va'
     : tipo==='cable' ? 'Tocá el primer punto (un caño, un peine, un conector, o el nodo de una térmica), '
       + 'después el segundo' : '';
   document.body.classList.toggle('modo-cable', tipo === 'cable');
@@ -1125,11 +1123,8 @@ function elegirHerramienta(tipo, pendiente){
 $('h-ninguna').onclick = () => elegirHerramienta(null);
 $('h-peine').onclick = () => elegirHerramienta('peine');
 $('h-conpe').onclick = () => {
-  const pol = (prompt('¿Este conector es de fase o de neutro?', 'fase')||'').trim().toLowerCase();
-  if(!['fase','neutro'].includes(pol)) return;
-  const carga = (prompt('¿Carga superior (entra por arriba) o lateral (entra por el costado)?', 'superior')||'').trim().toLowerCase();
-  if(!['superior','lateral'].includes(carga)) return;
-  elegirHerramienta('conectorPeine', {polaridad: pol, carga});
+  $('conpe-opciones').style.display = 'inline-flex';
+  elegirHerramienta('conectorPeine');
 };
 $('h-cable').onclick = () => elegirHerramienta('cable');
 
@@ -1319,13 +1314,22 @@ async function clicConexion(id, polaridad, lado, xPixel){
   }
   if(herramienta.tipo === 'conectorPeine' && con.tipo === 'peine'){
     // la posición a lo largo del peine la elige el usuario con el click,
-    // no se fuerza al centro
+    // no se fuerza al centro; la polaridad y la carga se leen en vivo de
+    // los selectores, así se pueden cambiar entre un conector y el
+    // siguiente sin reabrir ningún diálogo
     const posicion = Math.max(con.desde, Math.min(con.hasta+1, (xPixel - CANAL) / CELDA));
-    crearConectorPeine(con.id, posicion, herramienta.pendiente.polaridad, herramienta.pendiente.carga);
+    crearConectorPeine(con.id, posicion, $('conpe-polaridad').value, $('conpe-carga').value);
     return;
   }
   if(herramienta.tipo === 'peine' || herramienta.tipo === 'conectorPeine') return;
-  if(!confirm('¿Quitar esta conexión?')) return;
+  // sin herramienta activa: un clic la selecciona (Delete para borrarla),
+  // en vez de un cartel de confirmación en el momento
+  conexionSeleccionada = (conexionSeleccionada === id) ? null : id;
+  cableSeleccionado = null;
+  pintarGabinete();
+}
+async function eliminarConexionAPI(id){
+  const t = tableroActivo();
   await api(`/api/obras/${OBRA_ID}/tableros/${t.id}/conexiones/${id}`, {method:'DELETE'});
   t.conexiones = (t.conexiones||[]).filter(c=>c.id!==id);
   pintarGabinete();
@@ -1589,18 +1593,21 @@ $('b-pdf-tablero').onclick = () => {
 $('b-deshacer').onclick = deshacer;
 $('b-rehacer').onclick = rehacer;
 
-let cableSeleccionado = null;
+let cableSeleccionado = null, conexionSeleccionada = null;
 document.addEventListener('keydown', e => {
   const enCampo = ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName);
   if(e.key === 'Escape'){
     elegirHerramienta(null);
     cableSeleccionado = null;
+    conexionSeleccionada = null;
     pintarGabinete();
   }
-  if((e.key === 'Delete' || e.key === 'Backspace') && cableSeleccionado && !enCampo){
-    e.preventDefault();
-    eliminarCableAPI(cableSeleccionado);
-    cableSeleccionado = null;
+  if((e.key === 'Delete' || e.key === 'Backspace') && !enCampo){
+    if(cableSeleccionado){
+      e.preventDefault(); eliminarCableAPI(cableSeleccionado); cableSeleccionado = null;
+    } else if(conexionSeleccionada){
+      e.preventDefault(); eliminarConexionAPI(conexionSeleccionada); conexionSeleccionada = null;
+    }
   }
   if(!enCampo && (e.ctrlKey||e.metaKey) && !e.shiftKey && e.key.toLowerCase()==='z'){
     e.preventDefault(); deshacer();

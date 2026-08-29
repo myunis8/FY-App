@@ -379,12 +379,12 @@ def _dibujar_cable(pg, pts, saltos, color):
         for (sx, sy) in en_tramo:
             if horiz:
                 d = 1 if x1 > x0 else -1
-                antes, despues = (sx - d * 4, y0), (sx + d * 4, y0)
-                pico = (sx, y0 - 5)
+                antes, despues = (sx - d * 2.2, y0), (sx + d * 2.2, y0)
+                pico = (sx, y0 - 2.6)
             else:
                 d = 1 if y1 > y0 else -1
-                antes, despues = (x0, sy - d * 4), (x0, sy + d * 4)
-                pico = (x0 + 5, sy)
+                antes, despues = (x0, sy - d * 2.2), (x0, sy + d * 2.2)
+                pico = (x0 + 2.6, sy)
             pg.draw_line(cur, antes, color=color, width=1.3)
             pg.draw_curve(antes, pico, despues, color=color, width=1.3)
             cur = despues
@@ -468,7 +468,9 @@ def _pagina_conexionado(doc, t: dict, obra: dict):
     # superior) o hacia el costado (carga lateral) donde engancha el cable
     # real -- ese cable se dibuja aparte, como cualquier otro (más abajo, en
     # el bloque de "cables"), así se puede rutear a mano hacia donde haga
-    # falta en vez de bajar recto y fijo al piso siguiente.
+    # falta en vez de bajar recto y fijo al piso siguiente. Diseño simple:
+    # un círculo sólido del color de la polaridad con una ranura blanca, sin
+    # nada de más que lo recargue.
     for con in t.get("conexiones") or []:
         if con["tipo"] != "conectorPeine":
             continue
@@ -477,9 +479,9 @@ def _pagina_conexionado(doc, t: dict, obra: dict):
         y_barra = g.y_riel(con["piso"]) - (13 if con.get("polaridad") == "neutro" else 8)
         tx, ty = _terminal_conector_peine(g, con)
         pg.draw_line((x, y_barra), (tx, ty), color=color, width=2.2)
-        pg.draw_rect(pymupdf.Rect(tx - 3.2, ty - 3.2, tx + 3.2, ty + 3.2), color=color,
-                    fill=BLANCO, width=1.1, radius=0.2)
-        pg.draw_circle((tx, ty), 1.5, color=color, fill=color)
+        r = 3.6
+        pg.draw_circle((tx, ty), r, color=(0.6, 0.6, 0.6), fill=color, width=0.7)
+        pg.draw_line((tx - r * 0.5, ty), (tx + r * 0.5, ty), color=BLANCO, width=1.1)
 
     # cables: ruteo en escuadra (vertical primero), separados en carriles
     # donde varios comparten corredor, con salto donde se cruzan

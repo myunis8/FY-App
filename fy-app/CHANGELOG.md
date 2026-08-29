@@ -3,6 +3,38 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 0.23.1 — selectores en vez de escribir a mano, borrado por selección + Delete, conector rediseñado limpio, y saltos de cruce más chicos
+
+- **Elegir fase/neutro y carga superior/lateral ahora es con dos selectores**
+  al lado del botón "Conector de peine" — no hay que escribir nada a mano.
+  Quedan visibles mientras la herramienta está activa, y se pueden cambiar
+  entre un conector y el siguiente sin reabrir nada.
+- **Borrar una conexión (peine o conector) es: clic para seleccionarla,
+  Delete para borrarla** — sacado el cartel de confirmación en el momento,
+  mismo criterio que ya se usaba para los cables. La conexión seleccionada
+  se resalta (el peine con un borde de color; el conector con un anillo).
+- **Causa del "nodo de más" en el conector, encontrada y corregida**: el
+  diseño anterior dibujaba un círculo sólido *debajo* del ícono, y como el
+  cuerpo del ícono tenía relleno semi-transparente (para que se note el
+  color sin tapar del todo), ese círculo se veía transparentar por encima,
+  pareciendo un nodo extra flotando sobre el dibujo. El conector se rediseñó
+  completo: un solo círculo sólido del color de la polaridad con una ranura
+  blanca simple — sin capas superpuestas, sin partes de más.
+- **Saltos de cruce más chicos** (de 5pt a 2.6pt de radio, en el editor y en
+  el PDF): antes, cuando varios cables corrían casi pegados y cada uno
+  cruzaba la misma línea, sus saltos se amontonaban en una mancha borrosa.
+  Con saltos más chicos, cada cruce queda limpio y distinguible aunque haya
+  varios juntos. Se revisó a fondo la lógica de qué cable salta y cuál seguí
+  derecho (`_calcular_saltos`/`calcularSaltos`): sólo uno de los dos salta
+  por cada cruce puntual, nunca los dos a la vez — lo que se veía "feo" era
+  el tamaño acumulado de varios saltos reales y correctos, muy juntos; con
+  el tamaño reducido, ese amontonamiento deja de notarse.
+- Probado en navegador real: conector creado con los selectores (sin ningún
+  `prompt()`), clic + Delete lo borra sin cartel, diseño limpio confirmado
+  visualmente. Reproducido un cruce con 5 cables paralelos sobre la misma
+  línea (como en la foto): cada uno muestra su propio salto, chico y nítido,
+  sin amontonarse.
+
 ## 0.23.0 — conectores de peine rediseñados de cero (libres, con cable a mano), y más espacio entre térmicas
 
 - **Se eliminó el sistema de "conector al piso siguiente" (puente)** por
