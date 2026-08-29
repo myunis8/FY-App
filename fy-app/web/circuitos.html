@@ -429,6 +429,11 @@ function pintarCircuitos(){
         </select></div>
       </div>
       <div style="margin-top:6px"><label style="font-size:.68rem;color:var(--muted);
+        font-weight:600;display:block;margin-bottom:2px">Descripción</label>
+        <input value="${esc(c.notas||'')}" data-campo="notas" data-cir="${c.id}"
+          placeholder="ej: Iluminación cocina" style="width:100%;padding:5px 7px;
+          border:1px solid var(--line);border-radius:7px;font-size:.78rem;box-sizing:border-box"></div>
+      <div style="margin-top:6px"><label style="font-size:.68rem;color:var(--muted);
         font-weight:600;display:block;margin-bottom:2px">Tablero</label>
         <select data-campo="tableroId" data-cir="${c.id}" style="width:100%;padding:5px 7px;
           border:1px solid var(--line);border-radius:7px;font-size:.78rem">
@@ -453,7 +458,7 @@ function pintarCircuitos(){
     n.onchange = () => {
       const c = obra.circuitos.find(x=>x.id===n.dataset.cir);
       const campo = n.dataset.campo;
-      c[campo] = (campo === 'nombre' || campo === 'tipo' || campo === 'tableroId')
+      c[campo] = (campo === 'nombre' || campo === 'tipo' || campo === 'tableroId' || campo === 'notas')
         ? (n.value || null) : parseFloat(n.value);
       if(campo === 'tipo'){
         const r = TIPOS[c.tipo];

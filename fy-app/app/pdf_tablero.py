@@ -164,11 +164,13 @@ def _dibujar_dispositivo(pg, x0, y0, w, h, d, circuito):
 
 
 def _cuerpo_conector_peine(g: "_Geom", con: dict) -> tuple[float, float]:
-    """El cuerpo del conector siempre se apoya arriba de la barra del
-    peine, sea cual sea la carga -- eso no cambia nunca."""
+    """El cuerpo del conector siempre se apoya a la misma altura, tomando
+    como referencia la barra de arriba (neutro) -- así uno de fase y uno de
+    neutro sobre el mismo peine quedan alineados a la vista, aunque la
+    patita hacia la barra de fase (más abajo) sea un poco más larga."""
     x = g.x(con["posicion"])
-    y_barra = g.y_riel(con["piso"]) - (13 if con.get("polaridad") == "neutro" else 8)
-    return (x, y_barra - 7.5)
+    y_neutro = g.y_riel(con["piso"]) - 13
+    return (x, y_neutro - 7.5)
 
 
 def _terminal_conector_peine(g: "_Geom", con: dict) -> tuple[float, float]:
@@ -258,6 +260,13 @@ def _nombre_circuito(obra, circuito_id):
         return None
     c = next((x for x in obra.get("circuitos") or [] if x["id"] == circuito_id), None)
     return c.get("nombre") if c else None
+
+
+def _descripcion_circuito(obra, circuito_id):
+    if not circuito_id:
+        return None
+    c = next((x for x in obra.get("circuitos") or [] if x["id"] == circuito_id), None)
+    return (c.get("notas") or "").strip() if c else None
 
 
 # ---------------------------------------------------------------- cableado
@@ -552,24 +561,41 @@ def _bocas_de_cano(pg, g, t, obra):
 
 def _pagina_tapa(doc, t: dict, obra: dict):
     """Vista con la tapa puesta: sólo las térmicas y su etiqueta, sin
-    cableado ni caños — para pegar adentro del tablero como guía."""
+    cableado ni caños — para pegar adentro del tablero como guía. Con un
+    enmarcado tipo gabinete real (marco + tornillos en las esquinas), para
+    que la hoja se sienta como el tablero físico y no sólo un diagrama."""
     g = _Geom(t)
-    pg = doc.new_page(width=g.ancho, height=g.alto)
-    pg.draw_rect(pg.rect, color=None, fill=BLANCO)
-    pg.insert_text((MARGEN, 20), f"Tablero — {t.get('nombre','')} · guía de tapa",
+    MARCO = 16
+    ancho, alto = g.ancho + MARCO * 2, g.alto + MARCO * 2 + 8
+    pg = doc.new_page(width=ancho, height=alto)
+    pg.draw_rect(pg.rect, color=None, fill=(0.93, 0.94, 0.95))
+    pg.insert_text((MARCO, 20), f"Tablero — {t.get('nombre','')} · guía de tapa",
                    fontsize=13, fontname="hebo", color=NAVY)
+    # el gabinete en sí: un marco grueso con tornillos en las esquinas,
+    # como para que se sienta la tapa real del tablero
+    y_gabinete = 30
+    marco_rect = pymupdf.Rect(MARCO, y_gabinete, ancho - MARCO, y_gabinete + g.alto)
+    pg.draw_rect(marco_rect, color=(0.35, 0.38, 0.42), fill=(0.99, 0.99, 0.98), width=2.4, radius=0.02)
+    for esq_x in (marco_rect.x0 + 9, marco_rect.x1 - 9):
+        for esq_y in (marco_rect.y0 + 9, marco_rect.y1 - 9):
+            _tornillo(pg, esq_x, esq_y, 3.4, cruz=True)
+    dx, dy = MARCO, y_gabinete - 0
     for piso in range(t["pisos"]):
-        y0 = g.y_riel(piso)
-        pg.draw_rect(pymupdf.Rect(MARGEN, y0, g.ancho - MARGEN, y0 + g.alto_disp),
+        y0 = g.y_riel(piso) + dy
+        pg.draw_rect(pymupdf.Rect(dx + MARGEN, y0, dx + g.ancho - MARGEN, y0 + g.alto_disp),
                     color=(0.88, 0.88, 0.88), fill=(0.97, 0.97, 0.97), width=0.7, radius=0.05)
     for d in t.get("dispositivos") or []:
         if d.get("piso") is None:
             continue
-        x0 = g.x(d["posicion"]) + g.celda * 0.16
+        x0 = dx + g.x(d["posicion"]) + g.celda * 0.16
         w = d["polos"] * g.celda - g.celda * 0.32
-        y0 = g.y_riel(d["piso"]) + 2
+        y0 = dy + g.y_riel(d["piso"]) + 2
         h = g.alto_disp - 4
         _dibujar_dispositivo(pg, x0, y0, w, h, d, _nombre_circuito(obra, d.get("circuitoId")))
+        desc = _descripcion_circuito(obra, d.get("circuitoId"))
+        if desc:
+            _texto_centrado(pg, x0 + w / 2, y0 + h + 10, desc[:22], min(w * 0.14, 6.5),
+                            (0.35, 0.38, 0.42), negrita=False, fuente_max=w * 1.05)
 
 
 def generar(t: dict, obra: dict) -> bytes:

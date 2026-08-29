@@ -3,6 +3,37 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 0.23.4 — conectores alineados y siempre borrables, descripción por circuito, y la guía de tapa emula el tablero real
+
+- **Conector de fase alineado con el de neutro**: el cuerpo de cualquier
+  conector ahora se apoya siempre a la misma altura (tomando la barra de
+  arriba, neutro, como referencia) — antes cada uno colgaba de su propia
+  barra, y como la de fase está más abajo, quedaban a distinta altura. La
+  patita hacia la barra de fase es un poco más larga, pero el cuerpo queda
+  parejo con el de neutro.
+- **Causa real de "a veces no puedo borrar un conector", encontrada**: los
+  cables se dibujaban (y eran clickeables) *después* que los conectores, y
+  el área de clic de un cable es bastante ancha (14px, para que sea fácil
+  tocarlo) y sigue todo su recorrido -- como un cable siempre arranca justo
+  en el terminal de un conector, esa franja ancha tapaba el clic del
+  conector exactamente en los casos en que más importa: cuando el conector
+  ya tiene un cable enganchado, que es el uso normal. Se invirtió el orden:
+  ahora los conectores (y los peines) se dibujan después de los cables, así
+  su marca más chica y precisa gana el clic en ese punto exacto. El cable
+  se sigue pudiendo clickear en cualquier otro tramo de su largo. Probado
+  justo con ese caso (conector con un cable ya enganchado): antes no se
+  podía seleccionar para borrar, ahora sí.
+- **Descripción por circuito**: nuevo campo en Circuitos ("ej: Iluminación
+  cocina"), debajo de la sección/protección de cada uno. Se guarda en el
+  campo `notas` que ya existía en el modelo de datos pero nunca se mostraba
+  en ningún lado.
+- **La guía de tapa del PDF de Tablero ahora muestra esa descripción como
+  etiqueta** debajo de cada térmica, y **tiene un enmarcado tipo gabinete
+  real** (marco grueso con tornillos en las cuatro esquinas), para que la
+  hoja se sienta como el tablero físico y no sólo un diagrama. Las
+  etiquetas se acotan al ancho de su propia térmica para no superponerse
+  con la del vecino cuando están pegadas (el caso más común).
+
 ## 0.23.3 — polaridad automática (nada de elegirla a mano), y "carga" bien entendida: el cuerpo siempre va arriba del peine
 
 - **Bug real encontrado**: el selector de polaridad (fase/neutro) que se

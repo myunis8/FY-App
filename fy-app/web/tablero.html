@@ -483,9 +483,12 @@ function pintarGabinete(){
 
   // 2) el cableado se pinta SEGUNDO: ya se ve por encima del fondo decorativo
   // (bandas y rieles), que ya no tiene nada opaco de sobra tapándolo.
-  (t.conexiones||[]).forEach(c => { html += dibujoConexion(t, c); });
-  // los cruces se calculan una vez para todos los cables, para saber a cuál
-  // de los dos que se cruzan le toca el saltito por encima
+  // Los cables van ANTES que los peines/conectores (y no después, como antes)
+  // -- el área de clic de un cable es bien ancha para que sea fácil tocarlo,
+  // y como un cable siempre arranca justo en el terminal de un conector, esa
+  // franja ancha tapaba el clic del conector. Dibujando los conectores
+  // encima, su marca (más chica y precisa) gana el clic en ese punto exacto;
+  // el cable se sigue pudiendo clickear en cualquier otro tramo de su largo.
   const listaCables = (t.cables||[]).map(cb => {
     const a = puntoDeEndpoint(t, cb.origen), b = puntoDeEndpoint(t, cb.destino);
     if(!a || !b) return null;
@@ -496,6 +499,7 @@ function pintarGabinete(){
   const saltos = calcularSaltos(listaCables);
   const ptsPorId = {}; listaCables.forEach(c => { ptsPorId[c.id] = c.pts; });
   (t.cables||[]).forEach(cb => { html += dibujoCable(t, cb, saltos[cb.id], ptsPorId[cb.id]); });
+  (t.conexiones||[]).forEach(c => { html += dibujoConexion(t, c); });
 
   // 3) las térmicas van AL FINAL: son lo único que tapa el cableado, y sólo
   // exactamente donde están paradas — no todo el riel ni toda la banda.
@@ -695,8 +699,8 @@ function puntoDeEndpoint(t, ep){
   if(ep.tipo === 'conectorPeine'){
     const con = (t.conexiones||[]).find(c=>c.id===ep.id);
     if(!con) return null;
-    const yBarra = yRiel(con.piso) - (con.polaridad === 'neutro' ? 31 : 16);
-    const xCuerpo = CANAL + con.posicion*CELDA, yCuerpo = yBarra - 14;
+    const yBarraNeutro = yRiel(con.piso) - 31;
+    const xCuerpo = CANAL + con.posicion*CELDA, yCuerpo = yBarraNeutro - 14;
     return con.carga === 'lateral' ? {x: xCuerpo+20, y: yCuerpo} : {x: xCuerpo, y: yCuerpo-14};
   }
   return null;
@@ -925,9 +929,10 @@ function dibujoConexion(t, c){
   // costado (lateral). Ese cable se traza aparte, con la herramienta de
   // cable normal, rumbo a donde haga falta.
   const yBarra = yRiel(c.piso) - (c.polaridad === 'neutro' ? 31 : 16);
+  const yBarraNeutro = yRiel(c.piso) - 31;      // referencia común: la barra de arriba
   const xBarra = CANAL + c.posicion*CELDA;
-  const H_CUERPO = 14;                          // el cuerpo siempre a esta altura sobre la barra
-  const xCuerpo = xBarra, yCuerpo = yBarra - H_CUERPO;
+  const H_CUERPO = 14;                          // el cuerpo siempre a esta altura sobre ESA referencia
+  const xCuerpo = xBarra, yCuerpo = yBarraNeutro - H_CUERPO;
   const lateral = c.carga === 'lateral';
   const tx = lateral ? xCuerpo + 20 : xCuerpo;
   const ty = lateral ? yCuerpo : yCuerpo - 14;
