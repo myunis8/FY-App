@@ -3,6 +3,39 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 0.21.3 — la causa real del PDF de tablero cortado, y una red de seguridad para que no vuelva a pasar
+
+- **Causa real encontrada**: no era (sólo) la bornera. Cuando el usuario
+  endereza un cable a mano en el editor interactivo (arrastra un punto
+  intermedio para esquivar otro cable), ese punto se guarda en los píxeles
+  de ESE editor — que usa una escala mucho más grande (`celda=64`) pensada
+  para clickear cómodo con el mouse. El generador del PDF usaba esos mismos
+  números tal cual, pero su propia escala es `celda=34`. Resultado: cualquier
+  cable con un tramo enderezado a mano terminaba dibujado muy lejos de donde
+  correspondía — a veces bien afuera de la hoja, cortando todo lo que
+  estuviera después. Esto explica por qué el arreglo anterior (la bornera)
+  no alcanzó: era un bug real, pero no el único, y no el más frecuente en un
+  tablero con varios cables que se cruzan y hay que acomodar a mano.
+- **`_ruta_a_pdf()`**: convierte cada punto de ruta manual de píxeles del
+  editor a la posición lógica que representa (boca en X; piso + fracción en
+  Y) y lo reconstruye con la geometría propia de esta hoja. Probado con un
+  cable enderezado a mitad de la fila del General: en el PDF aparece
+  exactamente ahí, no desplazado.
+- **Red de seguridad, además de la corrección**: after de armar la hoja,
+  ahora se mide dónde termina *todo* lo que realmente se va a dibujar
+  (dispositivos, peines, puentes, cables con sus rutas ya convertidas) y si
+  algo cae más allá de lo pensado, la hoja se agranda para que entre —
+  nunca más se corta contenido, así aparezca en el futuro algún caso no
+  contemplado. Probado a propósito con un punto absurdo (5000,5000): la
+  hoja creció para cubrirlo en vez de cortarlo. En el caso normal (sin
+  ningún error) esto no agranda nada — se probó que la hoja da exactamente
+  el mismo tamaño que antes.
+- Nota: la "guía de tapa" (página 2) comparte la geometría con la de
+  conexionado, así que si algún cable puntual estira la hoja de
+  conexionado, la de tapa queda con el mismo tamaño (un poco más de margen
+  en blanco alrededor de las térmicas) — no afecta la corrección, sólo el
+  ajuste fino en ese caso puntual.
+
 ## 0.21.2 — PDF de tablero cortado por el borde (bornera PAT), "Volver" en Tablero, y combobox de precios en Presupuesto
 
 - **Bug encontrado y corregido: el PDF de conexionado del tablero salía

@@ -13,6 +13,17 @@ import pymupdf
 
 ANCHO, ALTO = 1000, 700               # apaisado, se ajusta según el tablero
 MARGEN = 34
+
+# geometría del editor interactivo (web/tablero.html) -- deliberadamente MUCHO
+# más grande que la de esta hoja (celda=34 acá vs. 64 ahí) para que sea cómodo
+# clickear con el mouse. Un punto de "ruta" manual (cuando el usuario endereza
+# un cable a mano) se guarda en esos píxeles de pantalla, no en los puntos de
+# esta hoja -- si se usan tal cual, un cable puede terminar dibujado bien
+# afuera de la página entera. Hay que convertirlos, nunca copiarlos directo.
+CANAL_WEB = 46
+CELDA_WEB = 64
+FRANJA_CANO_WEB = 58
+ALTURA_PISO_WEB = 78 + 150 + 78 + 22   # BANDA + ALTO_DISP + BANDA + MARGEN_PISO, ahí
 NAVY = (0x16/255, 0x28/255, 0x3f/255)
 TRAZO = (0x33/255, 0x50/255, 0x6e/255)
 GRIS = (0x5b/255, 0x6b/255, 0x7a/255)
@@ -152,6 +163,25 @@ def _dibujar_dispositivo(pg, x0, y0, w, h, d, circuito):
         _termica(pg, x0, y0, w, h, d, circuito or ("General" if d.get("rol") == "general" else ""))
 
 
+def _ruta_a_pdf(g: "_Geom", t: dict, ruta: list) -> list:
+    """Los puntos de una ruta trazada a mano en el editor vienen en píxeles
+    de ESE lienzo (celda=64, franjas más altas). Se convierten a la posición
+    lógica que representan (boca en X; piso + fracción dentro de la fila en
+    Y) y se reconstruyen con la geometría de ESTA hoja -- nunca se usan
+    directo, porque las dos escalas no tienen nada que ver entre sí."""
+    if not ruta:
+        return []
+    pisos = max(t.get("pisos", 1), 1)
+    out = []
+    for p in ruta:
+        x, y = p[0], p[1]
+        posicion = (x - CANAL_WEB) / CELDA_WEB
+        piso = max(0, min(pisos - 1, int((y - FRANJA_CANO_WEB) // ALTURA_PISO_WEB)))
+        frac = (y - (FRANJA_CANO_WEB + piso * ALTURA_PISO_WEB)) / ALTURA_PISO_WEB
+        out.append((g.x(posicion), g.y_piso(piso) + frac * (g.altura_piso - g.franja)))
+    return out
+
+
 # ---------------------------------------------------------------- geometría
 class _Geom:
     def __init__(self, t: dict):
@@ -172,6 +202,27 @@ class _Geom:
                 boca_maxima = max(boca_maxima, d["posicion"] + d["polos"])
         self.ancho = MARGEN * 2 + boca_maxima * self.celda
         self.alto = MARGEN * 2 + t["pisos"] * self.altura_piso - self.margen_piso + self.franja
+        # red de seguridad: además de los dispositivos, se mide TODO lo que
+        # realmente se va a dibujar (peines, puentes, cables -- incluidas sus
+        # rutas a mano) y si algo cae más allá de lo que da boca_maxima, se
+        # agranda la hoja para que entre. Así, aunque en el futuro aparezca
+        # un cálculo de posición con error en algún tipo de conexión que
+        # todavía no se encontró, el resultado es una hoja más grande, nunca
+        # un tablero cortado en el borde.
+        max_x, max_y = self.ancho, self.alto
+        for con in t.get("conexiones") or []:
+            if con["tipo"] == "peine":
+                max_x = max(max_x, self.x(con["hasta"] + 1) + MARGEN)
+            elif con["tipo"] == "puente":
+                max_x = max(max_x, self.x(con["x"] + 1) + MARGEN)
+        for cable in t.get("cables") or []:
+            pts = [p for p in (_punto_endpoint(self, t, cable.get("origen")),
+                               _punto_endpoint(self, t, cable.get("destino"))) if p]
+            pts += _ruta_a_pdf(self, t, cable.get("ruta") or [])
+            for (px, py) in pts:
+                max_x = max(max_x, px + MARGEN)
+                max_y = max(max_y, py + MARGEN)
+        self.ancho, self.alto = max_x, max_y
 
     def x(self, posicion: float) -> float:
         return MARGEN + posicion * self.celda
@@ -352,7 +403,7 @@ def _pagina_conexionado(doc, t: dict, obra: dict):
         b = _punto_endpoint(g, t, cable.get("destino"))
         if not a or not b:
             continue
-        ruta = [tuple(p) for p in (cable.get("ruta") or [])]
+        ruta = _ruta_a_pdf(g, t, cable.get("ruta") or [])
         pts = _ortogonalizar([a, *ruta, b])
         con_pts.append((cable["id"], pts, cable))
     saltos = _calcular_saltos([(cid, pts) for cid, pts, _ in con_pts])
