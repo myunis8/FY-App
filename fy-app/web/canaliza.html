@@ -1214,7 +1214,7 @@ function drawScene(g, opt){
   const problems = opt.problems || new Set();
   const detailed = !!opt.detailed;
 
-  if(S.base) g.drawImage(S.base,0,0);
+  if(S.base && !opt.skipBase) g.drawImage(S.base,0,0);
 
   // --- caños (agrupados) y cables
   const groups = conduitGroups();
@@ -2630,6 +2630,13 @@ $("#pdfGo").onclick = async ()=>{
   busy(false);
 };
 
+// cache del fondo ya reescalado, para no repetir el resize de la foto del
+// plano (puede ser de varios megapíxeles) en cada una de las hojas del PDF
+// -- makePdf() genera siempre a res:6000, así que la escala `s` es idéntica
+// en la hoja general, la detallada y cada una de las N hojas por circuito.
+// Se invalida sola si cambia el plano de base o el tamaño pedido.
+let _fondoCache = null;   // {base, w, h, canvas}
+
 function planCanvas(opt){
   const W = S.base.width, H = S.base.height;
   const max = opt.res || 3200;
@@ -2637,13 +2644,27 @@ function planCanvas(opt){
   // cajas/caños dibujados queden nítidos aunque la foto de fondo sea de baja calidad;
   // si el plano ya es grande, lo achicamos para no generar archivos gigantes
   const s = Math.min(2.5, max/Math.max(W,H));
+  const cw = Math.round(W*s), ch = Math.round(H*s);
+  if(!_fondoCache || _fondoCache.base!==S.base || _fondoCache.w!==cw || _fondoCache.h!==ch){
+    const bg = document.createElement("canvas");
+    bg.width=cw; bg.height=ch;
+    const bgCtx = bg.getContext("2d");
+    bgCtx.imageSmoothingEnabled = true; bgCtx.imageSmoothingQuality = "high";
+    bgCtx.drawImage(S.base, 0, 0, cw, ch);
+    _fondoCache = {base:S.base, w:cw, h:ch, canvas:bg};
+  }
   const c = document.createElement("canvas");
-  c.width=Math.round(W*s); c.height=Math.round(H*s);
+  c.width=cw; c.height=ch;
   const g=c.getContext("2d");
   g.imageSmoothingEnabled = true; g.imageSmoothingQuality = "high";
   g.fillStyle="#fff"; g.fillRect(0,0,c.width,c.height);
+  // fondo ya reescalado exactamente al tamaño final: blit 1:1, sin volver a
+  // resamplear la foto original -- por eso va ANTES del g.scale(s,s) (si no,
+  // se escalaría dos veces). El resto de la escena sigue en coordenadas
+  // naturales del plano, como siempre.
+  g.drawImage(_fondoCache.canvas, 0, 0);
   g.save(); g.scale(s,s);
-  drawScene(g, Object.assign({z:s}, opt));
+  drawScene(g, Object.assign({z:s, skipBase:true}, opt));
   // findCrossings() recorre todos los cruces de TODO el proyecto (cuesta
   // O(tramos²)) y da exactamente lo mismo para cualquier hoja del mismo PDF
   // -- si no viene ya calculado (opt.crossings, ver makePdf), se calcula acá

@@ -3,6 +3,57 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 0.26.0 — nueva hoja de esquema unifilar en el PDF de Tablero, y el PDF de Routeo genera bastante más rápido todavía
+
+- **Nueva hoja "esquema unifilar" en el PDF de Tablero.** Además de
+  conexionado y guía de tapa, ahora `generar()` agrega una tercera hoja con
+  la topología eléctrica clásica: alimentación desde medidor → interruptor
+  termomagnético general → diferencial → barra de fase/neutro → una térmica
+  por circuito, con su descripción (la misma de Circuitos, unificada en la
+  versión anterior), corriente y sección. La puesta a tierra se dibuja como
+  una bajada aparte con el símbolo de jabalina, separada de las barras de
+  fase/neutro (en una instalación TT es un sistema aparte).
+  - No inventa datos que la app no tiene: no hay potencia estimada por
+    circuito, tipo de sistema de puesta a tierra, resistencia de jabalina ni
+    norma aplicada, porque hoy no se cargan en ningún lado. El día de
+    mañana que se agreguen esos campos, esta hoja es el lugar natural para
+    mostrarlos.
+  - El alto de la página se calcula de antemano según cuántas líneas ocupa
+    la descripción más larga de los circuitos, en vez de dejar una hoja de
+    tamaño fijo con espacio de sobra o de menos.
+  - Se agregan tres símbolos nuevos reutilizables (`_simbolo_interruptor`,
+    `_simbolo_diferencial`, `_simbolo_tierra`) con el mismo lenguaje visual
+    (colores, trazos) que ya usan las otras dos hojas.
+  - Probado generando el PDF a mano con varias combinaciones (sin
+    diferencial, tablero recién creado sin ningún circuito todavía, sin
+    bornera de tierra, un tablero trifásico con 10 circuitos) y mirando
+    cada resultado renderizado -- ninguna combinación rompe, todas quedan
+    legibles. También probado de punta a punta contra un servidor real:
+    crear una obra, cargar circuitos, crear un tablero, sincronizarlo y
+    descargar el PDF por la misma ruta que ya usaba el botón "Exportar
+    PDF" de Tablero (sin tocar ese botón).
+- **El PDF de Routeo genera todavía más rápido.** Además del cálculo de
+  cruces (ya arreglado en la versión anterior), se encontró un segundo
+  cuello de botella real: **la foto del plano se volvía a reescalar entera
+  en cada una de las hojas** del PDF (la general, la detallada, y una por
+  cada circuito) -- con una foto de varios megapíxeles (como una foto
+  sacada con el celular) reescalar de nuevo en cada hoja es caro, y
+  `makePdf()` genera siempre a la misma resolución (6000 px), así que el
+  resultado de reescalarla es idéntico en las N hojas.
+  - `canaliza.html`: `planCanvas()` ahora reescala el fondo una sola vez
+    (queda en caché mientras no cambie el plano) y lo reutiliza con un
+    blit directo en el resto de las hojas, en vez de volver a resamplear
+    la foto original cada vez. `drawScene()` recibe un flag nuevo
+    (`skipBase`) para no dibujar el fondo cuando ya lo dibujó
+    `planCanvas()` aparte -- no cambia en nada el comportamiento del
+    editor en pantalla, que sigue llamando a `drawScene()` como siempre.
+  - Medido con Puppeteer sobre el código ya parcheado, con una foto
+    sintética de 3200×4200 con textura (no un color plano, para que el
+    costo de reescalado sea representativo): 20 circuitos pasó de 13.1s a
+    5.2s, otra mejora de ~2.5x encima de la del cálculo de cruces. Sumando
+    las dos mejoras, un proyecto grande debería andar entre 5 y 6 veces
+    más rápido que antes de estos dos cambios.
+
 ## 0.25.0 — la obra abierta ahora es una pantalla propia (con Volver a Home), "Tablero principal" a secas se borra solo, y el PDF de Routeo genera bastante más rápido
 
 - **El detalle de una obra ya no es un modal, es una pantalla propia:
