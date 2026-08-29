@@ -3,6 +3,65 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 0.27.0 — el esquema unifilar ahora se ve como un plano de verdad
+
+- **Rediseño completo de la hoja de esquema unifilar** (agregada en 0.26.0),
+  para que se parezca de verdad al formato de plano que suele pedir un
+  cliente, con los mismos bloques:
+  - Ficha de datos generales (tensión nominal, sistema, puesta a tierra,
+    resistencia estimada, norma aplicada) arriba a la izquierda. Son
+    valores estándar para el tipo de instalación residencial conectada a
+    red que maneja esta app en Argentina (por eso ya asume AEA en todos
+    lados: H07V-U, IUG/TUG/TUE, etc.) -- hoy no hay ningún campo para
+    cargarlos obra por obra, así que si en algún momento se agregan, éste
+    es el lugar natural para leerlos en vez de estos valores fijos.
+  - Tabla de "Referencias" de verdad (con filas y encabezado), no una
+    lista suelta.
+  - Un ícono por circuito según su tipo (lamparita para iluminación,
+    tomacorriente, termotanque, cocina, aire acondicionado, ducha, con
+    reconocimiento por palabras clave en la descripción para los casos
+    "TUE" que sin eso serían todos iguales) en vez de mostrar sólo texto.
+  - Símbolos IEC más fieles: el interruptor termomagnético ahora es el
+    símbolo de "llave abierta" (dos terminales y una diagonal) en vez de
+    una cruz en un cuadrado, y el diferencial muestra "IΔn" adentro del
+    cuadro en vez de sólo la letra griega.
+  - Barra de tierra (PE) separada de fase/neutro, punteada, con el
+    símbolo de jabalina en la punta -- y una segunda línea de PE a nivel
+    de circuito, conectando la masa de cada uno, para que quede claro que
+    comparten el mismo conductor de protección.
+  - Notas al pie y un cuadro de título (obra, ubicación, tablero, fecha,
+    quién lo hizo, con el logo si está cargado en Configuración) igual al
+    de cualquier plano entregable.
+  - Deliberadamente NO incluye una tabla de potencias por circuito (el
+    "resumen de cargas" que trae un plano así): esta app hoy no carga
+    ninguna potencia por circuito en ningún lado, y mostrarla habría sido
+    inventar un número en vez de informarlo.
+  - Se probaron a mano varias combinaciones al armar esto (sin
+    diferencial, tablero recién creado sin ningún circuito todavía, sin
+    bornera de tierra, un trifásico con 10 circuitos, uno con un solo
+    circuito) mirando cada resultado renderizado, además de la prueba de
+    punta a punta contra un servidor real. En el camino se encontraron y
+    corrigieron dos bugs de layout reales (el ícono pisaba el texto de la
+    térmica, y la etiqueta de la barra de neutro tocaba el primer
+    interruptor en tableros con pocos circuitos) y uno de datos (la
+    dirección de la obra se cortaba en el cuadro de título).
+- **Bug real encontrado de paso: la letra griega y la raya larga no
+  existen en la fuente base que usa PyMuPDF** ("hebo"/"helv") y quedaban
+  como un punto suelto en vez de tirar error -- silencioso y fácil de no
+  notar. Afectaba:
+  - El símbolo Δ del diferencial en las hojas de conexionado y guía de
+    tapa (ya estaban en el PDF desde antes de este cambio): ahora se
+    dibuja a mano como un triángulo, igual que se hizo para el símbolo
+    nuevo del unifilar.
+  - El título "Tablero — {nombre} · conexionado/guía de tapa": la raya
+    larga se reemplazó por el mismo separador "·" que ya usa el resto del
+    título.
+  - El símbolo Ω de la ficha de datos generales del unifilar: se
+    reemplazó por el texto "ohm".
+  - El guion de reemplazo ("—") en los campos vacíos del cuadro de título
+    del unifilar y en el encabezado del PDF de Presupuesto ("Cliente: —"
+    cuando no hay cliente cargado): se reemplazaron por un guion simple.
+
 ## 0.26.0 — nueva hoja de esquema unifilar en el PDF de Tablero, y el PDF de Routeo genera bastante más rápido todavía
 
 - **Nueva hoja "esquema unifilar" en el PDF de Tablero.** Además de

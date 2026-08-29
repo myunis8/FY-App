@@ -114,8 +114,8 @@ def _encabezado(pg, obra: dict, cfg: dict) -> float:
                    fontsize=18, fontname="hebo", color=NAVY)
 
     campos = [
-        ("Cliente:", obra["obra"].get("cliente") or "—"),
-        ("Obra / dirección:", obra["obra"].get("nombre") or "—"),
+        ("Cliente:", obra["obra"].get("cliente") or "-"),
+        ("Obra / dirección:", obra["obra"].get("nombre") or "-"),
         ("Fecha:", datetime.now().strftime("%d/%m/%Y")),
         ("Tipo de instalación:",
          "Trifásica" if obra["obra"].get("tipoInstalacion") == 3 else "Monofásica"),

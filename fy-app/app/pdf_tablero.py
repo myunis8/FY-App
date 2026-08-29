@@ -9,7 +9,9 @@ usa el mismo ruteo en escuadra con saltos donde dos cables se cruzan.
 """
 from __future__ import annotations
 import io
+from datetime import datetime
 import pymupdf
+from . import config as cfgmod
 
 ANCHO, ALTO = 1000, 700               # apaisado, se ajusta según el tablero
 MARGEN = 34
@@ -148,7 +150,11 @@ def _diferencial(pg, x0, y0, w, h, d, circuito):
     _texto_centrado(pg, x0 + w*0.27, y0 + h*0.48, "T", min(w*0.2, 12), TRAZO)
     pg.draw_rect(pymupdf.Rect(x0 + w * 0.52, y0 + h * 0.3, x0 + w * 0.86, y0 + h * 0.42),
                 color=None, fill=COLOR_ROL["diferencial"], radius=0.2)
-    pg.insert_text((x0 + w * 0.14, y0 + h * 0.2), "Δ", fontsize=9, color=TRAZO)
+    tx, ty = x0 + w * 0.14, y0 + h * 0.2
+    ts = 7.5
+    pg.draw_line((tx + ts * 0.35, ty - ts), (tx, ty), color=TRAZO, width=0.9)
+    pg.draw_line((tx + ts * 0.35, ty - ts), (tx + ts * 0.7, ty), color=TRAZO, width=0.9)
+    pg.draw_line((tx, ty), (tx + ts * 0.7, ty), color=TRAZO, width=0.9)
     _texto_centrado(pg, x0 + w/2, y0 + h*0.72, f'{d.get("corriente","")}A {d.get("sensibilidadMa","")}mA',
                     min(w*0.11, 8), TRAZO, fuente_max=w*0.9)
     if circuito:
@@ -505,7 +511,7 @@ def _pagina_conexionado(doc, t: dict, obra: dict):
     g = _Geom(t)
     pg = doc.new_page(width=g.ancho, height=g.alto)
     _fondo(pg, g, t)
-    pg.insert_text((MARGEN, 20), f"Tablero — {t.get('nombre','')} · conexionado",
+    pg.insert_text((MARGEN, 20), f"Tablero · {t.get('nombre','')} · conexionado",
                    fontsize=13, fontname="hebo", color=NAVY)
 
     # peines: dos barras (fase y neutro) si corresponde
@@ -615,7 +621,7 @@ def _pagina_tapa(doc, t: dict, obra: dict):
     ancho, alto = ancho_disp + MARCO * 2, g.alto + MARCO * 2 + 8
     pg = doc.new_page(width=ancho, height=alto)
     pg.draw_rect(pg.rect, color=None, fill=(0.93, 0.94, 0.95))
-    pg.insert_text((MARCO, 20), f"Tablero — {t.get('nombre','')} · guía de tapa",
+    pg.insert_text((MARCO, 20), f"Tablero · {t.get('nombre','')} · guía de tapa",
                    fontsize=13, fontname="hebo", color=NAVY)
     # el gabinete en sí: un marco grueso con tornillos en las esquinas,
     # como para que se sienta la tapa real del tablero
@@ -679,31 +685,47 @@ def _contar_lineas(texto, fontsize, ancho_max, max_lineas=3):
 
 
 # ---------------------------------------------------------------- unifilar
-def _simbolo_interruptor(pg, x, y, alto=16, color=None):
-    """Símbolo de interruptor termomagnético para el esquema unifilar: la
-    línea del conductor cortada por una pequeña cruz dentro de un cuadrado
-    -- el mismo lenguaje que ya usa la leyenda de referencias de los planos
-    que suele traer el cliente, para que se lea como "lo de siempre"."""
+def _simbolo_interruptor(pg, x, y, alto=18, color=None):
+    """Símbolo IEC de interruptor termomagnético unipolar: el conductor se
+    corta en un hueco chico, con dos terminales (puntos) y una diagonal
+    entre ellos -- el símbolo de "llave abierta" de cualquier plano
+    unifilar, no una convención propia de esta app."""
     color = color or TRAZO
-    lado = alto * 0.62
-    pg.draw_line((x, y - alto / 2), (x, y - lado / 2), color=color, width=1.3)
-    pg.draw_line((x, y + lado / 2), (x, y + alto / 2), color=color, width=1.3)
-    r = pymupdf.Rect(x - lado / 2, y - lado / 2, x + lado / 2, y + lado / 2)
-    pg.draw_rect(r, color=color, fill=BLANCO, width=1.1)
-    k = lado * 0.28
-    pg.draw_line((x - k, y - k), (x + k, y + k), color=color, width=1.1)
+    g = alto * 0.5
+    y0, y1 = y - g / 2, y + g / 2
+    pg.draw_line((x, y - alto / 2), (x, y0), color=color, width=1.3)
+    pg.draw_line((x, y1), (x, y + alto / 2), color=color, width=1.3)
+    pg.draw_circle((x, y0), 1.3, color=color, fill=color)
+    pg.draw_circle((x, y1), 1.3, color=color, fill=color)
+    pg.draw_line((x - g * 0.4, y0 + g * 0.1), (x + g * 0.4, y1 - g * 0.1), color=color, width=1.4)
 
 
-def _simbolo_diferencial(pg, x, y, alto=16, color=None):
-    """Símbolo de interruptor diferencial: el mismo cuadrado del
-    termomagnético, pero con una Δ adentro en vez de la cruz."""
+def _simbolo_diferencial(pg, x, y, alto=22, color=None):
+    """Símbolo de interruptor diferencial: un cuadro en la línea con "IΔn"
+    adentro -- así es como lo escribe cualquier plano o catálogo, no sólo
+    la letra griega sola. La Δ se dibuja a mano (un triángulo) en vez de
+    escribirla como texto porque la fuente base no siempre trae ese glifo
+    y queda un carácter roto."""
     color = color or COLOR_ROL["diferencial"]
-    lado = alto * 0.7
-    pg.draw_line((x, y - alto / 2), (x, y - lado / 2), color=color, width=1.3)
-    pg.draw_line((x, y + lado / 2), (x, y + alto / 2), color=color, width=1.3)
-    r = pymupdf.Rect(x - lado / 2, y - lado / 2, x + lado / 2, y + lado / 2)
+    w, h = alto * 1.15, alto * 0.8
+    pg.draw_line((x, y - alto / 2), (x, y - h / 2), color=color, width=1.3)
+    pg.draw_line((x, y + h / 2), (x, y + alto / 2), color=color, width=1.3)
+    r = pymupdf.Rect(x - w / 2, y - h / 2, x + w / 2, y + h / 2)
     pg.draw_rect(r, color=color, fill=BLANCO, width=1.1)
-    _texto_centrado(pg, x, y + lado * 0.32, "Δ", lado * 0.9, color, negrita=True)
+    fs = h * 0.5
+    ancho_i = pymupdf.get_text_length("I", fontname="hebo", fontsize=fs)
+    ancho_n = pymupdf.get_text_length("n", fontname="helv", fontsize=fs)
+    tri = h * 0.3
+    total = ancho_i + tri * 1.3 + ancho_n
+    x0 = x - total / 2
+    ty = y + h * 0.18
+    pg.insert_text((x0, ty), "I", fontsize=fs, fontname="hebo", color=color)
+    tri_cx = x0 + ancho_i + tri * 0.65
+    tri_top, tri_bot = ty - tri * 0.9, ty + tri * 0.12
+    pg.draw_line((tri_cx, tri_top), (tri_cx - tri * 0.5, tri_bot), color=color, width=1.0)
+    pg.draw_line((tri_cx, tri_top), (tri_cx + tri * 0.5, tri_bot), color=color, width=1.0)
+    pg.draw_line((tri_cx - tri * 0.5, tri_bot), (tri_cx + tri * 0.5, tri_bot), color=color, width=1.0)
+    pg.insert_text((tri_cx + tri * 0.65, ty), "n", fontsize=fs * 0.85, fontname="helv", color=color)
 
 
 def _simbolo_tierra(pg, x, y, ancho=14, color=None):
@@ -714,18 +736,174 @@ def _simbolo_tierra(pg, x, y, ancho=14, color=None):
         pg.draw_line((x - w / 2, yy), (x + w / 2, yy), color=color, width=1.3)
 
 
+# ------------------------------------------------------- íconos de circuito
+# Pictogramas simples (sólo trazos, sin relleno de color) para que se lea de
+# un vistazo qué alimenta cada circuito -- el mismo espíritu que cualquier
+# esquema unifilar entregable, sin pretender ser un dibujo técnico del
+# artefacto real.
+def _icono_lampara(pg, cx, cy, s, color):
+    r = s * 0.3
+    pg.draw_circle((cx, cy - s * 0.06), r, color=color, fill=BLANCO, width=1.1)
+    pg.draw_line((cx - r * 0.4, cy - s * 0.06), (cx + r * 0.4, cy - s * 0.06), color=color, width=0.8)
+    for i in range(3):
+        yy = cy - s * 0.06 + r + i * (s * 0.08)
+        pg.draw_line((cx - s * 0.12, yy), (cx + s * 0.12, yy), color=color, width=0.9)
+
+
+def _icono_toma(pg, cx, cy, s, color):
+    w = h = s * 0.6
+    pg.draw_rect(pymupdf.Rect(cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2),
+                color=color, fill=BLANCO, width=1.1, radius=0.14)
+    for dx in (-s * 0.11, s * 0.11):
+        pg.draw_line((cx + dx, cy - s * 0.1), (cx + dx, cy + s * 0.08), color=color, width=1.3)
+
+
+def _icono_lavarropas(pg, cx, cy, s, color):
+    w, h = s * 0.58, s * 0.66
+    pg.draw_rect(pymupdf.Rect(cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2),
+                color=color, fill=BLANCO, width=1.1, radius=0.1)
+    pg.draw_circle((cx, cy + s * 0.06), s * 0.19, color=color, width=1.0)
+    pg.draw_circle((cx, cy + s * 0.06), s * 0.09, color=color, width=0.8)
+    pg.draw_line((cx - w * 0.3, cy - h * 0.3), (cx + w * 0.12, cy - h * 0.3), color=color, width=0.9)
+
+
+def _icono_termotanque(pg, cx, cy, s, color):
+    w, h = s * 0.4, s * 0.7
+    pg.draw_rect(pymupdf.Rect(cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2),
+                color=color, fill=BLANCO, width=1.1, radius=0.4)
+    pg.draw_line((cx - w * 0.3, cy - h * 0.12), (cx + w * 0.3, cy - h * 0.12), color=color, width=0.9)
+
+
+def _icono_cocina(pg, cx, cy, s, color):
+    w, h = s * 0.64, s * 0.54
+    pg.draw_rect(pymupdf.Rect(cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2),
+                color=color, fill=BLANCO, width=1.1, radius=0.08)
+    for dx in (-w * 0.22, w * 0.22):
+        for dy in (-h * 0.2, h * 0.2):
+            pg.draw_circle((cx + dx, cy + dy), s * 0.065, color=color, width=0.9)
+
+
+def _icono_aire(pg, cx, cy, s, color):
+    w, h = s * 0.76, s * 0.32
+    pg.draw_rect(pymupdf.Rect(cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2),
+                color=color, fill=BLANCO, width=1.1, radius=0.3)
+    for i in range(3):
+        xx = cx - w * 0.24 + i * (w * 0.24)
+        pg.draw_line((xx, cy + h * 0.1), (xx + w * 0.1, cy + h * 0.34), color=color, width=0.9)
+
+
+def _icono_ducha(pg, cx, cy, s, color):
+    w = s * 0.5
+    pg.draw_line((cx - w / 2, cy - s * 0.24), (cx + w / 2, cy - s * 0.24), color=color, width=1.3)
+    pg.draw_line((cx - w * 0.32, cy - s * 0.24), (cx - w * 0.32, cy - s * 0.32), color=color, width=1.0)
+    pg.draw_line((cx + w * 0.32, cy - s * 0.24), (cx + w * 0.32, cy - s * 0.32), color=color, width=1.0)
+    for dx in (-w * 0.28, 0, w * 0.28):
+        pg.draw_line((cx + dx, cy - s * 0.16), (cx + dx, cy + s * 0.26), color=color, width=0.9)
+
+
+def _icono_generico(pg, cx, cy, s, color):
+    w = h = s * 0.5
+    pg.draw_rect(pymupdf.Rect(cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2),
+                color=color, fill=BLANCO, width=1.1, radius=0.1)
+    _texto_centrado(pg, cx, cy + s * 0.1, "E", s * 0.4, color, negrita=True)
+
+
+def _icono_para_circuito(circuito):
+    tipo = (circuito or {}).get("tipo")
+    texto = ((circuito or {}).get("notas") or "").lower()
+    if tipo in ("IUG", "IUE") or "ilumina" in texto:
+        return _icono_lampara
+    if "termotanque" in texto or "calefón" in texto or "calefon" in texto:
+        return _icono_termotanque
+    if "cocina" in texto or "horno" in texto or "anafe" in texto:
+        return _icono_cocina
+    if tipo == "ACU" or "aire acondicionado" in texto or " a/a" in texto:
+        return _icono_aire
+    if "lavarropa" in texto:
+        return _icono_lavarropas
+    if "ducha" in texto:
+        return _icono_ducha
+    if tipo == "TUG":
+        return _icono_toma
+    return _icono_generico
+
+
+def _tabla_referencias(pg, x0, y0, w):
+    """Tabla de referencias con el mismo formato de dos columnas (símbolo /
+    descripción) que trae cualquier plano de este tipo -- se arma como
+    tabla de verdad (con filas y encabezado), no como una lista suelta."""
+    filas = [
+        (lambda cx, cy: _simbolo_interruptor(pg, cx, cy, alto=13, color=NAVY), "Interruptor termomagnético"),
+        (lambda cx, cy: _simbolo_diferencial(pg, cx, cy, alto=13), "Interruptor diferencial"),
+        (lambda cx, cy: pg.draw_line((cx - 7, cy), (cx + 7, cy), color=COLOR_POLARIDAD["fase"], width=2.2),
+         "Conductor de fase (L)"),
+        (lambda cx, cy: pg.draw_line((cx - 7, cy), (cx + 7, cy), color=COLOR_POLARIDAD["neutro"], width=2.2),
+         "Conductor de neutro (N)"),
+        (lambda cx, cy: pg.draw_line((cx - 7, cy), (cx + 7, cy), color=COLOR_POLARIDAD["tierra"], width=1.8,
+                                     dashes="[2 1.4] 0"), "Conductor de protección (PE)"),
+        (lambda cx, cy: _simbolo_tierra(pg, cx, cy + 2, ancho=10), "Puesta a tierra"),
+    ]
+    fila_h = 17
+    alto = 20 + len(filas) * fila_h
+    pg.draw_rect(pymupdf.Rect(x0, y0, x0 + w, y0 + alto), color=(0.8, 0.82, 0.84), fill=BLANCO,
+                width=0.8, radius=0.02)
+    _texto_centrado(pg, x0 + w / 2, y0 + 13, "REFERENCIAS", 8, NAVY, negrita=True)
+    pg.draw_line((x0, y0 + 19), (x0 + w, y0 + 19), color=(0.85, 0.86, 0.87), width=0.6)
+    col_simbolo = x0 + 22
+    for i, (dibujar, etiqueta) in enumerate(filas):
+        cy = y0 + 19 + fila_h * (i + 0.55)
+        dibujar(col_simbolo, cy)
+        pg.insert_text((x0 + 42, cy + 3), etiqueta, fontsize=6.6, fontname="helv", color=TRAZO)
+        if i < len(filas) - 1:
+            pg.draw_line((x0, y0 + 19 + fila_h * (i + 1)), (x0 + w, y0 + 19 + fila_h * (i + 1)),
+                        color=(0.92, 0.93, 0.94), width=0.5)
+    return alto
+
+
+def _caja_datos_generales(pg, x0, y0, w, fases):
+    """Ficha de datos generales de la instalación -- tensión, sistema,
+    puesta a tierra, norma. La mayoría son estándar para una instalación
+    residencial conectada a red en Argentina (por eso esta app ya asume
+    AEA en todos lados: H07V-U, IUG/TUG/TUE, etc.) y no hay ningún campo
+    hoy donde cargarlos obra por obra -- si en algún momento se agregan,
+    acá es el lugar natural para leerlos en vez de estos valores fijos."""
+    filas = [
+        ("TENSIÓN NOMINAL", "380 V~  50 Hz" if fases == 3 else "220 V~  50 Hz"),
+        ("SISTEMA", "TT"),
+        ("PUESTA A TIERRA", "Jabalina 5/8\" x 2,40 m"),
+        ("RESISTENCIA ESTIMADA", "< 10 ohm"),
+        ("NORMA APLICADA", "AEA 90364"),
+    ]
+    fila_h = 16.4
+    alto = len(filas) * fila_h
+    col_izq = w * 0.46
+    pg.draw_rect(pymupdf.Rect(x0, y0, x0 + w, y0 + alto), color=(0.8, 0.82, 0.84), fill=BLANCO, width=0.8)
+    for i, (k, v) in enumerate(filas):
+        yy = y0 + i * fila_h
+        if i:
+            pg.draw_line((x0, yy), (x0 + w, yy), color=(0.88, 0.89, 0.9), width=0.5)
+        pg.draw_line((x0 + col_izq, yy), (x0 + col_izq, yy + fila_h), color=(0.88, 0.89, 0.9), width=0.5)
+        pg.insert_text((x0 + 8, yy + fila_h * 0.68), k, fontsize=6.6, fontname="hebo", color=TRAZO)
+        pg.insert_text((x0 + col_izq + 8, yy + fila_h * 0.68), v, fontsize=6.8, fontname="helv", color=NAVY)
+    return alto
+
+
 def _pagina_unifilar(doc, t: dict, obra: dict):
     """Esquema unifilar del tablero: la topología eléctrica (interruptor
-    general → diferencial → barras → una térmica por circuito), no la
-    disposición física como las otras dos hojas. Sirve para entregar junto
-    con el resto de la documentación, tipo el esquema que suele pedir el
-    cliente o dejar el electricista pegado en obra.
+    general → diferencial → barras → una térmica por circuito, con su
+    ícono, descripción y sección de cable), no la disposición física como
+    las otras dos hojas. Pensada para entregar junto con el resto de la
+    documentación, con el mismo formato que trae cualquier plano de este
+    tipo que le llegue al cliente.
 
-    Sólo se apoya en datos que la app ya tiene (protecciones, secciones,
-    descripción de cada circuito): no inventa potencias de carga, tipo de
-    sistema de puesta a tierra ni norma aplicada, porque hoy no se cargan en
-    ningún lado. Si en algún momento se agregan esos campos, esta hoja es el
-    lugar natural para mostrarlos."""
+    Se apoya en datos que la app ya tiene (protecciones, secciones,
+    descripción de cada circuito); los datos generales de la instalación
+    (tensión, sistema, puesta a tierra, norma) son estándar para el tipo de
+    obra que maneja esta app -- ver _caja_datos_generales. Lo único que
+    deliberadamente NO se muestra es un resumen de potencias por circuito
+    (como el que suele traer un plano así), porque esta app hoy no carga
+    ninguna potencia por circuito en ningún lado: mostrarlo sería
+    inventar un número, no informarlo."""
     dispositivos = t.get("dispositivos") or []
     general = next((d for d in dispositivos if d.get("tipo") == "termica" and d.get("rol") == "general"), None)
     diferencial = next((d for d in dispositivos if d.get("tipo") == "diferencial"), None)
@@ -734,19 +912,25 @@ def _pagina_unifilar(doc, t: dict, obra: dict):
         [d for d in dispositivos if d.get("tipo") in ("termica", "protector") and d.get("rol") != "general"],
         key=lambda d: (d.get("piso") if d.get("piso") is not None else 999,
                        d.get("posicion") if d.get("posicion") is not None else 999))
+    fases = t.get("fases", 1)
+    hilos = 5 if fases == 3 else 3   # F+F+F+N+PE vs. F+N+PE, para la etiqueta "n x sección"
 
-    COL = 104                    # ancho de columna por ramal
-    M = 34                       # margen de hoja
-    X_CADENA = M + 26            # columna fija de F/N -> general -> diferencial (no depende de cuántos ramales haya)
-    X_RAMALES = X_CADENA + 90    # el primer ramal arranca bien separado de la cadena principal
-    ancho = max(600, X_RAMALES + max(len(ramales), 1) * COL - COL / 2 + M)
+    COL = 106
+    M = 28
+    INFO_W = 232
+    REF_W = 210
+    X_CADENA = M + INFO_W + 46
+    X_RAMALES = X_CADENA + 100
+    ancho = max(X_CADENA + REF_W + 60, X_RAMALES + max(len(ramales), 1) * COL - COL / 2 + M + REF_W + 40)
 
-    # alto: se calcula de antemano (sin dibujar nada) según cuántas líneas
-    # ocupa la descripción más larga de los ramales, en vez de un número
-    # fijo que sobre o falte según el circuito
-    y_gen0 = (46 + 16 + 22 + 14) if general else 46 + 16
-    y_bus0 = y_gen0 + (22 + 14 if diferencial else 0) + 16
-    y_ramal0 = y_bus0 + 22
+    # --- alto: se calcula de antemano, igual que antes, según la descripción
+    # más larga y si hay diferencial/tierra, para no dejar una hoja con un
+    # tamaño fijo que sobre o falte
+    y0_cadena = 78
+    y_gen0 = y0_cadena + 16 + (22 + 14 if general else 0)
+    y_dif0 = y_gen0 + (24 + 16 if diferencial else 0)
+    y_bus0 = y_dif0 + 14
+    y_ramal0 = y_bus0 + 24 + 44                       # y_ramal + separación hasta el ícono
     max_desc_alto = 0
     for d in ramales:
         circuito = _circuito_de(obra, d.get("circuitoId"))
@@ -755,23 +939,32 @@ def _pagina_unifilar(doc, t: dict, obra: dict):
             desc = "Protector de sobretensión"
         n_lineas = _contar_lineas(desc, 6.6, COL - 12) if desc else 1
         max_desc_alto = max(max_desc_alto, n_lineas * 6.6 * 1.25)
-    y_final_ramales_est = y_ramal0 + 15 + 11 + max_desc_alto + 13
-    piso_tierra = 150 if tierra else 0
-    alto = max(34 + 74 + 34, y_final_ramales_est, piso_tierra) + M
+    y_final_ramales_est = y_ramal0 + 13 + 11 + max_desc_alto + 13
+    info_h = 5 * 16.4                       # debe coincidir con _caja_datos_generales
+    ref_h = 20 + 6 * 17                     # debe coincidir con _tabla_referencias
+    y_fin_fichas = (y0_cadena - 6) + max(info_h, ref_h)
+    alto_diagrama = max(y_final_ramales_est, y_fin_fichas)
+    NOTAS_H = 46
+    TITULO_H = 30
+    alto = alto_diagrama + 20 + NOTAS_H + TITULO_H + M
 
     pg = doc.new_page(width=ancho, height=alto)
     pg.draw_rect(pg.rect, color=None, fill=FONDO_HOJA)
-    pg.insert_text((M, 22), f"Tablero — {t.get('nombre','')} · esquema unifilar",
-                   fontsize=13, fontname="hebo", color=NAVY)
+    _texto_centrado(pg, ancho / 2, 24, "ESQUEMA UNIFILAR DE TABLERO", 14, NAVY, negrita=True)
+    _texto_centrado(pg, ancho / 2, 40, t.get("nombre", ""), 10, GRIS, negrita=True)
+
+    # ficha de datos generales, arriba a la izquierda
+    _caja_datos_generales(pg, M, y0_cadena - 6, INFO_W, fases)
+    # tabla de referencias, arriba a la derecha
+    _tabla_referencias(pg, ancho - M - REF_W, y0_cadena - 6, REF_W)
 
     x = X_CADENA
-    y = 48
-    pg.insert_text((M, y - 8), "ALIMENTACIÓN DESDE MEDIDOR", fontsize=7.5, fontname="hebo", color=GRIS)
-    pg.insert_text((x - 20, y + 9), "F", fontsize=7, fontname="helv", color=COLOR_POLARIDAD["fase"])
-    pg.insert_text((x + 6, y + 9), "N", fontsize=7, fontname="helv", color=COLOR_POLARIDAD["neutro"])
-    y_bajada = y + 16
-    pg.draw_line((x - 9, y + 10), (x - 9, y_bajada), color=COLOR_POLARIDAD["fase"], width=1.6)
-    pg.draw_line((x + 9, y + 10), (x + 9, y_bajada), color=COLOR_POLARIDAD["neutro"], width=1.6)
+    y = y0_cadena
+    pg.insert_text((x - 20, y - 4), "F (L)", fontsize=7, fontname="hebo", color=COLOR_POLARIDAD["fase"])
+    pg.insert_text((x + 6, y - 4), "N", fontsize=7, fontname="hebo", color=COLOR_POLARIDAD["neutro"])
+    y_bajada = y + 12
+    pg.draw_line((x - 9, y), (x - 9, y_bajada), color=COLOR_POLARIDAD["fase"], width=1.6)
+    pg.draw_line((x + 9, y), (x + 9, y_bajada), color=COLOR_POLARIDAD["neutro"], width=1.6)
 
     def _tramo(y0, alto_tramo):
         y1 = y0 + alto_tramo
@@ -779,69 +972,82 @@ def _pagina_unifilar(doc, t: dict, obra: dict):
         pg.draw_line((x + 9, y0), (x + 9, y1), color=COLOR_POLARIDAD["neutro"], width=1.6)
         return y1
 
-    y_gen = _tramo(y_bajada, 22)
+    y_gen = y_bajada
     if general:
+        y_gen = _tramo(y_bajada, 14)
         _simbolo_interruptor(pg, x, y_gen, color=NAVY)
         lx = x + 20
-        pg.insert_text((lx, y_gen - 2), f'Interruptor termomagnético general {general.get("polos", 2)}P',
-                       fontsize=7.2, fontname="hebo", color=NAVY)
-        pg.insert_text((lx, y_gen + 9), f'{general.get("corriente","")} A', fontsize=7.8, fontname="hebo", color=NAVY)
+        pg.insert_text((lx, y_gen - 6), "INTERRUPTOR TERMOMAGNÉTICO GENERAL", fontsize=6.4,
+                       fontname="hebo", color=NAVY)
+        pg.insert_text((lx, y_gen + 5), f'{general.get("polos", 2)}P · {general.get("corriente","")} A · Curva C',
+                       fontsize=7.6, fontname="hebo", color=NAVY)
         y_gen = _tramo(y_gen, 14)
 
     y_dif = y_gen
     if diferencial:
-        y_dif = _tramo(y_gen, 22)
+        y_dif = _tramo(y_gen, 20)
         _simbolo_diferencial(pg, x, y_dif)
         ma = diferencial.get("sensibilidadMa")
         lx = x + 20
-        pg.insert_text((lx, y_dif - 2), f'Interruptor diferencial {diferencial.get("polos",2)}P',
-                       fontsize=7.2, fontname="hebo", color=COLOR_ROL["diferencial"])
-        etiqueta = f'{diferencial.get("corriente","")} A' + (f' · {ma} mA' if ma else '')
-        pg.insert_text((lx, y_dif + 9), etiqueta, fontsize=7.8, fontname="hebo", color=COLOR_ROL["diferencial"])
+        pg.insert_text((lx, y_dif - 6), "INTERRUPTOR DIFERENCIAL", fontsize=6.4,
+                       fontname="hebo", color=COLOR_ROL["diferencial"])
+        etiqueta = f'{diferencial.get("polos",2)}P · {diferencial.get("corriente","")} A' + \
+                   (f' · {ma} mA' if ma else '') + ' · Tipo A'
+        pg.insert_text((lx, y_dif + 5), etiqueta, fontsize=7.6, fontname="hebo", color=COLOR_ROL["diferencial"])
         y_dif = _tramo(y_dif, 14)
 
-    y_bus = y_dif + 16
+    y_bus = y_dif + 10
 
     xs = [X_RAMALES + i * COL for i in range(len(ramales))] or [X_CADENA]
     x_izq = min([X_CADENA - 14] + xs)
     x_der = max(xs) if ramales else X_CADENA + 40
     pg.draw_line((x_izq, y_bus), (x_der, y_bus), color=COLOR_POLARIDAD["fase"], width=2.2)
     pg.draw_line((x_izq, y_bus + 7), (x_der, y_bus + 7), color=COLOR_POLARIDAD["neutro"], width=2.2)
-    pg.insert_text((x_izq + 8, y_bus - 3), "BARRA DE FASE", fontsize=5.6, fontname="hebo",
+    pg.insert_text((x_izq + 14, y_bus - 8), "BARRA DE FASE (L)", fontsize=6, fontname="hebo",
                    color=COLOR_POLARIDAD["fase"])
-    pg.insert_text((x_izq + 8, y_bus + 17), "BARRA DE NEUTRO", fontsize=5.6, fontname="hebo",
+    pg.insert_text((x_izq + 14, y_bus + 22), "BARRA DE NEUTRO (N)", fontsize=6, fontname="hebo",
                    color=COLOR_POLARIDAD["neutro"])
-    # conexión de la cadena principal (F/N) a las dos barras
     pg.draw_line((x - 9, y_dif), (x - 9, y_bus), color=COLOR_POLARIDAD["fase"], width=1.6)
     pg.draw_line((x + 9, y_dif), (x + 9, y_bus), color=COLOR_POLARIDAD["neutro"], width=1.6)
 
-    # tierra: una bajada aparte, de arriba a abajo por el margen izquierdo --
-    # nunca cruza los ramales ni la barra de fase/neutro. En una instalación
-    # TT la puesta a tierra es un sistema aparte, no una barra que "pasa por
-    # encima" de los circuitos como fase/neutro.
+    # tierra: barra propia a continuación de fase/neutro, punteada, con el
+    # símbolo de jabalina en la punta -- en una instalación TT es un
+    # sistema aparte, no una barra que "cuelga" de fase/neutro
     if tierra:
-        xt = M + 6
-        y0t = y_bajada + 2
-        y1t = alto - M - 10
-        pg.draw_line((xt, y0t), (xt, y1t), color=COLOR_POLARIDAD["tierra"], width=1.6, dashes="[3 2] 0")
-        pg.insert_text((xt + 7, y0t + 5), "PE", fontsize=6, fontname="hebo", color=COLOR_POLARIDAD["tierra"])
-        _simbolo_tierra(pg, xt, y1t + 7, ancho=13)
-        pg.insert_text((xt + 9, y1t + 10), "Jabalina / PAT", fontsize=6, fontname="helv",
+        xt0, xt1 = x_der + 20, x_der + 46
+        pg.draw_line((xt0, y_bus), (xt1, y_bus), color=COLOR_POLARIDAD["tierra"], width=1.8, dashes="[3 2] 0")
+        pg.insert_text((xt0, y_bus - 4), "BARRA DE TIERRA (PE)", fontsize=6, fontname="hebo",
                        color=COLOR_POLARIDAD["tierra"])
+        _simbolo_tierra(pg, xt1 + 8, y_bus, ancho=11)
 
     # ramales: uno por térmica/protector que no sea general, en el mismo
     # orden físico (piso, posición) que tienen en el tablero real
-    y_ramal = y_bus + 22
+    y_ramal = y_bus + 24
+    y_icono = y_ramal + 44
+    y_pe_bajo = 0
     for i, d in enumerate(ramales):
         xr = xs[i]
         circuito = _circuito_de(obra, d.get("circuitoId"))
         color = COLOR_ROL["protector"] if d.get("tipo") == "protector" else _color_familia(d)
         pg.draw_line((xr, y_bus), (xr, y_ramal), color=color, width=1.5)
         _simbolo_interruptor(pg, xr, y_ramal, color=color)
-        y_txt = y_ramal + 15
-        nombre = (circuito.get("nombre") if circuito else None) or f"T{i+1}"
-        _texto_centrado(pg, xr, y_txt, nombre, 8.5, NAVY, negrita=True)
-        y_txt += 11
+        y_txt = y_ramal + 11
+        etiqueta_itm = f"ITM {i+1}"
+        if d.get("tipo") == "protector":
+            etiqueta_itm = f"DPS {i+1}"
+        pg.insert_text((xr - 22, y_txt), etiqueta_itm, fontsize=6.6, fontname="hebo", color=NAVY)
+        if d.get("tipo") == "protector":
+            spec = f'{d.get("tensionV","")} V' if d.get("tensionV") else ""
+        else:
+            spec = f'{d.get("polos",1)}P · {d.get("corriente","")} A · Curva C'
+        pg.insert_text((xr - 22, y_txt + 9), spec, fontsize=6, fontname="helv", color=GRIS)
+        pg.draw_line((xr, y_ramal), (xr, y_icono - 12), color=color, width=1.3)
+        icono = _icono_para_circuito(circuito) if d.get("tipo") != "protector" else _icono_generico
+        icono(pg, xr, y_icono, 26, color)
+        y_txt = y_icono + 22
+        nombre = f"CIRCUITO {i+1}"
+        _texto_centrado(pg, xr, y_txt, nombre, 7.4, NAVY, negrita=True)
+        y_txt += 10
         desc = (circuito.get("notas") or "").strip() if circuito else ""
         if not desc and d.get("tipo") == "protector":
             desc = "Protector de sobretensión"
@@ -850,29 +1056,72 @@ def _pagina_unifilar(doc, t: dict, obra: dict):
         else:
             _texto_centrado(pg, xr, y_txt, "Sin descripción cargada", 6.6, GRIS, negrita=False)
             y_txt += 9
-        if d.get("tipo") == "protector":
-            datos = f'{d.get("tensionV","")} V' if d.get("tensionV") else ""
-        else:
-            datos = f'{d.get("corriente","")} A'
-            if circuito and circuito.get("seccionMm2"):
-                datos += f'  ·  {circuito["seccionMm2"]} mm²'
-        if datos:
-            _texto_centrado(pg, xr, y_txt + 3, datos, 7, TRAZO, negrita=True)
-            y_txt += 3
+        if circuito and circuito.get("seccionMm2") and d.get("tipo") != "protector":
+            _texto_centrado(pg, xr, y_txt + 6, f'{hilos} x {circuito["seccionMm2"]} mm²', 6.8, TRAZO, negrita=True)
+            y_txt += 6
+        y_pe_bajo = max(y_pe_bajo, y_txt + 10)
 
-    # referencias, arriba a la derecha
-    rx0, ry0 = ancho - 168, 34
-    pg.draw_rect(pymupdf.Rect(rx0, ry0, ancho - M, ry0 + 74), color=(0.8, 0.82, 0.84),
-                fill=BLANCO, width=0.8, radius=0.04)
-    pg.insert_text((rx0 + 8, ry0 + 12), "Referencias", fontsize=7.5, fontname="hebo", color=NAVY)
-    _simbolo_interruptor(pg, rx0 + 16, ry0 + 26, alto=12, color=NAVY)
-    pg.insert_text((rx0 + 30, ry0 + 29), "Interruptor termomagnético", fontsize=6.2, fontname="helv", color=TRAZO)
-    _simbolo_diferencial(pg, rx0 + 16, ry0 + 42, alto=12)
-    pg.insert_text((rx0 + 30, ry0 + 45), "Interruptor diferencial", fontsize=6.2, fontname="helv", color=TRAZO)
-    pg.draw_line((rx0 + 10, ry0 + 56), (rx0 + 22, ry0 + 56), color=COLOR_POLARIDAD["fase"], width=2)
-    pg.insert_text((rx0 + 30, ry0 + 59), "Fase / Neutro", fontsize=6.2, fontname="helv", color=TRAZO)
-    _simbolo_tierra(pg, rx0 + 16, ry0 + 68, ancho=10)
-    pg.insert_text((rx0 + 30, ry0 + 71), "Puesta a tierra (PE)", fontsize=6.2, fontname="helv", color=TRAZO)
+    y_pe_bajo = max(y_pe_bajo, y_bus + 40)
+
+    # conductor de protección (PE) a nivel de circuito: baja de cada uno y
+    # se junta con los demás en una línea punteada al pie, con su propio
+    # símbolo de tierra -- además de la barra de tierra de arriba, así queda
+    # visible que todas las masas comparten el mismo PE, como aclara la nota
+    if tierra and ramales:
+        y_pe = y_pe_bajo
+        for i, xr in enumerate(xs):
+            pg.draw_line((xr, y_pe_bajo - 10), (xr, y_pe), color=COLOR_POLARIDAD["tierra"], width=1.2,
+                        dashes="[2 1.4] 0")
+        pg.draw_line((xs[0], y_pe), (xs[-1], y_pe), color=COLOR_POLARIDAD["tierra"], width=1.4,
+                    dashes="[2 1.4] 0")
+        _simbolo_tierra(pg, xs[0] - 18, y_pe, ancho=10)
+        y_pe_bajo = y_pe + 12
+
+    y_pie = M + y_pe_bajo + 8
+
+    # notas, abajo a la izquierda
+    notas = [
+        "Todas las masas metálicas de tomas y artefactos se conectan a la barra de tierra (PE).",
+        "Sección de conductor y protección de cada circuito: las mismas cargadas en el módulo Circuitos.",
+    ]
+    notas_w = ancho * 0.56
+    pg.draw_rect(pymupdf.Rect(M, y_pie, M + notas_w, y_pie + NOTAS_H), color=(0.8, 0.82, 0.84), fill=BLANCO, width=0.8)
+    pg.insert_text((M + 8, y_pie + 12), "NOTAS", fontsize=7, fontname="hebo", color=NAVY)
+    for i, n in enumerate(notas):
+        pg.insert_text((M + 8, y_pie + 24 + i * 10), f"• {n}", fontsize=6, fontname="helv", color=TRAZO)
+
+    # cuadro de título, abajo, todo el ancho
+    y_tit = y_pie + NOTAS_H + 6
+    cfg = cfgmod.leer_config()
+    cel_w = ancho / 3
+    pg.draw_rect(pymupdf.Rect(M, y_tit, ancho - M, y_tit + TITULO_H), color=(0.7, 0.72, 0.74), fill=BLANCO, width=0.9)
+    campos = [
+        ("OBRA", obra.get("obra", {}).get("nombre") or "-",
+         "UBICACIÓN", obra.get("obra", {}).get("direccion") or "-"),
+        ("TABLERO", t.get("nombre") or "-", "FECHA", datetime.now().strftime("%d/%m/%Y")),
+        ("REALIZÓ", cfg.get("empresa") or "-", "", ""),
+    ]
+    for i, (k1, v1, k2, v2) in enumerate(campos):
+        cx0 = M + i * cel_w
+        if i:
+            pg.draw_line((cx0, y_tit), (cx0, y_tit + TITULO_H), color=(0.85, 0.86, 0.87), width=0.6)
+        pg.insert_text((cx0 + 8, y_tit + 12), k1, fontsize=6, fontname="hebo", color=GRIS)
+        pg.insert_text((cx0 + 8, y_tit + 21), str(v1)[:40], fontsize=7.4, fontname="hebo", color=NAVY)
+        if k2:
+            pg.insert_text((cx0 + cel_w * 0.55, y_tit + 12), k2, fontsize=6, fontname="hebo", color=GRIS)
+            pg.insert_text((cx0 + cel_w * 0.55, y_tit + 21), str(v2)[:36], fontsize=7.4, fontname="hebo", color=NAVY)
+    try:
+        ruta_logo = cfgmod.ruta_imagen("logo")
+        if ruta_logo is not None and ruta_logo.suffix.lower() != ".svg":
+            pix = pymupdf.Pixmap(str(ruta_logo))
+            aspecto = pix.width / max(pix.height, 1)
+            alto_logo = TITULO_H - 10
+            ancho_logo = alto_logo * aspecto
+            x0 = ancho - M - 8 - ancho_logo
+            pg.insert_image(pymupdf.Rect(x0, y_tit + 5, x0 + ancho_logo, y_tit + 5 + alto_logo),
+                            filename=str(ruta_logo))
+    except Exception:
+        pass
 
 
 def generar(t: dict, obra: dict) -> bytes:
