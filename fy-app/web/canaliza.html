@@ -319,6 +319,19 @@ table.t input:focus{outline:none;border-color:var(--accent);background:#fff}
   <div class="acts"><button class="btn" data-close>Cancelar</button><button class="btn primary" id="pdfGo">Generar PDF</button></div>
 </div></div>
 
+<div class="mask" id="mPdfPreview"><div class="modal" style="width:min(920px,96vw);height:min(860px,92vh);
+    display:flex;flex-direction:column;padding:0;overflow:hidden">
+  <div style="padding:10px 14px;border-bottom:1px solid var(--line);display:flex;
+      align-items:center;justify-content:space-between">
+    <b>Vista previa del PDF</b>
+    <div style="display:flex;gap:8px">
+      <button class="btn" id="pdfPCerrar">Cerrar</button>
+      <button class="btn primary" id="pdfPDescargar">Descargar…</button>
+    </div>
+  </div>
+  <iframe id="pdfPFrame" style="flex:1;border:0;width:100%;background:#525659"></iframe>
+</div></div>
+
 <div class="mask" id="mGroup"><div class="modal">
   <h2>Grupo de vista</h2>
   <p class="sub">Elegí qué circuitos se muestran juntos al aplicar este grupo. Sirve para pensar el trazado de a un par de circuitos por vez, sin manchón. El tablero se ve siempre, esté o no tildado.</p>
@@ -2892,7 +2905,35 @@ async function makePdf(){
     foot("Cómputo");
   }
 
-  doc.save((S.baseName.replace(/\.[^.]+$/,"")||"canalizacion")+".pdf");
+  mostrarVistaPreviaPdf(doc, (S.baseName.replace(/\.[^.]+$/,"")||"canalizacion")+".pdf");
+}
+
+// vista previa de PDF: en vez de descargar directo, se muestra en un iframe
+// adentro de la app (el doc de jsPDF ya está armado en memoria, así que no
+// hace falta pedir nada al servidor), con un botón de Descargar recién ahí.
+function mostrarVistaPreviaPdf(doc, nombreArchivo){
+  const blob = doc.output("blob");
+  const objUrl = URL.createObjectURL(blob);
+  $("#pdfPFrame").src = objUrl;
+  open$("#mPdfPreview");
+  $("#pdfPDescargar").onclick = async () => {
+    if(window.showSaveFilePicker){
+      try{
+        const handle = await window.showSaveFilePicker({suggestedName: nombreArchivo,
+          types:[{description:"PDF", accept:{"application/pdf":[".pdf"]}}]});
+        const writable = await handle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+        return;
+      }catch(err){ if(err.name === "AbortError") return; }
+    }
+    const a = document.createElement("a");
+    a.href = objUrl; a.download = nombreArchivo; a.click();
+  };
+  $("#pdfPCerrar").onclick = () => {
+    close$("#mPdfPreview");
+    $("#pdfPFrame").src = ""; URL.revokeObjectURL(objUrl);
+  };
 }
 
 function DEV_KIND(k){

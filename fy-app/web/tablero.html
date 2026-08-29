@@ -116,12 +116,29 @@ body.modo-cable .nodo-lateral:hover{transform:translateY(-50%) scale(1.4)}
 .caja{background:var(--panel);border-radius:14px;padding:22px;width:min(420px,100%)}
 .caja h2{margin:0 0 4px}
 .acciones{display:flex;gap:9px;justify-content:flex-end;margin-top:18px}
+.caja-pdf{background:var(--panel);border-radius:14px;width:min(920px,96vw);height:min(860px,92vh);
+  display:flex;flex-direction:column;overflow:hidden}
+.caja-pdf header{padding:10px 14px;border-bottom:1px solid var(--line);display:flex;
+  align-items:center;justify-content:space-between;background:var(--panel);color:var(--ink)}
+.caja-pdf iframe{flex:1;border:0;width:100%;background:#525659}
 #toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--navy-deep);
   color:#fff;padding:10px 17px;border-radius:var(--radius);font-size:.82rem;display:none;z-index:60}
 @media(max-width:900px){main{grid-template-columns:1fr}aside{border-left:none;border-top:1px solid var(--line);position:static}}
 </style>
 </head>
 <body>
+<div class="overlay" id="ovPdf">
+  <div class="caja-pdf">
+    <header>
+      <b>Vista previa del PDF</b>
+      <div style="display:flex;gap:8px">
+        <button class="btn" id="pdfCerrar">Cerrar</button>
+        <button class="btn primary" id="pdfDescargar">Descargar…</button>
+      </div>
+    </header>
+    <iframe id="pdfFrame"></iframe>
+  </div>
+</div>
 <header>
   <div><h1 id="h-nombre">Tablero</h1><div class="sub" id="h-sub">Cargando…</div></div>
   <div class="spacer"></div>
@@ -1532,10 +1549,44 @@ $('b-borrar-tablero').onclick = async () => {
   actualizarTablero(r.tablero, r.avisos);
 });
 $('b-volver').onclick = () => location.href = '/';
+
+// vista previa de PDF: se pide el archivo como blob (en vez de navegar a la
+// URL directo) y se muestra en un iframe adentro de la app, con un botón de
+// Descargar recién ahí -- así el usuario ve el resultado antes de guardarlo.
+async function mostrarVistaPreviaPdf(url, nombreArchivo){
+  let blob;
+  try{
+    const res = await fetch(url);
+    if(!res.ok) throw new Error((await res.json().catch(()=>({}))).error || 'No se pudo generar el PDF.');
+    blob = await res.blob();
+  }catch(err){ toast(err.message || 'No se pudo generar el PDF.'); return; }
+  const objUrl = URL.createObjectURL(blob);
+  $('pdfFrame').src = objUrl;
+  $('ovPdf').classList.add('abierto');
+  $('pdfDescargar').onclick = async () => {
+    if(window.showSaveFilePicker){
+      try{
+        const handle = await window.showSaveFilePicker({suggestedName: nombreArchivo,
+          types:[{description:'PDF', accept:{'application/pdf':['.pdf']}}]});
+        const writable = await handle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+        return;
+      }catch(err){ if(err.name === 'AbortError') return; }   // si falla, sigue con la descarga común
+    }
+    const a = document.createElement('a');
+    a.href = objUrl; a.download = nombreArchivo; a.click();
+  };
+  $('pdfCerrar').onclick = () => {
+    $('ovPdf').classList.remove('abierto');
+    $('pdfFrame').src = ''; URL.revokeObjectURL(objUrl);
+  };
+}
 $('b-pdf-tablero').onclick = () => {
   const t = tableroActivo();
   if(!t){ toast('Elegí un tablero primero.'); return; }
-  window.open(`/api/obras/${OBRA_ID}/tableros/${t.id}/pdf`, '_blank');
+  mostrarVistaPreviaPdf(`/api/obras/${OBRA_ID}/tableros/${t.id}/pdf`,
+    (t.nombre || 'tablero').replace(/\s+/g,'_') + '.pdf');
 };
 $('b-deshacer').onclick = deshacer;
 $('b-rehacer').onclick = rehacer;

@@ -114,3 +114,14 @@ del contrato consume y cuáles produce:
 
 Regla de oro: ningún módulo borra claves que no entiende, para que una versión
 vieja no destruya datos de una nueva.
+
+## Backlog / a futuro
+
+- **PDF consolidado de entrega**: un solo PDF que junte routeo (canalización),
+  tablero (conexionado + guía de tapa) y presupuesto (materiales), pensado
+  para entregarle una sola pieza al cliente en vez de varios archivos
+  sueltos. Debería armarse de forma que sea fácil sumarle más secciones
+  cuando aparezcan módulos nuevos (por ejemplo, automatizaciones) sin tener
+  que rehacer el armado cada vez — cada módulo aporta su(s) página(s) ya
+  generadas y esto sólo las concatena con una portada/índice.
+

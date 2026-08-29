@@ -3,6 +3,33 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 0.22.0 — cables del tablero separados en carriles, y vista previa de PDF en Tablero, Presupuesto y Routeo
+
+- **Cables que comparten corredor ya no se dibujan encima uno del otro**:
+  cuando varios cables corren un tramo por el mismo lugar (misma coordenada,
+  rangos que se superponen — típico en el corredor entre pisos, donde el
+  orden de entrada de los circuitos no coincide con el orden de las
+  térmicas), `_separar_paralelos()` los corre en paralelo en carriles
+  parejos. Sólo desplaza los tramos "del medio" de cada cable, nunca el
+  primero ni el último, así los extremos siguen enganchando exacto en cada
+  terminal. Probado reproduciendo el patrón real (8 circuitos con orden de
+  entrada distinto al de las térmicas): antes era una maraña ilegible, ahora
+  cada cable se puede seguir individualmente. No afecta el caso simple (sin
+  cables superpuestos), que se ve exactamente igual que antes.
+- **Vista previa antes de descargar, en los tres lugares donde se genera un
+  PDF** (Tablero, Presupuesto, Routeo): se arma el PDF y se muestra en un
+  visor adentro de la app; recién ahí aparece "Descargar…", que usa el
+  selector nativo de ubicación del sistema operativo cuando el navegador lo
+  soporta (Chrome/Edge), y si no, la descarga común. Tablero y Presupuesto
+  ahora piden el PDF al servidor como archivo en memoria en vez de navegar
+  directo a la URL; Routeo arma el PDF en el navegador (como ya hacía) y
+  ahora lo muestra antes de guardarlo, sin pedir nada al servidor. Probado
+  en los tres módulos: el visor abre con el PDF correcto y el cierre limpia
+  la memoria usada.
+- Quedó anotado en el README, como backlog, el pedido de un PDF consolidado
+  de entrega (routeo + tablero + materiales, con lugar para módulos futuros
+  como automatizaciones) para encarar más adelante.
+
 ## 0.21.3 — la causa real del PDF de tablero cortado, y una red de seguridad para que no vuelva a pasar
 
 - **Causa real encontrada**: no era (sólo) la bornera. Cuando el usuario

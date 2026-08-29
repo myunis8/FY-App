@@ -102,6 +102,11 @@ main{max-width:1180px;margin:0 auto;padding:26px 22px 60px}
   max-height:88vh;overflow:auto}
 .caja h2{font-family:'Space Grotesk',sans-serif;margin:0 0 4px;font-size:1.08rem}
 .caja .ayuda{color:var(--muted);font-size:.82rem;margin:0 0 18px;line-height:1.5}
+.caja-pdf{background:var(--panel);border-radius:14px;width:min(920px,96vw);height:min(860px,92vh);
+  display:flex;flex-direction:column;overflow:hidden}
+.caja-pdf .cab-pdf{padding:10px 14px;border-bottom:1px solid var(--line);display:flex;
+  align-items:center;justify-content:space-between}
+.caja-pdf iframe{flex:1;border:0;width:100%;background:#525659}
 .campo{margin-bottom:14px}
 .campo label{display:block;font-size:.78rem;font-weight:600;margin-bottom:5px}
 .campo input{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:8px}
@@ -171,6 +176,20 @@ main{max-width:1180px;margin:0 auto;padding:26px 22px 60px}
   </div>
   <div id="lista"></div>
 </main>
+
+<!-- vista previa de PDF -->
+<div class="overlay" id="ov-pdf">
+  <div class="caja-pdf">
+    <div class="cab-pdf">
+      <b>Vista previa del PDF</b>
+      <div style="display:flex;gap:8px">
+        <button class="btn" id="pdfCerrar">Cerrar</button>
+        <button class="btn primary" id="pdfDescargar">Descargar…</button>
+      </div>
+    </div>
+    <iframe id="pdfFrame"></iframe>
+  </div>
+</div>
 
 <!-- configuración -->
 <div class="overlay" id="ov-config">
@@ -484,7 +503,9 @@ function pintarBloques(obra){
   $('d-npresupuesto').textContent = nit ? `${nit} ítems` +
     (obra.presupuesto?.congeladoEl ? ' · congelado' : ' · sin congelar') : 'Todavía ninguno';
   $('d-presupuesto').onclick = () => location.href = '/presupuesto.html?obra=' + obra.obra.id;
-  $('d-pdf').onclick = () => window.open('/api/obras/' + obra.obra.id + '/presupuesto.pdf', '_blank');
+  $('d-pdf').onclick = () => mostrarVistaPreviaPdf(
+    '/api/obras/' + obra.obra.id + '/presupuesto.pdf',
+    (obra.obra.nombre || 'presupuesto').replace(/\s+/g,'_') + '.pdf');
   $('d-bloques').innerHTML = filas.map(([k,v]) =>
     `<div class="bloque"><b>${k}</b>${v}</div>`).join('');
 }
@@ -641,6 +662,39 @@ $('n-crear').onclick = async () => {
 /* ---------------- plomería de overlays ---------------- */
 function abrir(id){ $(id).classList.add('abierto'); }
 function cerrar(id){ $(id).classList.remove('abierto'); }
+
+// vista previa de PDF: se pide el archivo como blob (en vez de navegar
+// directo a la URL) y se muestra en un iframe adentro de la app, con un
+// botón de Descargar recién ahí -- así se ve el resultado antes de guardarlo.
+async function mostrarVistaPreviaPdf(url, nombreArchivo){
+  let blob;
+  try{
+    const res = await fetch(url);
+    if(!res.ok) throw new Error((await res.json().catch(()=>({}))).error || 'No se pudo generar el PDF.');
+    blob = await res.blob();
+  }catch(err){ alert(err.message || 'No se pudo generar el PDF.'); return; }
+  const objUrl = URL.createObjectURL(blob);
+  $('pdfFrame').src = objUrl;
+  abrir('ov-pdf');
+  $('pdfDescargar').onclick = async () => {
+    if(window.showSaveFilePicker){
+      try{
+        const handle = await window.showSaveFilePicker({suggestedName: nombreArchivo,
+          types:[{description:'PDF', accept:{'application/pdf':['.pdf']}}]});
+        const writable = await handle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+        return;
+      }catch(err){ if(err.name === 'AbortError') return; }
+    }
+    const a = document.createElement('a');
+    a.href = objUrl; a.download = nombreArchivo; a.click();
+  };
+  $('pdfCerrar').onclick = () => {
+    cerrar('ov-pdf');
+    $('pdfFrame').src = ''; URL.revokeObjectURL(objUrl);
+  };
+}
 $('b-config').onclick = abrirConfig;
 $('c-cerrar').onclick = () => cerrar('ov-config');
 $('n-cerrar').onclick = () => cerrar('ov-nueva');

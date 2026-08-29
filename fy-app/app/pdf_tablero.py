@@ -276,6 +276,73 @@ def _cruce(a, b):
     return None
 
 
+LANE_SPACING = 2.6   # separación entre cables que comparten corredor, en pt
+
+
+def _separar_paralelos(cables_con_pts):
+    """Cuando varios cables corren un tramo por el mismo corredor (misma
+    coordenada, rangos que se superponen) quedan dibujados exactamente uno
+    encima del otro y no se puede seguir ninguno. Sólo se desplazan los
+    tramos "del medio" de cada cable (ni el primero ni el último) -- así los
+    extremos siguen enganchando exacto en cada terminal, y como el ortogonal
+    alterna dirección en cada tramo, correr un tramo del medio nunca le
+    genera un quiebre raro al tramo vecino: sólo lo alarga o acorta.
+    Modifica `pts` (listas mutables) en el lugar."""
+    entradas = []   # (cable_idx, seg_idx, 'h'|'v', coordenada, r0, r1)
+    for ci, (_cid, pts, _cable) in enumerate(cables_con_pts):
+        for si in range(1, len(pts) - 2):        # tramo del medio: pts[si] -> pts[si+1]
+            x0, y0 = pts[si]
+            x1, y1 = pts[si + 1]
+            if y0 == y1 and x0 != x1:
+                entradas.append((ci, si, "h", round(y0, 2), min(x0, x1), max(x0, x1)))
+            elif x0 == x1 and y0 != y1:
+                entradas.append((ci, si, "v", round(x0, 2), min(y0, y1), max(y0, y1)))
+
+    padre = list(range(len(entradas)))
+
+    def raiz(i):
+        while padre[i] != i:
+            padre[i] = padre[padre[i]]
+            i = padre[i]
+        return i
+
+    def unir(i, j):
+        ri, rj = raiz(i), raiz(j)
+        if ri != rj:
+            padre[ri] = rj
+
+    por_corredor = {}
+    for i, e in enumerate(entradas):
+        por_corredor.setdefault((e[2], e[3]), []).append(i)
+    for grupo in por_corredor.values():
+        grupo.sort(key=lambda i: entradas[i][4])
+        for a in range(len(grupo)):
+            for b in range(a + 1, len(grupo)):
+                i, j = grupo[a], grupo[b]
+                if entradas[i][5] > entradas[j][4]:      # los rangos se superponen
+                    unir(i, j)
+
+    clusters = {}
+    for i in range(len(entradas)):
+        clusters.setdefault(raiz(i), []).append(i)
+
+    for miembros in clusters.values():
+        if len(miembros) < 2:
+            continue
+        miembros.sort(key=lambda i: cables_con_pts[entradas[i][0]][0])   # orden estable, por id de cable
+        k = len(miembros)
+        for lane, i in enumerate(miembros):
+            ci, si, orient = entradas[i][0], entradas[i][1], entradas[i][2]
+            off = (lane - (k - 1) / 2) * LANE_SPACING
+            pts = cables_con_pts[ci][1]
+            if orient == "h":
+                pts[si][1] += off
+                pts[si + 1][1] += off
+            else:
+                pts[si][0] += off
+                pts[si + 1][0] += off
+
+
 def _calcular_saltos(cables_con_pts):
     saltos = {}
     for i in range(len(cables_con_pts)):
@@ -396,7 +463,8 @@ def _pagina_conexionado(doc, t: dict, obra: dict):
         y1 = g.y_piso(con["pisoDestino"])
         pg.draw_line((x, y0), (x, y1), color=COLOR_POLARIDAD.get(con.get("polaridad"), GRIS), width=2)
 
-    # cables: ruteo en escuadra (vertical primero) con salto donde se cruzan
+    # cables: ruteo en escuadra (vertical primero), separados en carriles
+    # donde varios comparten corredor, con salto donde se cruzan
     con_pts = []
     for cable in t.get("cables") or []:
         a = _punto_endpoint(g, t, cable.get("origen"))
@@ -404,8 +472,9 @@ def _pagina_conexionado(doc, t: dict, obra: dict):
         if not a or not b:
             continue
         ruta = _ruta_a_pdf(g, t, cable.get("ruta") or [])
-        pts = _ortogonalizar([a, *ruta, b])
+        pts = [list(p) for p in _ortogonalizar([a, *ruta, b])]
         con_pts.append((cable["id"], pts, cable))
+    _separar_paralelos(con_pts)
     saltos = _calcular_saltos([(cid, pts) for cid, pts, _ in con_pts])
     for cid, pts, cable in con_pts:
         color = COLOR_POLARIDAD.get(cable.get("polaridad"), GRIS)
