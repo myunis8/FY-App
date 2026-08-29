@@ -493,10 +493,12 @@ function pintarGabinete(){
     const a = puntoDeEndpoint(t, cb.origen), b = puntoDeEndpoint(t, cb.destino);
     if(!a || !b) return null;
     const ruta = (cb.ruta && cb.ruta.length) ? cb.ruta : [];
-    return {id: cb.id, pts: ortogonalizar([[a.x,a.y], ...ruta, [b.x,b.y]])};
+    return {id: cb.id, pts: ortogonalizar([[a.x,a.y], ...ruta, [b.x,b.y]]).map(p=>p.slice())};
   }).filter(Boolean);
+  separarParalelos(listaCables);
   const saltos = calcularSaltos(listaCables);
-  (t.cables||[]).forEach(cb => { html += dibujoCable(t, cb, saltos[cb.id]); });
+  const ptsPorId = {}; listaCables.forEach(c => { ptsPorId[c.id] = c.pts; });
+  (t.cables||[]).forEach(cb => { html += dibujoCable(t, cb, saltos[cb.id], ptsPorId[cb.id]); });
 
   // 3) las térmicas van AL FINAL: son lo único que tapa el cableado, y sólo
   // exactamente donde están paradas — no todo el riel ni toda la banda.
@@ -736,6 +738,48 @@ function ortogonalizar(pts){
   return out;
 }
 
+const LANE_SPACING = 2.6;   // separación entre cables que comparten corredor, en px
+function separarParalelos(listaCables){
+  // igual que _separar_paralelos() del lado del PDF: cuando varios cables
+  // (típicamente fase/neutro/tierra saliendo del mismo caño de entrada)
+  // comparten un tramo -- incluido el primero o el último -- quedan
+  // dibujados uno encima del otro. Se aceptan unos pocos px de diferencia
+  // en el extremo a cambio de que dejen de superponerse del todo.
+  const entradas = [];   // {ci, si, orient, coord, r0, r1}
+  listaCables.forEach((c, ci) => {
+    for(let si=0; si<c.pts.length-1; si++){
+      const [x0,y0] = c.pts[si], [x1,y1] = c.pts[si+1];
+      if(y0===y1 && x0!==x1) entradas.push({ci, si, orient:'h', coord:Math.round(y0*100)/100, r0:Math.min(x0,x1), r1:Math.max(x0,x1)});
+      else if(x0===x1 && y0!==y1) entradas.push({ci, si, orient:'v', coord:Math.round(x0*100)/100, r0:Math.min(y0,y1), r1:Math.max(y0,y1)});
+    }
+  });
+  const padre = entradas.map((_,i)=>i);
+  const raiz = i => { while(padre[i]!==i){ padre[i]=padre[padre[i]]; i=padre[i]; } return i; };
+  const unir = (i,j) => { const ri=raiz(i), rj=raiz(j); if(ri!==rj) padre[ri]=rj; };
+  const porCorredor = {};
+  entradas.forEach((e,i) => { const k = e.orient+'|'+e.coord; (porCorredor[k] ||= []).push(i); });
+  Object.values(porCorredor).forEach(grupo => {
+    grupo.sort((i,j)=>entradas[i].r0-entradas[j].r0);
+    for(let a=0;a<grupo.length;a++) for(let b=a+1;b<grupo.length;b++){
+      const i=grupo[a], j=grupo[b];
+      if(entradas[i].r1 > entradas[j].r0) unir(i,j);
+    }
+  });
+  const clusters = {};
+  entradas.forEach((_,i) => { (clusters[raiz(i)] ||= []).push(i); });
+  Object.values(clusters).forEach(miembros => {
+    if(miembros.length < 2) return;
+    miembros.sort((i,j) => listaCables[entradas[i].ci].id < listaCables[entradas[j].ci].id ? -1 : 1);
+    const k = miembros.length;
+    miembros.forEach((i, lane) => {
+      const e = entradas[i], off = (lane - (k-1)/2) * LANE_SPACING;
+      const pts = listaCables[e.ci].pts;
+      if(e.orient==='h'){ pts[e.si][1] += off; pts[e.si+1][1] += off; }
+      else { pts[e.si][0] += off; pts[e.si+1][0] += off; }
+    });
+  });
+}
+
 /* --- salto esquemático donde dos cables se cruzan sin conectarse ---
    Sólo se salta un cruce puntual entre un tramo horizontal y uno vertical de
    OTRO cable — nunca un tramo solapado sobre el mismo eje, porque ahí no hay
@@ -799,13 +843,15 @@ function pathConSaltos(pts, saltos){
   }
   return d;
 }
-function dibujoCable(t, cable, saltosDeEste){
+function dibujoCable(t, cable, saltosDeEste, pts){
   const a = puntoDeEndpoint(t, cable.origen), b = puntoDeEndpoint(t, cable.destino);
   if(!a || !b) return '';
   const [anchoTotal, altoTotal] = _anchoAltoOverlay(t);
   const color = colorDeCable(t, cable);
-  const ruta = (cable.ruta && cable.ruta.length) ? cable.ruta : [];
-  const pts = ortogonalizar([[a.x,a.y], ...ruta, [b.x,b.y]]);
+  if(!pts){
+    const ruta = (cable.ruta && cable.ruta.length) ? cable.ruta : [];
+    pts = ortogonalizar([[a.x,a.y], ...ruta, [b.x,b.y]]);
+  }
   const path = pathConSaltos(pts, saltosDeEste);
   const sel = cable.id === cableSeleccionado;
   // mientras hay una herramienta de cableado activa (rutear, peine, puente),
@@ -814,6 +860,10 @@ function dibujoCable(t, cable, saltosDeEste){
   // donde corresponde. Sólo es clicable en modo "mover" (sin herramienta).
   const clickeable = !herramienta.tipo;
   const pe = clickeable ? 'all' : 'none';
+  // los extremos se marcan donde el propio trazo (ya separado en carriles si
+  // hacía falta) arranca y termina -- así el punto queda pegado a la línea,
+  // no en la posición "ideal" sin separar
+  const p0 = pts[0], p1 = pts[pts.length-1];
   return `<svg style="position:absolute;left:0;top:0;width:${anchoTotal}px;height:${altoTotal}px;
     overflow:visible;pointer-events:none">
     <path d="${path}" fill="none" stroke="transparent" stroke-width="14"
@@ -821,9 +871,9 @@ function dibujoCable(t, cable, saltosDeEste){
     <path d="${path}" fill="none" stroke="${sel ? 'var(--copper)' : color}"
       stroke-width="${sel ? 4 : 2.6}" stroke-linejoin="round" stroke-linecap="round"
       ${sel ? 'stroke-dasharray="6 3"' : ''} style="pointer-events:none"/>
-    <circle cx="${a.x}" cy="${a.y}" r="3.5" fill="${color}"
+    <circle cx="${p0[0]}" cy="${p0[1]}" r="3.5" fill="${color}"
       style="pointer-events:${pe};cursor:pointer" data-con-click-cable="${cable.id}"/>
-    <circle cx="${b.x}" cy="${b.y}" r="3.5" fill="${color}"
+    <circle cx="${p1[0]}" cy="${p1[1]}" r="3.5" fill="${color}"
       style="pointer-events:${pe};cursor:pointer" data-con-click-cable="${cable.id}"/>
   </svg>`;
 }
@@ -893,14 +943,16 @@ function dibujoConexion(t, c){
   </svg>`;
 }
 function svgConectorPeine(w, h, color, sel){
-  // diseño simple y limpio: un círculo sólido del color de la polaridad,
-  // con una ranura blanca de tornillo en el medio -- nada de detalles de
-  // más que lo recarguen. Si está seleccionado, un anillo alrededor.
+  // cuerpo rectangular sólido (como una bornera real), con un tornillo
+  // simple en el medio -- reconocible como un dispositivo, sin las capas
+  // superpuestas ni el relleno transparente que dejaban ver un "nodo" de
+  // más por encima. Si está seleccionado, un anillo alrededor.
   color = color || TRAZO;
-  const r = Math.min(w, h)/2 - 1, cx = w/2, cy = h/2;
-  return `${sel?`<circle cx="${cx}" cy="${cy}" r="${r+4}" fill="none" stroke="var(--copper)" stroke-width="2"/>`:''}
-    <circle cx="${cx}" cy="${cy}" r="${r}" fill="${color}" stroke="#00000030" stroke-width="1"/>
-    <line x1="${cx-r*0.5}" y1="${cy}" x2="${cx+r*0.5}" y2="${cy}" stroke="#fff" stroke-width="1.6"/>`;
+  const rTornillo = Math.min(w, h) * 0.24;
+  return `${sel?`<rect x="-3" y="-3" width="${w+6}" height="${h+6}" rx="6" fill="none" stroke="var(--copper)" stroke-width="2"/>`:''}
+    <rect x="0.5" y="0.5" width="${w-1}" height="${h-1}" rx="3.5" fill="${color}" stroke="#00000040" stroke-width="1"/>
+    <circle cx="${w/2}" cy="${h/2}" r="${rTornillo}" fill="#fff"/>
+    <line x1="${w/2-rTornillo*0.6}" y1="${h/2}" x2="${w/2+rTornillo*0.6}" y2="${h/2}" stroke="${color}" stroke-width="1.4"/>`;
 }
 function dibujoPendienteHerramienta(t){
   if(!herramienta.paso1) return '';

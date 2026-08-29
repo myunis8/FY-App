@@ -293,15 +293,19 @@ LANE_SPACING = 2.6   # separación entre cables que comparten corredor, en pt
 def _separar_paralelos(cables_con_pts):
     """Cuando varios cables corren un tramo por el mismo corredor (misma
     coordenada, rangos que se superponen) quedan dibujados exactamente uno
-    encima del otro y no se puede seguir ninguno. Sólo se desplazan los
-    tramos "del medio" de cada cable (ni el primero ni el último) -- así los
-    extremos siguen enganchando exacto en cada terminal, y como el ortogonal
-    alterna dirección en cada tramo, correr un tramo del medio nunca le
-    genera un quiebre raro al tramo vecino: sólo lo alarga o acorta.
+    encima del otro y no se puede seguir ninguno -- el caso más común es
+    justo el más importante: varios conductores (fase/neutro/tierra) que
+    salen del MISMO punto de origen (una entrada de caño) hacia destinos
+    distintos comparten el primer tramo entero, that es el tramo por el que
+    "salen" del origen. Por eso acá se consideran TODOS los tramos de cada
+    cable, incluido el primero y el último -- se acepta que el extremo quede
+    a unos pocos puntos del centro exacto de la terminal (el propio dibujo
+    de la terminal ya tiene un margen visual de sobra para disimularlo),
+    a cambio de que los conductores dejen de superponerse por completo.
     Modifica `pts` (listas mutables) en el lugar."""
     entradas = []   # (cable_idx, seg_idx, 'h'|'v', coordenada, r0, r1)
     for ci, (_cid, pts, _cable) in enumerate(cables_con_pts):
-        for si in range(1, len(pts) - 2):        # tramo del medio: pts[si] -> pts[si+1]
+        for si in range(0, len(pts) - 1):        # todos los tramos: pts[si] -> pts[si+1]
             x0, y0 = pts[si]
             x1, y1 = pts[si + 1]
             if y0 == y1 and x0 != x1:
@@ -479,9 +483,12 @@ def _pagina_conexionado(doc, t: dict, obra: dict):
         y_barra = g.y_riel(con["piso"]) - (13 if con.get("polaridad") == "neutro" else 8)
         tx, ty = _terminal_conector_peine(g, con)
         pg.draw_line((x, y_barra), (tx, ty), color=color, width=2.2)
-        r = 3.6
-        pg.draw_circle((tx, ty), r, color=(0.6, 0.6, 0.6), fill=color, width=0.7)
-        pg.draw_line((tx - r * 0.5, ty), (tx + r * 0.5, ty), color=BLANCO, width=1.1)
+        w, h = 7.2, 7.8
+        pg.draw_rect(pymupdf.Rect(tx - w / 2, ty - h / 2, tx + w / 2, ty + h / 2),
+                    color=(0.6, 0.6, 0.6), fill=color, width=0.7, radius=0.25)
+        r = min(w, h) * 0.24
+        pg.draw_circle((tx, ty), r, color=BLANCO, fill=BLANCO)
+        pg.draw_line((tx - r * 0.6, ty), (tx + r * 0.6, ty), color=color, width=1.1)
 
     # cables: ruteo en escuadra (vertical primero), separados en carriles
     # donde varios comparten corredor, con salto donde se cruzan

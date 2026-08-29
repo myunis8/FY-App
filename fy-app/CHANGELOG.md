@@ -3,6 +3,36 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 0.23.2 — la causa real de "fase/neutro/tierra siempre superpuestos" encontrada y corregida, y el conector vuelve a tener diseño de dispositivo
+
+- **Causa real de la superposición, encontrada**: la separación en carriles
+  que ya existía (0.22.0) excluía a propósito el primer y el último tramo de
+  cada cable, para no mover los extremos de su terminal exacta. Pero el
+  caso MÁS COMÚN de todos -- varios conductores (fase, neutro, tierra) que
+  salen del MISMO punto de origen (una entrada de caño) hacia destinos
+  distintos -- comparte justamente ESE primer tramo entero. Al excluirlo,
+  ese caso nunca se separaba: quedaban exactamente uno encima del otro
+  durante todo el tramo compartido, tal como se ve en el PDF adjuntado.
+  Ahora se consideran todos los tramos, incluidos el primero y el último —
+  se acepta que el extremo quede a un par de puntos del centro exacto de la
+  terminal (el propio dibujo de la terminal ya lo disimula) a cambio de que
+  los conductores dejen de superponerse. Corregido en el PDF y, de paso,
+  agregado por primera vez del lado del editor web (`separarParalelos()` en
+  JS, calcada de `_separar_paralelos()` en Python) -- no existía ahí
+  todavía, aunque el editor a veces disimulaba mejor la superposición.
+  Probado con el caso exacto (fase y neutro bajando del mismo caño de
+  entrada al mismo dispositivo): antes, una encima de la otra; ahora, dos
+  líneas paralelas separadas desde justo debajo del punto de entrada, en
+  los dos lugares.
+- **El conector vuelve a tener diseño de dispositivo**: la simplificación de
+  la entrega anterior (un círculo liso) sacó de más — quedaba prolijo de a
+  uno, pero abstracto, sin parecerse a una pieza real, y además varios
+  cerca uno del otro se veían como un amontonamiento de puntitos. Se
+  rediseñó como un cuerpo rectangular sólido con un tornillo simple en el
+  medio (como una bornera real), manteniendo la corrección de fondo (nada
+  de relleno transparente ni capas superpuestas que dejen ver un nodo de
+  más) pero sin perder el aspecto de pieza reconocible.
+
 ## 0.23.1 — selectores en vez de escribir a mano, borrado por selección + Delete, conector rediseñado limpio, y saltos de cruce más chicos
 
 - **Elegir fase/neutro y carga superior/lateral ahora es con dos selectores**
