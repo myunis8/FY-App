@@ -156,7 +156,7 @@ body.modo-cable .nodo-lateral:hover{transform:translateY(-50%) scale(1.4)}
     <div class="herramientas-cableado">
       <button class="btn sm" id="h-ninguna" title="Sólo mover térmicas">☞ Mover</button>
       <button class="btn sm" id="h-peine" title="Unir térmicas del mismo riel en paralelo">▭ Peine</button>
-      <button class="btn sm" id="h-puente" title="Bajar el bus al riel de abajo">↓ Conector al piso siguiente</button>
+      <button class="btn sm" id="h-conpe" title="Un conector para enganchar un cable y rutearlo a mano">+ Conector de peine</button>
       <button class="btn sm" id="h-cable" title="Conectar dos puntos: caño, peine, o el nodo de una térmica">⌁ Cable / serie</button>
       <span class="paso-actual" id="paso-actual"></span>
     </div>
@@ -249,7 +249,7 @@ function yPiso(piso){ return FRANJA_CANO + piso * ALTURA_PISO; }   // FRANJA_CAN
 function yRiel(piso){ return yPiso(piso) + BANDA; }
 function yBandaInf(piso){ return yRiel(piso) + ALTO_DISP; }
 let obra = null, tableros = [], activo = null, presets = [], arrastrando = null, seleccionado = null;
-let herramienta = {tipo: null, paso1: null, ruta: []};   // null|'peine'|'puente'|'cable'
+let herramienta = {tipo: null, paso1: null, ruta: []};   // null|'peine'|'conectorPeine'|'cable'
 
 const api = async (r,o={}) => {
   const res = await fetch(r,{headers:{'Content-Type':'application/json'},...o});
@@ -682,15 +682,12 @@ function puntoDeEndpoint(t, ep){
     if(!pe) return null;
     return {x: CANAL + (pe.desde+pe.hasta+1)/2*CELDA, y: yRiel(pe.piso)-16};
   }
-  if(ep.tipo === 'puente'){
-    const pu = (t.conexiones||[]).find(c=>c.id===ep.id);
-    if(!pu) return null;
-    const desvio = pu.polaridad === 'neutro' ? 31 : 16;
-    const lateral = pu.polaridad === 'neutro' ? 4 : -4;
-    const abajo = ep.lado === 'abajo';
-    const x = CANAL + (abajo ? pu.xDestino : pu.xOrigen)*CELDA + lateral;
-    const y = yRiel(abajo ? pu.pisoDestino : pu.pisoOrigen) - desvio;
-    return {x, y};
+  if(ep.tipo === 'conectorPeine'){
+    const con = (t.conexiones||[]).find(c=>c.id===ep.id);
+    if(!con) return null;
+    const yBarra = yRiel(con.piso) - (con.polaridad === 'neutro' ? 31 : 16);
+    const xBarra = CANAL + con.posicion*CELDA;
+    return con.carga === 'lateral' ? {x: xBarra+26, y: yBarra} : {x: xBarra, y: yBarra-26};
   }
   return null;
 }
@@ -863,35 +860,26 @@ function dibujoConexion(t, c){
       width:${anchoTotal}px;height:${altoTotal}px;overflow:visible;
       pointer-events:none">${svgBarras}</svg>`;
   }
-  // puente: baja UN conductor (fase o neutro, el que se haya elegido al
-  // crearlo) del peine del piso de origen al peine del piso siguiente,
-  // atravesando la fila de térmicas del piso de origen -- como las térmicas
-  // se dibujan encima (más abajo en este archivo), el tramo que pasa por
-  // detrás de una queda tapado ahí y reaparece en el hueco entre térmicas,
-  // simulando que el cable corre por atrás del riel. Uno de fase y otro de
-  // neutro son dos objetos independientes, cada uno donde haga falta.
-  const desvio = c.polaridad === 'neutro' ? 31 : 16;
-  const y0 = yRiel(c.pisoOrigen) - desvio, y1 = yRiel(c.pisoDestino) - desvio;
-  // si fase y neutro bajan entre el mismo par de peines quedan exactamente
-  // superpuestas casi todo el recorrido (sólo se separan pegado a la barra);
-  // se corren unos px al costado para poder distinguirlas
-  const lateral = c.polaridad === 'neutro' ? 4 : -4;
-  const x0 = CANAL + c.xOrigen*CELDA + lateral, x1 = CANAL + c.xDestino*CELDA + lateral;
+  // conector de peine: un cuerpo apoyado sobre el peine, en la posición
+  // que haya elegido el usuario, con una patita corta hacia arriba (carga
+  // superior) o hacia el costado (carga lateral) donde engancha el cable
+  // real -- ese cable se traza aparte, con la herramienta de cable normal,
+  // rumbo a donde haga falta (a otro conector en otro peine, a una
+  // térmica...), en vez de bajar recto y fijo al piso siguiente.
+  const yBarra = yRiel(c.piso) - (c.polaridad === 'neutro' ? 31 : 16);
+  const xBarra = CANAL + c.posicion*CELDA;
+  const lateral = c.carga === 'lateral';
+  const tx = lateral ? xBarra + 26 : xBarra, ty = lateral ? yBarra : yBarra - 26;
   const color = COLOR_POLARIDAD[c.polaridad || 'fase'];
-  const pts = ortogonalizar([[x0,y0],[x1,y1]]);
-  const path = pts.map((p,i)=>(i===0?'M':'L')+p[0]+','+p[1]).join(' ');
   const ancho = 20, alto = 22;
   return `<svg class="conexion" data-con="${c.id}" style="position:absolute;left:0;top:0;
     width:${anchoTotal}px;height:${altoTotal}px;overflow:visible;
     pointer-events:none">
-    <path d="${path}" fill="none" stroke="${color}" stroke-width="3"/>
-    <circle cx="${x0}" cy="${y0}" r="3.5" fill="${color}"
+    <line x1="${xBarra}" y1="${yBarra}" x2="${tx}" y2="${ty}" stroke="${color}" stroke-width="3"/>
+    <circle cx="${tx}" cy="${ty}" r="3.5" fill="${color}"
       style="pointer-events:all;cursor:pointer" data-con-click="${c.id}"
-      data-con-polaridad="${c.polaridad||'fase'}" data-con-lado="arriba"/>
-    <circle cx="${x1}" cy="${y1}" r="3.5" fill="${color}"
-      style="pointer-events:all;cursor:pointer" data-con-click="${c.id}"
-      data-con-polaridad="${c.polaridad||'fase'}" data-con-lado="abajo"/>
-    <g transform="translate(${x0-ancho/2},${y0-alto/2})" style="pointer-events:all;cursor:pointer"
+      data-con-polaridad="${c.polaridad||'fase'}"/>
+    <g transform="translate(${tx-ancho/2},${ty-alto/2})" style="pointer-events:all;cursor:pointer"
       data-con-click="${c.id}">${svgConectorPeine(ancho, alto, color)}</g>
   </svg>`;
 }
@@ -930,16 +918,6 @@ function dibujoPendienteHerramienta(t){
       overflow:visible;pointer-events:none">
       <path d="${path}" fill="none" stroke="var(--copper)" stroke-width="2" stroke-dasharray="4 3"/>
       ${puntos}
-    </svg>`;
-  }
-  if(herramienta.tipo === 'puente'){
-    const peine = (t.conexiones||[]).find(c=>c.id===herramienta.paso1.peineId);
-    if(!peine) return '';
-    const cx = CANAL + (peine.desde+peine.hasta+1)/2*CELDA;
-    const cy = yRiel(peine.piso) - 8;
-    return `<svg style="position:absolute;left:0;top:0;width:${anchoTotal}px;
-      height:${altoTotal}px;overflow:visible;pointer-events:none">
-      <circle cx="${cx}" cy="${cy}" r="7" fill="none" stroke="var(--copper)" stroke-width="2.4"/>
     </svg>`;
   }
   if(herramienta.paso1.piso === undefined) return '';
@@ -996,8 +974,8 @@ function bloqueDisp(d){
   // entera) para que, cuando un cable pasa por atrás de una térmica, se vea
   // asomar en el hueco con la de al lado -- si no, quedaban pegadas y no se
   // notaba por dónde corría el cable.
-  const w = d.polos*CELDA - 12, h = ALTO_DISP - 14;
-  const left = CANAL + d.posicion*CELDA + 6, top = yRiel(d.piso) + 6;
+  const w = d.polos*CELDA - 20, h = ALTO_DISP - 14;
+  const left = CANAL + d.posicion*CELDA + 10, top = yRiel(d.piso) + 6;
   const flechas = `<div class="flecha-alim ${d.alimentacion==='arriba'?'arriba':'abajo'}"
       data-alim="${d.id}" title="Cambiar por dónde entra"></div>`;
   return `<div class="disp ${seleccionado===d.id?'seleccionado':''}" draggable="true"
@@ -1040,7 +1018,9 @@ function cablearGabinete(){
     actualizarPreviewCable(ev.clientX - rect.left, ev.clientY - rect.top);
   });
   document.querySelectorAll('[data-con-click]').forEach(n => n.addEventListener('click', ev => {
-    ev.stopPropagation(); clicConexion(n.dataset.conClick, n.dataset.conPolaridad, n.dataset.conLado);
+    ev.stopPropagation();
+    const rect = lienzo.getBoundingClientRect();
+    clicConexion(n.dataset.conClick, n.dataset.conPolaridad, n.dataset.conLado, ev.clientX - rect.left);
   }));
   document.querySelectorAll('[data-editar-cano]').forEach(n => n.addEventListener('click', ev => {
     ev.stopPropagation();
@@ -1131,12 +1111,12 @@ function bloqueDispBandeja(d){
 function elegirHerramienta(tipo, pendiente){
   herramienta = {tipo, paso1:null, pendiente: pendiente||null};
   document.querySelectorAll('.herramientas-cableado .btn').forEach(b=>b.classList.remove('activa'));
-  const idBoton = {peine:'h-peine', puente:'h-puente', cable:'h-cable'}[tipo] || 'h-ninguna';
+  const idBoton = {peine:'h-peine', conectorPeine:'h-conpe', cable:'h-cable'}[tipo] || 'h-ninguna';
   $(idBoton).classList.add('activa');
   $('paso-actual').textContent = tipo==='peine'
     ? 'Tocá una térmica, después la otra punta del tramo a unir'
-    : tipo==='puente' ? 'Tocá el peine de arriba y después el peine del piso de abajo'
-    : tipo==='cable' ? 'Tocá el primer punto (un caño, un peine, o el nodo de una térmica), '
+    : tipo==='conectorPeine' ? 'Tocá el peine, en el lugar donde va el conector'
+    : tipo==='cable' ? 'Tocá el primer punto (un caño, un peine, un conector, o el nodo de una térmica), '
       + 'después el segundo' : '';
   document.body.classList.toggle('modo-cable', tipo === 'cable');
   seleccionado = null;
@@ -1144,10 +1124,12 @@ function elegirHerramienta(tipo, pendiente){
 }
 $('h-ninguna').onclick = () => elegirHerramienta(null);
 $('h-peine').onclick = () => elegirHerramienta('peine');
-$('h-puente').onclick = () => {
+$('h-conpe').onclick = () => {
   const pol = (prompt('¿Este conector es de fase o de neutro?', 'fase')||'').trim().toLowerCase();
   if(!['fase','neutro'].includes(pol)) return;
-  elegirHerramienta('puente', {polaridad: pol});
+  const carga = (prompt('¿Carga superior (entra por arriba) o lateral (entra por el costado)?', 'superior')||'').trim().toLowerCase();
+  if(!['superior','lateral'].includes(carga)) return;
+  elegirHerramienta('conectorPeine', {polaridad: pol, carga});
 };
 $('h-cable').onclick = () => elegirHerramienta('cable');
 
@@ -1179,11 +1161,10 @@ function manejarClicHerramienta(ev){
     return;
   }
 
-  if(herramienta.tipo === 'puente'){
-    // ya no se puede "tirar" un conector en cualquier punto vacío de la
-    // banda: siempre tiene que salir de un peine y llegar a otro, así nunca
-    // queda flotando sin tocar la barra
-    toast('Tocá el peine de arriba y después el del piso de abajo.');
+  if(herramienta.tipo === 'conectorPeine'){
+    // el conector siempre se coloca sobre un peine -- si el click cae afuera
+    // de cualquier peine, no hay dónde apoyarlo
+    toast('Tocá un peine, en el lugar donde va el conector.');
     return;
   }
 
@@ -1318,42 +1299,32 @@ async function crearPeine(piso, desde, hasta){
     toast('Peine creado');
   }catch(e){ toast(e.message); pintarGabinete(); }
 }
-function avanzarPuente(peineId, piso){
-  if(!herramienta.paso1){
-    herramienta.paso1 = {peineId, piso};
-    pintarGabinete();
-    return;
-  }
-  const origenPeineId = herramienta.paso1.peineId;
-  herramienta.paso1 = null;
-  const pol = (herramienta.pendiente && herramienta.pendiente.polaridad) || 'fase';
-  crearPuente(origenPeineId, peineId, pol);
-}
-async function crearPuente(peineOrigenId, peineDestinoId, polaridad){
+async function crearConectorPeine(peineId, posicion, polaridad, carga){
   const t = tableroActivo();
   try{
-    const r = await api(`/api/obras/${OBRA_ID}/tableros/${t.id}/puente`,
-      {method:'POST', body:JSON.stringify({peineOrigenId, peineDestinoId, polaridad})});
+    const r = await api(`/api/obras/${OBRA_ID}/tableros/${t.id}/conector-peine`,
+      {method:'POST', body:JSON.stringify({peineId, posicion, polaridad, carga})});
     actualizarTablero(r.tablero, null);
     toast('Conector agregado');
   }catch(e){ toast(e.message); pintarGabinete(); }
 }
-async function clicConexion(id, polaridad, lado){
+async function clicConexion(id, polaridad, lado, xPixel){
   const t = tableroActivo();
   const con = (t.conexiones||[]).find(c=>c.id===id);
   if(!con) return;
   if(herramienta.tipo === 'cable'){
     if(con.tipo === 'peine') manejarEndpointHerramienta({tipo:'peine', id, polaridad: polaridad || 'fase'});
-    else if(con.tipo === 'puente' && polaridad)
-      manejarEndpointHerramienta({tipo:'puente', id, polaridad, lado: lado || 'arriba'});
+    else if(con.tipo === 'conectorPeine') manejarEndpointHerramienta({tipo:'conectorPeine', id});
     return;
   }
-  if(herramienta.tipo === 'puente' && con.tipo === 'peine'){
-    // se ancla siempre a un peine ya puesto -- nunca a un punto suelto
-    avanzarPuente(con.id, con.piso);
+  if(herramienta.tipo === 'conectorPeine' && con.tipo === 'peine'){
+    // la posición a lo largo del peine la elige el usuario con el click,
+    // no se fuerza al centro
+    const posicion = Math.max(con.desde, Math.min(con.hasta+1, (xPixel - CANAL) / CELDA));
+    crearConectorPeine(con.id, posicion, herramienta.pendiente.polaridad, herramienta.pendiente.carga);
     return;
   }
-  if(herramienta.tipo === 'peine' || herramienta.tipo === 'puente') return;
+  if(herramienta.tipo === 'peine' || herramienta.tipo === 'conectorPeine') return;
   if(!confirm('¿Quitar esta conexión?')) return;
   await api(`/api/obras/${OBRA_ID}/tableros/${t.id}/conexiones/${id}`, {method:'DELETE'});
   t.conexiones = (t.conexiones||[]).filter(c=>c.id!==id);

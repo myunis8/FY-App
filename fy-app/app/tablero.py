@@ -237,12 +237,12 @@ def _polaridad_endpoint(tablero: dict, ep: dict) -> str | None:
             return None
         pol = ep.get("polaridad")
         return pol if pol in ("fase", "neutro") else None
-    if tipo == "puente":
-        puente = next((c for c in tablero.get("conexiones") or []
-                       if c["id"] == ep.get("id") and c["tipo"] == "puente"), None)
-        if puente is None:
+    if tipo == "conectorPeine":
+        con = next((c for c in tablero.get("conexiones") or []
+                    if c["id"] == ep.get("id") and c["tipo"] == "conectorPeine"), None)
+        if con is None:
             return None
-        return puente.get("polaridad", "fase")
+        return con.get("polaridad", "fase")
     return None
 
 
@@ -316,32 +316,34 @@ def crear_peine(tablero: dict, piso: int, desde: int, hasta: int) -> tuple[dict 
     return peine, ""
 
 
-def crear_puente(tablero: dict, peine_origen_id: str, peine_destino_id: str,
-                 polaridad: str = "fase") -> tuple[dict | None, str]:
-    """El conector que baja un solo conductor (fase o neutro) del peine de un
-    piso al peine del piso siguiente. Siempre se ancla a los dos peines --
-    nunca queda flotando en un punto cualquiera de la banda, como en una
-    instalacion real, donde ese cable siempre sale de una bornera del peine
-    de arriba y entra a una del peine de abajo. Uno de fase y otro de
-    neutro son dos objetos independientes, cada uno donde haga falta."""
-    conexiones = tablero.get("conexiones") or []
-    peine_o = next((c for c in conexiones if c["id"] == peine_origen_id and c["tipo"] == "peine"), None)
-    peine_d = next((c for c in conexiones if c["id"] == peine_destino_id and c["tipo"] == "peine"), None)
-    if not peine_o or not peine_d:
-        return None, "Hace falta un peine en los dos pisos para bajar un conector -- armalos primero."
-    if peine_d["piso"] != peine_o["piso"] + 1:
-        return None, "Un conector siempre baja al peine del piso inmediatamente siguiente."
+CARGAS_CONECTOR = ("superior", "lateral")
+
+
+def crear_conector_peine(tablero: dict, peine_id: str, posicion: float,
+                         polaridad: str = "fase", carga: str = "superior") -> tuple[dict | None, str]:
+    """Un conector que se apoya sobre un peine, en la posición que el
+    usuario elija a lo largo de él (no necesariamente en el centro) -- tal
+    como los conectores reales de peine, que se enchufan en cualquier boca
+    libre de la barra. Queda disponible como extremo de cable: desde ahí se
+    rutea a mano el conductor hacia donde haga falta (a otro conector en
+    otro peine, a una térmica, a un caño...), en vez de bajar un conductor
+    recto y fijo como antes. Hay dos tipos, según de dónde entra el cable
+    real: "superior" (por arriba, como el peine de alimentación de techo) o
+    "lateral" (por el costado, como el borne de alimentación lateral)."""
+    peine = next((c for c in tablero.get("conexiones") or []
+                  if c["id"] == peine_id and c["tipo"] == "peine"), None)
+    if peine is None:
+        return None, "Ese peine no existe."
+    if not (peine["desde"] <= posicion <= peine["hasta"] + 1):
+        return None, "El conector tiene que quedar dentro del propio peine."
     if polaridad not in ("fase", "neutro"):
         return None, "Un conector es de fase o de neutro."
-    x_o = (peine_o["desde"] + peine_o["hasta"] + 1) / 2
-    x_d = (peine_d["desde"] + peine_d["hasta"] + 1) / 2
-    puente = {"id": _id("puente"), "tipo": "puente", "polaridad": polaridad,
-             "pisoOrigen": peine_o["piso"], "pisoDestino": peine_d["piso"],
-             "xOrigen": x_o, "xDestino": x_d,
-             "peineOrigenId": peine_origen_id, "peineDestinoId": peine_destino_id}
-    tablero["conexiones"].append(puente)
-    return puente, ""
-
+    if carga not in CARGAS_CONECTOR:
+        return None, "La carga de un conector es superior o lateral."
+    conector = {"id": _id("conpe"), "tipo": "conectorPeine", "peineId": peine_id,
+               "piso": peine["piso"], "posicion": posicion, "polaridad": polaridad, "carga": carga}
+    tablero["conexiones"].append(conector)
+    return conector, ""
 
 
 def eliminar_conexion(tablero: dict, con_id: str) -> bool:

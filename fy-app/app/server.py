@@ -74,8 +74,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._agregar_dispositivo(partes[2], partes[4])
             if len(partes) == 6 and partes[:2] == ["api", "obras"] and partes[3] == "tableros" and partes[5] == "peine":
                 return self._crear_peine(partes[2], partes[4])
-            if len(partes) == 6 and partes[:2] == ["api", "obras"] and partes[3] == "tableros" and partes[5] == "puente":
-                return self._crear_puente(partes[2], partes[4])
+            if len(partes) == 6 and partes[:2] == ["api", "obras"] and partes[3] == "tableros" and partes[5] == "conector-peine":
+                return self._crear_conector_peine(partes[2], partes[4])
             if len(partes) == 6 and partes[:2] == ["api", "obras"] and partes[3] == "tableros" and partes[5] == "canos":
                 return self._agregar_entrada_cano(partes[2], partes[4])
             if len(partes) == 7 and partes[:2] == ["api", "obras"] and partes[3] == "tableros" and partes[5] == "canos":
@@ -445,7 +445,7 @@ class Handler(BaseHTTPRequestHandler):
         almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
         return self._json({"ok": True, "peine": peine, "tablero": t})
 
-    def _crear_puente(self, obra_id, tablero_id):
+    def _crear_conector_peine(self, obra_id, tablero_id):
         obra = almacen.leer_obra(obra_id)
         if obra is None:
             return self._error("Esa obra no está en este equipo.", 404)
@@ -454,12 +454,13 @@ class Handler(BaseHTTPRequestHandler):
             return self._error("Ese tablero no existe.", 404)
         t.setdefault("conexiones", [])
         cuerpo = self._cuerpo()
-        puente, msg = tablero_mod.crear_puente(t, cuerpo.get("peineOrigenId"), cuerpo.get("peineDestinoId"),
-                                               cuerpo.get("polaridad", "fase"))
-        if puente is None:
+        conector, msg = tablero_mod.crear_conector_peine(
+            t, cuerpo.get("peineId"), cuerpo.get("posicion"),
+            cuerpo.get("polaridad", "fase"), cuerpo.get("carga", "superior"))
+        if conector is None:
             return self._error(msg)
         almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
-        return self._json({"ok": True, "puente": puente, "tablero": t})
+        return self._json({"ok": True, "conector": conector, "tablero": t})
 
     def _agregar_entrada_cano(self, obra_id, tablero_id):
         obra = almacen.leer_obra(obra_id)

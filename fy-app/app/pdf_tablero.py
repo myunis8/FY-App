@@ -163,6 +163,16 @@ def _dibujar_dispositivo(pg, x0, y0, w, h, d, circuito):
         _termica(pg, x0, y0, w, h, d, circuito or ("General" if d.get("rol") == "general" else ""))
 
 
+def _terminal_conector_peine(g: "_Geom", con: dict) -> tuple[float, float]:
+    """Dónde engancha un cable a un conector de peine: en la punta de su
+    patita, no sobre la barra misma -- la barra la ocupa el propio peine."""
+    x = g.x(con["posicion"])
+    y_barra = g.y_riel(con["piso"]) - (13 if con.get("polaridad") == "neutro" else 8)
+    if con.get("carga") == "lateral":
+        return (x + 14, y_barra)
+    return (x, y_barra - 14)
+
+
 def _ruta_a_pdf(g: "_Geom", t: dict, ruta: list) -> list:
     """Los puntos de una ruta trazada a mano en el editor vienen en píxeles
     de ESE lienzo (celda=64, franjas más altas). Se convierten a la posición
@@ -213,8 +223,9 @@ class _Geom:
         for con in t.get("conexiones") or []:
             if con["tipo"] == "peine":
                 max_x = max(max_x, self.x(con["hasta"] + 1) + MARGEN)
-            elif con["tipo"] == "puente":
-                max_x = max(max_x, self.x(max(con.get("xOrigen", 0), con.get("xDestino", 0)) + 1) + MARGEN)
+            elif con["tipo"] == "conectorPeine":
+                tx, ty = _terminal_conector_peine(self, con)
+                max_x, max_y = max(max_x, tx + MARGEN), max(max_y, ty + MARGEN)
         for cable in t.get("cables") or []:
             pts = [p for p in (_punto_endpoint(self, t, cable.get("origen")),
                                _punto_endpoint(self, t, cable.get("destino"))) if p]
@@ -407,16 +418,11 @@ def _punto_endpoint(g: _Geom, t: dict, ep: dict):
         if pe is None:
             return None
         return (g.x((pe["desde"] + pe["hasta"] + 1) / 2), g.y_riel(pe["piso"]) - 6)
-    if ep["tipo"] == "puente":
-        pu = next((c for c in t.get("conexiones") or [] if c["id"] == ep["id"]), None)
-        if pu is None:
+    if ep["tipo"] == "conectorPeine":
+        con = next((c for c in t.get("conexiones") or [] if c["id"] == ep["id"]), None)
+        if con is None:
             return None
-        lado = ep.get("lado", "arriba")
-        piso = pu["pisoDestino"] if lado == "abajo" else pu["pisoOrigen"]
-        x = pu["xDestino"] if lado == "abajo" else pu["xOrigen"]
-        y = g.y_riel(piso) - (13 if pu.get("polaridad") == "neutro" else 8)
-        lateral = 2.2 if pu.get("polaridad") == "neutro" else -2.2
-        return (g.x(x) + lateral, y)
+        return _terminal_conector_peine(g, con)
     if ep["tipo"] == "cano":
         cano = next((c for c in t.get("canos") or [] if c["id"] == ep["id"]), None)
         if cano is None:
@@ -457,27 +463,23 @@ def _pagina_conexionado(doc, t: dict, obra: dict):
         pg.draw_line((x0, y), (x1, y), color=COLOR_POLARIDAD["fase"], width=2.6)
         pg.draw_line((x0, y - 5), (x1, y - 5), color=COLOR_POLARIDAD["neutro"], width=2.6)
 
-    # puentes: el conductor que baja del peine de un piso al peine del
-    # siguiente, atravesando la fila de térmicas del piso de origen -- como
-    # los dispositivos se dibujan encima del cableado (más abajo en este
-    # archivo), el tramo que pasa por detrás de una térmica queda tapado ahí
-    # y reaparece en el hueco entre térmicas, simulando que el cable corre
-    # por atrás del riel, como pidió el usuario.
+    # conectores de peine: un cuerpo apoyado sobre el peine, en la posición
+    # que haya elegido el usuario, con una patita corta hacia arriba (carga
+    # superior) o hacia el costado (carga lateral) donde engancha el cable
+    # real -- ese cable se dibuja aparte, como cualquier otro (más abajo, en
+    # el bloque de "cables"), así se puede rutear a mano hacia donde haga
+    # falta en vez de bajar recto y fijo al piso siguiente.
     for con in t.get("conexiones") or []:
-        if con["tipo"] != "puente":
+        if con["tipo"] != "conectorPeine":
             continue
         color = COLOR_POLARIDAD.get(con.get("polaridad"), GRIS)
-        desvio = 13 if con.get("polaridad") == "neutro" else 8
-        y0 = g.y_riel(con["pisoOrigen"]) - desvio
-        y1 = g.y_riel(con["pisoDestino"]) - desvio
-        lateral = 2.2 if con.get("polaridad") == "neutro" else -2.2
-        x0 = g.x(con.get("xOrigen", 0)) + lateral
-        x1 = g.x(con.get("xDestino", 0)) + lateral
-        pts = _ortogonalizar([(x0, y0), (x1, y1)])
-        for i in range(len(pts) - 1):
-            pg.draw_line(pts[i], pts[i + 1], color=color, width=2.2)
-        pg.draw_circle((x0, y0), 2.6, color=color, fill=color)
-        pg.draw_circle((x1, y1), 2.6, color=color, fill=color)
+        x = g.x(con["posicion"])
+        y_barra = g.y_riel(con["piso"]) - (13 if con.get("polaridad") == "neutro" else 8)
+        tx, ty = _terminal_conector_peine(g, con)
+        pg.draw_line((x, y_barra), (tx, ty), color=color, width=2.2)
+        pg.draw_rect(pymupdf.Rect(tx - 3.2, ty - 3.2, tx + 3.2, ty + 3.2), color=color,
+                    fill=BLANCO, width=1.1, radius=0.2)
+        pg.draw_circle((tx, ty), 1.5, color=color, fill=color)
 
     # cables: ruteo en escuadra (vertical primero), separados en carriles
     # donde varios comparten corredor, con salto donde se cruzan
@@ -502,8 +504,8 @@ def _pagina_conexionado(doc, t: dict, obra: dict):
     for d in t.get("dispositivos") or []:
         if d.get("piso") is None:
             continue
-        x0 = g.x(d["posicion"]) + g.celda * 0.09
-        w = d["polos"] * g.celda - g.celda * 0.18
+        x0 = g.x(d["posicion"]) + g.celda * 0.16
+        w = d["polos"] * g.celda - g.celda * 0.32
         y0 = g.y_riel(d["piso"]) + 2
         h = g.alto_disp - 4
         _dibujar_dispositivo(pg, x0, y0, w, h, d, _nombre_circuito(obra, d.get("circuitoId")))
@@ -546,8 +548,8 @@ def _pagina_tapa(doc, t: dict, obra: dict):
     for d in t.get("dispositivos") or []:
         if d.get("piso") is None:
             continue
-        x0 = g.x(d["posicion"]) + g.celda * 0.09
-        w = d["polos"] * g.celda - g.celda * 0.18
+        x0 = g.x(d["posicion"]) + g.celda * 0.16
+        w = d["polos"] * g.celda - g.celda * 0.32
         y0 = g.y_riel(d["piso"]) + 2
         h = g.alto_disp - 4
         _dibujar_dispositivo(pg, x0, y0, w, h, d, _nombre_circuito(obra, d.get("circuitoId")))

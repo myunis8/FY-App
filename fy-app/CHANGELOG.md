@@ -3,6 +3,34 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 0.23.0 — conectores de peine rediseñados de cero (libres, con cable a mano), y más espacio entre térmicas
+
+- **Se eliminó el sistema de "conector al piso siguiente" (puente)** por
+  completo -- `crear_puente`, su endpoint, su dibujo, todo. En su lugar,
+  **conector de peine** (`conectorPeine`): se apoya sobre un peine, en la
+  posición exacta donde el usuario haga clic a lo largo de la barra (ya no
+  se centra solo), de dos tipos según de dónde entra el cable real (foto de
+  referencia del usuario): **superior** (patita hacia arriba) o **lateral**
+  (patita hacia el costado). El color del cuerpo ya sigue siendo el de la
+  polaridad (marrón fase / celeste neutro).
+- **El conector queda como un extremo más de la herramienta de "Cable"
+  normal**: desde su patita se traza a mano el conductor hacia donde haga
+  falta (otro conector en otro peine, una térmica, un caño...), con la
+  misma libertad de ruteo (puntos intermedios incluidos) que cualquier otro
+  cable -- ya no es un trazo recto y fijo calculado solo por la app.
+- **Más espacio entre térmicas**: el margen a los costados de cada una casi
+  se duplicó (de ~9% a ~16% de la celda por lado), tanto en el editor como
+  en el PDF, para que el hueco por donde se ve pasar un cable sea más claro.
+- **Importante — no hay migración automática**: un tablero que ya tuviera
+  conectores del sistema viejo los va a mostrar rotos (el nuevo renderizador
+  espera campos distintos). Hay que borrarlos y volver a colocarlos con el
+  conector nuevo; los peines, térmicas y demás cableado no se ven afectados.
+- Probado en navegador real: conector superior de fase colocado fuera del
+  centro del peine (en el punto exacto donde se clickeó), conector lateral
+  de neutro en otro piso, y un cable trazado a mano desde un conector hacia
+  el peine con la herramienta genérica -- confirmado también en el PDF
+  generado con el mismo tablero, coherente con lo que se ve en el editor.
+
 ## 0.22.1 — los conectores al piso siguiente ahora se anclan de verdad a los peines, coloreados por polaridad, y las térmicas se separan para ver por dónde corren los cables
 
 - **Causa del "desconectado"**: el conector (puente) arrancaba desde un punto
