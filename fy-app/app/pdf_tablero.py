@@ -59,6 +59,39 @@ def _texto_centrado(pg, cx, cy_base, texto, fontsize, color, negrita=True, fuent
     pg.insert_text((cx - w / 2, cy_base), texto, fontsize=fs, fontname=fname, color=color)
 
 
+def _texto_multilinea(pg, cx, y_top, texto, fontsize, color, ancho_max, negrita=True, max_lineas=3):
+    """Como _texto_centrado, pero envuelve en varios renglones en vez de
+    cortar el texto -- para una descripción larga de circuito, que es lo
+    más importante de la guía de tapa, conviene verla completa aunque
+    ocupe 2 o 3 líneas, no truncada en una sola."""
+    if not texto:
+        return 0
+    fname = "hebo" if negrita else "helv"
+    palabras = texto.split()
+    lineas, actual = [], ""
+    for palabra in palabras:
+        prueba = (actual + " " + palabra).strip()
+        if not actual or pymupdf.get_text_length(prueba, fontname=fname, fontsize=fontsize) <= ancho_max:
+            actual = prueba
+        else:
+            lineas.append(actual)
+            actual = palabra
+    if actual:
+        lineas.append(actual)
+    if len(lineas) > max_lineas:
+        lineas = lineas[:max_lineas]
+        ultima = lineas[-1]
+        while ultima and pymupdf.get_text_length(ultima + "…", fontname=fname, fontsize=fontsize) > ancho_max:
+            ultima = ultima[:-1]
+        lineas[-1] = ultima + "…"
+    interlineado = fontsize * 1.25
+    for i, linea in enumerate(lineas):
+        w = pymupdf.get_text_length(linea, fontname=fname, fontsize=fontsize)
+        pg.insert_text((cx - w / 2, y_top + i * interlineado), linea, fontsize=fontsize,
+                       fontname=fname, color=color)
+    return len(lineas) * interlineado
+
+
 def _color_familia(d):
     if d.get("rol") == "general":
         return NAVY
@@ -563,10 +596,23 @@ def _pagina_tapa(doc, t: dict, obra: dict):
     """Vista con la tapa puesta: sólo las térmicas y su etiqueta, sin
     cableado ni caños — para pegar adentro del tablero como guía. Con un
     enmarcado tipo gabinete real (marco + tornillos en las esquinas), para
-    que la hoja se sienta como el tablero físico y no sólo un diagrama."""
+    que la hoja se sienta como el tablero físico y no sólo un diagrama.
+    Las térmicas van más separadas que en la hoja de conexionado -- acá no
+    hay cables que necesiten espacio para pasar, pero sí hace falta lugar
+    para la descripción de cada circuito, que es lo más importante de esta
+    hoja."""
     g = _Geom(t)
+    ESCALA_X = 1.45   # separación extra entre térmicas, sólo en esta hoja
+    boca_max = max([t.get("bocasPorPiso", 0) or 0] +
+                   [d["posicion"] + d["polos"] for d in t.get("dispositivos") or []
+                    if d.get("piso") is not None] + [0])
+
+    def xt(pos):
+        return MARGEN + pos * g.celda * ESCALA_X
+
+    ancho_disp = MARGEN * 2 + boca_max * g.celda * ESCALA_X
     MARCO = 16
-    ancho, alto = g.ancho + MARCO * 2, g.alto + MARCO * 2 + 8
+    ancho, alto = ancho_disp + MARCO * 2, g.alto + MARCO * 2 + 8
     pg = doc.new_page(width=ancho, height=alto)
     pg.draw_rect(pg.rect, color=None, fill=(0.93, 0.94, 0.95))
     pg.insert_text((MARCO, 20), f"Tablero — {t.get('nombre','')} · guía de tapa",
@@ -579,23 +625,24 @@ def _pagina_tapa(doc, t: dict, obra: dict):
     for esq_x in (marco_rect.x0 + 9, marco_rect.x1 - 9):
         for esq_y in (marco_rect.y0 + 9, marco_rect.y1 - 9):
             _tornillo(pg, esq_x, esq_y, 3.4, cruz=True)
-    dx, dy = MARCO, y_gabinete - 0
+    dx, dy = MARCO, y_gabinete
     for piso in range(t["pisos"]):
         y0 = g.y_riel(piso) + dy
-        pg.draw_rect(pymupdf.Rect(dx + MARGEN, y0, dx + g.ancho - MARGEN, y0 + g.alto_disp),
+        pg.draw_rect(pymupdf.Rect(dx + MARGEN, y0, dx + ancho_disp - MARGEN, y0 + g.alto_disp),
                     color=(0.88, 0.88, 0.88), fill=(0.97, 0.97, 0.97), width=0.7, radius=0.05)
     for d in t.get("dispositivos") or []:
         if d.get("piso") is None:
             continue
-        x0 = dx + g.x(d["posicion"]) + g.celda * 0.16
-        w = d["polos"] * g.celda - g.celda * 0.32
+        margen_disp = g.celda * ESCALA_X * 0.11
+        x0 = dx + xt(d["posicion"]) + margen_disp
+        w = d["polos"] * g.celda * ESCALA_X - margen_disp * 2
         y0 = dy + g.y_riel(d["piso"]) + 2
         h = g.alto_disp - 4
         _dibujar_dispositivo(pg, x0, y0, w, h, d, _nombre_circuito(obra, d.get("circuitoId")))
         desc = _descripcion_circuito(obra, d.get("circuitoId"))
         if desc:
-            _texto_centrado(pg, x0 + w / 2, y0 + h + 10, desc[:22], min(w * 0.14, 6.5),
-                            (0.35, 0.38, 0.42), negrita=False, fuente_max=w * 1.05)
+            _texto_multilinea(pg, x0 + w / 2, y0 + h + 13, desc, 8.5, TRAZO,
+                              d["polos"] * g.celda * ESCALA_X * 0.92, negrita=True, max_lineas=3)
 
 
 def generar(t: dict, obra: dict) -> bytes:

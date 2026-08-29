@@ -3,6 +3,29 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 0.23.5 — descripción de circuito en varios renglones y en negrita en la guía de tapa, térmicas más separadas ahí, y más variedad de tomas en la lista de precios
+
+- **La descripción de circuito ya no se corta**: en vez de truncar a una
+  sola línea corta, `_texto_multilinea()` la envuelve en hasta 3 renglones
+  (con "…" si de verdad no entra en esas 3). Se ve en negrita y bastante más
+  grande que antes -- es lo más importante de esta hoja, según se pidió.
+- **Térmicas más separadas, sólo en la guía de tapa**: esta hoja no tiene
+  cables que necesiten espacio para pasar por atrás (esa es la razón por la
+  que se separaron en la hoja de conexionado), así que se le dio su propia
+  escala horizontal, un 45% más ancha entre térmica y térmica, pensada
+  puntualmente para darle lugar a la descripción. La hoja de conexionado no
+  se tocó.
+- **Más variedad en "Tomas"** en la lista de precios: tomacorriente doble,
+  con tapa IP44 (exterior/húmedo), con protección para niños, USB + 220V, y
+  trifásica industrial. Se revisó primero cómo Presupuesto matchea los
+  nombres extraídos del plano contra la lista (por nombre exacto, ver
+  `EQUIVALENCIAS` en `presupuesto.py`) antes de tocar nada — los 4 nombres
+  de los que depende ese cómputo automático ("Tomacorriente común" y las 3
+  "Toma especial - ...") quedaron intactos; lo nuevo son ítems adicionales
+  para elegir a mano desde el combobox de Presupuesto, no reemplazos.
+  Probado: el cómputo automático desde elementos del plano sigue resolviendo
+  cantidades y precios correctamente después del agregado.
+
 ## 0.23.4 — conectores alineados y siempre borrables, descripción por circuito, y la guía de tapa emula el tablero real
 
 - **Conector de fase alineado con el de neutro**: el cuerpo de cualquier
