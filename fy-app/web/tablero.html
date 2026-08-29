@@ -1531,7 +1531,7 @@ $('b-borrar-tablero').onclick = async () => {
   const r = await api(`/api/obras/${OBRA_ID}/tableros/${t.id}`, {method:'POST', body:'{}'});
   actualizarTablero(r.tablero, r.avisos);
 });
-$('b-volver').onclick = () => location.href = '/circuitos.html?obra='+OBRA_ID;
+$('b-volver').onclick = () => location.href = '/';
 $('b-pdf-tablero').onclick = () => {
   const t = tableroActivo();
   if(!t){ toast('Elegí un tablero primero.'); return; }

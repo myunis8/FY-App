@@ -3,6 +3,32 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 0.21.2 — PDF de tablero cortado por el borde (bornera PAT), "Volver" en Tablero, y combobox de precios en Presupuesto
+
+- **Bug encontrado y corregido: el PDF de conexionado del tablero salía
+  cortado por la derecha** cuando había una bornera de tierra (PAT) con
+  cables en más de un terminal. Causa: `_punto_endpoint()` en
+  `pdf_tablero.py` calculaba la posición de cada terminal de la bornera
+  igual que en una térmica común (el número de terminal se sumaba como
+  desplazamiento *horizontal*, una celda entera por terminal) — pero la
+  bornera dibuja sus 6 terminales apilados *verticalmente*, todos en el
+  mismo X (ver `_bornera()`). El resultado: un cable al 2º, 3º... terminal
+  de la PAT se calculaba varias celdas a la derecha de donde está el
+  dispositivo, y como el ancho de la hoja (`_Geom.ancho`) no contempla ese
+  corrimiento, el tablero entero quedaba cortado a partir de ahí. Se
+  corrigió replicando la geometría real de la bornera (mismo X, Y por fila).
+  Reproducido con un tablero de prueba con la misma composición que el
+  reportado (general + diferencial + protector DPS + PAT, TUG1/TUG2/IUG1/IUG2,
+  TUE1-4, cables a los 6 terminales de la PAT) y confirmado que el PDF sale
+  completo, sin cortes.
+- **"Volver" en Tablero** llevaba a Circuitos; ahora va al listado de obras,
+  igual que en Revisor y Circuitos.
+- **Combobox de precios en Presupuesto**: en "Extras y adicionales" ahora se
+  puede elegir un ítem ya cargado en la lista de precios (agrupado por
+  categoría, con el precio vigente visible antes de elegir) en vez de
+  tipearlo de cero. Se agrega con nombre, unidad y precio ya completos. El
+  botón "+ Personalizado" se mantiene para lo que no está en la lista.
+
 ## 0.21.1 — retornos que comparten caño ya se distinguen por color, hojas de tomas con conductores reales, y más resolución para digital
 
 - **Retornos múltiples por el mismo caño, ahora distinguibles**: si dos o

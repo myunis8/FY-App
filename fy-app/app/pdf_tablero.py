@@ -269,6 +269,18 @@ def _punto_endpoint(g: _Geom, t: dict, ep: dict):
         d = next((x for x in t["dispositivos"] if x["id"] == ep["id"]), None)
         if d is None or d.get("piso") is None:
             return None
+        if d["tipo"] == "bornera":
+            # la PAT es una bornera vertical de 6 terminales apilados en Y,
+            # todos en el mismo X (ver _bornera) -- no es "arriba/abajo" con
+            # el polo como desplazamiento en X, como sí pasa con las
+            # térmicas. Tratarla igual corría el punto varias celdas afuera
+            # del dispositivo (y a veces afuera de la hoja entera).
+            x0, w = g.x(d["posicion"]), d["polos"] * g.celda - 2
+            y0, h = g.y_riel(d["piso"]) + 2, g.alto_disp - 4
+            filas = 6
+            alto_fila = h * 0.84 / filas
+            polo = ep.get("polo", 0) or 0
+            return (x0 + w / 2, y0 + h * 0.06 + alto_fila * (polo + 0.5))
         cx = g.x(d["posicion"] + (ep.get("polo", 0) or 0) + 0.5)
         cy = g.y_riel(d["piso"]) + (2 if ep.get("lado") == "arriba" else g.alto_disp - 2)
         return (cx, cy)

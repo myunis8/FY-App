@@ -96,7 +96,13 @@ tr.opcional{opacity:.72;background:repeating-linear-gradient(45deg,transparent,t
       <th style="width:8%">Un.</th><th style="width:17%">Unitario</th>
       <th style="width:17%">Subtotal</th><th class="acc"></th>
     </tr></thead><tbody id="t-extras"></tbody></table>
-    <button class="btn sm" id="b-extra">Agregar extra</button>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <select id="sel-precio" style="flex:1;min-width:220px;max-width:380px;padding:6px 8px;
+        border:1px solid var(--line);border-radius:7px;background:#fff">
+        <option value="">+ Agregar de la lista de precios…</option>
+      </select>
+      <button class="btn sm" id="b-extra">+ Personalizado</button>
+    </div>
     <span class="nota" style="margin-left:8px">El botón ◇ marca una línea como
       opcional: se muestra aparte y no suma al total.</span>
   </div>
@@ -162,7 +168,36 @@ async function cargar(){
   await sincronizar({});
   if(!(pres.items||[]).length) await sincronizar({recalcularCantidades:true});
   pintarControles();
+  cargarListaPrecios();
 }
+
+// combobox de "agregar de la lista de precios" en Extras: evita retipear un
+// ítem que ya existe en precios.html, agrupado por categoría, con el precio
+// vigente de hoy visible antes de elegir
+let listaPrecios = [];
+async function cargarListaPrecios(){
+  try{
+    const d = await api('/api/precios');
+    listaPrecios = d.items || [];
+  }catch(err){ listaPrecios = []; }   // si falla, igual queda "+ Personalizado"
+  const sel = $('sel-precio');
+  const porCategoria = {};
+  for(const it of listaPrecios) (porCategoria[it.categoria] ||= []).push(it);
+  sel.innerHTML = '<option value="">+ Agregar de la lista de precios…</option>' +
+    Object.keys(porCategoria).map(cat => `<optgroup label="${esc(cat)}">${
+      porCategoria[cat].map(it => `<option value="${it.id}">${esc(it.item)} — ${plata(it.precio)}</option>`).join('')
+    }</optgroup>`).join('');
+}
+$('sel-precio').onchange = async () => {
+  const sel = $('sel-precio');
+  const it = listaPrecios.find(p => p.id === sel.value);
+  sel.value = '';
+  if(!it) return;
+  pres.extras.push({id:'ex_'+Date.now().toString(36), item:it.item,
+                    unidad:it.unidad||'u', cantidad:1, precioUnitario:it.precio||0,
+                    opcional:false, origen:'lista'});
+  await sincronizar({});
+};
 async function sincronizar(op){
   const r = await api('/api/obras/'+OBRA_ID+'/presupuesto',
     {method:'POST', body:JSON.stringify({presupuesto: pres, ...op})});
