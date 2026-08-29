@@ -454,8 +454,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._error("Ese tablero no existe.", 404)
         t.setdefault("conexiones", [])
         cuerpo = self._cuerpo()
-        puente, msg = tablero_mod.crear_puente(t, cuerpo.get("pisoOrigen"), cuerpo.get("x"),
-                                               cuerpo.get("pisoDestino"), cuerpo.get("polaridad", "fase"))
+        puente, msg = tablero_mod.crear_puente(t, cuerpo.get("peineOrigenId"), cuerpo.get("peineDestinoId"),
+                                               cuerpo.get("polaridad", "fase"))
         if puente is None:
             return self._error(msg)
         almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))

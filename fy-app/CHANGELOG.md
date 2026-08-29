@@ -3,6 +3,42 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 0.22.1 — los conectores al piso siguiente ahora se anclan de verdad a los peines, coloreados por polaridad, y las térmicas se separan para ver por dónde corren los cables
+
+- **Causa del "desconectado"**: el conector (puente) arrancaba desde un punto
+  flotante debajo de la fila de térmicas del piso de origen, y su posición
+  X no necesariamente coincidía con el ancho real del peine de destino —
+  visualmente parecía salir de la nada y terminar en la nada.
+- **`crear_puente` rediseñado** (`app/tablero.py`): ahora exige un peine ya
+  puesto en el piso de origen y otro en el de destino (ya no acepta una
+  posición libre). La posición se calcula sola, del centro de cada peine.
+  Si falta alguno, avisa en vez de dejar algo mal puesto.
+- **Geometría corregida** (`web/tablero.html` y `app/pdf_tablero.py`): el
+  conector arranca exactamente sobre la barra del peine de origen y termina
+  exactamente sobre la del peine de destino, atravesando en el medio la fila
+  de térmicas del piso de origen.
+- **"Pasa por atrás" gratis**: la app ya dibuja las térmicas encima del
+  cableado (para taparlo a propósito); al extender el conector para que
+  cruce toda la fila, automáticamente queda tapado detrás de cada térmica y
+  reaparece en los huecos, sin necesitar lógica nueva.
+- **Huecos reales entre térmicas**: se agregó un margen visible a los
+  costados de cada térmica (antes ocupaban la celda entera, pegadas unas a
+  otras) tanto en el editor como en el PDF, para que el efecto anterior
+  tenga dónde asomar.
+- **Color por polaridad**: el cuerpo del conector (antes blanco con borde
+  oscuro) ahora se pinta con el color de fase (marrón) o neutro (celeste).
+  Cuando fase y neutro bajan entre el mismo par de peines quedaban
+  exactamente superpuestas la mayor parte del recorrido — se separaron unos
+  px al costado para poder distinguirlas.
+- El nodo/terminal para conectar un cable ya existía (`data-con-click` +
+  `lado`/`polaridad`); con la geometría corregida ahora queda en el lugar
+  correcto para engancharle un cable hacia otro conector.
+- Probado en navegador real y en el PDF con el mismo tablero (peines de
+  distinto ancho en cada piso): ambos extremos quedan pegados a su peine,
+  fase y neutro se distinguen, y el cable se ve pasar por el hueco entre las
+  dos térmicas del medio. Sin regresiones en el cableado de la bornera PAT
+  ni en la separación de cables paralelos ya arregladas antes.
+
 ## 0.22.0 — cables del tablero separados en carriles, y vista previa de PDF en Tablero, Presupuesto y Routeo
 
 - **Cables que comparten corredor ya no se dibujan encima uno del otro**:

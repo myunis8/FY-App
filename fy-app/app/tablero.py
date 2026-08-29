@@ -316,22 +316,32 @@ def crear_peine(tablero: dict, piso: int, desde: int, hasta: int) -> tuple[dict 
     return peine, ""
 
 
-def crear_puente(tablero: dict, piso_origen: int, x: int, piso_destino: int,
+def crear_puente(tablero: dict, peine_origen_id: str, peine_destino_id: str,
                  polaridad: str = "fase") -> tuple[dict | None, str]:
-    """El conector que baja un solo conductor (fase o neutro) de un piso al
-    riel del piso siguiente, tal como en la foto de referencia. Uno para fase
-    y otro para neutro, cada uno donde corresponda — no van pegados: no
-    siempre hace falta bajar los dos al mismo lugar."""
-    if piso_destino != piso_origen + 1:
-        return None, "Un conector siempre baja al piso inmediatamente siguiente."
-    if not (0 <= piso_origen < tablero["pisos"] and 0 <= piso_destino < tablero["pisos"]):
-        return None, "Ese piso no existe."
+    """El conector que baja un solo conductor (fase o neutro) del peine de un
+    piso al peine del piso siguiente. Siempre se ancla a los dos peines --
+    nunca queda flotando en un punto cualquiera de la banda, como en una
+    instalacion real, donde ese cable siempre sale de una bornera del peine
+    de arriba y entra a una del peine de abajo. Uno de fase y otro de
+    neutro son dos objetos independientes, cada uno donde haga falta."""
+    conexiones = tablero.get("conexiones") or []
+    peine_o = next((c for c in conexiones if c["id"] == peine_origen_id and c["tipo"] == "peine"), None)
+    peine_d = next((c for c in conexiones if c["id"] == peine_destino_id and c["tipo"] == "peine"), None)
+    if not peine_o or not peine_d:
+        return None, "Hace falta un peine en los dos pisos para bajar un conector -- armalos primero."
+    if peine_d["piso"] != peine_o["piso"] + 1:
+        return None, "Un conector siempre baja al peine del piso inmediatamente siguiente."
     if polaridad not in ("fase", "neutro"):
         return None, "Un conector es de fase o de neutro."
+    x_o = (peine_o["desde"] + peine_o["hasta"] + 1) / 2
+    x_d = (peine_d["desde"] + peine_d["hasta"] + 1) / 2
     puente = {"id": _id("puente"), "tipo": "puente", "polaridad": polaridad,
-             "pisoOrigen": piso_origen, "pisoDestino": piso_destino, "x": x}
+             "pisoOrigen": peine_o["piso"], "pisoDestino": peine_d["piso"],
+             "xOrigen": x_o, "xDestino": x_d,
+             "peineOrigenId": peine_origen_id, "peineDestinoId": peine_destino_id}
     tablero["conexiones"].append(puente)
     return puente, ""
+
 
 
 def eliminar_conexion(tablero: dict, con_id: str) -> bool:
