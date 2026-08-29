@@ -3,6 +3,69 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 0.25.0 — la obra abierta ahora es una pantalla propia (con Volver a Home), "Tablero principal" a secas se borra solo, y el PDF de Routeo genera bastante más rápido
+
+- **El detalle de una obra ya no es un modal, es una pantalla propia:
+  `obra.html?obra=<id>`.** Antes, al hacer clic en una obra desde Home se
+  abría una ventanita (overlay) con los módulos; entrar a cualquier módulo
+  y tocar "Volver" te mandaba siempre al Home, obligando a volver a buscar
+  la obra en la lista. Con muchas obras esto se vuelve tedioso.
+  - Se creó `web/obra.html`, con el mismo contenido que antes vivía en el
+    modal de `index.html` (resumen, plano, los 4 módulos, subir/bajar/
+    borrar), pero como pantalla completa navegable por URL.
+  - `index.html`: el clic en una tarjeta de obra ahora navega a
+    `/obra.html?obra=<id>` en vez de abrir el modal. Se sacó todo el
+    código del modal de detalle que quedó sin uso (`abrirDetalle`,
+    `pintarBloques`, `pintarPlano`, etc. -- ahora viven en `obra.html`).
+  - `circuitos.html`, `tablero.html`, `canaliza.html`, `presupuesto.html`:
+    el botón "Volver" ahora manda a `/obra.html?obra=<OBRA_ID>` en vez de
+    `/` (Home) -- así entrar y salir de un módulo no te saca del contexto
+    de la obra que estás trabajando.
+  - `revisor.html` también actualizado, aunque hoy sólo se llega ahí desde
+    `obra.html` (antes el modal), no cambia el flujo real, sólo el destino
+    del botón.
+  - `precios.html` (la lista de precios global, no depende de una obra)
+    sigue volviendo a Home, porque no tiene sentido "asociarla" a ninguna
+    obra en particular.
+  - Probado con Puppeteer contra un servidor real: Home → obra.html →
+    cada uno de los 4 módulos → Volver, confirmando en cada paso que la
+    URL es la esperada y que ninguna vuelve al Home salvo desde
+    `obra.html` misma.
+- **"Tablero principal" a secas (el que quedaba de antes de separar la
+  semilla en monofásico/trifásico) ahora se borra solo.** No hay nada en
+  el código que lo "reagregue" -- lo que pasaba es que si se borraba a
+  mano en `precios.html` sin darse cuenta de guardar (o si quedaba en
+  datos viejos), seguía apareciendo. Ahora `precios.py` tiene una lista
+  chica de ítems puntuales obsoletos (por ahora sólo éste) que se eliminan
+  solos cada vez que se lee la lista de precios, sin depender de acordarse
+  de borrarlo a mano. Probado con una lista de precios armada a mano con
+  el caso exacto: al levantar el servidor, desaparece; "Tablero principal
+  monofásico/trifásico" (los que sí hay que tener) quedan intactos.
+- **El PDF de Routeo genera ~2 a 2.4x más rápido cuando hay varios
+  circuitos.** El motivo real: por cada hoja del PDF (la general, la de
+  cableado detallado, y una por cada circuito tildado) se volvía a
+  calcular `findCrossings()` -- que recorre TODOS los cruces de TODO el
+  proyecto y cuesta del orden de tramos² -- aunque el resultado es
+  exactamente el mismo para cualquier hoja de un mismo PDF. Con muchos
+  circuitos, ese cálculo se repetía una vez por cada hoja en vez de una
+  sola vez.
+  - `canaliza.html`: `makePdf()` ahora calcula los cruces una sola vez al
+    principio y se los pasa a `planCanvas()` en las 3 hojas que lo usan,
+    en vez de que cada una los recalcule por su cuenta. `planCanvas()`
+    sigue calculándolos ella misma si no se los pasan (para no romper
+    ningún otro uso futuro).
+  - No cambia el resultado visual del PDF -- es exactamente el mismo
+    cálculo, sólo que se hace una vez en lugar de N veces.
+  - Medido con Puppeteer sobre proyectos sintéticos (usando el hook
+    `window.canalizaDebug` para inyectar circuitos/tramos y llamar
+    `planCanvas()` real de este archivo, antes/después del cambio): con
+    20 circuitos, 5.2s → 2.15s (2.41x); con 35 circuitos, 6.0s → 2.9s
+    (2.07x). El resto del tiempo es dibujar y comprimir a PNG cada hoja a
+    resolución alta (6000 px), que no se tocó -- si en algún momento hace
+    falta exprimir más, ahí quedaría el próximo lugar para mirar, bajando
+    la resolución de las hojas por circuito (que no necesitan tanto
+    detalle como la hoja general) a cambio de algo de nitidez.
+
 ## 0.24.1 — categorías huérfanas en la lista de precios corregidas, y la descripción de circuito ahora se lee y edita también desde Tablero
 
 - **Bug real encontrado: "Tomas" vs "Tomacorrientes"**. `precios.html` sólo

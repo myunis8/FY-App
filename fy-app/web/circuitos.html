@@ -585,7 +585,7 @@ $('b-guardar').onclick = async () => {
     toast('Guardado');
   }catch(e){ toast(e.message); }
 };
-$('b-volver').onclick = () => location.href = '/';
+$('b-volver').onclick = () => location.href = '/obra.html?obra=' + OBRA_ID;
 document.addEventListener('keydown', e => {
   if(e.key === 'Escape'){ marcados.clear(); zona = null; pintar(); }
   if(e.key === 'Enter' && marcados.size) $('a-agregar').click();

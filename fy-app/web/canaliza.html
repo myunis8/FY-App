@@ -469,7 +469,7 @@ if(OBRA_ID){
   const brand = document.getElementById('brand');
   const bVolver = document.createElement('button');
   bVolver.className = 'btn'; bVolver.id = 'bVolver'; bVolver.textContent = '← Volver';
-  bVolver.onclick = () => location.href = '/';
+  bVolver.onclick = () => location.href = '/obra.html?obra=' + OBRA_ID;
   brand?.after(bVolver);
 
   // "Reiniciar": borra caños y cableado, las cajas y circuitos quedan igual
@@ -2644,7 +2644,12 @@ function planCanvas(opt){
   g.fillStyle="#fff"; g.fillRect(0,0,c.width,c.height);
   g.save(); g.scale(s,s);
   drawScene(g, Object.assign({z:s}, opt));
-  for(const cr of findCrossings()){
+  // findCrossings() recorre todos los cruces de TODO el proyecto (cuesta
+  // O(tramos²)) y da exactamente lo mismo para cualquier hoja del mismo PDF
+  // -- si no viene ya calculado (opt.crossings, ver makePdf), se calcula acá
+  // como antes, para no romper a nadie más que use planCanvas.
+  const crossings = opt.crossings || findCrossings();
+  for(const cr of crossings){
     if(opt.only && !cr.a.runs.some(r=>r.circuit===opt.only) && !cr.b.runs.some(r=>r.circuit===opt.only)) continue;
     drawCrossingMark(g, cr, s);
   }
@@ -2662,6 +2667,11 @@ async function makePdf(){
 
   const wanted = Array.from(document.querySelectorAll(".pxC:checked")).map(i=>i.value);
   const bom = computeBom();
+  // los cruces de todo el proyecto son los mismos para cualquier hoja de
+  // este PDF (no dependen de qué circuito se esté dibujando) -- calcularlos
+  // una sola vez acá, en vez de una vez por cada hoja, es lo que más pesaba
+  // cuando había varios circuitos (era O(tramos²) repetido N veces).
+  const crossings = findCrossings();
 
   function header(title, sub){
     if(!first) doc.addPage(); first=false;
@@ -2691,7 +2701,7 @@ async function makePdf(){
   // ---- hoja general
   if($("#pxAll").checked){
     header("Routeo — todos los circuitos", S.pxPerM?fmt(S.pxPerM,1)+" px/m":"sin escala");
-    const c = planCanvas({labels:true, lens:false, res:6000});
+    const c = planCanvas({labels:true, lens:false, res:6000, crossings});
     putPlan(c, M+14, PH-40, {png:true});
     // leyenda
     let y = PH-34;
@@ -2715,7 +2725,7 @@ async function makePdf(){
   // ---- hoja de cableado detallado (todos los circuitos, con los conductores reales dentro de cada caño)
   if($("#pxDetail").checked){
     header("Cableado detallado — todos los circuitos", "cables reales dentro de cada caño");
-    const c = planCanvas({labels:false, lens:false, detailed:true, res:6000});
+    const c = planCanvas({labels:false, lens:false, detailed:true, res:6000, crossings});
     putPlan(c, M+14, PH-40, {png:true});
     let y = PH-34;
     doc.setFontSize(8); doc.setTextColor(20); doc.setFont("helvetica","bold");
@@ -2764,7 +2774,7 @@ async function makePdf(){
     // antes esto sólo pasaba para iluminación; los circuitos de tomas/especiales
     // también tienen sus conductores reales (fase/neutro/tierra) y merecen verse
     // igual de detallados en su propia hoja, no sólo en la general
-    const cnv = planCanvas({only:id, labels:true, lens:false, detailed:true, res:6000});
+    const cnv = planCanvas({only:id, labels:true, lens:false, detailed:true, res:6000, crossings});
     putPlan(cnv, M+14, PH-34, {png:true});
 
     let y=PH-28;

@@ -177,20 +177,6 @@ main{max-width:1180px;margin:0 auto;padding:26px 22px 60px}
   <div id="lista"></div>
 </main>
 
-<!-- vista previa de PDF -->
-<div class="overlay" id="ov-pdf">
-  <div class="caja-pdf">
-    <div class="cab-pdf">
-      <b>Vista previa del PDF</b>
-      <div style="display:flex;gap:8px">
-        <button class="btn" id="pdfCerrar">Cerrar</button>
-        <button class="btn primary" id="pdfDescargar">Descargar…</button>
-      </div>
-    </div>
-    <iframe id="pdfFrame"></iframe>
-  </div>
-</div>
-
 <!-- configuración -->
 <div class="overlay" id="ov-config">
   <div class="caja">
@@ -275,45 +261,6 @@ main{max-width:1180px;margin:0 auto;padding:26px 22px 60px}
 </div>
 
 <!-- detalle -->
-<div class="overlay" id="ov-detalle">
-  <div class="caja">
-    <h2 id="d-titulo">Obra</h2>
-    <p class="ayuda" id="d-sub"></p>
-    <div class="aviso" id="d-aviso"></div>
-    <div class="bloques" id="d-bloques"></div>
-    <div class="plano-fila" id="d-plano"></div>
-    <input type="file" id="d-archivo" accept="application/pdf,.pdf" hidden>
-    <div class="plano-fila" style="margin-top:10px">
-      <div class="txt"><b>Circuitos</b><span id="d-ncircuitos"></span>
-        <div class="nota">Agrupá los elementos en IUG, TUG, TUE y elegí secciones
-        y protecciones.</div></div>
-      <button class="btn primary sm" id="d-circuitos">Abrir</button>
-    </div>
-    <div class="plano-fila">
-      <div class="txt"><b>Tablero</b><span id="d-ntableros"></span>
-        <div class="nota">Protecciones, distribución de bocas y armado gráfico.</div></div>
-      <button class="btn primary sm" id="d-tablero">Abrir</button>
-    </div>
-    <div class="plano-fila">
-      <div class="txt"><b>Routeo</b><span id="d-ncanalizacion"></span>
-        <div class="nota">Cajas y caños entre ellas, con diámetro sugerido.</div></div>
-      <button class="btn primary sm" id="d-canalizacion">Abrir</button>
-    </div>
-    <div class="plano-fila">
-      <div class="txt"><b>Presupuesto</b><span id="d-npresupuesto"></span>
-        <div class="nota">Cantidades, extras, descuentos y precio final.</div></div>
-      <button class="btn primary sm" id="d-presupuesto">Abrir</button>
-      <button class="btn sm" id="d-pdf">Descargar PDF</button>
-    </div>
-    <div class="acciones">
-      <button class="btn" id="d-borrar" style="margin-right:auto;color:var(--danger)">Borrar</button>
-      <button class="btn" id="d-cerrar">Cerrar</button>
-      <button class="btn" id="d-bajar">Descargar obra.json</button>
-      <button class="btn primary" id="d-subir">Subir al repositorio</button>
-    </div>
-  </div>
-</div>
-
 <div id="toast"></div>
 
 <script>
@@ -325,7 +272,7 @@ const ESTADOS = {preliminar:'Preliminar', aprobado:'Aprobado',
                  en_curso:'En curso', realizado:'Realizado'};
 const PAGOS = {pendiente:'Pendiente', parcial:'Pago parcial', pagado:'Pagado'};
 
-let estadoApp = null, obras = [], obraAbierta = null;
+let estadoApp = null, obras = [];
 
 const $ = id => document.getElementById(id);
 const api = async (ruta, opts={}) => {
@@ -420,7 +367,7 @@ function render(){
   }
   cont.innerHTML = '<div class="grid">' + lista.map(tarjeta).join('') + '</div>';
   cont.querySelectorAll('.obra').forEach(el =>
-    el.addEventListener('click', () => abrirDetalle(el.dataset.id)));
+    el.addEventListener('click', () => location.href = '/obra.html?obra=' + el.dataset.id));
 }
 function tarjeta(o){
   const p = o.progreso||{};
@@ -455,142 +402,9 @@ function tarjeta(o){
 const esc = s => (s==null?'':String(s)).replace(/[&<>"]/g,
   c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
-/* ---------------- detalle ---------------- */
-async function abrirDetalle(id){
-  const r = obras.find(o=>o.id===id);
-  $('d-titulo').textContent = r.nombre;
-  $('d-sub').textContent = (r.cliente? r.cliente+' · ':'') +
-    (ESTADOS[r.estado]||'') + ' · última edición ' + cuando(r.actualizadoEl);
-  $('d-aviso').className='aviso';
-  $('d-bloques').innerHTML = '<div class="bloque">Cargando…</div>';
-  $('d-plano').innerHTML = '';
-  abrir('ov-detalle');
-  try{
-    obraAbierta = await api('/api/obras/'+id);
-  }catch(e){
-    obraAbierta = null;
-    $('d-bloques').innerHTML =
-      `<div class="bloque"><b>Sólo en el repositorio</b>Todavía no la bajaste a este equipo.</div>`;
-    try{
-      obraAbierta = (await api('/api/sync/traer/'+id, {method:'POST', body:'{}'})).obra;
-    }catch(e2){ mostrarAviso('d-aviso','mal', e2.message); return; }
-  }
-  pintarBloques(obraAbierta);
-  pintarPlano(obraAbierta);
-}
-function pintarBloques(obra){
-  const canal = obra.canalizacion||{};
-  const filas = [
-    ['Plano', obra.plano ? (obra.plano.escala?.nominal || 'cargado') : 'sin cargar'],
-    ['Ambientes', (obra.ambientes||[]).length],
-    ['Elementos', (obra.elementos||[]).length],
-    ['Circuitos', (obra.circuitos||[]).length],
-    ['Tableros', (obra.tableros||[]).length],
-    ['Tramos de caño', (canal.tramos||[]).length],
-    ['Ítems de presupuesto', (obra.presupuesto?.items||[]).length],
-    ['Avisos', (obra.validacion?.errores||[]).length + (obra.validacion?.advertencias||[]).length],
-  ];
-  $('d-ncircuitos').textContent = (obra.circuitos||[]).length
-    ? `${obra.circuitos.length} armados` : 'Todavía ninguno';
-  $('d-circuitos').onclick = () => location.href = '/circuitos.html?obra=' + obra.obra.id;
-  $('d-ntableros').textContent = (obra.tableros||[]).length
-    ? `${obra.tableros.length} armado(s)` : 'Todavía ninguno';
-  $('d-tablero').onclick = () => location.href = '/tablero.html?obra=' + obra.obra.id;
-  $('d-ncanalizacion').textContent = (obra.canalizacion?.runs||[]).length
-    ? `${obra.canalizacion.runs.length} tramo(s)` : 'Todavía ninguno';
-  $('d-canalizacion').onclick = () => location.href = '/canaliza.html?obra=' + obra.obra.id;
-  const nit = (obra.presupuesto?.items||[]).length + (obra.presupuesto?.extras||[]).length;
-  $('d-npresupuesto').textContent = nit ? `${nit} ítems` +
-    (obra.presupuesto?.congeladoEl ? ' · congelado' : ' · sin congelar') : 'Todavía ninguno';
-  $('d-presupuesto').onclick = () => location.href = '/presupuesto.html?obra=' + obra.obra.id;
-  $('d-pdf').onclick = () => mostrarVistaPreviaPdf(
-    '/api/obras/' + obra.obra.id + '/presupuesto.pdf',
-    (obra.obra.nombre || 'presupuesto').replace(/\s+/g,'_') + '.pdf');
-  $('d-bloques').innerHTML = filas.map(([k,v]) =>
-    `<div class="bloque"><b>${k}</b>${v}</div>`).join('');
-}
-function pintarPlano(obra){
-  const p = obra.plano, cont = $('d-plano');
-  if(!p && obra.obra.sinPlano){
-    cont.innerHTML = `<div class="txt"><b>Plano</b>Esta obra no lleva plano.
-      <div class="nota">Los elementos se cargan a mano desde circuitos.</div></div>
-      <button class="btn sm" id="p-cargar">Cargar uno igual</button>`;
-    cont.querySelector('#p-cargar').onclick = () => $('d-archivo').click();
-    return;
-  }
-  if(!p){
-    cont.innerHTML = `<div class="txt"><b>Plano</b>Todavía no cargaste el PDF.
-      <div class="nota">Es el que te manda el arquitecto. La lectura automática
-      llega con el módulo de extracción; por ahora queda guardado junto a la obra.</div></div>
-      <button class="btn primary sm" id="p-cargar">Cargar PDF</button>`;
-  } else {
-    const mb = (p.tamanoBytes/1048576).toFixed(1);
-    cont.innerHTML = `<div class="txt"><b>Plano</b>${esc(p.archivo)}
-      <div class="nota">${mb} MB · cargado ${cuando(p.cargadoEl)}${
-        p.escala? ' · escala '+esc(p.escala.nominal) : ' · sin extraer'}</div></div>
-      <button class="btn sm" id="p-ver">Ver PDF</button>
-      <button class="btn sm" id="p-cargar">Reemplazar</button>
-      <button class="btn primary sm" id="p-revisar">${p.escala?'Revisar lectura':'Extraer'}</button>`;
-    cont.querySelector('#p-ver').onclick = () =>
-      window.open('/api/obras/'+obra.obra.id+'/plano','_blank');
-    cont.querySelector('#p-revisar').onclick = () =>
-      location.href = '/revisor.html?obra=' + obra.obra.id;
-  }
-  cont.querySelector('#p-cargar').onclick = () => $('d-archivo').click();
-}
-$('d-archivo').onchange = async e => {
-  const f = e.target.files[0]; if(!f || !obraAbierta) return;
-  e.target.value = '';
-  try{
-    const r = await fetch('/api/obras/'+obraAbierta.obra.id+'/plano', {
-      method:'POST', body:f,
-      headers:{'X-Nombre-Archivo': encodeURIComponent(f.name)}});
-    const d = await r.json();
-    if(!r.ok) throw new Error(d.error||'No se pudo cargar');
-    obraAbierta.plano = d.plano;
-    pintarBloques(obraAbierta); pintarPlano(obraAbierta);
-    await cargarObras();
-    toast('Plano cargado');
-  }catch(err){ mostrarAviso('d-aviso','mal', err.message); }
-};
-
 function mostrarAviso(id, clase, msg){
   const el=$(id); el.className='aviso '+clase; el.textContent=msg;
 }
-
-$('d-subir').onclick = async () => {
-  if(!obraAbierta) return;
-  const id = obraAbierta.obra.id;
-  try{
-    await api('/api/sync/subir/'+id, {method:'POST', body:'{}'});
-    mostrarAviso('d-aviso','ok','Subida al repositorio.');
-    await cargarObras();
-  }catch(e){
-    if(e.conflicto){
-      mostrarAviso('d-aviso','mal', e.message +
-        ' Bajala de nuevo, o subí igual y pisá lo que hay allá.');
-      if(confirm(e.message + '\n\n¿Subir igual y pisar la versión del repositorio?')){
-        await api('/api/sync/subir/'+id, {method:'POST', body:JSON.stringify({forzar:true})});
-        mostrarAviso('d-aviso','ok','Subida, pisando la versión anterior.');
-        await cargarObras();
-      }
-    } else mostrarAviso('d-aviso','mal', e.message);
-  }
-};
-$('d-bajar').onclick = () => {
-  if(!obraAbierta) return;
-  const b = new Blob([JSON.stringify(obraAbierta,null,2)],{type:'application/json'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(b);
-  a.download = (obraAbierta.obra.nombre||'obra').replace(/[^\w\- ]/g,'') + '.obra.json';
-  a.click(); URL.revokeObjectURL(a.href);
-};
-$('d-borrar').onclick = async () => {
-  if(!obraAbierta) return;
-  if(!confirm('¿Borrar esta obra de este equipo? Lo que esté en el repositorio no se toca.')) return;
-  await api('/api/obras/'+obraAbierta.obra.id, {method:'DELETE'});
-  cerrar('ov-detalle'); await cargarObras(); toast('Obra borrada de este equipo');
-};
 
 /* ---------------- configuración ---------------- */
 function abrirConfig(){
@@ -663,42 +477,9 @@ $('n-crear').onclick = async () => {
 function abrir(id){ $(id).classList.add('abierto'); }
 function cerrar(id){ $(id).classList.remove('abierto'); }
 
-// vista previa de PDF: se pide el archivo como blob (en vez de navegar
-// directo a la URL) y se muestra en un iframe adentro de la app, con un
-// botón de Descargar recién ahí -- así se ve el resultado antes de guardarlo.
-async function mostrarVistaPreviaPdf(url, nombreArchivo){
-  let blob;
-  try{
-    const res = await fetch(url);
-    if(!res.ok) throw new Error((await res.json().catch(()=>({}))).error || 'No se pudo generar el PDF.');
-    blob = await res.blob();
-  }catch(err){ alert(err.message || 'No se pudo generar el PDF.'); return; }
-  const objUrl = URL.createObjectURL(blob);
-  $('pdfFrame').src = objUrl;
-  abrir('ov-pdf');
-  $('pdfDescargar').onclick = async () => {
-    if(window.showSaveFilePicker){
-      try{
-        const handle = await window.showSaveFilePicker({suggestedName: nombreArchivo,
-          types:[{description:'PDF', accept:{'application/pdf':['.pdf']}}]});
-        const writable = await handle.createWritable();
-        await writable.write(blob);
-        await writable.close();
-        return;
-      }catch(err){ if(err.name === 'AbortError') return; }
-    }
-    const a = document.createElement('a');
-    a.href = objUrl; a.download = nombreArchivo; a.click();
-  };
-  $('pdfCerrar').onclick = () => {
-    cerrar('ov-pdf');
-    $('pdfFrame').src = ''; URL.revokeObjectURL(objUrl);
-  };
-}
 $('b-config').onclick = abrirConfig;
 $('c-cerrar').onclick = () => cerrar('ov-config');
 $('n-cerrar').onclick = () => cerrar('ov-nueva');
-$('d-cerrar').onclick = () => cerrar('ov-detalle');
 $('b-sync').onclick = sincronizar;
 ['f-buscar','f-estado','f-etapa'].forEach(id => $(id).addEventListener('input', render));
 document.addEventListener('keydown', e => {

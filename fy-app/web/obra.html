@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Obra</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+:root{
+  --navy:#16283f; --navy-deep:#0e1c2e; --paper:#f1f3f2; --panel:#fff; --line:#dde3e2;
+  --ink:#1c2733; --muted:#5b6b7a; --amber:#e2a33d; --amber-deep:#c07f1f;
+  --copper:#b5651d; --copper-soft:#f4e3d3; --slate-soft:#eef1f3;
+  --green:#2f7d5c; --green-soft:#dcefe4; --danger:#b3432f; --danger-soft:#f8ded7;
+  --radius:10px; font-family:'IBM Plex Sans',system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink)}
+.display{font-family:'Space Grotesk',system-ui,sans-serif;letter-spacing:-.01em}
+button{font:inherit;cursor:pointer} input,select{font:inherit}
+header{background:var(--navy);color:#fff;padding:14px 22px;display:flex;
+  align-items:center;gap:16px;flex-wrap:wrap}
+header h1{font-size:1.05rem;margin:0;font-weight:600;font-family:'Space Grotesk',sans-serif}
+header .sub{font-size:.72rem;color:#9db2c7;margin-top:2px}
+.spacer{flex:1}
+.btn{border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:8px 14px;
+  border-radius:var(--radius);font-size:.83rem;font-weight:500}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--amber);border-color:var(--amber-deep);color:#2a1e07;font-weight:600}
+.btn.ghost{background:transparent;border-color:#33506e;color:#cfe0f0}
+.btn.ghost:hover{border-color:#5b7fa5}
+.btn.sm{padding:5px 10px;font-size:.76rem}
+main{max-width:820px;margin:0 auto;padding:26px 22px 60px}
+h2{font-family:'Space Grotesk',sans-serif;font-size:.82rem;margin:22px 0 8px;
+  text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+h2:first-child{margin-top:0}
+.aviso{padding:10px 12px;border-radius:8px;font-size:.8rem;margin-bottom:14px;display:none;line-height:1.45}
+.aviso.ok{background:var(--green-soft);color:var(--green);display:block}
+.aviso.mal{background:var(--danger-soft);color:var(--danger);display:block}
+.bloques{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin:6px 0 4px}
+.bloque{border:1px solid var(--line);border-radius:8px;padding:9px 11px;font-size:.78rem;background:var(--panel)}
+.bloque b{display:block;font-size:.68rem;text-transform:uppercase;letter-spacing:.04em;
+  color:var(--muted);font-weight:600;margin-bottom:3px}
+.plano-fila{border:1px solid var(--line);border-radius:8px;padding:12px 13px;background:var(--panel);
+  margin-top:10px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.plano-fila .txt{flex:1;min-width:170px;font-size:.82rem}
+.plano-fila .txt b{display:block;font-size:.68rem;text-transform:uppercase;
+  letter-spacing:.04em;color:var(--muted);margin-bottom:3px}
+.plano-fila .nota{font-size:.74rem;color:var(--muted);margin-top:3px}
+.acciones{display:flex;gap:9px;justify-content:flex-end;margin-top:22px;flex-wrap:wrap}
+.caja-pdf{background:var(--panel);border-radius:14px;width:min(920px,96vw);height:min(860px,92vh);
+  display:flex;flex-direction:column;overflow:hidden}
+.caja-pdf .cab-pdf{padding:10px 14px;border-bottom:1px solid var(--line);display:flex;
+  align-items:center;justify-content:space-between}
+.caja-pdf iframe{flex:1;border:0;width:100%;background:#525659}
+.overlay{position:fixed;inset:0;background:rgba(14,28,46,.55);display:none;
+  align-items:center;justify-content:center;padding:20px;z-index:40}
+.overlay.abierto{display:flex}
+#toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--navy-deep);
+  color:#fff;padding:11px 18px;border-radius:var(--radius);font-size:.83rem;display:none;z-index:60}
+</style>
+</head>
+<body>
+<header>
+  <div><h1 id="h-nombre">Obra</h1><div class="sub" id="h-sub">Cargando…</div></div>
+  <div class="spacer"></div>
+  <button class="btn ghost" id="b-volver">‹ Todas las obras</button>
+</header>
+
+<main>
+  <div class="aviso" id="d-aviso"></div>
+
+  <h2>Resumen</h2>
+  <div class="bloques" id="d-bloques"><div class="bloque">Cargando…</div></div>
+
+  <h2>Plano</h2>
+  <div class="plano-fila" id="d-plano"></div>
+  <input type="file" id="d-archivo" accept="application/pdf,.pdf" hidden>
+
+  <h2>Módulos</h2>
+  <div class="plano-fila">
+    <div class="txt"><b>Circuitos</b><span id="d-ncircuitos"></span>
+      <div class="nota">Agrupá los elementos en IUG, TUG, TUE y elegí secciones
+      y protecciones.</div></div>
+    <button class="btn primary sm" id="d-circuitos">Abrir</button>
+  </div>
+  <div class="plano-fila">
+    <div class="txt"><b>Tablero</b><span id="d-ntableros"></span>
+      <div class="nota">Protecciones, distribución de bocas y armado gráfico.</div></div>
+    <button class="btn primary sm" id="d-tablero">Abrir</button>
+  </div>
+  <div class="plano-fila">
+    <div class="txt"><b>Routeo</b><span id="d-ncanalizacion"></span>
+      <div class="nota">Cajas y caños entre ellas, con diámetro sugerido.</div></div>
+    <button class="btn primary sm" id="d-canalizacion">Abrir</button>
+  </div>
+  <div class="plano-fila">
+    <div class="txt"><b>Presupuesto</b><span id="d-npresupuesto"></span>
+      <div class="nota">Cantidades, extras, descuentos y precio final.</div></div>
+    <button class="btn primary sm" id="d-presupuesto">Abrir</button>
+    <button class="btn sm" id="d-pdf">Descargar PDF</button>
+  </div>
+
+  <div class="acciones">
+    <button class="btn" id="d-borrar" style="margin-right:auto;color:var(--danger)">Borrar</button>
+    <button class="btn" id="d-bajar">Descargar obra.json</button>
+    <button class="btn primary" id="d-subir">Subir al repositorio</button>
+  </div>
+</main>
+
+<!-- vista previa de PDF -->
+<div class="overlay" id="ov-pdf">
+  <div class="caja-pdf">
+    <div class="cab-pdf"><b>Vista previa</b>
+      <div><button class="btn sm primary" id="pdfDescargar">Descargar…</button>
+      <button class="btn sm" id="pdfCerrar">Cerrar</button></div></div>
+    <iframe id="pdfFrame"></iframe>
+  </div>
+</div>
+
+<div id="toast"></div>
+<script>
+const $ = id => document.getElementById(id);
+const OBRA_ID = new URLSearchParams(location.search).get('obra');
+let obraAbierta = null;
+
+const api = async (ruta, opts={}) => {
+  const r = await fetch(ruta, {headers:{'Content-Type':'application/json'}, ...opts});
+  const d = await r.json().catch(()=>({}));
+  if(!r.ok) throw Object.assign(new Error(d.error || 'Error inesperado'), d);
+  return d;
+};
+function toast(msg){
+  const t=$('toast'); t.textContent=msg; t.style.display='block';
+  clearTimeout(t._t); t._t=setTimeout(()=>t.style.display='none', 3200);
+}
+function mostrarAviso(id, clase, msg){
+  const el=$(id); el.className='aviso '+clase; el.textContent=msg;
+}
+const esc = s => (s==null?'':String(s)).replace(/[&<>"]/g,
+  c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function cuando(ts){
+  if(!ts) return 'sin guardar';
+  const d=new Date(ts), hoy=new Date();
+  const dias=Math.floor((hoy-d)/86400000);
+  if(dias===0) return 'hoy';
+  if(dias===1) return 'ayer';
+  if(dias<30) return `hace ${dias} días`;
+  return d.toLocaleDateString('es-AR');
+}
+const ESTADOS = {preliminar:'Preliminar', aprobado:'Aprobado',
+                 en_curso:'En curso', realizado:'Realizado'};
+
+async function cargar(){
+  if(!OBRA_ID){ mostrarAviso('d-aviso','mal','Falta el id de la obra en la URL.'); return; }
+  try{
+    obraAbierta = await api('/api/obras/'+OBRA_ID);
+  }catch(e){
+    $('d-bloques').innerHTML =
+      `<div class="bloque"><b>Sólo en el repositorio</b>Todavía no la bajaste a este equipo.</div>`;
+    try{
+      obraAbierta = (await api('/api/sync/traer/'+OBRA_ID, {method:'POST', body:'{}'})).obra;
+    }catch(e2){ mostrarAviso('d-aviso','mal', e2.message); return; }
+  }
+  const o = obraAbierta.obra;
+  $('h-nombre').textContent = o.nombre || 'Obra';
+  document.title = o.nombre || 'Obra';
+  $('h-sub').textContent = (o.cliente ? o.cliente+' · ' : '') +
+    (ESTADOS[o.estado]||'') + ' · última edición ' + cuando(o.actualizadoEl);
+  pintarBloques(obraAbierta);
+  pintarPlano(obraAbierta);
+}
+function pintarBloques(obra){
+  const canal = obra.canalizacion||{};
+  const filas = [
+    ['Plano', obra.plano ? (obra.plano.escala?.nominal || 'cargado') : 'sin cargar'],
+    ['Ambientes', (obra.ambientes||[]).length],
+    ['Elementos', (obra.elementos||[]).length],
+    ['Circuitos', (obra.circuitos||[]).length],
+    ['Tableros', (obra.tableros||[]).length],
+    ['Tramos de caño', (canal.tramos||[]).length],
+    ['Ítems de presupuesto', (obra.presupuesto?.items||[]).length],
+    ['Avisos', (obra.validacion?.errores||[]).length + (obra.validacion?.advertencias||[]).length],
+  ];
+  $('d-ncircuitos').textContent = (obra.circuitos||[]).length
+    ? `${obra.circuitos.length} armados` : 'Todavía ninguno';
+  $('d-circuitos').onclick = () => location.href = '/circuitos.html?obra=' + obra.obra.id;
+  $('d-ntableros').textContent = (obra.tableros||[]).length
+    ? `${obra.tableros.length} armado(s)` : 'Todavía ninguno';
+  $('d-tablero').onclick = () => location.href = '/tablero.html?obra=' + obra.obra.id;
+  $('d-ncanalizacion').textContent = (obra.canalizacion?.runs||[]).length
+    ? `${obra.canalizacion.runs.length} tramo(s)` : 'Todavía ninguno';
+  $('d-canalizacion').onclick = () => location.href = '/canaliza.html?obra=' + obra.obra.id;
+  const nit = (obra.presupuesto?.items||[]).length + (obra.presupuesto?.extras||[]).length;
+  $('d-npresupuesto').textContent = nit ? `${nit} ítems` +
+    (obra.presupuesto?.congeladoEl ? ' · congelado' : ' · sin congelar') : 'Todavía ninguno';
+  $('d-presupuesto').onclick = () => location.href = '/presupuesto.html?obra=' + obra.obra.id;
+  $('d-pdf').onclick = () => mostrarVistaPreviaPdf(
+    '/api/obras/' + obra.obra.id + '/presupuesto.pdf',
+    (obra.obra.nombre || 'presupuesto').replace(/\s+/g,'_') + '.pdf');
+  $('d-bloques').innerHTML = filas.map(([k,v]) =>
+    `<div class="bloque"><b>${k}</b>${v}</div>`).join('');
+}
+function pintarPlano(obra){
+  const p = obra.plano, cont = $('d-plano');
+  if(!p && obra.obra.sinPlano){
+    cont.innerHTML = `<div class="txt"><b>Plano</b>Esta obra no lleva plano.
+      <div class="nota">Los elementos se cargan a mano desde circuitos.</div></div>
+      <button class="btn sm" id="p-cargar">Cargar uno igual</button>`;
+    cont.querySelector('#p-cargar').onclick = () => $('d-archivo').click();
+    return;
+  }
+  if(!p){
+    cont.innerHTML = `<div class="txt"><b>Plano</b>Todavía no cargaste el PDF.
+      <div class="nota">Es el que te manda el arquitecto. La lectura automática
+      llega con el módulo de extracción; por ahora queda guardado junto a la obra.</div></div>
+      <button class="btn primary sm" id="p-cargar">Cargar PDF</button>`;
+  } else {
+    const mb = (p.tamanoBytes/1048576).toFixed(1);
+    cont.innerHTML = `<div class="txt"><b>Plano</b>${esc(p.archivo)}
+      <div class="nota">${mb} MB · cargado ${cuando(p.cargadoEl)}${
+        p.escala? ' · escala '+esc(p.escala.nominal) : ' · sin extraer'}</div></div>
+      <button class="btn sm" id="p-ver">Ver PDF</button>
+      <button class="btn sm" id="p-cargar">Reemplazar</button>
+      <button class="btn primary sm" id="p-revisar">${p.escala?'Revisar lectura':'Extraer'}</button>`;
+    cont.querySelector('#p-ver').onclick = () =>
+      window.open('/api/obras/'+obra.obra.id+'/plano','_blank');
+    cont.querySelector('#p-revisar').onclick = () =>
+      location.href = '/revisor.html?obra=' + obra.obra.id;
+  }
+  cont.querySelector('#p-cargar').onclick = () => $('d-archivo').click();
+}
+$('d-archivo').onchange = async e => {
+  const f = e.target.files[0]; if(!f || !obraAbierta) return;
+  e.target.value = '';
+  try{
+    const r = await fetch('/api/obras/'+obraAbierta.obra.id+'/plano', {
+      method:'POST', body:f,
+      headers:{'X-Nombre-Archivo': encodeURIComponent(f.name)}});
+    const d = await r.json();
+    if(!r.ok) throw new Error(d.error||'No se pudo cargar');
+    obraAbierta.plano = d.plano;
+    pintarBloques(obraAbierta); pintarPlano(obraAbierta);
+    toast('Plano cargado');
+  }catch(err){ mostrarAviso('d-aviso','mal', err.message); }
+};
+
+$('d-subir').onclick = async () => {
+  if(!obraAbierta) return;
+  const id = obraAbierta.obra.id;
+  try{
+    await api('/api/sync/subir/'+id, {method:'POST', body:'{}'});
+    mostrarAviso('d-aviso','ok','Subida al repositorio.');
+  }catch(e){
+    if(e.conflicto){
+      mostrarAviso('d-aviso','mal', e.message +
+        ' Bajala de nuevo, o subí igual y pisá lo que hay allá.');
+      if(confirm(e.message + '\n\n¿Subir igual y pisar la versión del repositorio?')){
+        await api('/api/sync/subir/'+id, {method:'POST', body:JSON.stringify({forzar:true})});
+        mostrarAviso('d-aviso','ok','Subida, pisando la versión anterior.');
+      }
+    } else mostrarAviso('d-aviso','mal', e.message);
+  }
+};
+$('d-bajar').onclick = () => {
+  if(!obraAbierta) return;
+  const b = new Blob([JSON.stringify(obraAbierta,null,2)],{type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(b);
+  a.download = (obraAbierta.obra.nombre||'obra').replace(/[^\w\- ]/g,'') + '.obra.json';
+  a.click(); URL.revokeObjectURL(a.href);
+};
+$('d-borrar').onclick = async () => {
+  if(!obraAbierta) return;
+  if(!confirm('¿Borrar esta obra de este equipo? Lo que esté en el repositorio no se toca.')) return;
+  await api('/api/obras/'+obraAbierta.obra.id, {method:'DELETE'});
+  toast('Obra borrada de este equipo');
+  location.href = '/';
+};
+$('b-volver').onclick = () => location.href = '/';
+
+// vista previa de PDF: se pide el archivo como blob (en vez de navegar
+// directo a la URL) y se muestra en un iframe adentro de la app, con un
+// botón de Descargar recién ahí -- así se ve el resultado antes de guardarlo.
+async function mostrarVistaPreviaPdf(url, nombreArchivo){
+  let blob;
+  try{
+    const res = await fetch(url);
+    if(!res.ok) throw new Error((await res.json().catch(()=>({}))).error || 'No se pudo generar el PDF.');
+    blob = await res.blob();
+  }catch(err){ alert(err.message || 'No se pudo generar el PDF.'); return; }
+  const objUrl = URL.createObjectURL(blob);
+  $('pdfFrame').src = objUrl;
+  $('ov-pdf').classList.add('abierto');
+  $('pdfDescargar').onclick = async () => {
+    if(window.showSaveFilePicker){
+      try{
+        const handle = await window.showSaveFilePicker({suggestedName: nombreArchivo,
+          types:[{description:'PDF', accept:{'application/pdf':['.pdf']}}]});
+        const writable = await handle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+        return;
+      }catch(err){ if(err.name === 'AbortError') return; }
+    }
+    const a = document.createElement('a');
+    a.href = objUrl; a.download = nombreArchivo; a.click();
+  };
+  $('pdfCerrar').onclick = () => {
+    $('ov-pdf').classList.remove('abierto');
+    $('pdfFrame').src = ''; URL.revokeObjectURL(objUrl);
+  };
+}
+document.addEventListener('keydown', e => {
+  if(e.key==='Escape') $('ov-pdf').classList.remove('abierto');
+});
+$('ov-pdf').addEventListener('click', e => { if(e.target===$('ov-pdf')) $('ov-pdf').classList.remove('abierto'); });
+
+cargar().catch(e => { $('h-sub').textContent = e.message; toast(e.message); });
+</script>
+</body>
+</html>

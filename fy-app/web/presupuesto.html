@@ -341,7 +341,7 @@ $('b-guardar').onclick = async () => {
   await sincronizar({guardar:true});
   toast('Guardado');
 };
-$('b-volver').onclick = () => location.href = '/';
+$('b-volver').onclick = () => location.href = '/obra.html?obra=' + OBRA_ID;
 document.addEventListener('keydown', e => {
   if((e.ctrlKey||e.metaKey) && e.key==='s'){ e.preventDefault(); $('b-guardar').click(); }
 });

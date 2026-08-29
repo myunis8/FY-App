@@ -47,6 +47,19 @@ SEMILLA = [
     ("Automatizaciones", "Flotante a 24V", "u", 0),
 ]
 
+# Ítems puntuales que quedaron obsoletos de versiones viejas de la semilla y
+# que se borran solos si aparecen, en vez de depender de que el usuario los
+# borre a mano cada vez (y que la borrada "no pegue" si se olvida de
+# Guardar). Nunca se agrega nada acá por error de tipeo del usuario: sólo
+# nombres exactos que en algún momento fueron parte de la semilla y después
+# se reemplazaron por otros más específicos.
+OBSOLETOS = [
+    # "Tablero principal" a secas quedó de antes de separar la semilla en
+    # monofásico/trifásico (ver "Tablero principal monofásico/trifásico"
+    # arriba) -- ya no tiene sentido tenerlo por separado.
+    ("Tableros", "tablero principal"),
+]
+
 
 def _ruta() -> Path:
     cfgmod.asegurar_carpetas()
@@ -111,6 +124,16 @@ def _completar_faltantes(datos: dict) -> dict:
         if existente.get("categoria") not in CATEGORIAS:
             existente["categoria"] = cat
             cambio = True
+    # limpieza de obsoletos: exacta por (categoría, nombre en minúsculas),
+    # para no arriesgarse a borrar algo que el usuario haya nombrado parecido
+    # a propósito en otra categoría.
+    obsoletos = {(cat, nom) for cat, nom in OBSOLETOS}
+    antes = len(items)
+    items[:] = [it for it in items
+                if ((it.get("categoria") or "Otros"), (it.get("item") or "").strip().lower())
+                not in obsoletos]
+    if len(items) != antes:
+        cambio = True
     if cambio:
         guardar(datos)
     return datos

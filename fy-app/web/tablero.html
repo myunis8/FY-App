@@ -1628,7 +1628,7 @@ $('b-borrar-tablero').onclick = async () => {
   const r = await api(`/api/obras/${OBRA_ID}/tableros/${t.id}`, {method:'POST', body:'{}'});
   actualizarTablero(r.tablero, r.avisos);
 });
-$('b-volver').onclick = () => location.href = '/';
+$('b-volver').onclick = () => location.href = '/obra.html?obra=' + OBRA_ID;
 
 // vista previa de PDF: se pide el archivo como blob (en vez de navegar a la
 // URL directo) y se muestra en un iframe adentro de la app, con un botón de

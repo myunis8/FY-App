@@ -531,7 +531,7 @@ $('b-guardar').onclick = async () => {
     toast('Guardado');
   }catch(err){ toast(err.message); }
 };
-$('b-volver').onclick = () => location.href = '/';
+$('b-volver').onclick = () => location.href = '/obra.html?obra=' + OBRA_ID;
 document.addEventListener('keydown', e => {
   if(e.key==='Escape'){ if(modo) salirDeModo(); else { sel=null; pintarTodo(); } }
   if((e.ctrlKey||e.metaKey) && e.key==='s'){ e.preventDefault(); $('b-guardar').click(); }
