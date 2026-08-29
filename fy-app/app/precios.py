@@ -93,8 +93,23 @@ def _completar_faltantes(datos: dict) -> dict:
             items.append(nuevo)
             por_nombre[clave] = nuevo
             cambio = True
-        elif not existente.get("precio"):
+            continue
+        if not existente.get("precio"):
             existente["precio"] = precio
+            cambio = True
+        # Corrige la categoría sólo si quedó en un valor que ya no existe en
+        # CATEGORIAS -- eso sólo pasa por un bug o un dato viejo de antes de
+        # un cambio de nombre de categoría (p.ej. "Tomacorrientes" pasó a
+        # llamarse "Tomas"), nunca por una reclasificación deliberada del
+        # usuario, que siempre elige de la lista válida en precios.html. Sin
+        # esto, el ítem queda huérfano: invisible en precios.html (que sólo
+        # pinta categorías conocidas) pero visible igual en el combobox de
+        # Presupuesto (que no filtra), como categoría fantasma aparte -- que
+        # es exactamente el bug ya reportado una vez. Si ya está en una
+        # categoría válida (aunque distinta de la de la semilla), se
+        # respeta: puede ser una decisión real del usuario.
+        if existente.get("categoria") not in CATEGORIAS:
+            existente["categoria"] = cat
             cambio = True
     if cambio:
         guardar(datos)

@@ -639,7 +639,12 @@ def _pagina_tapa(doc, t: dict, obra: dict):
         y0 = dy + g.y_riel(d["piso"]) + 2
         h = g.alto_disp - 4
         _dibujar_dispositivo(pg, x0, y0, w, h, d, _nombre_circuito(obra, d.get("circuitoId")))
-        desc = (d.get("descripcion") or "").strip() or _descripcion_circuito(obra, d.get("circuitoId"))
+        # con circuito: circuito.notas es la única fuente (la misma que se
+        # edita en Circuitos y en el panel de Tablero) -- nunca d.descripcion,
+        # que sólo aplica a dispositivos sin circuito (térmica general,
+        # diferencial, protector, bornera).
+        cid = d.get("circuitoId")
+        desc = _descripcion_circuito(obra, cid) if cid else (d.get("descripcion") or "").strip() or None
         if desc:
             _texto_multilinea(pg, x0 + w / 2, y0 + h + 13, desc, 8.5, TRAZO,
                               d["polos"] * g.celda * ESCALA_X * 0.92, negrita=True, max_lineas=3)

@@ -41,6 +41,12 @@ td input:focus,td select:focus{outline:none;border-color:var(--copper);backgroun
 td.precio input{text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:600}
 .grupo td{background:var(--slate-soft);font-weight:600;font-size:.74rem;
   text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.tag-aparte{display:inline-block;font-size:.62rem;padding:1px 7px;margin-left:7px;
+  border-radius:99px;background:#e2e7ea;color:var(--muted);font-weight:700;
+  letter-spacing:.03em;vertical-align:middle}
+.tag-warn{display:inline-block;font-size:.62rem;padding:1px 7px;margin-left:7px;
+  border-radius:99px;background:var(--danger-soft);color:var(--danger);font-weight:700;
+  letter-spacing:.03em;vertical-align:middle}
 .acc{width:34px;text-align:center}
 .acc button{border:none;background:transparent;color:var(--danger);font-size:1rem;padding:2px 6px}
 #toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--navy-deep);
@@ -94,14 +100,27 @@ const plata = n => (n||0).toLocaleString('es-AR',{style:'currency',currency:'ARS
 
 async function cargar(){
   lista = await api('/api/precios');
-  $('f-cat').innerHTML = '<option value="">Todas las categorías</option>' +
-    CATEGORIAS.map(c=>`<option>${c}</option>`).join('');
+  actualizarSelectorCategorias();
   pintar();
+}
+// Categorías a mostrar: las conocidas (CATEGORIAS) primero, en su orden fijo,
+// más cualquier otra que aparezca en los datos (dato viejo, o algo cargado
+// por fuera de esta pantalla) al final -- nunca se oculta una categoría sólo
+// porque no la reconocemos, para no repetir el bug de "Tomacorrientes"
+// invisible acá pero visible igual en el combobox de Presupuesto.
+function todasLasCategorias(){
+  const extra = [...new Set((lista.items||[]).map(i => i.categoria || 'Otros'))]
+    .filter(c => !CATEGORIAS.includes(c)).sort();
+  return [...CATEGORIAS, ...extra];
+}
+function actualizarSelectorCategorias(){
+  $('f-cat').innerHTML = '<option value="">Todas las categorías</option>' +
+    todasLasCategorias().map(c=>`<option>${esc(c)}</option>`).join('');
 }
 function visibles(){
   const q = $('f-buscar').value.trim().toLowerCase(), c = $('f-cat').value;
   return lista.items.filter(i =>
-    (!q || (i.item||'').toLowerCase().includes(q)) && (!c || i.categoria === c));
+    (!q || (i.item||'').toLowerCase().includes(q)) && (!c || (i.categoria||'Otros') === c));
 }
 function itemsDeCategoria(cat){
   return lista.items.filter(i => (i.categoria||'Otros') === cat)
@@ -109,17 +128,27 @@ function itemsDeCategoria(cat){
 }
 function pintar(){
   const catsVisibles = new Set(visibles().map(i => i.categoria||'Otros'));
-  const cats = CATEGORIAS.filter(c => catsVisibles.has(c));
+  const cats = todasLasCategorias().filter(c => catsVisibles.has(c));
+  const conteoNombres = {};
+  for(const i of lista.items){
+    const k = (i.item||'').trim().toLowerCase();
+    conteoNombres[k] = (conteoNombres[k]||0) + 1;
+  }
   $('cuerpo').innerHTML = cats.map(cat => {
-    const arr = itemsDeCategoria(cat).filter(i => catsVisibles.has(cat) &&
-      (visibles().includes(i)));
+    const arr = itemsDeCategoria(cat).filter(i => visibles().includes(i));
     const esAparte = APARTE.has(cat);
+    const esDesconocida = !CATEGORIAS.includes(cat);
     return `<tr class="grupo${esAparte?' aparte':''}"><td colspan="6">${esc(cat)} · ${arr.length}
-        ${esAparte?'<span class="tag-aparte">APARTE</span>':''}</td></tr>` +
-      arr.map((i, idx) => `<tr data-id="${i.id}">
-        <td><input data-c="item" value="${esc(i.item)}"></td>
-        <td><select data-c="categoria">${CATEGORIAS.map(c=>
-          `<option ${c===i.categoria?'selected':''}>${c}</option>`).join('')}</select></td>
+        ${esAparte?'<span class="tag-aparte">APARTE</span>':''}
+        ${esDesconocida?'<span class="tag-warn" title="No es una categoría de la lista fija -- reasigná cada ítem a una válida">SIN CATALOGAR</span>':''}</td></tr>` +
+      arr.map((i, idx) => {
+        const dup = conteoNombres[(i.item||'').trim().toLowerCase()] > 1;
+        const opciones = esDesconocida ? [cat, ...CATEGORIAS] : CATEGORIAS;
+        return `<tr data-id="${i.id}">
+        <td><input data-c="item" value="${esc(i.item)}">
+          ${dup?'<span class="tag-warn" title="Otro ítem tiene el mismo nombre -- puede ser un duplicado viejo">POSIBLE DUPLICADO</span>':''}</td>
+        <td><select data-c="categoria">${opciones.map(c=>
+          `<option ${c===cat?'selected':''}>${esc(c)}</option>`).join('')}</select></td>
         <td><input data-c="unidad" value="${esc(i.unidad||'u')}"></td>
         <td class="precio"><input data-c="precio" type="number" step="1" value="${i.precio||0}"></td>
         <td class="ord">
@@ -127,7 +156,7 @@ function pintar(){
           <button data-bajar="${i.id}" ${idx===arr.length-1?'disabled':''} title="Bajar">▼</button>
         </td>
         <td class="acc"><button data-borrar="${i.id}" title="Borrar">×</button></td>
-      </tr>`).join('');
+      </tr>`;}).join('');
   }).join('') || '<tr><td colspan="6" style="color:var(--muted);padding:18px">Nada coincide.</td></tr>';
 
   $('cuerpo').querySelectorAll('[data-c]').forEach(n => n.onchange = () => {
@@ -163,10 +192,16 @@ function actualizarTotalizador(){
 }
 $('b-agregar').onclick = () => {
   let cat = $('f-cat').value;
-  if(!cat){
+  if(!cat || !CATEGORIAS.includes(cat)){
     const elegida = prompt('¿En qué categoría va? Elegí una:\n' + CATEGORIAS.join(', '), CATEGORIAS[0]);
     if(!elegida) return;
-    cat = CATEGORIAS.find(c => c.toLowerCase() === elegida.trim().toLowerCase()) || elegida.trim();
+    const match = CATEGORIAS.find(c => c.toLowerCase() === elegida.trim().toLowerCase());
+    // si lo que se tipeó no matchea ninguna categoría válida, se cae a
+    // "Otros" en vez de crear una categoría nueva escrita a mano -- eso es
+    // justo lo que dejaba ítems huérfanos e invisibles acá (ver bug de
+    // "Tomacorrientes" vs "Tomas").
+    if(!match){ toast(`"${elegida.trim()}" no es una categoría válida — se usó "Otros".`); }
+    cat = match || 'Otros';
   }
   lista.items.push({id:'pr_'+Date.now().toString(36), categoria:cat,
                     item:'Ítem nuevo', unidad:'u', precio:0, orden:itemsDeCategoria(cat).length});

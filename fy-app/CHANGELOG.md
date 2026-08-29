@@ -3,6 +3,78 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 0.24.1 — categorías huérfanas en la lista de precios corregidas, y la descripción de circuito ahora se lee y edita también desde Tablero
+
+- **Bug real encontrado: "Tomas" vs "Tomacorrientes"**. `precios.html` sólo
+  pinta las categorías de la lista fija `CATEGORIAS`; cualquier ítem que
+  tuviera guardada una categoría vieja o mal tipeada (como
+  `"Tomacorrientes"`, en vez de `"Tomas"`) quedaba invisible ahí -- no se
+  podía ver ni tocarle el precio. Pero el combobox de "agregar de la lista
+  de precios" en `presupuesto.html` no filtra, así que ahí sí aparecía, como
+  un grupo aparte llamado "Tomacorrientes". Resultado: la lista de tomas
+  especiales existía y tenía precio, pero era imposible editarla desde
+  `precios.html`, que es justo lo que se reportó.
+  - `precios.py`: `_completar_faltantes()` ahora corrige la categoría de un
+    ítem conocido (matcheado por nombre exacto contra la semilla) si quedó
+    en un valor que ya no existe en `CATEGORIAS` -- sólo en ese caso, nunca
+    si el usuario lo reclasificó a mano a otra categoría válida. Se probó
+    con una lista de precios reconstruida a mano con el caso exacto
+    reportado (`Tomacorriente común`, las 3 `Toma especial - ...` y los
+    artefactos bajo `"Tomacorrientes"`/`"Puntos"` en vez de
+    `"Tomas"`/`"Iluminación"`): al levantar el servidor se realinean solas.
+  - `precios.html`: además, como defensa, ya **no oculta ninguna categoría**
+    aunque no la reconozca -- la muestra al final con una etiqueta "SIN
+    CATALOGAR" para poder reclasificarla con un clic, en vez de que vuelva a
+    desaparecer en silencio si este bug se repite por otra vía.
+  - Se agregó una etiqueta "POSIBLE DUPLICADO" junto a cualquier ítem cuyo
+    nombre se repita exactamente en otro (por ejemplo, un `"Tablero
+    principal"` suelto que quedó de antes de separar la lista en
+    monofásico/trifásico) -- no se borra solo (regla de oro), pero ahora se
+    nota para que se pueda borrar a mano.
+  - El botón "Agregar ítem" de `precios.html` ya no acepta una categoría
+    tipeada a mano que no matchee ninguna de la lista válida (eso es lo que
+    generaba el problema en primer lugar) -- si no matchea, cae a "Otros".
+  - `presupuesto.html`: el combobox de "agregar de la lista de precios"
+    ahora agrupa en el mismo orden que `precios.html` (conocidas primero,
+    en orden fijo), para que las dos pantallas se vean consistentes entre
+    sí. Probado con Puppeteer: los mismos grupos, mismas cantidades, mismo
+    orden en las dos pantallas.
+  - Se confirmó que `presupuesto.sugerir_items()` (matching automático
+    desde el plano) sigue sin avisos después del cambio -- el fix sólo
+    toca `categoria`, nunca `item` (el nombre, que es lo que usa
+    `EQUIVALENCIAS` para matchear).
+- **Bug real encontrado: la descripción de un circuito no se veía desde
+  Tablero**. El panel de detalle de una térmica en `tablero.html` mostraba
+  únicamente `dispositivo.descripcion` (un campo propio del dispositivo),
+  nunca `circuito.notas` (la descripción que se carga en Circuitos) -- por
+  eso, al seleccionar una térmica cuyo circuito ya tenía descripción, el
+  campo aparecía vacío, dando a entender que no había ninguna.
+  - Ahora, si la térmica está atada a un circuito (`circuitoId`), el campo
+    "Descripción" del panel de Tablero lee y edita directamente
+    `circuito.notas` -- la misma clave que ya se editaba en Circuitos, sin
+    un campo paralelo. Los dispositivos sin circuito (térmica general,
+    diferencial, protector, bornera) siguen usando su propio
+    `descripcion`, como ya funcionaba desde 0.24.0.
+  - `contrato.py`: se agregó una migración chica y segura
+    (`_consolidar_descripcion_dispositivos()`, corre en `normalizar()`, o
+    sea en cada lectura/guardado) que, si un dispositivo viejo ya tenía su
+    propia `descripcion` de antes de este cambio, la traslada a
+    `circuito.notas` en vez de perderla (sin pisar una que el usuario ya
+    haya cargado ahí).
+  - `pdf_tablero.py`: la guía de tapa ahora usa la misma prioridad -- para
+    un dispositivo con circuito, siempre `circuito.notas`, nunca el
+    `descripcion` suelto del dispositivo -- para que PDF, Tablero y
+    Circuitos muestren siempre lo mismo.
+  - Probado con Puppeteer contra un servidor real: se creó un circuito con
+    descripción ("Iluminación cocina"), se lo asignó a una térmica de
+    tablero, y al seleccionarla en `tablero.html` el campo mostró el valor
+    correcto con la etiqueta "Descripción del circuito (misma de
+    Circuitos)". Se probó también el camino de edición (escribir en el
+    campo desde Tablero) y se confirmó en `obra.json` que actualiza
+    `circuito.notas`, no un campo aparte. Se generó el PDF del tablero, se
+    renderizó con PyMuPDF y se miró: la guía de tapa muestra la descripción
+    correcta debajo de la térmica.
+
 ## 0.24.0 — bug crítico de precios corregido (fallaba en silencio), descripción propia en protecciones, y aviso visible cuando falta un ítem
 
 - **Sobre "de dónde salieron los precios"**: los valores de la semilla

@@ -174,7 +174,11 @@ async function cargar(){
 
 // combobox de "agregar de la lista de precios" en Extras: evita retipear un
 // ítem que ya existe en precios.html, agrupado por categoría, con el precio
-// vigente de hoy visible antes de elegir
+// vigente de hoy visible antes de elegir. Mismo orden de categorías que
+// precios.html (las conocidas primero, en orden fijo, cualquier otra al
+// final) para que las dos pantallas se vean consistentes entre sí.
+const CATEGORIAS_ORDEN = ["Puntos","Tomas","Iluminación","Tableros","Puesta a tierra",
+                          "Canalización","Trabajos adicionales","Automatizaciones","Otros"];
 let listaPrecios = [];
 async function cargarListaPrecios(){
   try{
@@ -183,9 +187,11 @@ async function cargarListaPrecios(){
   }catch(err){ listaPrecios = []; }   // si falla, igual queda "+ Personalizado"
   const sel = $('sel-precio');
   const porCategoria = {};
-  for(const it of listaPrecios) (porCategoria[it.categoria] ||= []).push(it);
+  for(const it of listaPrecios) (porCategoria[it.categoria || 'Otros'] ||= []).push(it);
+  const extra = Object.keys(porCategoria).filter(c => !CATEGORIAS_ORDEN.includes(c)).sort();
+  const cats = [...CATEGORIAS_ORDEN, ...extra].filter(c => porCategoria[c]);
   sel.innerHTML = '<option value="">+ Agregar de la lista de precios…</option>' +
-    Object.keys(porCategoria).map(cat => `<optgroup label="${esc(cat)}">${
+    cats.map(cat => `<optgroup label="${esc(cat)}">${
       porCategoria[cat].map(it => `<option value="${it.id}">${esc(it.item)} — ${plata(it.precio)}</option>`).join('')
     }</optgroup>`).join('');
 }

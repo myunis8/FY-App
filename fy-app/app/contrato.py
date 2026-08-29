@@ -56,7 +56,31 @@ def normalizar(obra: dict) -> dict:
         obra.setdefault(k, v)
     obra["contrato"] = CONTRATO
     obra["obra"].setdefault("id", nuevo_id())
+    _consolidar_descripcion_dispositivos(obra)
     return obra
+
+
+def _consolidar_descripcion_dispositivos(obra: dict) -> None:
+    """Un dispositivo de Tablero atado a un circuito (circuitoId) ya no tiene
+    descripción propia: usa circuito.notas, la misma que se edita en
+    Circuitos y en el panel de Tablero, para que las dos pantallas siempre
+    muestren y guarden lo mismo (antes se podían desincronizar: Tablero tenía
+    su propio `descripcion` por dispositivo que nunca se mostraba junto a la
+    del circuito). Si un dispositivo viejo ya tenía su propia `descripcion`
+    de antes de este cambio, se migra a circuito.notas en vez de perderse
+    (sin pisar una que el usuario ya haya cargado ahí)."""
+    circuitos_por_id = {c["id"]: c for c in obra.get("circuitos") or [] if c.get("id")}
+    for t in obra.get("tableros") or []:
+        for d in t.get("dispositivos") or []:
+            cid = d.get("circuitoId")
+            if not cid or not d.get("descripcion"):
+                continue
+            circ = circuitos_por_id.get(cid)
+            if not circ:
+                continue
+            if not circ.get("notas"):
+                circ["notas"] = d["descripcion"]
+            d["descripcion"] = None
 
 
 def total_presupuesto(obra: dict) -> float:

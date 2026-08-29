@@ -1444,18 +1444,27 @@ function pintarDetalle(){
   if(!t || !seleccionado){ cont.innerHTML = ''; return; }
   const d = t.dispositivos.find(x=>x.id===seleccionado);
   if(!d){ seleccionado=null; cont.innerHTML=''; return; }
-  const circ = etiquetaCircuito(d);
+  const circ = (obra.circuitos||[]).find(x=>x.id===d.circuitoId);
+  const circLabel = circ ? circ.nombre : null;
+  // si el dispositivo está atado a un circuito, la descripción es una sola
+  // fuente de verdad: circuito.notas (la misma que se edita en Circuitos).
+  // Sólo los dispositivos sin circuito (térmica general, diferencial,
+  // protector, bornera) usan su propio campo d.descripcion.
+  const descActual = circ ? (circ.notas || '') : (d.descripcion || '');
   cont.innerHTML = `<div class="detalle-disp">
     <h3>${d.tipo==='bornera'?'Bornera de tierra':d.tipo==='diferencial'?'Diferencial':
-      d.tipo==='protector'?'Protector de sobretensión':(circ?'Térmica · '+esc(circ):'Térmica')}</h3>
+      d.tipo==='protector'?'Protector de sobretensión':(circLabel?'Térmica · '+esc(circLabel):'Térmica')}</h3>
     ${d.tipo==='protector' ? `<div class="campo"><label for="dd-tension">Tensión de referencia (V)</label>
       <input id="dd-tension" type="number" value="${d.tensionV??220}"></div>`
       : d.tipo!=='bornera' ? `<div class="campo"><label for="dd-corriente">Corriente (A)</label>
       <input id="dd-corriente" type="number" value="${d.corriente??''}"></div>` : ''}
     ${d.tipo==='diferencial' ? `<div class="campo"><label for="dd-ma">Sensibilidad (mA)</label>
       <input id="dd-ma" type="number" value="${d.sensibilidadMa??''}"></div>` : ''}
-    <div class="campo"><label for="dd-desc">Descripción (sale en la guía de tapa)</label>
-      <input id="dd-desc" value="${esc(d.descripcion||'')}" placeholder="ej: Térmica general, Puesta a tierra"></div>
+    <div class="campo"><label for="dd-desc">${circ
+        ? 'Descripción del circuito (misma de Circuitos)'
+        : 'Descripción (sale en la guía de tapa)'}</label>
+      <input id="dd-desc" value="${esc(descActual)}" placeholder="${circ
+        ? 'ej: Iluminación cocina' : 'ej: Térmica general, Puesta a tierra'}"></div>
     <div class="campo"><label for="dd-alim">Entra por</label>
       <select id="dd-alim"><option value="arriba" ${d.alimentacion==='arriba'?'selected':''}>Arriba</option>
         <option value="abajo" ${d.alimentacion==='abajo'?'selected':''}>Abajo</option></select></div>
@@ -1473,7 +1482,12 @@ function pintarDetalle(){
     d.tensionV = parseFloat($('dd-tension').value)||220; await persistirObra(); pintarGabinete();
   };
   $('dd-desc').onchange = async () => {
-    d.descripcion = $('dd-desc').value || null; await persistirObra(); pintarGabinete();
+    // con circuito: se guarda en circuito.notas (misma clave que edita
+    // circuitos.html), así queda coherente entre los dos módulos. Sin
+    // circuito, se guarda en el propio dispositivo, como antes.
+    if(circ) circ.notas = $('dd-desc').value || null;
+    else d.descripcion = $('dd-desc').value || null;
+    await persistirObra(); pintarGabinete();
   };
   $('dd-alim').onchange = async () => {
     d.alimentacion = $('dd-alim').value; await persistirObra(); pintarGabinete();
