@@ -271,7 +271,13 @@ class Handler(BaseHTTPRequestHandler):
                     if viejo and viejo.get("congelado"):
                         it["precioUnitario"] = viejo["precioUnitario"]
                         it["congelado"] = True
-                obra["presupuesto"]["items"] = sug
+                # los items que el usuario agregó a mano (tableros, PAT, lo
+                # que sea que no se cuenta solo desde el plano) no tienen
+                # origen "computo" -- se conservan tal cual, igual que ya se
+                # hace con los extras cargados a mano
+                items_manuales = [i for i in (obra["presupuesto"].get("items") or [])
+                                  if i.get("origen") != "computo"]
+                obra["presupuesto"]["items"] = items_manuales + sug
                 obra["presupuesto"]["avisosPrecios"] = avisos_precios
 
                 # elementos marcados "fuera del presupuesto original" (ver

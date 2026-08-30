@@ -45,9 +45,9 @@ td input:focus{outline:none;border-color:var(--copper);background:#fff}
 td.num{text-align:right;font-family:'IBM Plex Mono',monospace}
 td.num input{text-align:right;font-family:'IBM Plex Mono',monospace}
 tr.opcional{opacity:.72;background:repeating-linear-gradient(45deg,transparent,transparent 8px,#fafbfb 8px,#fafbfb 16px)}
-.acc{width:64px;text-align:right;white-space:nowrap}
+.acc{width:88px;text-align:right;white-space:nowrap}
 .acc button{border:none;background:transparent;padding:2px 5px;font-size:.9rem}
-.acc .op{color:var(--blue)} .acc .del{color:var(--danger)}
+.acc .op{color:var(--blue)} .acc .del{color:var(--danger)} .acc .mover{color:var(--muted)}
 .tag{font-size:.63rem;padding:2px 6px;border-radius:99px;background:var(--blue-soft);
   color:var(--blue);font-weight:600}
 .tag.viejo{background:var(--copper-soft);color:var(--copper)}
@@ -179,6 +179,13 @@ async function cargar(){
 // final) para que las dos pantallas se vean consistentes entre sí.
 const CATEGORIAS_ORDEN = ["Puntos","Tomas","Iluminación","Tableros","Puesta a tierra",
                           "Canalización","Trabajos adicionales","Automatizaciones","Otros"];
+// debe coincidir con precios.CATEGORIAS_APARTE: son las únicas categorías
+// que de verdad son "aparte" del trabajo troncal de la instalación (ej.
+// automatismos, conexión al medidor). Todo lo demás que se agrega a mano
+// -- tableros, PAT, etc. -- es trabajo de la instalación tal cual, sólo
+// que no se cuenta solo desde el plano, así que va a "Trabajos" y no a
+// "Extras y adicionales".
+const CATEGORIAS_APARTE = new Set(["Trabajos adicionales","Automatizaciones"]);
 let listaPrecios = [];
 async function cargarListaPrecios(){
   try{
@@ -200,9 +207,15 @@ $('sel-precio').onchange = async () => {
   const it = listaPrecios.find(p => p.id === sel.value);
   sel.value = '';
   if(!it) return;
-  pres.extras.push({id:'ex_'+Date.now().toString(36), item:it.item,
-                    unidad:it.unidad||'u', cantidad:1, precioUnitario:it.precio||0,
-                    opcional:false, origen:'lista'});
+  const nuevo = {id:'ex_'+Date.now().toString(36), item:it.item,
+                unidad:it.unidad||'u', cantidad:1, precioUnitario:it.precio||0,
+                opcional:false, origen:'lista', categoria:it.categoria||''};
+  // "Trabajos adicionales" y "Automatizaciones" son las únicas categorías
+  // realmente aparte del trabajo troncal (ver CATEGORIAS_APARTE); todo lo
+  // demás agregado a mano -- tableros, PAT, etc. -- es trabajo de la
+  // instalación tal cual, no un extra, aunque no se haya contado solo
+  // desde el plano
+  (CATEGORIAS_APARTE.has(it.categoria) ? pres.extras : pres.items).push(nuevo);
   await sincronizar({});
 };
 async function sincronizar(op){
@@ -219,6 +232,7 @@ function filaItems(arr, tbody, esExtra){
     const sub = (it.precioUnitario||0) * (it.cantidad||0);
     const cmp = comparacion.find(c=>c.id===it.id);
     const dif = cmp && cmp.variacion && it.congelado ? cmp.variacion : null;
+    const movible = it.origen !== 'computo';        // lo que viene del plano no se mueve a mano: se recalcula solo
     return `<tr class="${it.opcional?'opcional':''}" data-i="${i}" data-e="${esExtra?1:0}">
       <td><input data-c="item" value="${esc(it.item||'')}">
         ${it.opcional?'<span class="tag">opcional</span>':''}
@@ -230,6 +244,8 @@ function filaItems(arr, tbody, esExtra){
       <td class="num"><input data-c="precioUnitario" type="number" step="1" value="${it.precioUnitario||0}"></td>
       <td class="num">${plata(sub)}</td>
       <td class="acc">
+        ${movible?`<button class="mover" data-mover="${i}" data-e="${esExtra?1:0}"
+          title="${esExtra?'Mover a Trabajos: es trabajo de la instalación, no un extra':'Mover a Extras: es un adicional, no trabajo troncal'}">⇄</button>`:''}
         <button class="op" data-op="${i}" data-e="${esExtra?1:0}" title="Marcar como opcional">◇</button>
         <button class="del" data-del="${i}" data-e="${esExtra?1:0}" title="Quitar">×</button></td>
     </tr>`;}).join('')
@@ -252,6 +268,14 @@ function pintar(){
     const arr = n.dataset.e === '1' ? pres.extras : pres.items;
     const it = arr[+n.dataset.op];
     it.opcional = !it.opcional;
+    await sincronizar({});
+  });
+  document.querySelectorAll('[data-mover]').forEach(n => n.onclick = async () => {
+    const esExtra = n.dataset.e === '1';
+    const origen = esExtra ? pres.extras : pres.items;
+    const destino = esExtra ? pres.items : pres.extras;
+    const [it] = origen.splice(+n.dataset.mover, 1);
+    destino.push(it);
     await sincronizar({});
   });
   document.querySelectorAll('[data-del]').forEach(n => n.onclick = async () => {

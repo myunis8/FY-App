@@ -166,7 +166,7 @@ def familia_de(e: dict) -> str | None:
 COMPATIBLE = {
     "luz": {"luz"},
     "tomas_general": {"tomas_general", "tomas_otro"},
-    "tomas_especial": {"tomas_especial", "tomas_otro"},
+    "tomas_especial": {"tomas_especial", "tomas_aa", "tomas_otro"},
     "tomas_aa": {"tomas_aa", "tomas_otro"},
     "tomas_otro": {"tomas_general", "tomas_especial", "tomas_aa", "tomas_otro"},
 }

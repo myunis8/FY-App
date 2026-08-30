@@ -189,13 +189,18 @@ function cuando(ts){
 const ESTADOS = {preliminar:'Preliminar', aprobado:'Aprobado',
                  en_curso:'En curso', realizado:'Realizado'};
 const ESTADOS_PAGO = {pendiente:'Pendiente', parcial:'Pago parcial', pagado:'Pagado'};
-// debe reflejar app/pdf_informe.py: MODULOS / MODULOS_POR_DEFECTO
+// debe reflejar app/pdf_informe.py: MODULOS / MODULOS_POR_DEFECTO -- salvo
+// "routeo_pleno", que no existe del lado del servidor: se arma acá mismo,
+// combinando el PDF real que ya genera el propio módulo Routeo (con el
+// plano de fondo, algo que sólo puede dibujar el navegador) con el resto
+// del informe.
 const INFORME_MODULOS = [
-  {id:'circuitos',   label:'Circuitos',                                    defecto:true},
-  {id:'tableros',    label:'Tablero(s) -- conexionado y guía de tapa',     defecto:true},
-  {id:'routeo',      label:'Routeo (resumen de materiales)',               defecto:true},
-  {id:'presupuesto', label:'Presupuesto',                                  defecto:true},
-  {id:'unifilar',    label:'Esquema unifilar (beta)',                      defecto:false},
+  {id:'circuitos',    label:'Circuitos',                                         defecto:true},
+  {id:'tableros',     label:'Tablero(s) -- conexionado y guía de tapa',          defecto:true},
+  {id:'routeo_pleno', label:'Routeo -- plano completo',                          defecto:true,  cliente:true},
+  {id:'routeo',       label:'Routeo -- resumen de materiales (todavía en ajuste)', defecto:false},
+  {id:'presupuesto',  label:'Presupuesto',                                       defecto:true},
+  {id:'unifilar',     label:'Esquema unifilar (beta)',                           defecto:false},
 ];
 
 function pintarSeguimiento(obra){
@@ -243,13 +248,89 @@ function armarChecksInforme(){
     `<label class="chk"><input type="checkbox" class="inf-mod" value="${m.id}" ${m.defecto?'checked':''}> ${esc(m.label)}</label>`
   ).join('');
 }
-$('inf-generar').onclick = () => {
+$('inf-generar').onclick = async () => {
   if(!obraAbierta) return;
   const elegidos = Array.from(document.querySelectorAll('.inf-mod:checked')).map(el => el.value);
   if(!elegidos.length){ toast('Elegí al menos un módulo.'); return; }
-  mostrarVistaPreviaPdf(`/api/obras/${obraAbierta.obra.id}/informe.pdf?modulos=${elegidos.join(',')}`,
-    (obraAbierta.obra.nombre || 'informe').replace(/\s+/g,'_') + '_informe.pdf');
+  const nombreArchivo = (obraAbierta.obra.nombre || 'informe').replace(/\s+/g,'_') + '_informe.pdf';
+  const paraServidor = elegidos.filter(m => !INFORME_MODULOS.find(x => x.id === m)?.cliente);
+  const quierePlanoRouteo = elegidos.includes('routeo_pleno');
+
+  if(!quierePlanoRouteo){
+    mostrarVistaPreviaPdf(`/api/obras/${obraAbierta.obra.id}/informe.pdf?modulos=${paraServidor.join(',')}`,
+      nombreArchivo);
+    return;
+  }
+  toast('Armando el informe con el plano de Routeo, un momento…');
+  try{
+    const blob = await armarInformeConRouteo(obraAbierta.obra.id, paraServidor);
+    mostrarBlobPdf(blob, nombreArchivo);
+  }catch(err){
+    alert(err.message || 'No se pudo armar el informe con el plano de Routeo.');
+  }
 };
+
+// arma el informe pidiéndole al servidor las páginas de siempre, y aparte
+// -- adentro de un iframe oculto que corre el propio canaliza.html -- el
+// PDF real de Routeo (el que ya arma ese módulo con el plano de fondo, que
+// no se puede reproducir del lado del servidor). Los dos PDFs se unen acá
+// mismo, en el navegador, con pdf-lib.
+async function armarInformeConRouteo(obraId, modulosServidor){
+  const [bytesInforme, bytesRouteo] = await Promise.all([
+    fetch(`/api/obras/${obraId}/informe.pdf?modulos=${modulosServidor.join(',')}`)
+      .then(r => { if(!r.ok) throw new Error('No pude armar la parte del informe que arma el servidor.');
+                   return r.arrayBuffer(); }),
+    generarPdfRouteoEnIframe(obraId),
+  ]);
+  if(!window.PDFLib){
+    await new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js';
+      s.onload = resolve; s.onerror = () => reject(new Error('No pude cargar la librería para unir los PDFs.'));
+      document.head.appendChild(s);
+    });
+  }
+  const final = await PDFLib.PDFDocument.create();
+  for(const [nombre, bytes] of [['el informe', bytesInforme], ['el plano de Routeo', bytesRouteo]]){
+    let src;
+    try{
+      src = await PDFLib.PDFDocument.load(bytes);
+    }catch(err){
+      throw new Error(`No pude unir ${nombre} al informe (puede ser demasiado pesado). `
+        + 'Probá exportarlo aparte desde su propio módulo.');
+    }
+    const paginas = await final.copyPages(src, src.getPageIndices());
+    paginas.forEach(p => final.addPage(p));
+  }
+  const salida = await final.save();
+  return new Blob([salida], {type:'application/pdf'});
+}
+
+function generarPdfRouteoEnIframe(obraId){
+  return new Promise((resolve, reject) => {
+    const iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    const limpiar = () => iframe.remove();
+    const tiempoLimite = setTimeout(() => {
+      limpiar(); reject(new Error('Routeo tardó demasiado en cargar para armar el informe.'));
+    }, 20000);
+    iframe.onload = async () => {
+      try{
+        const win = iframe.contentWindow;
+        const desde = Date.now();
+        while(!win.canalizaObraCargada){
+          if(Date.now() - desde > 15000) throw new Error('Routeo no terminó de cargar los datos de la obra.');
+          await new Promise(r => setTimeout(r, 150));
+        }
+        const bytes = await win.canalizaGenerarPdfBytes();
+        clearTimeout(tiempoLimite); limpiar();
+        resolve(bytes);
+      }catch(err){ clearTimeout(tiempoLimite); limpiar(); reject(err); }
+    };
+    iframe.src = `/canaliza.html?obra=${obraId}`;
+    document.body.appendChild(iframe);
+  });
+}
 
 async function cargar(){
   if(!OBRA_ID){ mostrarAviso('d-aviso','mal','Falta el id de la obra en la URL.'); return; }
@@ -396,6 +477,9 @@ async function mostrarVistaPreviaPdf(url, nombreArchivo){
     if(!res.ok) throw new Error((await res.json().catch(()=>({}))).error || 'No se pudo generar el PDF.');
     blob = await res.blob();
   }catch(err){ alert(err.message || 'No se pudo generar el PDF.'); return; }
+  mostrarBlobPdf(blob, nombreArchivo);
+}
+function mostrarBlobPdf(blob, nombreArchivo){
   const objUrl = URL.createObjectURL(blob);
   $('pdfFrame').src = objUrl;
   $('ov-pdf').classList.add('abierto');

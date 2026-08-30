@@ -40,8 +40,9 @@ MODULOS = {
     "presupuesto": "Presupuesto",
     "unifilar":    "Esquema unifilar (beta)",
 }
-# todos marcados por defecto salvo el unifilar, que todavía está en beta
-MODULOS_POR_DEFECTO = ["circuitos", "tableros", "routeo", "presupuesto"]
+# todos marcados por defecto salvo el unifilar (beta) y el resumen de
+# materiales de routeo (todavía en ajuste, se deja como opción aparte)
+MODULOS_POR_DEFECTO = ["circuitos", "tableros", "presupuesto"]
 
 
 def _logo(pg):

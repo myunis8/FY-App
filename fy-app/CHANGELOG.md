@@ -3,6 +3,72 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 0.29.0 — preinstalación de AA ya no choca con TUE, Trabajos vs Extras depende de la categoría, e informe general con el plano real de Routeo
+
+- **Bug real corregido: una preinstalación de aire acondicionado en un
+  circuito TUE se marcaba como error de compatibilidad.** La preinstalación
+  de AA tenía su propia familia (`tomas_aa`, para poder tener también un
+  circuito ACU dedicado) separada de "tomas especiales" (`tomas_especial`,
+  para TUE), y esas dos familias no se aceptaban entre sí. Ahora un TUE
+  también acepta preinstalaciones de AA -- ACU sigue existiendo aparte
+  para cuando de verdad se quiere un circuito exclusivo para eso. Corregido
+  en el backend (`vinculos.py`) y en su espejo del lado del cliente
+  (`circuitos.html`). Probado con el caso exacto reportado: ya no aparece
+  ningún aviso.
+- **Presupuesto: Trabajos vs Extras ahora depende de la categoría del
+  ítem, no de si se agregó a mano.** El código ya tenía un concepto de
+  categorías "aparte" del trabajo troncal (`Trabajos adicionales`,
+  `Automatizaciones`), pero no se usaba al agregar un ítem manual desde la
+  lista de precios: todo cualquier cosa (incluido un tablero) caía siempre
+  en "Extras". Ahora:
+  - Tableros, PAT, y cualquier categoría que no sea "aparte" caen en
+    "Trabajos" -- son trabajo de la instalación, aunque no se cuenten
+    solos desde el plano.
+  - Automatismos y conexión al medidor (las categorías sí marcadas como
+    "aparte") siguen cayendo en "Extras".
+  - Se agregó un botón (⇄) en cada fila para mover cualquier ítem entre
+    las dos tablas a mano, para cuando la clasificación automática no sea
+    la que corresponde en un caso puntual.
+  - Se corrigió de paso que "Recalcular del plano" borraba cualquier ítem
+    de Trabajos agregado a mano en el próximo recálculo (ya pasaba antes
+    con los ítems que sí venían del plano; ahora los agregados a mano se
+    conservan, igual que ya se hacía con Extras).
+  - Probado con Puppeteer contra un servidor real: agregar "Tablero
+    principal monofásico" (categoría Tableros) cae en Trabajos; agregar
+    "Flotante a 220V" (categoría Automatizaciones) cae en Extras; el botón
+    de mover funciona en los dos sentidos; y un ítem de Trabajos agregado
+    a mano sobrevive a un recálculo, confirmado releyendo el archivo en
+    disco.
+- **Informe general: ahora puede incluir el plano real de Routeo, no sólo
+  un resumen de materiales.** El plano de Routeo se dibuja en el navegador
+  con la foto del plano como fondo -- no se puede generar del lado del
+  servidor sin reimplementar ese dibujo. En vez de eso, el informe ahora
+  reutiliza el propio generador de PDF de Routeo: un iframe oculto carga
+  ese módulo, genera su PDF real (el mismo que ya arma el botón "Exportar
+  PDF" de Routeo), y el resultado se une en el navegador con el resto del
+  informe. "Routeo -- plano completo" y "Routeo -- resumen de materiales"
+  quedan como dos opciones separadas (esta última, sin marcar por
+  defecto, porque según indicaron todavía se está ajustando).
+  - `canaliza.html`: nuevo hook `window.canalizaGenerarPdfBytes()` que
+    arma la misma lista de hojas que el diálogo "Exportar PDF" (todo
+    tildado) y devuelve los bytes en vez de mostrar la vista previa.
+  - Bug real encontrado al probar esto de punta a punta: había una
+    condición de carrera en la integración con la obra -- `canalizaListo`
+    se marcaba en `true` al terminar el arranque propio de Routeo, pero la
+    carga del plano y los circuitos de la obra pasa después, de forma
+    asincrónica, en un listener aparte. Se agregó un flag nuevo
+    (`canalizaObraCargada`) que se marca recién cuando esa carga termina
+    de verdad, y el informe general espera ese flag en vez del anterior.
+  - Probado con Puppeteer contra un servidor real, con un plano y un
+    tramo de routeo de prueba cargados a propósito: confirmé que el hook
+    devuelve un PDF válido en aislado, y que la orquestación completa
+    (buscar el informe del servidor + generar el de Routeo + unirlos)
+    llega hasta el paso final de unión. Con un plano de prueba muy grande
+    encontré que la librería de unión de PDFs puede fallar al cargar un
+    archivo demasiado pesado -- se agregó un mensaje de error claro para
+    ese caso ("puede ser demasiado pesado, exportalo aparte") en vez de
+    dejar pasar un error críptico de la librería.
+
 ## 0.28.0 — la app pasa a llamarse FY Manager, marca de agua visible de verdad, informe general, seguimiento de pago, circuitos más flexibles y PDF combinado de tableros
 
 - **La app pasa a llamarse FY Manager.** Cambiado en todos lados: título y

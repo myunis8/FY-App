@@ -380,6 +380,7 @@ window.addEventListener('canaliza-listo', async () => {
   if(!OBRA_ID){
     if(tag) tag.textContent = 'Sin obra asociada — trabajando suelto, no se guarda en el servidor.';
     document.getElementById('bGuardarObra')?.setAttribute('disabled', 'disabled');
+    window.canalizaObraCargada = true;
     return;
   }
   try{
@@ -423,6 +424,7 @@ window.addEventListener('canaliza-listo', async () => {
   }catch(err){
     if(tag) tag.textContent = 'No se pudo conectar con la obra: ' + err.message;
   }
+  window.canalizaObraCargada = true;
 });
 
 // las cajas ya extraídas llevan id "fy_<elementoId>" -- de ahí se puede
@@ -2678,7 +2680,7 @@ function planCanvas(opt){
   return c;
 }
 
-async function makePdf(){
+async function makePdf(soloBytes){
   const {jsPDF} = window.jspdf;
   const fmtP = $("#pdfSize").value, ori = $("#pdfOri").value;
   const doc = new jsPDF({orientation:ori, unit:"mm", format:fmtP});
@@ -2936,6 +2938,7 @@ async function makePdf(){
     foot("Cómputo");
   }
 
+  if(soloBytes) return doc.output("arraybuffer");
   mostrarVistaPreviaPdf(doc, (S.baseName.replace(/\.[^.]+$/,"")||"canalizacion")+".pdf");
 }
 
@@ -3072,6 +3075,22 @@ buildTools();
 window.canalizaDebug = {S, activeCi, ciById, nodeById, findNode, planCanvas, wireHex, conduitConductors};
 
 window.canalizaExportar = buildProjectData;
+// para el informe general: arma la misma lista de hojas que el diálogo
+// "Exportar PDF" (todo tildado, como si el usuario lo hubiera abierto y
+// aceptado tal cual) y devuelve los bytes del PDF armado -- así el informe
+// puede incluir el plano real de Routeo sin reimplementar su dibujo del
+// lado del servidor (esto arma canvases con la foto del plano de fondo,
+// algo que sólo puede hacer el navegador).
+window.canalizaGenerarPdfBytes = async function(){
+  if(!S.base) throw new Error("Esta obra no tiene un plano cargado en Routeo todavía.");
+  $("#pdfList").innerHTML =
+    `<label class="chk"><input type="checkbox" id="pxAll" checked> Hoja con todos los circuitos juntos</label>` +
+    `<label class="chk"><input type="checkbox" id="pxDetail" checked> Hoja de cableado detallado (todos los circuitos, cables adentro de cada caño)</label>` +
+    S.circuits.map(c=>`<label class="chk"><input type="checkbox" class="pxC" value="${c.id}" checked>
+      <span class="sw" style="background:${c.color};margin-top:2px"></span> Hoja de ${esc(c.name)}</label>`).join("") +
+    `<label class="chk"><input type="checkbox" id="pxBom" checked> Hoja de cómputo de materiales y observaciones</label>`;
+  return await makePdf(true);
+};
 window.canalizaImportar = applyProjectData;
 
 })();
