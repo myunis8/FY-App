@@ -6,8 +6,8 @@ from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
 from . import (almacen, config as cfgmod, contrato as C, canalizacion as canal_mod, extraccion, github as gh,
-               pdf_informe, pdf_presupuesto, pdf_tablero, precios as precios_mod, presupuesto as pres_mod,
-               sync, tablero as tablero_mod, vinculos)
+               materiales as mat_mod, pdf_informe, pdf_presupuesto, pdf_tablero, precios as precios_mod,
+               presupuesto as pres_mod, sync, tablero as tablero_mod, vinculos)
 
 if getattr(sys, "frozen", False):
     DIR_WEB = Path(sys._MEIPASS) / "web"        # bundle de PyInstaller
@@ -182,6 +182,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"obras": almacen.listar_resumenes()})
         if ruta == "/api/precios":
             return self._json(precios_mod.leer())
+        if ruta == "/api/materiales":
+            return self._json(mat_mod.leer())
         if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "canalizacion":
             obra = almacen.leer_obra(partes[2])
             if obra is None:
@@ -194,6 +196,16 @@ class Handler(BaseHTTPRequestHandler):
                 "pxPerM": canal_mod.pxpermetro_para_canaliza(obra),
                 "planoUrl": (f"/api/obras/{partes[2]}/plano.png?zoom={canal_mod.ZOOM_PLANO}"
                             if (obra.get("plano") or {}).get("referencia") else None),
+            })
+        if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "materiales":
+            obra = almacen.leer_obra(partes[2])
+            if obra is None:
+                return self._error("Esa obra no está en este equipo.", 404)
+            return self._json({
+                "catalogo": mat_mod.leer(),
+                "obra": obra.get("materiales") or {"extras": [], "cables": []},
+                "cajas": mat_mod.computar_cajas(obra),
+                "tableros": mat_mod.computar_tableros(obra),
             })
         if ruta == "/api/tablero/presets":
             return self._json({"presets": tablero_mod.PRESETS})
@@ -255,6 +267,8 @@ class Handler(BaseHTTPRequestHandler):
 
         if ruta == "/api/precios":
             return self._json(precios_mod.guardar(cuerpo))
+        if ruta == "/api/materiales":
+            return self._json(mat_mod.guardar(cuerpo))
 
         if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "presupuesto":
             obra = almacen.leer_obra(partes[2])
@@ -309,6 +323,22 @@ class Handler(BaseHTTPRequestHandler):
                 "totales": pres_mod.totales(obra.get("presupuesto") or {}),
                 "comparacion": precios_mod.comparar(
                     (obra.get("presupuesto") or {}).get("items") or []),
+            })
+
+        if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "materiales":
+            obra = almacen.leer_obra(partes[2])
+            if obra is None:
+                return self._error("Esa obra no está en este equipo.", 404)
+            mat = cuerpo.get("materiales")
+            if mat is not None:
+                obra["materiales"] = mat
+            if cuerpo.get("guardar"):
+                almacen.guardar_obra(obra, cfg.get("usuario", ""))
+            return self._json({
+                "ok": True,
+                "materiales": obra.get("materiales") or {"extras": [], "cables": []},
+                "cajas": mat_mod.computar_cajas(obra),
+                "tableros": mat_mod.computar_tableros(obra),
             })
 
         if ruta == "/api/config/verificar":

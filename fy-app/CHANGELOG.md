@@ -3,6 +3,59 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 0.30.0 — el PDF de Routeo pesa muchísimo menos, el informe general ya incluye su plano de verdad, y nuevo módulo de Lista de materiales
+
+- **Bug real corregido: el PDF de Routeo (no sólo el informe general)
+  pesaba muchísimo más de lo que debería.** Investigando por qué el
+  informe general no podía sumar el plano de Routeo ("demasiado pesado"),
+  aparecieron dos causas reales:
+  - `addImage()` de jsPDF no llevaba parámetro de compresión al embeber
+    las hojas en PNG. Sin eso, jsPDF guarda la imagen como bitmap crudo
+    sin comprimir, en vez de aprovechar que un PNG ya viene comprimido.
+    Medido en una hoja de prueba: pasó de pesar más de 100 MB a pesar
+    160 KB con el fix -- una hoja de ~700 KB de PNG se estaba infliendo a
+    más de 100 MB en el PDF final. Se agregó compresión sin pérdida (no
+    cambia el color ni la nitidez) a `putPlan()`. Esto mejora **cualquier**
+    PDF que se exporte desde Routeo de acá en más, no sólo el informe.
+  - Un bug clásico de JavaScript con iframes: el PDF que arma Routeo
+    adentro del iframe oculto (para el informe general) queda en otro
+    "realm" de JavaScript -- aunque es un `ArrayBuffer` perfectamente
+    válido, la librería que une los PDFs no lo reconocía como tal. Se
+    corrige copiándolo al contexto de la página principal antes de
+    usarlo.
+  - Además, el informe general ahora arma sólo la hoja general de Routeo
+    (todos los circuitos juntos), no el PDF completo con una hoja por
+    circuito -- de raíz, no como parche: no tiene sentido cargar el detalle
+    circuito por circuito en un informe general, y eso también ayuda con
+    el peso. El detalle completo se sigue exportando aparte, desde el
+    propio botón de Routeo.
+  - Probado de punta a punta con Puppeteer contra un servidor real, con
+    un plano y un tramo de prueba cargados a propósito: el informe general
+    ahora sí incluye la hoja de Routeo real (con el plano de fondo, el
+    cableado y las referencias), en un PDF combinado de ~166 KB.
+- **Nuevo módulo: Lista de materiales.** Cómputo automático de cajas
+  (octogonales, rectangulares, de inspección) y de cada tablero con sus
+  accesorios y PAT, sin tipear nada nuevo -- sale de lo que ya está
+  cargado en Circuitos y Tablero. Sigue funcionando en obras preliminares,
+  antes de rutear nada (las cajas de inspección, que dependen de Routeo,
+  simplemente dan 0 con una nota, en vez de fallar).
+  - Catálogo de productos reutilizable entre obras (`app/materiales.py`,
+    mismo patrón que la lista de precios): peines, conectores, borneras de
+    tierra, soportes para caños externos y corrugados, tornillería, con
+    una semilla inicial y la posibilidad de agregar más ítems propios
+    desde la pantalla.
+  - Por cada obra, elegís cuántos de cada producto del catálogo hacen
+    falta, y podés marcar qué rollos de cable (sección + color) conviene
+    comprar.
+  - Pantalla nueva `materiales.html`, con su lugar en el menú de la obra.
+    Probado con Puppeteer: cómputo correcto, agregar producto y rollo de
+    cable, persistencia confirmada releyendo la obra de disco, y la
+    navegación de ida y vuelta funcionando.
+- Corrida una batería de regresión completa (10 verificaciones: precios,
+  materiales, circuitos, presupuesto, tablero, unifilar, informe general,
+  seguimiento de pago, Routeo sin errores de consola, navegación de los 5
+  módulos) contra un servidor real desde el paquete final -- todo pasa.
+
 ## 0.29.0 — preinstalación de AA ya no choca con TUE, Trabajos vs Extras depende de la categoría, e informe general con el plano real de Routeo
 
 - **Bug real corregido: una preinstalación de aire acondicionado en un

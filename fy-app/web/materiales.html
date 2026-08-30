@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lista de materiales</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+:root{
+  --navy:#16283f; --navy-deep:#0e1c2e; --paper:#f1f3f2; --panel:#fff; --line:#dde3e2;
+  --ink:#1c2733; --muted:#5b6b7a; --amber:#e2a33d; --amber-deep:#c07f1f;
+  --copper:#b5651d; --copper-soft:#f4e3d3; --slate-soft:#eef1f3;
+  --green:#2f7d5c; --green-soft:#dcefe4; --danger:#b3432f; --danger-soft:#f8ded7;
+  --radius:10px; font-family:'IBM Plex Sans',system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink)}
+button{font:inherit;cursor:pointer} input,select{font:inherit}
+header{background:var(--navy);color:#fff;padding:14px 22px;display:flex;
+  align-items:center;gap:16px;flex-wrap:wrap}
+header h1{font-size:1.05rem;margin:0;font-weight:600;font-family:'Space Grotesk',sans-serif}
+header .sub{font-size:.72rem;color:#9db2c7;margin-top:2px}
+.spacer{flex:1}
+.btn{border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:8px 14px;
+  border-radius:var(--radius);font-size:.83rem;font-weight:500}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--amber);border-color:var(--amber-deep);color:#2a1e07;font-weight:600}
+.btn.ghost{background:transparent;border-color:#33506e;color:#cfe0f0}
+.btn.ghost:hover{border-color:#5b7fa5}
+.btn.sm{padding:5px 10px;font-size:.76rem}
+main{max-width:880px;margin:0 auto;padding:26px 22px 60px}
+h2{font-family:'Space Grotesk',sans-serif;font-size:.82rem;margin:26px 0 8px;
+  text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+h2:first-child{margin-top:0}
+.nota{font-size:.78rem;color:var(--muted);margin:2px 0 10px}
+.bloques{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-bottom:6px}
+.bloque{border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:.82rem;background:var(--panel)}
+.bloque b{display:block;font-size:.68rem;text-transform:uppercase;letter-spacing:.04em;
+  color:var(--muted);font-weight:600;margin-bottom:3px}
+.bloque .num{font-size:1.3rem;font-weight:700;color:var(--navy);font-family:'Space Grotesk',sans-serif}
+table{width:100%;border-collapse:collapse;background:var(--panel);border-radius:8px;overflow:hidden;
+  border:1px solid var(--line);margin-bottom:8px}
+th{background:var(--slate-soft);text-align:left;font-size:.68rem;text-transform:uppercase;
+  letter-spacing:.04em;color:var(--muted);padding:7px 9px;font-weight:600}
+td{padding:7px 9px;font-size:.83rem;border-top:1px solid var(--line)}
+td input,td select{width:100%;border:1px solid transparent;background:transparent;padding:3px 4px;
+  border-radius:5px}
+td input:focus,td select:focus{border-color:var(--line);background:var(--paper);outline:none}
+td.num{text-align:center;width:80px}
+td.acc{width:36px;text-align:center}
+.acc button{border:none;background:transparent;color:var(--danger);font-size:1rem;padding:2px}
+.agregar-fila{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0 18px;
+  padding:10px 12px;background:var(--panel);border:1px dashed var(--line);border-radius:8px}
+.agregar-fila select,.agregar-fila input{border:1px solid var(--line);border-radius:7px;
+  padding:6px 8px;font-size:.82rem}
+.agregar-fila .cant{width:70px}
+.chk-si{color:var(--green);font-weight:600}
+.chk-no{color:var(--muted)}
+#toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--navy-deep);
+  color:#fff;padding:11px 18px;border-radius:var(--radius);font-size:.83rem;display:none;z-index:60}
+</style>
+</head>
+<body>
+<header>
+  <div><h1>Lista de materiales</h1><div class="sub" id="h-sub">Cargando…</div></div>
+  <div class="spacer"></div>
+  <button class="btn ghost" id="b-volver">‹ Volver</button>
+</header>
+
+<main>
+  <h2>Cómputo automático</h2>
+  <div class="nota">Sale solo de lo que ya cargaste en Circuitos y Tablero -- no hay nada que
+  tipear acá. Las cajas de inspección dependen de Routeo; si todavía no ruteaste nada, da 0
+  sin que signifique que no hacen falta.</div>
+  <div class="bloques" id="cajas-bloques"></div>
+
+  <div id="tableros-cont"></div>
+
+  <h2>Productos extra a comprar</h2>
+  <div class="nota">Cosas que no están en la lista de precios porque no se cobran por separado,
+  pero hay que comprarlas igual (peines, borneras, soportes, tornillería...). El catálogo se
+  comparte entre obras; acá elegís cuántos de cada uno hacen falta en ésta.</div>
+  <div class="agregar-fila">
+    <select id="ex-item" style="min-width:220px;flex:1"></select>
+    <input class="cant" id="ex-cant" type="number" min="1" value="1">
+    <button class="btn sm primary" id="ex-agregar">Agregar</button>
+    <button class="btn sm" id="ex-nuevo-catalogo">+ Nuevo en el catálogo</button>
+  </div>
+  <table>
+    <thead><tr><th>Ítem</th><th>Categoría</th><th style="width:70px">Unidad</th>
+      <th style="width:80px">Cant.</th><th></th></tr></thead>
+    <tbody id="t-extras"></tbody>
+  </table>
+
+  <h2>Rollos de cable a comprar</h2>
+  <div class="nota">Marcá qué secciones y colores necesitás reponer para esta obra.</div>
+  <table>
+    <thead><tr><th style="width:110px">Sección</th><th>Color</th><th>Notas</th>
+      <th style="width:90px">Comprar</th><th></th></tr></thead>
+    <tbody id="t-cables"></tbody>
+  </table>
+  <button class="btn sm" id="cb-agregar">+ Agregar rollo</button>
+</main>
+
+<div id="toast"></div>
+<script>
+const $ = id => document.getElementById(id);
+const params = new URLSearchParams(location.search);
+const OBRA_ID = params.get('obra');
+const SECCIONES = [1, 1.5, 2.5, 4, 6, 10, 16, 25];
+const COLORES_CABLE = ['Rojo (fase)', 'Negro (fase)', 'Azul (neutro)', 'Verde-amarillo (tierra)', 'Marrón', 'Blanco', 'Otro'];
+
+const api = async (ruta, opts={}) => {
+  const r = await fetch(ruta, {headers:{'Content-Type':'application/json'}, ...opts});
+  const d = await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error(d.error || 'Error inesperado');
+  return d;
+};
+function toast(m){ const t=$('toast'); t.textContent=m; t.style.display='block';
+  clearTimeout(t._t); t._t=setTimeout(()=>t.style.display='none',3000); }
+const esc = s => (s==null?'':String(s)).replace(/[&<>"]/g,
+  c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+let catalogo = [], datosObra = {extras:[], cables:[]}, cajas = {}, tableros = [];
+
+$('b-volver').onclick = () => location.href = '/obra.html?obra=' + OBRA_ID;
+
+async function cargar(){
+  if(!OBRA_ID){ toast('Falta el id de la obra en la URL.'); return; }
+  const d = await api('/api/obras/'+OBRA_ID+'/materiales');
+  catalogo = d.catalogo.items || [];
+  datosObra = d.obra || {extras:[], cables:[]};
+  datosObra.extras = datosObra.extras || [];
+  datosObra.cables = datosObra.cables || [];
+  cajas = d.cajas; tableros = d.tableros;
+  $('h-sub').textContent = 'Obra ' + OBRA_ID;
+  pintarCajas(); pintarTableros(); pintarSelectCatalogo(); pintarExtras(); pintarCables();
+}
+
+function pintarCajas(){
+  $('cajas-bloques').innerHTML = `
+    <div class="bloque"><b>Cajas octogonales</b><div class="num">${cajas.octogonales}</div></div>
+    <div class="bloque"><b>Cajas rectangulares</b><div class="num">${cajas.rectangulares}</div></div>
+    <div class="bloque"><b>Cajas de inspección</b><div class="num">${cajas.inspeccion}</div>
+      ${!cajas.inspeccionDisponible ? '<div style="font-size:.68rem;color:var(--muted)">sin routeo cargado todavía</div>' : ''}</div>`;
+}
+function pintarTableros(){
+  if(!tableros.length){
+    $('tableros-cont').innerHTML = '';
+    return;
+  }
+  $('tableros-cont').innerHTML = `<table><thead><tr><th>Tablero</th><th>General</th>
+    <th>Diferencial</th><th style="width:80px">Térmicas</th><th style="width:90px">Protectores</th>
+    <th style="width:100px">Jabalina PAT</th></tr></thead><tbody>` +
+    tableros.map(t => `<tr>
+      <td>${esc(t.nombre)} (${t.fases===3?'trifásico':'monofásico'})</td>
+      <td class="${t.general?'chk-si':'chk-no'}">${t.general?'Sí':'No'}</td>
+      <td class="${t.diferencial?'chk-si':'chk-no'}">${t.diferencial?'Sí':'No'}</td>
+      <td class="num">${t.termicas}</td>
+      <td class="num">${t.protectores}</td>
+      <td class="${t.jabalinaPAT?'chk-si':'chk-no'}">${t.jabalinaPAT?'Sí':'No'}</td>
+    </tr>`).join('') + `</tbody></table>`;
+}
+function pintarSelectCatalogo(){
+  const porCategoria = {};
+  for(const it of catalogo) (porCategoria[it.categoria||'Otros'] ||= []).push(it);
+  $('ex-item').innerHTML = Object.keys(porCategoria).map(cat =>
+    `<optgroup label="${esc(cat)}">${porCategoria[cat].map(it =>
+      `<option value="${it.id}">${esc(it.item)} (${esc(it.unidad)})</option>`).join('')}</optgroup>`
+  ).join('') || '<option value="">Todavía no hay nada en el catálogo</option>';
+}
+function pintarExtras(){
+  $('t-extras').innerHTML = datosObra.extras.length ? datosObra.extras.map((e,i) => `
+    <tr data-i="${i}">
+      <td>${esc(e.item)}</td>
+      <td>${esc(e.categoria||'')}</td>
+      <td style="text-align:center">${esc(e.unidad||'u')}</td>
+      <td class="num"><input data-c="cantidad" type="number" min="1" value="${e.cantidad||1}"></td>
+      <td class="acc"><button data-del="${i}" title="Quitar">×</button></td>
+    </tr>`).join('') : '<tr><td colspan="5" style="color:var(--muted);padding:12px">Todavía no agregaste ningún producto extra.</td></tr>';
+  $('t-extras').querySelectorAll('[data-c="cantidad"]').forEach((inp,idx) => {
+    inp.onchange = () => { datosObra.extras[idx].cantidad = parseInt(inp.value,10)||1; guardar(); };
+  });
+  $('t-extras').querySelectorAll('[data-del]').forEach(btn => {
+    btn.onclick = () => { datosObra.extras.splice(+btn.dataset.del,1); pintarExtras(); guardar(); };
+  });
+}
+function pintarCables(){
+  $('t-cables').innerHTML = datosObra.cables.length ? datosObra.cables.map((c,i) => `
+    <tr data-i="${i}">
+      <td><select data-c="seccionMm2">${SECCIONES.map(s=>
+        `<option value="${s}" ${String(c.seccionMm2)===String(s)?'selected':''}>${s} mm²</option>`).join('')}</select></td>
+      <td><select data-c="color">${COLORES_CABLE.map(col=>
+        `<option ${c.color===col?'selected':''}>${esc(col)}</option>`).join('')}</select></td>
+      <td><input data-c="notas" value="${esc(c.notas||'')}" placeholder="ej: quedan 8m, alcanza para..."></td>
+      <td style="text-align:center"><input type="checkbox" data-c="necesita" ${c.necesita?'checked':''}></td>
+      <td class="acc"><button data-del="${i}" title="Quitar">×</button></td>
+    </tr>`).join('') : '<tr><td colspan="5" style="color:var(--muted);padding:12px">Todavía no agregaste ningún rollo.</td></tr>';
+  $('t-cables').querySelectorAll('tr[data-i]').forEach(tr => {
+    const i = +tr.dataset.i;
+    tr.querySelectorAll('[data-c]').forEach(el => {
+      el.onchange = () => {
+        const campo = el.dataset.c;
+        datosObra.cables[i][campo] = el.type==='checkbox' ? el.checked : el.value;
+        guardar();
+      };
+    });
+  });
+  $('t-cables').querySelectorAll('[data-del]').forEach(btn => {
+    btn.onclick = () => { datosObra.cables.splice(+btn.dataset.del,1); pintarCables(); guardar(); };
+  });
+}
+
+$('ex-agregar').onclick = () => {
+  const id = $('ex-item').value;
+  const it = catalogo.find(x => x.id === id);
+  if(!it){ toast('Elegí un producto del catálogo primero.'); return; }
+  const cant = parseInt($('ex-cant').value,10) || 1;
+  const existente = datosObra.extras.find(e => e.catalogoId === id);
+  if(existente) existente.cantidad += cant;
+  else datosObra.extras.push({id:'me_'+Date.now().toString(36), catalogoId:id,
+    item:it.item, categoria:it.categoria, unidad:it.unidad, cantidad:cant});
+  pintarExtras(); guardar();
+  toast('Agregado');
+};
+$('ex-nuevo-catalogo').onclick = async () => {
+  const nombre = prompt('Nombre del producto (ej: "Peine para térmicas")');
+  if(!nombre) return;
+  const categoria = prompt('¿En qué categoría va?\n' +
+    [...new Set(catalogo.map(c=>c.categoria))].join(', ') + '\n(o escribí una nueva)', 'Otros');
+  if(!categoria) return;
+  const unidad = prompt('¿En qué unidad se compra? (u, m, caja...)', 'u') || 'u';
+  const nuevoCat = await api('/api/materiales', {method:'POST', body: JSON.stringify({
+    items: [...catalogo, {categoria: categoria.trim(), item: nombre.trim(), unidad: unidad.trim()}]
+  })});
+  catalogo = nuevoCat.items;
+  pintarSelectCatalogo();
+  toast('Agregado al catálogo -- ya lo podés elegir arriba');
+};
+$('cb-agregar').onclick = () => {
+  datosObra.cables.push({seccionMm2:2.5, color:COLORES_CABLE[0], notas:'', necesita:true});
+  pintarCables(); guardar();
+};
+
+let guardando = null;
+function guardar(){
+  clearTimeout(guardando);
+  guardando = setTimeout(async () => {
+    try{ await api('/api/obras/'+OBRA_ID+'/materiales',
+      {method:'POST', body: JSON.stringify({materiales: datosObra, guardar:true})}); }
+    catch(e){ toast('No se pudo guardar: ' + e.message); }
+  }, 400);
+}
+
+cargar().catch(e => { $('h-sub').textContent = e.message; toast(e.message); });
+</script>
+</body>
+</html>

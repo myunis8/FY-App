@@ -106,6 +106,11 @@ h2:first-child{margin-top:0}
     <button class="btn primary sm" id="d-presupuesto">Abrir</button>
     <button class="btn sm" id="d-pdf">Descargar PDF</button>
   </div>
+  <div class="plano-fila">
+    <div class="txt"><b>Lista de materiales</b>
+      <div class="nota">Cajas, tablero con accesorios, PAT, productos extra y rollos de cable a comprar.</div></div>
+    <button class="btn primary sm" id="d-materiales">Abrir</button>
+  </div>
 
   <h2>Seguimiento</h2>
   <div class="plano-fila" style="flex-direction:column;align-items:stretch;gap:12px">
@@ -197,7 +202,7 @@ const ESTADOS_PAGO = {pendiente:'Pendiente', parcial:'Pago parcial', pagado:'Pag
 const INFORME_MODULOS = [
   {id:'circuitos',    label:'Circuitos',                                         defecto:true},
   {id:'tableros',     label:'Tablero(s) -- conexionado y guía de tapa',          defecto:true},
-  {id:'routeo_pleno', label:'Routeo -- plano completo',                          defecto:true,  cliente:true},
+  {id:'routeo_pleno', label:'Routeo -- plano general (todos los circuitos, 1 hoja)', defecto:true,  cliente:true},
   {id:'routeo',       label:'Routeo -- resumen de materiales (todavía en ajuste)', defecto:false},
   {id:'presupuesto',  label:'Presupuesto',                                       defecto:true},
   {id:'unifilar',     label:'Esquema unifilar (beta)',                           defecto:false},
@@ -324,7 +329,12 @@ function generarPdfRouteoEnIframe(obraId){
         }
         const bytes = await win.canalizaGenerarPdfBytes();
         clearTimeout(tiempoLimite); limpiar();
-        resolve(bytes);
+        // el ArrayBuffer que devuelve el iframe pertenece a su propio "realm"
+        // de JavaScript -- aunque es un ArrayBuffer válido, pdf-lib no lo
+        // reconoce como tal si se lo pasa tal cual (mismo problema clásico
+        // que "instanceof" entre iframes, aunque sean del mismo origen). Se
+        // copia acá, con los constructores de esta página, antes de usarlo.
+        resolve(new Uint8Array(bytes).slice());
       }catch(err){ clearTimeout(tiempoLimite); limpiar(); reject(err); }
     };
     iframe.src = `/canaliza.html?obra=${obraId}`;
@@ -383,6 +393,7 @@ function pintarBloques(obra){
   $('d-npresupuesto').textContent = nit ? `${nit} ítems` +
     (obra.presupuesto?.congeladoEl ? ' · congelado' : ' · sin congelar') : 'Todavía ninguno';
   $('d-presupuesto').onclick = () => location.href = '/presupuesto.html?obra=' + obra.obra.id;
+  $('d-materiales').onclick = () => location.href = '/materiales.html?obra=' + obra.obra.id;
   $('d-pdf').onclick = () => mostrarVistaPreviaPdf(
     '/api/obras/' + obra.obra.id + '/presupuesto.pdf',
     (obra.obra.nombre || 'presupuesto').replace(/\s+/g,'_') + '.pdf');

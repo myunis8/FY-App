@@ -36,6 +36,7 @@ def obra_vacia(nombre: str = "", cliente: str = "", usuario: str = "") -> dict:
         "ambientes": [], "elementos": [], "circuitos": [], "tableros": [],
         "canalizacion": None,   # el proyecto tal cual lo produce buildProjectData() de Canaliza
         "computo": None,
+        "materiales": {"extras": [], "cables": []},
         "presupuesto": {"items": [], "descuento": None, "ajusteFinal": None,
                         "fechaEmision": None},
         "seguimiento": {"estado": "preliminar",
