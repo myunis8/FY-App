@@ -3,6 +3,54 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 0.31.0 — avisos de Circuitos clickeables, y Lista de materiales completa: catálogo con precio/link/orden, cómputo real de Routeo/Tablero, y PDF propio
+
+- **Circuitos: los avisos del DRC ahora se pueden clickear.** "Quedan 2 sin
+  circuito", "TUG1 tiene un elemento que no es de su tipo", etc. -- al
+  clickearlos, resalta el/los elementos en el plano (con scroll automático
+  y un pulso animado) o, si la obra no tiene plano, en la lista. Los avisos
+  de un circuito completo (circuito vacío, sección insuficiente...)
+  seleccionan y hacen scroll hasta la tarjeta de ese circuito.
+- **Lista de materiales: catálogo con precio estimado, link de referencia y
+  orden propio.** Nueva pantalla en el home ("Materiales típicos"), con el
+  mismo formato de la lista de precios: categorías, buscador, reordenar con
+  flechas, y ahora también un link de referencia (con botón "abrir ↗") y un
+  precio estimado editable en lote por porcentaje.
+- **El cómputo automático por obra ahora es mucho más completo:**
+  - Las cajas (octogonales, rectangulares, de inspección) salen de lo que
+    ya se extrajo o se agregó a mano en Routeo (`canalizacion.nodes`, la
+    fuente más exacta) en vez de aproximarse sólo con Circuitos; si
+    todavía no se ruteó nada, cae a la aproximación anterior con una nota
+    aclarando que es eso, una aproximación.
+  - Térmicas y protecciones agrupadas por corriente y fases ("Térmica C10
+    monofásica x2", etc.) de todos los tableros de la obra juntos.
+  - Tableros con sus bocas y "niveles" (se usa esa palabra en vez de
+    "piso", como se pidió).
+  - Jabalina de PAT + su caja de inspección, con sección y largo estándar
+    (5/8" x 2,40 m).
+  - Metros estimados de cable (por sección) y de caño (por diámetro),
+    calculados con la misma lógica que usa Routeo para largo horizontal +
+    bajadas y agrupamiento de caños compartidos (contados una sola vez,
+    no una vez por cable) -- verificado a mano con un caso de prueba, las
+    cuentas coinciden exactamente. Es una estimación: para el cómputo
+    detallado, se sigue usando la propia exportación de Routeo.
+  - Todo esto se auto-matchea contra el catálogo por nombre exacto, y si
+    no existe se crea ahí mismo -- así, obra tras obra, se usan siempre
+    los mismos ítems en vez de ir acumulando variantes parecidas. Botón
+    "Actualizar cómputo" en la pantalla de la obra para dispararlo cuando
+    haga falta, sin pisar lo que se haya agregado a mano.
+- **PDF propio para la lista de materiales** (`app/pdf_materiales.py`),
+  con el mismo estilo visual que el presupuesto (marca de agua, logo,
+  tablas por categoría, reusando esas piezas directamente en vez de
+  duplicarlas) y un checkbox para incluir o no el precio estimado -- para
+  cuando sólo se entrega la lista de qué comprar, sin decir cuánto sale.
+- Probado de punta a punta con Puppeteer contra un servidor real: cómputo
+  automático correcto con datos de Tablero y Routeo reales, el catálogo
+  suma los ítems nuevos creados automáticamente (de 12 a 24 en la prueba),
+  la vista previa del PDF se abre sin errores, y una batería de regresión
+  de 8 verificaciones (precios, catálogo, DRC, materiales, presupuesto,
+  informe general, tablero, PDF de materiales) pasa completa.
+
 ## 0.30.0 — el PDF de Routeo pesa muchísimo menos, el informe general ya incluye su plano de verdad, y nuevo módulo de Lista de materiales
 
 - **Bug real corregido: el PDF de Routeo (no sólo el informe general)

@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lista de materiales típicos</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+:root{
+  --navy:#16283f; --navy-deep:#0e1c2e; --paper:#f1f3f2; --panel:#fff; --line:#dde3e2;
+  --ink:#1c2733; --muted:#5b6b7a; --amber:#e2a33d; --amber-deep:#c07f1f;
+  --copper:#b5651d; --copper-soft:#f4e3d3; --slate-soft:#eef1f3;
+  --green:#2f7d5c; --green-soft:#dcefe4; --danger:#b3432f; --danger-soft:#f8ded7;
+  --radius:10px; font-family:'IBM Plex Sans',system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink)}
+button{font:inherit;cursor:pointer} input,select{font:inherit}
+.mono{font-family:'IBM Plex Mono',Consolas,monospace}
+header{background:var(--navy);color:#fff;padding:11px 18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+header h1{font-family:'Space Grotesk',sans-serif;font-size:.98rem;margin:0;font-weight:600}
+header .sub{font-size:.72rem;color:#9db2c7}
+.spacer{flex:1}
+.btn{border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:7px 13px;
+  border-radius:var(--radius);font-size:.82rem;font-weight:500}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--amber);border-color:var(--amber-deep);color:#2a1e07;font-weight:600}
+.btn.ghost{background:transparent;border-color:#33506e;color:#cfe0f0}
+.btn.sm{padding:4px 9px;font-size:.75rem}
+main{max-width:1080px;margin:0 auto;padding:22px 18px 60px}
+.barra{display:flex;gap:9px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+.barra input,.barra select{padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:#fff}
+table{width:100%;border-collapse:collapse;background:var(--panel);
+  border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+th{text-align:left;font-size:.68rem;text-transform:uppercase;letter-spacing:.05em;
+  color:var(--muted);padding:9px 11px;background:var(--slate-soft);font-weight:600}
+td{padding:6px 11px;border-top:1px solid var(--line);font-size:.84rem}
+td input,td select{width:100%;border:1px solid transparent;background:transparent;
+  padding:5px 6px;border-radius:6px}
+td input:focus,td select:focus{outline:none;border-color:var(--copper);background:#fff}
+td.precio input{text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:600}
+.grupo td{background:var(--slate-soft);font-weight:600;font-size:.74rem;
+  text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.tag-warn{display:inline-block;font-size:.62rem;padding:1px 7px;margin-left:7px;
+  border-radius:99px;background:var(--danger-soft);color:var(--danger);font-weight:700;
+  letter-spacing:.03em;vertical-align:middle}
+.acc{width:34px;text-align:center}
+.acc button{border:none;background:transparent;color:var(--danger);font-size:1rem;padding:2px 6px}
+.link-cell a{color:var(--copper);text-decoration:none;font-size:.78rem}
+.link-cell a:hover{text-decoration:underline}
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--navy-deep);
+  color:#fff;padding:10px 17px;border-radius:var(--radius);font-size:.82rem;display:none}
+.ayuda{color:var(--muted);font-size:.8rem;line-height:1.5;margin:0 0 16px}
+</style>
+</head>
+<body>
+<header>
+  <div><h1>Lista de materiales típicos</h1><div class="sub" id="h-sub">Cargando…</div></div>
+  <div class="spacer"></div>
+  <button class="btn ghost" id="b-agregar">Agregar ítem</button>
+  <button class="btn ghost" id="b-volver">Volver</button>
+  <button class="btn primary" id="b-guardar">Guardar</button>
+</header>
+<main>
+  <p class="ayuda">Catálogo compartido entre todas las obras (peines, borneras, soportes,
+    tornillería, cables...). Desde la Lista de materiales de cada proyecto elegís cuáles y
+    cuántos hacen falta -- lo que se calcula solo (cajas, térmicas, jabalina) también termina
+    usando estos mismos ítems, creándolos acá si todavía no existían.</p>
+  <div class="barra">
+    <input id="f-buscar" placeholder="Buscar ítem" style="min-width:220px">
+    <select id="f-cat"><option value="">Todas las categorías</option></select>
+    <div class="spacer"></div>
+    <label style="font-size:.8rem;color:var(--muted)">Ajustar precios
+      <input id="i-ajuste" type="number" step="0.5" style="width:72px" placeholder="%">
+      <button class="btn sm" id="b-ajustar">Aplicar</button></label>
+  </div>
+  <table><thead><tr>
+    <th style="width:26%">Ítem</th><th style="width:14%">Categoría</th>
+    <th style="width:8%">Unidad</th><th style="width:15%">Precio estimado</th>
+    <th style="width:17%">Link de referencia</th>
+    <th style="width:8%;text-align:center">Orden</th><th class="acc"></th>
+  </tr></thead><tbody id="cuerpo"></tbody></table>
+</main>
+<div id="toast"></div>
+<script>
+const CATEGORIAS = ["Accesorios de tablero","Puesta a tierra","Canalización externa",
+                    "Fijación y tornillería","Cables y caños","Otros"];
+const $ = id => document.getElementById(id);
+let lista = null;
+const api = async (r,o={}) => {
+  const res = await fetch(r,{headers:{'Content-Type':'application/json'},...o});
+  const d = await res.json().catch(()=>({}));
+  if(!res.ok) throw new Error(d.error||'Error'); return d;
+};
+function toast(m){const t=$('toast');t.textContent=m;t.style.display='block';
+  clearTimeout(t._t);t._t=setTimeout(()=>t.style.display='none',2800);}
+const esc = s => (s==null?'':String(s)).replace(/[&<>"]/g,
+  c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const plata = n => (n||0).toLocaleString('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0});
+
+async function cargar(){
+  lista = await api('/api/materiales');
+  actualizarSelectorCategorias();
+  pintar();
+}
+function todasLasCategorias(){
+  const extra = [...new Set((lista.items||[]).map(i => i.categoria || 'Otros'))]
+    .filter(c => !CATEGORIAS.includes(c)).sort();
+  return [...CATEGORIAS, ...extra];
+}
+function actualizarSelectorCategorias(){
+  $('f-cat').innerHTML = '<option value="">Todas las categorías</option>' +
+    todasLasCategorias().map(c=>`<option>${esc(c)}</option>`).join('');
+}
+function visibles(){
+  const q = $('f-buscar').value.trim().toLowerCase(), c = $('f-cat').value;
+  return lista.items.filter(i =>
+    (!q || (i.item||'').toLowerCase().includes(q)) && (!c || (i.categoria||'Otros') === c));
+}
+function itemsDeCategoria(cat){
+  return lista.items.filter(i => (i.categoria||'Otros') === cat)
+    .sort((a,b) => (a.orden??0) - (b.orden??0));
+}
+function pintar(){
+  const catsVisibles = new Set(visibles().map(i => i.categoria||'Otros'));
+  const cats = todasLasCategorias().filter(c => catsVisibles.has(c));
+  const conteoNombres = {};
+  for(const i of lista.items){
+    const k = (i.item||'').trim().toLowerCase();
+    conteoNombres[k] = (conteoNombres[k]||0) + 1;
+  }
+  $('cuerpo').innerHTML = cats.map(cat => {
+    const arr = itemsDeCategoria(cat).filter(i => visibles().includes(i));
+    const esDesconocida = !CATEGORIAS.includes(cat);
+    return `<tr class="grupo"><td colspan="7">${esc(cat)} · ${arr.length}
+        ${esDesconocida?'<span class="tag-warn" title="No es una categoría de la lista fija -- reasigná cada ítem a una válida">SIN CATALOGAR</span>':''}</td></tr>` +
+      arr.map((i, idx) => {
+        const dup = conteoNombres[(i.item||'').trim().toLowerCase()] > 1;
+        const opciones = esDesconocida ? [cat, ...CATEGORIAS] : CATEGORIAS;
+        return `<tr data-id="${i.id}">
+        <td><input data-c="item" value="${esc(i.item)}">
+          ${dup?'<span class="tag-warn" title="Otro ítem tiene el mismo nombre -- puede ser un duplicado">POSIBLE DUPLICADO</span>':''}</td>
+        <td><select data-c="categoria">${opciones.map(c=>
+          `<option ${c===cat?'selected':''}>${esc(c)}</option>`).join('')}</select></td>
+        <td><input data-c="unidad" value="${esc(i.unidad||'u')}"></td>
+        <td class="precio"><input data-c="precioEstimado" type="number" step="1" value="${i.precioEstimado||''}" placeholder="—"></td>
+        <td class="link-cell">
+          <input data-c="link" value="${esc(i.link||'')}" placeholder="https://...">
+          ${i.link?`<a href="${esc(i.link)}" target="_blank" rel="noopener">abrir ↗</a>`:''}</td>
+        <td class="ord">
+          <button data-subir="${i.id}" ${idx===0?'disabled':''} title="Subir">▲</button>
+          <button data-bajar="${i.id}" ${idx===arr.length-1?'disabled':''} title="Bajar">▼</button>
+        </td>
+        <td class="acc"><button data-borrar="${i.id}" title="Borrar">×</button></td>
+      </tr>`;}).join('');
+  }).join('') || '<tr><td colspan="7" style="color:var(--muted);padding:18px">Nada coincide.</td></tr>';
+
+  $('cuerpo').querySelectorAll('[data-c]').forEach(n => n.onchange = () => {
+    const id = n.closest('tr').dataset.id;
+    const it = lista.items.find(x=>x.id===id);
+    it[n.dataset.c] = n.dataset.c==='precioEstimado' ? (n.value===''?null:parseFloat(n.value)) : n.value;
+    if(n.dataset.c === 'categoria'){
+      it.orden = itemsDeCategoria(it.categoria).length;
+      pintar();
+    } else if(n.dataset.c === 'link'){
+      pintar();
+    }
+  });
+  $('cuerpo').querySelectorAll('[data-borrar]').forEach(n => n.onclick = () => {
+    if(!confirm('¿Borrar este ítem del catálogo? Ya no se va a poder elegir en ninguna obra nueva.')) return;
+    lista.items = lista.items.filter(x=>x.id!==n.dataset.borrar);
+    pintar();
+  });
+  $('cuerpo').querySelectorAll('[data-subir],[data-bajar]').forEach(n => n.onclick = () => {
+    const id = n.dataset.subir || n.dataset.bajar;
+    const it = lista.items.find(x=>x.id===id);
+    const hermanos = itemsDeCategoria(it.categoria);
+    const pos = hermanos.indexOf(it);
+    const vecino = hermanos[n.dataset.subir ? pos-1 : pos+1];
+    if(!vecino) return;
+    [it.orden, vecino.orden] = [vecino.orden ?? 0, it.orden ?? 0];
+    pintar();
+  });
+  actualizarTotalizador();
+}
+function actualizarTotalizador(){
+  const conPrecio = lista.items.filter(i=>i.precioEstimado>0).length;
+  $('h-sub').textContent = `${lista.items.length} ítems · ${conPrecio} con precio estimado` +
+    (lista.actualizadoEl ? ` · actualizado ${new Date(lista.actualizadoEl).toLocaleDateString('es-AR')}` : '');
+}
+$('b-agregar').onclick = () => {
+  let cat = $('f-cat').value;
+  if(!cat || !CATEGORIAS.includes(cat)){
+    const elegida = prompt('¿En qué categoría va? Elegí una:\n' + CATEGORIAS.join(', '), CATEGORIAS[0]);
+    if(!elegida) return;
+    const match = CATEGORIAS.find(c => c.toLowerCase() === elegida.trim().toLowerCase());
+    if(!match){ toast(`"${elegida.trim()}" no es una categoría válida — se usó "Otros".`); }
+    cat = match || 'Otros';
+  }
+  lista.items.push({id:'mt_'+Date.now().toString(36), categoria:cat,
+                    item:'Ítem nuevo', unidad:'u', precioEstimado:null, link:'',
+                    orden:itemsDeCategoria(cat).length});
+  pintar();
+  const filas = $('cuerpo').querySelectorAll('tr[data-id] input[data-c="item"]');
+  filas[filas.length-1]?.focus();
+  toast(`Agregado en "${cat}" — editá el nombre, y no te olvides de Guardar.`);
+};
+$('b-ajustar').onclick = () => {
+  const p = parseFloat($('i-ajuste').value);
+  if(!p){ toast('Poné un porcentaje.'); return; }
+  const conPrecio = visibles().filter(i=>i.precioEstimado>0);
+  if(!conPrecio.length){ toast('Ninguno de los visibles tiene precio cargado.'); return; }
+  if(!confirm(`¿Ajustar ${conPrecio.length} precios un ${p}%?`)) return;
+  conPrecio.forEach(i => i.precioEstimado = Math.round(i.precioEstimado * (1 + p/100)));
+  $('i-ajuste').value = '';
+  pintar(); toast(`${conPrecio.length} precios ajustados`);
+};
+$('b-guardar').onclick = async () => {
+  try{ lista = await api('/api/materiales',{method:'POST',body:JSON.stringify(lista)});
+    pintar(); toast('Catálogo guardado');
+  }catch(e){ toast(e.message); }
+};
+$('b-volver').onclick = () => location.href = '/';
+['f-buscar','f-cat'].forEach(id => $(id).addEventListener('input', pintar));
+document.addEventListener('keydown', e => {
+  if((e.ctrlKey||e.metaKey) && e.key==='s'){ e.preventDefault(); $('b-guardar').click(); }
+});
+cargar().catch(e => toast(e.message));
+</script>
+</body>
+</html>

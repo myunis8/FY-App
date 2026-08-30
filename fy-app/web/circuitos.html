@@ -56,6 +56,15 @@ header .sub{font-size:.72rem;color:#9db2c7}
 .el.libre{fill:#9aa8b4;stroke:#6f7d89}
 .el.fuera{fill:#cfd6db;stroke:#bcc5cc;fill-opacity:.55}
 .el.marcado{stroke:#0e1c2e;stroke-width:2.4}
+.el.resaltado{stroke:#e2a33d;stroke-width:3;transform-box:fill-box;transform-origin:center;
+  animation:pulso-el .55s ease-in-out 5 alternate}
+@keyframes pulso-el{from{transform:scale(1)}to{transform:scale(2.4)}}
+.el-fila.resaltado{animation:pulso-fila 1s ease-in-out 2}
+@keyframes pulso-fila{0%,100%{background:transparent}50%{background:var(--copper-soft)}}
+.aviso-item.clickeable{cursor:pointer}
+.aviso-item.clickeable:hover{filter:brightness(0.96)}
+.aviso-item.clickeable::after{content:'Mostrar →';display:block;font-size:.66rem;
+  font-weight:600;margin-top:3px;opacity:.75}
 .zona{fill:var(--copper);fill-opacity:.14;stroke:var(--copper);stroke-width:1;
   stroke-dasharray:4 2.5}
 .origen{stroke:#b3432f;stroke-width:1.4}
@@ -553,8 +562,54 @@ function pintarAvisos(){
     'circuito_excedido','seccion_insuficiente','proteccion_excedida','familia_mezclada',
     'elemento_inexistente'].includes(a.tipo));
   $('avisos').innerHTML = rel.length
-    ? rel.map(a=>`<div class="aviso-item ${a.g==='error'?'error':''}">${esc(a.detalle)}</div>`).join('')
+    ? rel.map((a,i)=>{
+        const clickeable = (a.ids && a.ids.length) || a.simbolo || a.circuitoId;
+        return `<div class="aviso-item ${a.g==='error'?'error':''} ${clickeable?'clickeable':''}"
+          data-i="${i}">${esc(a.detalle)}</div>`;
+      }).join('')
     : '<div class="vacio">Todo asignado y dentro de los límites.</div>';
+  $('avisos').querySelectorAll('[data-i]').forEach(div => {
+    const a = rel[+div.dataset.i];
+    div.onclick = () => {
+      if(a.ids && a.ids.length) resaltarElementos(a.ids);
+      else if(a.simbolo) resaltarElementos([a.simbolo]);
+      else if(a.circuitoId) seleccionarCircuito(a.circuitoId);
+    };
+  });
+}
+// resalta uno o varios elementos: si hay plano, hace scroll hasta el
+// primero y los marca con un pulso en el dibujo; si no hay plano (obra
+// cargada a mano, sin PDF), hace lo mismo en la lista plana de la derecha
+function resaltarElementos(ids){
+  if(!ids || !ids.length) return;
+  if(conPlano){
+    const primero = (obra.elementos||[]).find(e => e.id===ids[0] && e.posicionPdfPt);
+    if(primero){
+      const px = primero.posicionPdfPt.x * ZOOM, py = primero.posicionPdfPt.y * ZOOM;
+      $('lienzo').scrollTo({left: px - $('lienzo').clientWidth/2,
+        top: py - $('lienzo').clientHeight/2, behavior:'smooth'});
+    }
+    ids.forEach(id => {
+      const circulo = $('capa').querySelector(`[data-id="${id}"]`);
+      if(circulo){
+        circulo.classList.remove('resaltado'); void circulo.offsetWidth;   // reinicia la animación si ya estaba resaltado
+        circulo.classList.add('resaltado');
+      }
+    });
+  } else {
+    const primero = $('lista').querySelector(`[data-id="${ids[0]}"]`);
+    if(primero) primero.scrollIntoView({behavior:'smooth', block:'center'});
+    ids.forEach(id => {
+      const fila = $('lista').querySelector(`[data-id="${id}"]`);
+      if(fila){ fila.classList.remove('resaltado'); void fila.offsetWidth; fila.classList.add('resaltado'); }
+    });
+  }
+}
+function seleccionarCircuito(id){
+  if(!(obra.circuitos||[]).some(c=>c.id===id)) return;
+  selCir = id; pintar();
+  const tarjeta = document.querySelector(`.circuito[data-cir="${id}"]`);
+  if(tarjeta) tarjeta.scrollIntoView({behavior:'smooth', block:'center'});
 }
 function pintar(){
   pintarPlano(); pintarLista(); pintarCircuitos(); pintarAvisos(); pintarAccion();

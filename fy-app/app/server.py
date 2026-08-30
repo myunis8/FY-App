@@ -6,8 +6,8 @@ from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
 from . import (almacen, config as cfgmod, contrato as C, canalizacion as canal_mod, extraccion, github as gh,
-               materiales as mat_mod, pdf_informe, pdf_presupuesto, pdf_tablero, precios as precios_mod,
-               presupuesto as pres_mod, sync, tablero as tablero_mod, vinculos)
+               materiales as mat_mod, pdf_informe, pdf_materiales, pdf_presupuesto, pdf_tablero,
+               precios as precios_mod, presupuesto as pres_mod, sync, tablero as tablero_mod, vinculos)
 
 if getattr(sys, "frozen", False):
     DIR_WEB = Path(sys._MEIPASS) / "web"        # bundle de PyInstaller
@@ -206,6 +206,9 @@ class Handler(BaseHTTPRequestHandler):
                 "obra": obra.get("materiales") or {"extras": [], "cables": []},
                 "cajas": mat_mod.computar_cajas(obra),
                 "tableros": mat_mod.computar_tableros(obra),
+                "termicas": mat_mod.computar_termicas(obra),
+                "jabalina": mat_mod.computar_jabalina(obra),
+                "canalizacion": mat_mod.computar_canalizacion(obra),
             })
         if ruta == "/api/tablero/presets":
             return self._json({"presets": tablero_mod.PRESETS})
@@ -233,6 +236,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._pdf_presupuesto(partes[2])
         if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "informe.pdf":
             return self._pdf_informe(partes[2], urlparse(self.path).query)
+        if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "materiales.pdf":
+            return self._pdf_materiales(partes[2], urlparse(self.path).query)
         if (len(partes) == 6 and partes[:2] == ["api", "obras"] and partes[3] == "tableros"
                 and partes[5] == "pdf"):
             return self._pdf_tablero(partes[2], partes[4])
@@ -332,6 +337,8 @@ class Handler(BaseHTTPRequestHandler):
             mat = cuerpo.get("materiales")
             if mat is not None:
                 obra["materiales"] = mat
+            if cuerpo.get("recalcularComputo"):
+                obra["materiales"] = mat_mod.actualizar_computo_obra(obra, obra.get("materiales") or {})
             if cuerpo.get("guardar"):
                 almacen.guardar_obra(obra, cfg.get("usuario", ""))
             return self._json({
@@ -339,6 +346,9 @@ class Handler(BaseHTTPRequestHandler):
                 "materiales": obra.get("materiales") or {"extras": [], "cables": []},
                 "cajas": mat_mod.computar_cajas(obra),
                 "tableros": mat_mod.computar_tableros(obra),
+                "termicas": mat_mod.computar_termicas(obra),
+                "jabalina": mat_mod.computar_jabalina(obra),
+                "canalizacion": mat_mod.computar_canalizacion(obra),
             })
 
         if ruta == "/api/config/verificar":
@@ -710,6 +720,24 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/pdf")
         self.send_header("Content-Length", str(len(datos)))
         self.send_header("Content-Disposition", f'inline; filename="{nombre}_informe.pdf"')
+        self.end_headers()
+        self.wfile.write(datos)
+
+    def _pdf_materiales(self, obra_id, query):
+        obra = almacen.leer_obra(obra_id)
+        if obra is None:
+            return self._error("Esa obra no está en este equipo.", 404)
+        qs = parse_qs(query)
+        mostrar_precio = (qs.get("precio") or ["1"])[0] != "0"
+        try:
+            datos = pdf_materiales.generar(obra, mostrar_precio=mostrar_precio)
+        except Exception as e:
+            return self._error(f"No pude generar la lista de materiales: {e}", 500)
+        nombre = (obra["obra"].get("nombre") or "obra").replace(" ", "_") + "_materiales"
+        self.send_response(200)
+        self.send_header("Content-Type", "application/pdf")
+        self.send_header("Content-Length", str(len(datos)))
+        self.send_header("Content-Disposition", f'inline; filename="{nombre}.pdf"')
         self.end_headers()
         self.wfile.write(datos)
 

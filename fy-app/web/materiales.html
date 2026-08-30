@@ -28,9 +28,10 @@ header .sub{font-size:.72rem;color:#9db2c7;margin-top:2px}
 .btn.ghost{background:transparent;border-color:#33506e;color:#cfe0f0}
 .btn.ghost:hover{border-color:#5b7fa5}
 .btn.sm{padding:5px 10px;font-size:.76rem}
-main{max-width:880px;margin:0 auto;padding:26px 22px 60px}
+main{max-width:920px;margin:0 auto;padding:26px 22px 60px}
 h2{font-family:'Space Grotesk',sans-serif;font-size:.82rem;margin:26px 0 8px;
-  text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+  text-transform:uppercase;letter-spacing:.05em;color:var(--muted);display:flex;
+  align-items:center;gap:10px}
 h2:first-child{margin-top:0}
 .nota{font-size:.78rem;color:var(--muted);margin:2px 0 10px}
 .bloques{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-bottom:6px}
@@ -38,6 +39,7 @@ h2:first-child{margin-top:0}
 .bloque b{display:block;font-size:.68rem;text-transform:uppercase;letter-spacing:.04em;
   color:var(--muted);font-weight:600;margin-bottom:3px}
 .bloque .num{font-size:1.3rem;font-weight:700;color:var(--navy);font-family:'Space Grotesk',sans-serif}
+.bloque .chico{font-size:.68rem;color:var(--muted);margin-top:2px}
 table{width:100%;border-collapse:collapse;background:var(--panel);border-radius:8px;overflow:hidden;
   border:1px solid var(--line);margin-bottom:8px}
 th{background:var(--slate-soft);text-align:left;font-size:.68rem;text-transform:uppercase;
@@ -47,8 +49,11 @@ td input,td select{width:100%;border:1px solid transparent;background:transparen
   border-radius:5px}
 td input:focus,td select:focus{border-color:var(--line);background:var(--paper);outline:none}
 td.num{text-align:center;width:80px}
-td.acc{width:36px;text-align:center}
-.acc button{border:none;background:transparent;color:var(--danger);font-size:1rem;padding:2px}
+td.acc{width:76px;text-align:center;white-space:nowrap}
+.acc button{border:none;background:transparent;font-size:.95rem;padding:2px 4px}
+.acc .del{color:var(--danger)} .acc .ord{color:var(--muted)}
+.tag{display:inline-block;font-size:.6rem;padding:1px 6px;border-radius:99px;
+  background:var(--slate-soft);color:var(--muted);font-weight:700;margin-left:6px;vertical-align:middle}
 .agregar-fila{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0 18px;
   padding:10px 12px;background:var(--panel);border:1px dashed var(--line);border-radius:8px}
 .agregar-fila select,.agregar-fila input{border:1px solid var(--line);border-radius:7px;
@@ -56,8 +61,18 @@ td.acc{width:36px;text-align:center}
 .agregar-fila .cant{width:70px}
 .chk-si{color:var(--green);font-weight:600}
 .chk-no{color:var(--muted)}
+.acciones-pdf{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0 20px}
+.acciones-pdf label{font-size:.78rem;color:var(--muted);display:flex;align-items:center;gap:5px}
 #toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--navy-deep);
   color:#fff;padding:11px 18px;border-radius:var(--radius);font-size:.83rem;display:none;z-index:60}
+.overlay{position:fixed;inset:0;background:rgba(14,28,46,.55);display:none;
+  align-items:center;justify-content:center;padding:20px;z-index:40}
+.overlay.abierto{display:flex}
+.caja-pdf{background:var(--panel);border-radius:14px;width:min(920px,96vw);height:min(860px,92vh);
+  display:flex;flex-direction:column;overflow:hidden}
+.caja-pdf .cab-pdf{padding:10px 14px;border-bottom:1px solid var(--line);display:flex;
+  align-items:center;justify-content:space-between}
+.caja-pdf iframe{flex:1;border:0;width:100%;background:#525659}
 </style>
 </head>
 <body>
@@ -68,18 +83,18 @@ td.acc{width:36px;text-align:center}
 </header>
 
 <main>
-  <h2>Cómputo automático</h2>
-  <div class="nota">Sale solo de lo que ya cargaste en Circuitos y Tablero -- no hay nada que
-  tipear acá. Las cajas de inspección dependen de Routeo; si todavía no ruteaste nada, da 0
-  sin que signifique que no hacen falta.</div>
+  <h2>Cómputo automático <button class="btn sm" id="b-actualizar">Actualizar cómputo</button></h2>
+  <div class="nota" id="cajas-fuente"></div>
   <div class="bloques" id="cajas-bloques"></div>
 
   <div id="tableros-cont"></div>
+  <div id="termicas-cont"></div>
+  <div id="jabalina-cont"></div>
+  <div id="canalizacion-cont"></div>
 
-  <h2>Productos extra a comprar</h2>
-  <div class="nota">Cosas que no están en la lista de precios porque no se cobran por separado,
-  pero hay que comprarlas igual (peines, borneras, soportes, tornillería...). El catálogo se
-  comparte entre obras; acá elegís cuántos de cada uno hacen falta en ésta.</div>
+  <h2>Lista de materiales de esta obra</h2>
+  <div class="nota">Lo que se actualizó del cómputo automático queda marcado "auto". Podés
+  agregar más del catálogo, cambiar cantidades, y reordenar con las flechas.</div>
   <div class="agregar-fila">
     <select id="ex-item" style="min-width:220px;flex:1"></select>
     <input class="cant" id="ex-cant" type="number" min="1" value="1">
@@ -88,9 +103,14 @@ td.acc{width:36px;text-align:center}
   </div>
   <table>
     <thead><tr><th>Ítem</th><th>Categoría</th><th style="width:70px">Unidad</th>
-      <th style="width:80px">Cant.</th><th></th></tr></thead>
+      <th style="width:80px">Cant.</th><th class="acc"></th></tr></thead>
     <tbody id="t-extras"></tbody>
   </table>
+
+  <div class="acciones-pdf">
+    <label><input type="checkbox" id="pdf-precio" checked> Incluir precio estimado en el PDF</label>
+    <button class="btn primary sm" id="b-pdf">Descargar PDF</button>
+  </div>
 
   <h2>Rollos de cable a comprar</h2>
   <div class="nota">Marcá qué secciones y colores necesitás reponer para esta obra.</div>
@@ -101,6 +121,15 @@ td.acc{width:36px;text-align:center}
   </table>
   <button class="btn sm" id="cb-agregar">+ Agregar rollo</button>
 </main>
+
+<div class="overlay" id="ov-pdf">
+  <div class="caja-pdf">
+    <div class="cab-pdf"><b>Vista previa</b>
+      <div><button class="btn sm primary" id="pdfDescargar">Descargar…</button>
+      <button class="btn sm" id="pdfCerrar">Cerrar</button></div></div>
+    <iframe id="pdfFrame"></iframe>
+  </div>
+</div>
 
 <div id="toast"></div>
 <script>
@@ -121,46 +150,95 @@ function toast(m){ const t=$('toast'); t.textContent=m; t.style.display='block';
 const esc = s => (s==null?'':String(s)).replace(/[&<>"]/g,
   c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
-let catalogo = [], datosObra = {extras:[], cables:[]}, cajas = {}, tableros = [];
+let catalogo = [], datosObra = {extras:[], cables:[]};
+let cajas = {}, tableros = [], termicas = [], jabalina = null, canalizacion = {};
 
 $('b-volver').onclick = () => location.href = '/obra.html?obra=' + OBRA_ID;
 
 async function cargar(){
   if(!OBRA_ID){ toast('Falta el id de la obra en la URL.'); return; }
   const d = await api('/api/obras/'+OBRA_ID+'/materiales');
+  aplicarRespuesta(d);
+  $('h-sub').textContent = 'Obra ' + OBRA_ID;
+  pintarTodo();
+}
+function aplicarRespuesta(d){
   catalogo = d.catalogo.items || [];
   datosObra = d.obra || {extras:[], cables:[]};
   datosObra.extras = datosObra.extras || [];
   datosObra.cables = datosObra.cables || [];
-  cajas = d.cajas; tableros = d.tableros;
-  $('h-sub').textContent = 'Obra ' + OBRA_ID;
-  pintarCajas(); pintarTableros(); pintarSelectCatalogo(); pintarExtras(); pintarCables();
+  cajas = d.cajas; tableros = d.tableros; termicas = d.termicas || [];
+  jabalina = d.jabalina; canalizacion = d.canalizacion || {disponible:false};
+}
+function pintarTodo(){
+  pintarCajas(); pintarTableros(); pintarTermicas(); pintarJabalina(); pintarCanalizacion();
+  pintarSelectCatalogo(); pintarExtras(); pintarCables();
 }
 
 function pintarCajas(){
+  $('cajas-fuente').textContent = cajas.fuente === 'routeo'
+    ? 'Salen de lo ya ruteado en Routeo (la fuente más exacta).'
+    : 'Todavía no se ruteó nada: esto es una aproximación a partir de Circuitos.';
   $('cajas-bloques').innerHTML = `
     <div class="bloque"><b>Cajas octogonales</b><div class="num">${cajas.octogonales}</div></div>
     <div class="bloque"><b>Cajas rectangulares</b><div class="num">${cajas.rectangulares}</div></div>
-    <div class="bloque"><b>Cajas de inspección</b><div class="num">${cajas.inspeccion}</div>
-      ${!cajas.inspeccionDisponible ? '<div style="font-size:.68rem;color:var(--muted)">sin routeo cargado todavía</div>' : ''}</div>`;
+    <div class="bloque"><b>Cajas de inspección</b><div class="num">${cajas.inspeccion}</div></div>`;
 }
 function pintarTableros(){
-  if(!tableros.length){
-    $('tableros-cont').innerHTML = '';
-    return;
-  }
-  $('tableros-cont').innerHTML = `<table><thead><tr><th>Tablero</th><th>General</th>
-    <th>Diferencial</th><th style="width:80px">Térmicas</th><th style="width:90px">Protectores</th>
-    <th style="width:100px">Jabalina PAT</th></tr></thead><tbody>` +
+  if(!tableros.length){ $('tableros-cont').innerHTML = ''; return; }
+  $('tableros-cont').innerHTML = `<h2>Tableros</h2><table><thead><tr><th>Tablero</th>
+    <th style="width:70px">Bocas</th><th style="width:70px">Niveles</th><th>General</th>
+    <th>Diferencial</th><th style="width:80px">Térmicas</th></tr></thead><tbody>` +
     tableros.map(t => `<tr>
       <td>${esc(t.nombre)} (${t.fases===3?'trifásico':'monofásico'})</td>
+      <td class="num">${t.bocas ?? '-'}</td>
+      <td class="num">${t.niveles ?? '-'}</td>
       <td class="${t.general?'chk-si':'chk-no'}">${t.general?'Sí':'No'}</td>
       <td class="${t.diferencial?'chk-si':'chk-no'}">${t.diferencial?'Sí':'No'}</td>
       <td class="num">${t.termicas}</td>
-      <td class="num">${t.protectores}</td>
-      <td class="${t.jabalinaPAT?'chk-si':'chk-no'}">${t.jabalinaPAT?'Sí':'No'}</td>
     </tr>`).join('') + `</tbody></table>`;
 }
+function pintarTermicas(){
+  if(!termicas.length){ $('termicas-cont').innerHTML = ''; return; }
+  $('termicas-cont').innerHTML = `<h2>Térmicas y protecciones</h2><table>
+    <thead><tr><th>Protección</th><th style="width:100px">Fases</th>
+    <th style="width:80px">Cantidad</th></tr></thead><tbody>` +
+    termicas.map(t => `<tr><td>C${t.corriente}</td><td>${t.fases}</td>
+      <td class="num">${t.cantidad}</td></tr>`).join('') + `</tbody></table>`;
+}
+function pintarJabalina(){
+  if(!jabalina){ $('jabalina-cont').innerHTML = ''; return; }
+  $('jabalina-cont').innerHTML = `<h2>Puesta a tierra</h2>
+    <div class="bloques">
+      <div class="bloque"><b>Jabalina</b><div class="num">${jabalina.cantidad}</div>
+        <div class="chico">${esc(jabalina.seccion)} x ${esc(jabalina.largo)}</div></div>
+      <div class="bloque"><b>Caja de inspección PAT</b><div class="num">${jabalina.cantidad}</div></div>
+    </div>`;
+}
+function pintarCanalizacion(){
+  if(!canalizacion.disponible){
+    $('canalizacion-cont').innerHTML = `<h2>Cable y caño (Routeo)</h2>
+      <div class="nota">Todavía no hay nada ruteado con escala calibrada -- estos metros
+      aparecen apenas cargues algo en Routeo.</div>`;
+    return;
+  }
+  const filasCable = Object.entries(canalizacion.cablePorSeccion||{})
+    .map(([sec,m]) => `<tr><td>${sec} mm²</td><td class="num">${m} m</td></tr>`).join('');
+  const filasCano = Object.entries(canalizacion.canoPorDiametro||{})
+    .map(([dia,m]) => `<tr><td>${esc(dia)}</td><td class="num">${m} m</td></tr>`).join('');
+  $('canalizacion-cont').innerHTML = `<h2>Cable y caño (Routeo, estimado)</h2>
+    <div style="display:flex;gap:14px;flex-wrap:wrap">
+      <table style="flex:1;min-width:220px"><thead><tr><th>Sección de cable</th>
+        <th style="width:90px">Metros</th></tr></thead><tbody>${filasCable ||
+        '<tr><td colspan="2" style="color:var(--muted)">Sin datos</td></tr>'}</tbody></table>
+      <table style="flex:1;min-width:220px"><thead><tr><th>Diámetro de caño</th>
+        <th style="width:90px">Metros</th></tr></thead><tbody>${filasCano ||
+        '<tr><td colspan="2" style="color:var(--muted)">Sin datos</td></tr>'}</tbody></table>
+    </div>
+    <div class="nota">Total: ${canalizacion.totalCableM} m de cable, ${canalizacion.totalCanoM} m de caño
+    (estimado -- para el cómputo detallado de Routeo, usá su propia exportación).</div>`;
+}
+
 function pintarSelectCatalogo(){
   const porCategoria = {};
   for(const it of catalogo) (porCategoria[it.categoria||'Otros'] ||= []).push(it);
@@ -169,20 +247,44 @@ function pintarSelectCatalogo(){
       `<option value="${it.id}">${esc(it.item)} (${esc(it.unidad)})</option>`).join('')}</optgroup>`
   ).join('') || '<option value="">Todavía no hay nada en el catálogo</option>';
 }
+function ordenados(){ return [...datosObra.extras].sort((a,b) => (a.orden??0)-(b.orden??0)); }
 function pintarExtras(){
-  $('t-extras').innerHTML = datosObra.extras.length ? datosObra.extras.map((e,i) => `
-    <tr data-i="${i}">
-      <td>${esc(e.item)}</td>
+  const arr = ordenados();
+  $('t-extras').innerHTML = arr.length ? arr.map((e,idx) => `
+    <tr data-id="${e.id}">
+      <td>${esc(e.item)} ${e.origen==='computo'?'<span class="tag" title="Se actualiza solo con Actualizar cómputo">auto</span>':''}</td>
       <td>${esc(e.categoria||'')}</td>
       <td style="text-align:center">${esc(e.unidad||'u')}</td>
-      <td class="num"><input data-c="cantidad" type="number" min="1" value="${e.cantidad||1}"></td>
-      <td class="acc"><button data-del="${i}" title="Quitar">×</button></td>
-    </tr>`).join('') : '<tr><td colspan="5" style="color:var(--muted);padding:12px">Todavía no agregaste ningún producto extra.</td></tr>';
-  $('t-extras').querySelectorAll('[data-c="cantidad"]').forEach((inp,idx) => {
-    inp.onchange = () => { datosObra.extras[idx].cantidad = parseInt(inp.value,10)||1; guardar(); };
+      <td class="num"><input data-c="cantidad" type="number" min="0" step="any" value="${e.cantidad||0}"></td>
+      <td class="acc">
+        <button class="ord" data-subir="${e.id}" ${idx===0?'disabled':''} title="Subir">▲</button>
+        <button class="ord" data-bajar="${e.id}" ${idx===arr.length-1?'disabled':''} title="Bajar">▼</button>
+        <button class="del" data-del="${e.id}" title="Quitar">×</button>
+      </td>
+    </tr>`).join('') : '<tr><td colspan="5" style="color:var(--muted);padding:12px">Todavía no agregaste ningún material.</td></tr>';
+  $('t-extras').querySelectorAll('[data-c="cantidad"]').forEach(inp => {
+    inp.onchange = () => {
+      const e = datosObra.extras.find(x=>x.id===inp.closest('tr').dataset.id);
+      e.cantidad = parseFloat(inp.value)||0; guardar();
+    };
   });
   $('t-extras').querySelectorAll('[data-del]').forEach(btn => {
-    btn.onclick = () => { datosObra.extras.splice(+btn.dataset.del,1); pintarExtras(); guardar(); };
+    btn.onclick = () => {
+      datosObra.extras = datosObra.extras.filter(x=>x.id!==btn.dataset.del);
+      pintarExtras(); guardar();
+    };
+  });
+  $('t-extras').querySelectorAll('[data-subir],[data-bajar]').forEach(btn => {
+    btn.onclick = () => {
+      const id = btn.dataset.subir || btn.dataset.bajar;
+      const it = datosObra.extras.find(x=>x.id===id);
+      const hermanos = ordenados();
+      const pos = hermanos.indexOf(it);
+      const vecino = hermanos[btn.dataset.subir ? pos-1 : pos+1];
+      if(!vecino) return;
+      [it.orden, vecino.orden] = [vecino.orden ?? 0, it.orden ?? 0];
+      pintarExtras(); guardar();
+    };
   });
 }
 function pintarCables(){
@@ -194,7 +296,7 @@ function pintarCables(){
         `<option ${c.color===col?'selected':''}>${esc(col)}</option>`).join('')}</select></td>
       <td><input data-c="notas" value="${esc(c.notas||'')}" placeholder="ej: quedan 8m, alcanza para..."></td>
       <td style="text-align:center"><input type="checkbox" data-c="necesita" ${c.necesita?'checked':''}></td>
-      <td class="acc"><button data-del="${i}" title="Quitar">×</button></td>
+      <td class="acc"><button class="del" data-del="${i}" title="Quitar">×</button></td>
     </tr>`).join('') : '<tr><td colspan="5" style="color:var(--muted);padding:12px">Todavía no agregaste ningún rollo.</td></tr>';
   $('t-cables').querySelectorAll('tr[data-i]').forEach(tr => {
     const i = +tr.dataset.i;
@@ -211,15 +313,30 @@ function pintarCables(){
   });
 }
 
+$('b-actualizar').onclick = async () => {
+  try{
+    const r = await api('/api/obras/'+OBRA_ID+'/materiales',
+      {method:'POST', body: JSON.stringify({recalcularComputo:true, guardar:true})});
+    aplicarRespuesta({catalogo:{items: catalogo}, obra: r.materiales, cajas: r.cajas,
+      tableros: r.tableros, termicas: r.termicas, jabalina: r.jabalina, canalizacion: r.canalizacion});
+    // el catálogo puede haber sumado ítems nuevos -- se relee para que el selector los ofrezca
+    const cat = await api('/api/materiales');
+    catalogo = cat.items || [];
+    pintarTodo();
+    toast('Cómputo actualizado');
+  }catch(e){ toast(e.message); }
+};
+
 $('ex-agregar').onclick = () => {
   const id = $('ex-item').value;
   const it = catalogo.find(x => x.id === id);
   if(!it){ toast('Elegí un producto del catálogo primero.'); return; }
-  const cant = parseInt($('ex-cant').value,10) || 1;
-  const existente = datosObra.extras.find(e => e.catalogoId === id);
+  const cant = parseFloat($('ex-cant').value) || 1;
+  const existente = datosObra.extras.find(e => e.catalogoId === id && e.origen !== 'computo');
   if(existente) existente.cantidad += cant;
   else datosObra.extras.push({id:'me_'+Date.now().toString(36), catalogoId:id,
-    item:it.item, categoria:it.categoria, unidad:it.unidad, cantidad:cant});
+    item:it.item, categoria:it.categoria, unidad:it.unidad, cantidad:cant,
+    orden: datosObra.extras.length});
   pintarExtras(); guardar();
   toast('Agregado');
 };
@@ -231,7 +348,8 @@ $('ex-nuevo-catalogo').onclick = async () => {
   if(!categoria) return;
   const unidad = prompt('¿En qué unidad se compra? (u, m, caja...)', 'u') || 'u';
   const nuevoCat = await api('/api/materiales', {method:'POST', body: JSON.stringify({
-    items: [...catalogo, {categoria: categoria.trim(), item: nombre.trim(), unidad: unidad.trim()}]
+    items: [...catalogo, {categoria: categoria.trim(), item: nombre.trim(), unidad: unidad.trim(),
+                          link:'', precioEstimado:null, orden: catalogo.length}]
   })});
   catalogo = nuevoCat.items;
   pintarSelectCatalogo();
@@ -250,6 +368,41 @@ function guardar(){
       {method:'POST', body: JSON.stringify({materiales: datosObra, guardar:true})}); }
     catch(e){ toast('No se pudo guardar: ' + e.message); }
   }, 400);
+}
+
+/* ---------------- PDF ---------------- */
+$('b-pdf').onclick = () => {
+  const precio = $('pdf-precio').checked ? '1' : '0';
+  mostrarVistaPreviaPdf(`/api/obras/${OBRA_ID}/materiales.pdf?precio=${precio}`, 'materiales.pdf');
+};
+async function mostrarVistaPreviaPdf(url, nombreArchivo){
+  let blob;
+  try{
+    const res = await fetch(url);
+    if(!res.ok) throw new Error((await res.json().catch(()=>({}))).error || 'No se pudo generar el PDF.');
+    blob = await res.blob();
+  }catch(err){ alert(err.message || 'No se pudo generar el PDF.'); return; }
+  const objUrl = URL.createObjectURL(blob);
+  $('pdfFrame').src = objUrl;
+  $('ov-pdf').classList.add('abierto');
+  $('pdfDescargar').onclick = async () => {
+    if(window.showSaveFilePicker){
+      try{
+        const handle = await window.showSaveFilePicker({suggestedName: nombreArchivo,
+          types:[{description:'PDF', accept:{'application/pdf':['.pdf']}}]});
+        const writable = await handle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+        return;
+      }catch(err){ if(err.name === 'AbortError') return; }
+    }
+    const a = document.createElement('a');
+    a.href = objUrl; a.download = nombreArchivo; a.click();
+  };
+  $('pdfCerrar').onclick = () => {
+    $('ov-pdf').classList.remove('abierto');
+    $('pdfFrame').src = ''; URL.revokeObjectURL(objUrl);
+  };
 }
 
 cargar().catch(e => { $('h-sub').textContent = e.message; toast(e.message); });
