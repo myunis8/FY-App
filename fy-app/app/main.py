@@ -9,7 +9,7 @@ def main():
     httpd = server.crear(int(sys.argv[1]) if len(sys.argv) > 1 else 0)
     puerto = httpd.server_address[1]
     url = f"http://127.0.0.1:{puerto}/"
-    print("FY-App")
+    print("FY Manager")
     print(f"  Interfaz: {url}")
     print(f"  Datos:    {cfgmod.DIR_OBRAS}")
     print("  Cerrá esta ventana para salir.")

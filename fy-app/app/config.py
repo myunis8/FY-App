@@ -3,8 +3,8 @@ from __future__ import annotations
 import json, os, sys
 from pathlib import Path
 
-APP_NOMBRE = "FY-App"
-APP_NOMBRE_ANTERIOR = "ObrasElectricas"
+APP_NOMBRE = "FY Manager"
+APP_NOMBRES_ANTERIORES = ["FY-App", "ObrasElectricas"]
 
 
 def _base_datos() -> Path:
@@ -48,15 +48,21 @@ CONFIG_POR_DEFECTO = {
 
 
 def _mudar_datos_viejos():
-    """La app se llamaba ObrasElectricas. Si quedaron datos con el nombre
-    anterior y todavía no hay nada con el nuevo, se mudan solos."""
+    """La app tuvo otros nombres antes (ObrasElectricas, después FY-App). Si
+    quedaron datos con alguno de esos nombres y todavía no hay nada con el
+    nombre nuevo, se mudan solos -- se prueba en orden, del más reciente al
+    más viejo, así que no importa desde qué nombre venga alguien."""
     for base, destino in ((_base_datos, DIR_DATOS), (_base_config, DIR_CONFIG)):
-        viejo = base().parent / APP_NOMBRE_ANTERIOR
-        if viejo.is_dir() and not destino.exists():
-            try:
-                viejo.rename(destino)
-            except OSError:
-                pass
+        if destino.exists():
+            continue
+        for nombre_viejo in APP_NOMBRES_ANTERIORES:
+            viejo = base().parent / nombre_viejo
+            if viejo.is_dir():
+                try:
+                    viejo.rename(destino)
+                except OSError:
+                    pass
+                break
 
 
 def asegurar_carpetas():

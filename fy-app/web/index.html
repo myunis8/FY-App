@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>FY-App</title>
+<title>FY Manager</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 
@@ -143,7 +143,7 @@ main{max-width:1180px;margin:0 auto;padding:26px 22px 60px}
 
 <header>
   <div>
-    <h1 class="display">FY-App</h1>
+    <h1 class="display">FY Manager</h1>
     <div class="sub" id="hdr-sub">Cargando…</div>
   </div>
   <div class="spacer"></div>
@@ -491,7 +491,7 @@ document.querySelectorAll('.overlay').forEach(o =>
 
 (async function inicio(){
   try{ await cargarEstado(); await cargarObras(); }
-  catch(e){ toast('No se pudo conectar con FY-App. ¿Se cerró la ventana negra?'); }
+  catch(e){ toast('No se pudo conectar con FY Manager. ¿Se cerró la ventana negra?'); }
 })();
 </script>
 </body>

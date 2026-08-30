@@ -237,11 +237,11 @@ def validar_circuitos(obra: dict) -> list[dict]:
                      and familia_de(porId[i]) is not None]
         if mezclados:
             ejemplos = ", ".join(porId[i].get("subtipo") or porId[i].get("tipo") for i in mezclados[:3])
-            avisos.append({"tipo": "familia_mezclada", "gravedad": "error",
+            avisos.append({"tipo": "familia_mezclada", "gravedad": "advertencia",
                            "circuitoId": c.get("id"), "ids": mezclados,
                            "detalle": f"{nom} tiene {len(mezclados)} elementos que no son de "
                                       f"{TIPOS_CIRCUITO.get(c.get('tipo',''),{}).get('nombre','ese tipo')} "
-                                      f"({ejemplos}). Revisá si se colaron al sombrear una zona."})
+                                      f"({ejemplos}). No es un error -- revisá si es a propósito."})
         if sec and prot and MAX_PROTECCION.get(sec) and prot > MAX_PROTECCION[sec]:
             avisos.append({"tipo": "proteccion_excedida", "gravedad": "error",
                            "circuitoId": c.get("id"),

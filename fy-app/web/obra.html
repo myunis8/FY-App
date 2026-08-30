@@ -45,7 +45,13 @@ h2:first-child{margin-top:0}
 .plano-fila .txt{flex:1;min-width:170px;font-size:.82rem}
 .plano-fila .txt b{display:block;font-size:.68rem;text-transform:uppercase;
   letter-spacing:.04em;color:var(--muted);margin-bottom:3px}
+.campo label{display:block;font-size:.68rem;text-transform:uppercase;letter-spacing:.04em;
+  color:var(--muted);font-weight:600;margin-bottom:4px}
+.campo select,.campo input{width:100%;padding:7px 8px;border:1px solid var(--line);
+  border-radius:7px;font-size:.83rem;box-sizing:border-box;background:var(--panel)}
 .plano-fila .nota{font-size:.74rem;color:var(--muted);margin-top:3px}
+.chk{display:flex;align-items:center;gap:6px;font-size:.82rem;cursor:pointer}
+.chk input{margin:0}
 .acciones{display:flex;gap:9px;justify-content:flex-end;margin-top:22px;flex-wrap:wrap}
 .caja-pdf{background:var(--panel);border-radius:14px;width:min(920px,96vw);height:min(860px,92vh);
   display:flex;flex-direction:column;overflow:hidden}
@@ -87,6 +93,7 @@ h2:first-child{margin-top:0}
     <div class="txt"><b>Tablero</b><span id="d-ntableros"></span>
       <div class="nota">Protecciones, distribución de bocas y armado gráfico.</div></div>
     <button class="btn primary sm" id="d-tablero">Abrir</button>
+    <button class="btn sm" id="d-pdf-tableros" style="display:none">Descargar todos (PDF)</button>
   </div>
   <div class="plano-fila">
     <div class="txt"><b>Routeo</b><span id="d-ncanalizacion"></span>
@@ -98,6 +105,38 @@ h2:first-child{margin-top:0}
       <div class="nota">Cantidades, extras, descuentos y precio final.</div></div>
     <button class="btn primary sm" id="d-presupuesto">Abrir</button>
     <button class="btn sm" id="d-pdf">Descargar PDF</button>
+  </div>
+
+  <h2>Seguimiento</h2>
+  <div class="plano-fila" style="flex-direction:column;align-items:stretch;gap:12px">
+    <div style="display:flex;gap:16px;flex-wrap:wrap">
+      <div class="campo" style="flex:1;min-width:190px;margin-bottom:0">
+        <label for="sg-estado">Estado de la obra</label>
+        <select id="sg-estado"></select>
+      </div>
+      <div class="campo" style="flex:1;min-width:170px;margin-bottom:0">
+        <label for="sg-pago">Estado de pago</label>
+        <select id="sg-pago"></select>
+      </div>
+      <div class="campo" id="sg-pct-fila" style="flex:0 0 130px;margin-bottom:0;display:none">
+        <label for="sg-pct">% pagado</label>
+        <input id="sg-pct" type="number" min="1" max="99" value="50">
+      </div>
+    </div>
+    <div style="display:flex;justify-content:flex-end">
+      <button class="btn primary sm" id="sg-guardar">Guardar seguimiento</button>
+    </div>
+    <div id="sg-historial" class="nota" style="margin:0"></div>
+  </div>
+
+  <h2>Informe general</h2>
+  <div class="plano-fila" style="flex-direction:column;align-items:stretch;gap:10px">
+    <div class="nota" style="margin:0">Un solo PDF con todo lo que elijas de esta obra. El esquema
+    unifilar está en beta, así que no viene marcado por defecto.</div>
+    <div id="inf-checks" style="display:flex;flex-wrap:wrap;gap:8px 18px"></div>
+    <div style="display:flex;justify-content:flex-end">
+      <button class="btn primary sm" id="inf-generar">Generar informe</button>
+    </div>
   </div>
 
   <div class="acciones">
@@ -149,6 +188,68 @@ function cuando(ts){
 }
 const ESTADOS = {preliminar:'Preliminar', aprobado:'Aprobado',
                  en_curso:'En curso', realizado:'Realizado'};
+const ESTADOS_PAGO = {pendiente:'Pendiente', parcial:'Pago parcial', pagado:'Pagado'};
+// debe reflejar app/pdf_informe.py: MODULOS / MODULOS_POR_DEFECTO
+const INFORME_MODULOS = [
+  {id:'circuitos',   label:'Circuitos',                                    defecto:true},
+  {id:'tableros',    label:'Tablero(s) -- conexionado y guía de tapa',     defecto:true},
+  {id:'routeo',      label:'Routeo (resumen de materiales)',               defecto:true},
+  {id:'presupuesto', label:'Presupuesto',                                  defecto:true},
+  {id:'unifilar',    label:'Esquema unifilar (beta)',                      defecto:false},
+];
+
+function pintarSeguimiento(obra){
+  const seg = obra.seguimiento || {estado:'preliminar', pago:{estado:'pendiente',porcentaje:0}, historial:[]};
+  if(!$('sg-estado').options.length){
+    $('sg-estado').innerHTML = Object.entries(ESTADOS).map(([k,v])=>`<option value="${k}">${v}</option>`).join('');
+    $('sg-pago').innerHTML = Object.entries(ESTADOS_PAGO).map(([k,v])=>`<option value="${k}">${v}</option>`).join('');
+  }
+  $('sg-estado').value = seg.estado || 'preliminar';
+  $('sg-pago').value = (seg.pago && seg.pago.estado) || 'pendiente';
+  $('sg-pct').value = (seg.pago && seg.pago.porcentaje) || 50;
+  actualizarVisibilidadPct();
+  const hist = (seg.historial || []).slice(-6).reverse();
+  $('sg-historial').textContent = hist.length ? hist.map(h => {
+    const quien = h.por || 'alguien', vez = cuando(h.el);
+    if(h.campo === 'estado') return `${quien} cambió el estado a "${ESTADOS[h.a]||h.a}" (${vez})`;
+    if(h.campo === 'pago'){
+      const et = ESTADOS_PAGO[h.a.estado] || h.a.estado;
+      return `${quien} marcó el pago como "${et}"${h.a.estado==='parcial' ? ' ('+h.a.porcentaje+'%)' : ''} (${vez})`;
+    }
+    return '';
+  }).join(' · ') : 'Todavía no hay cambios registrados.';
+}
+function actualizarVisibilidadPct(){
+  $('sg-pct-fila').style.display = $('sg-pago').value === 'parcial' ? '' : 'none';
+}
+$('sg-pago').addEventListener('change', actualizarVisibilidadPct);
+$('sg-guardar').onclick = async () => {
+  if(!obraAbierta) return;
+  const body = {estado: $('sg-estado').value, pago: {estado: $('sg-pago').value}};
+  if($('sg-pago').value === 'parcial') body.pago.porcentaje = parseInt($('sg-pct').value, 10) || 50;
+  try{
+    const r = await api('/api/obras/'+obraAbierta.obra.id+'/seguimiento',
+      {method:'POST', body:JSON.stringify(body)});
+    obraAbierta.seguimiento = r.seguimiento;
+    pintarSeguimiento(obraAbierta);
+    $('h-sub').textContent = (obraAbierta.obra.cliente ? obraAbierta.obra.cliente+' · ' : '') +
+      (ESTADOS[obraAbierta.seguimiento.estado]||'') + ' · última edición ' + cuando(obraAbierta.obra.actualizadoEl);
+    toast('Seguimiento guardado');
+  }catch(e){ toast(e.message); }
+};
+
+function armarChecksInforme(){
+  $('inf-checks').innerHTML = INFORME_MODULOS.map(m =>
+    `<label class="chk"><input type="checkbox" class="inf-mod" value="${m.id}" ${m.defecto?'checked':''}> ${esc(m.label)}</label>`
+  ).join('');
+}
+$('inf-generar').onclick = () => {
+  if(!obraAbierta) return;
+  const elegidos = Array.from(document.querySelectorAll('.inf-mod:checked')).map(el => el.value);
+  if(!elegidos.length){ toast('Elegí al menos un módulo.'); return; }
+  mostrarVistaPreviaPdf(`/api/obras/${obraAbierta.obra.id}/informe.pdf?modulos=${elegidos.join(',')}`,
+    (obraAbierta.obra.nombre || 'informe').replace(/\s+/g,'_') + '_informe.pdf');
+};
 
 async function cargar(){
   if(!OBRA_ID){ mostrarAviso('d-aviso','mal','Falta el id de la obra en la URL.'); return; }
@@ -165,9 +266,11 @@ async function cargar(){
   $('h-nombre').textContent = o.nombre || 'Obra';
   document.title = o.nombre || 'Obra';
   $('h-sub').textContent = (o.cliente ? o.cliente+' · ' : '') +
-    (ESTADOS[o.estado]||'') + ' · última edición ' + cuando(o.actualizadoEl);
+    (ESTADOS[obraAbierta.seguimiento?.estado]||'') + ' · última edición ' + cuando(o.actualizadoEl);
   pintarBloques(obraAbierta);
   pintarPlano(obraAbierta);
+  pintarSeguimiento(obraAbierta);
+  armarChecksInforme();
 }
 function pintarBloques(obra){
   const canal = obra.canalizacion||{};
@@ -187,6 +290,11 @@ function pintarBloques(obra){
   $('d-ntableros').textContent = (obra.tableros||[]).length
     ? `${obra.tableros.length} armado(s)` : 'Todavía ninguno';
   $('d-tablero').onclick = () => location.href = '/tablero.html?obra=' + obra.obra.id;
+  const nTab = (obra.tableros||[]).length;
+  $('d-pdf-tableros').style.display = nTab >= 2 ? '' : 'none';
+  $('d-pdf-tableros').onclick = () => mostrarVistaPreviaPdf(
+    '/api/obras/' + obra.obra.id + '/tableros.pdf',
+    (obra.obra.nombre || 'obra').replace(/\s+/g,'_') + '_tableros.pdf');
   $('d-ncanalizacion').textContent = (obra.canalizacion?.runs||[]).length
     ? `${obra.canalizacion.runs.length} tramo(s)` : 'Todavía ninguno';
   $('d-canalizacion').onclick = () => location.href = '/canaliza.html?obra=' + obra.obra.id;

@@ -83,6 +83,51 @@ def _consolidar_descripcion_dispositivos(obra: dict) -> None:
             d["descripcion"] = None
 
 
+def actualizar_seguimiento(obra: dict, estado: str | None = None, pago_estado: str | None = None,
+                            pago_porcentaje=None, usuario: str = "") -> dict:
+    """Cambia estado y/o pago de la obra y deja un registro en el
+    historial de quién y cuándo lo cambió (el campo ya estaba en el
+    esquema desde el principio, pero nada lo llenaba todavía). Si un campo
+    no viene, queda como estaba -- no hay valores por adivinar.
+
+    El porcentaje de pago sigue al estado: "pendiente" siempre es 0%,
+    "pagado" siempre es 100%, y sólo "parcial" admite un número propio (si
+    no llega ninguno, sigue con el que ya había, o 50% la primera vez).
+    """
+    seg = obra.setdefault("seguimiento", {})
+    seg.setdefault("estado", "preliminar")
+    seg.setdefault("pago", {"estado": "pendiente", "porcentaje": 0})
+    seg.setdefault("historial", [])
+    t = ahora()
+
+    if estado is not None and estado in ESTADOS and estado != seg["estado"]:
+        seg["historial"].append({"el": t, "por": usuario or "", "campo": "estado",
+                                 "de": seg["estado"], "a": estado})
+        seg["estado"] = estado
+
+    if pago_estado is not None and pago_estado in ESTADOS_PAGO:
+        if pago_estado == "pendiente":
+            pct = 0
+        elif pago_estado == "pagado":
+            pct = 100
+        else:
+            pct = pago_porcentaje if pago_porcentaje is not None else (seg["pago"].get("porcentaje") or 50)
+        pct = max(0, min(100, int(pct)))
+        anterior, nuevo = dict(seg["pago"]), {"estado": pago_estado, "porcentaje": pct}
+        if nuevo != anterior:
+            seg["historial"].append({"el": t, "por": usuario or "", "campo": "pago",
+                                     "de": anterior, "a": nuevo})
+            seg["pago"] = nuevo
+    elif pago_porcentaje is not None and seg["pago"].get("estado") == "parcial":
+        pct = max(1, min(99, int(pago_porcentaje)))
+        if pct != seg["pago"].get("porcentaje"):
+            anterior = dict(seg["pago"])
+            seg["pago"]["porcentaje"] = pct
+            seg["historial"].append({"el": t, "por": usuario or "", "campo": "pago",
+                                     "de": anterior, "a": dict(seg["pago"])})
+    return seg
+
+
 def total_presupuesto(obra: dict) -> float:
     items = (obra.get("presupuesto") or {}).get("items") or []
     return sum((it.get("precio") or 0) * (it.get("cantidad") or 0) for it in items)

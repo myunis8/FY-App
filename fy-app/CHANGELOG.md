@@ -3,6 +3,84 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 0.28.0 — la app pasa a llamarse FY Manager, marca de agua visible de verdad, informe general, seguimiento de pago, circuitos más flexibles y PDF combinado de tableros
+
+- **La app pasa a llamarse FY Manager.** Cambiado en todos lados: título y
+  encabezado, mensajes de consola, PDFs, README, y el nombre del `.exe`. La
+  migración automática de carpeta de datos ahora reconoce la cadena
+  completa de nombres viejos (`ObrasElectricas` → `FY-App` → `FY Manager`),
+  así que si había obras guardadas con cualquiera de los nombres
+  anteriores, se mudan solas la primera vez que se abre la app -- no se
+  pierde nada.
+- **La marca de agua del presupuesto casi no se veía -- bug real
+  encontrado: no era la opacidad, eran las tablas.** Los fondos de fila del
+  presupuesto (encabezado navy y filas cebra) eran 100% opacos y tapaban
+  la marca por completo apenas había una tabla encima (que es casi toda la
+  hoja). Confirmado con una prueba aislada de que `fill_opacity` funciona
+  en esta versión de PyMuPDF, se les bajó la opacidad a los fondos de fila
+  (82%) para que la marca se vea a través, y se subió también el nivel
+  base de la marca (12%→22%), que incluso translúcida se notaba muy débil.
+  Probado generando un presupuesto real con una marca de agua de prueba:
+  ahora se lee con claridad detrás de las tablas.
+- **El esquema unifilar (beta) ya no viaja pegado al PDF de Tablero.**
+  Ahora tiene su propio botón ("Unifilar (beta)") y su propia ruta
+  (`/tableros/{id}/unifilar.pdf`). El PDF principal de Tablero volvió a
+  ser sólo conexionado + guía de tapa.
+- **Informe general de la obra**, nuevo (`app/pdf_informe.py`): un solo PDF
+  armado a partir de las páginas que ya arma cada módulo (siguiendo el
+  diseño que ya estaba anotado en el backlog del README), con portada y
+  checkboxes para elegir qué incluir -- Circuitos, Tablero(s), Routeo
+  (resumen de materiales, no el plano visual: ese se sigue exportando
+  desde el propio módulo), Presupuesto, y el esquema unifilar (beta, no
+  viene marcado por defecto). Se accede desde la pantalla de la obra.
+- **PDF combinado de todos los tableros**, nuevo: cuando una obra tiene
+  tablero principal y seccionales, "Descargar todos (PDF)" en la pantalla
+  de la obra los junta uno a continuación del otro en un solo archivo
+  (aparece sólo si hay 2 o más tableros).
+- **Seguimiento de estado y pago**, nuevo: el esquema de datos ya tenía
+  desde el principio un lugar para esto (`seguimiento.pago.estado` y
+  `porcentaje`), pero nada lo llenaba todavía. Ahora hay un panel en la
+  pantalla de la obra para cambiar el estado de la obra y el estado de
+  pago (pendiente / parcial con % / pagado), con un historial de quién y
+  cuándo cambió cada cosa. De paso se corrigió un bug real: el subtítulo
+  de la pantalla de la obra leía el estado de un campo que no existía
+  (`obra.obra.estado` en vez de `obra.seguimiento.estado`), así que nunca
+  mostraba nada ahí.
+- **Circuitos: agregar una toma con nombre (heladera, microondas,
+  termotanque, cocina) a un circuito general ya no se bloquea.** Antes,
+  clickear una toma especial para agregarla a un circuito que no fuera de
+  su misma familia tiraba un mensaje ("no entra en un circuito de este
+  tipo") y no dejaba hacerlo -- ni siquiera para casos legítimos, como
+  poner un microondas en un TUG porque en esa obra no se justifica un
+  circuito aparte. Ahora siempre se puede agregar; si no es del tipo
+  habitual, queda un aviso visible (no bloqueante) en la tarjeta del
+  circuito y una marca "⚠" junto al ítem en la lista, en vez de un mensaje
+  que impide la acción. La selección por zona (sombrear un rectángulo)
+  sigue filtrando sólo lo compatible, a propósito, para no barrer de más
+  sin querer. También se bajó la severidad del aviso correspondiente
+  ("familia_mezclada") de error a advertencia.
+- **Agregar una caja a mano ya no es tipear texto libre.** En
+  `circuitos.html`, el botón "Agregar elemento" abría 3 `prompt()`
+  seguidos donde había que escribir a mano el tipo y el subtipo -- un
+  tipeo distinto al esperado (una tilde de más, mayúscula/minúscula) no
+  tira error, pero después no matchea con la lista de precios y esa línea
+  desaparece en silencio del presupuesto. Ahora es un formulario con
+  selects reales. Mismo arreglo en `revisor.html` (el selector de tipo al
+  agregar una caja pasó de `prompt()` a un `<select>`).
+  - Se sumó, en los dos lugares, un checkbox "es un agregado fuera del
+    presupuesto original" -- las cajas marcadas así se cuentan aparte
+    (`presupuesto.extras`, con un tag "auto" para distinguirlas de los
+    extras cargados a mano) en vez de mezclarse con lo que ya se
+    presupuestó al principio, así se pueden cobrar como extra.
+  - Bug real encontrado al probar esto con Puppeteer: `circuitos.html`
+    usaba una variable `FAMILIA` en dos lugares para filtrar qué elementos
+    participan de circuitos, pero nunca estaba definida -- rompía la
+    vista de lista plana (obras sin plano) apenas se la usaba. Corregido.
+  - Probado de punta a punta contra un servidor real: una toma de
+    microondas en un circuito TUG da advertencia (no error) y dejaba
+    guardar; un elemento marcado extra aparece en `presupuesto.extras`
+    con origen `computo_extra` en vez de en `presupuesto.items`.
+
 ## 0.27.0 — el esquema unifilar ahora se ve como un plano de verdad
 
 - **Rediseño completo de la hoja de esquema unifilar** (agregada en 0.26.0),

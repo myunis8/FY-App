@@ -222,6 +222,7 @@ function filaItems(arr, tbody, esExtra){
     return `<tr class="${it.opcional?'opcional':''}" data-i="${i}" data-e="${esExtra?1:0}">
       <td><input data-c="item" value="${esc(it.item||'')}">
         ${it.opcional?'<span class="tag">opcional</span>':''}
+        ${it.origen==='computo_extra'?'<span class="tag" title="Se armó solo, a partir de elementos marcados como agregado fuera del presupuesto original en Circuitos">auto</span>':''}
         ${dif?`<span class="tag viejo" title="La lista de hoy está ${dif>0?'más cara':'más barata'}">${
           dif>0?'+':''}${dif}%</span>`:''}</td>
       <td class="num"><input data-c="cantidad" type="number" step="1" value="${it.cantidad||0}"></td>

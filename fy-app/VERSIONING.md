@@ -1,4 +1,4 @@
-# Versionado de FY-App
+# Versionado de FY Manager
 
 Mientras el ciclo completo no esté probado de punta a punta, la versión se
 mantiene por debajo de 1.0.0.

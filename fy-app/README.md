@@ -1,4 +1,4 @@
-# FY-App
+# FY Manager
 
 Servidor local en Python + interfaz HTML. Cada obra es un `obra.json` que se
 guarda en este equipo y se espeja en un repositorio privado de GitHub.
@@ -14,7 +14,7 @@ Para salir, cerrá la ventana de la consola.
 
 ## Compilar el .exe
 
-Doble clic en `build.bat`. Queda en `dist\FY-App.exe`, un archivo
+Doble clic en `build.bat`. Queda en `dist\FY Manager.exe`, un archivo
 único que no necesita instalación ni Python en la máquina donde corre.
 
 ## Preparar el repositorio (una sola vez)
@@ -46,8 +46,8 @@ acciones de escritura.
 
 | Qué | Dónde |
 |---|---|
-| Obras | `%LOCALAPPDATA%\FY-App\obras\<id>\` |
-| Configuración y token | `%APPDATA%\FY-App\config.json` |
+| Obras | `%LOCALAPPDATA%\FY Manager\obras\<id>\` |
+| Configuración y token | `%APPDATA%\FY Manager\config.json` |
 | Plano PDF | junto a la obra, como archivo aparte (nunca dentro del JSON) |
 | En el repositorio | `obras/<id>/obra.json` y `obras/<id>/resumen.json` |
 

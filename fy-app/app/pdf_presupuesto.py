@@ -18,6 +18,11 @@ FIELD_COLOR = (0x28/255, 0x28/255, 0x28/255)
 ITEM_COLOR = (0x50/255, 0x50/255, 0x50/255)
 FOOTER_COLOR = (0x6e/255, 0x6e/255, 0x6e/255)
 ZEBRA = (0.95, 0.95, 0.95)
+# los fondos de fila (encabezado navy y cebra gris) van con esta opacidad en
+# vez de 100% -- si fueran opacos del todo, tapan la marca de agua entera
+# apenas hay una tabla encima (que es casi toda la hoja). 0.82 deja pasar
+# lo suficiente de la marca sin perder legibilidad del texto de la tabla.
+FONDO_TABLA_OPACIDAD = 0.82
 
 FILA_ALTO = 20.35
 GAP_CAT_A_TABLA = 12
@@ -29,7 +34,7 @@ FIELD_LINEA = 16
 # siempre opaca, así que un número bajo no se notaba). 12% es un punto medio
 # genuinamente visible sin tapar el contenido.
 MARCA_FRACCION_ANCHO = 0.8
-MARCA_ALPHA = 0.12
+MARCA_ALPHA = 0.22
 LOGO_LADO = 46
 LOGO_MARGEN_DER = 40
 LOGO_MARGEN_SUP = 24
@@ -155,7 +160,7 @@ def _tabla_categoria(pg, y: float, categoria: str, items: list[dict]) -> float:
     pg.insert_text((x0, y), categoria, fontsize=11, fontname="hebo", color=NAVY)
     y += GAP_CAT_A_TABLA
 
-    pg.draw_rect(pymupdf.Rect(x0, y, x1, y + FILA_ALTO), color=None, fill=NAVY)
+    pg.draw_rect(pymupdf.Rect(x0, y, x1, y + FILA_ALTO), color=None, fill=NAVY, fill_opacity=FONDO_TABLA_OPACIDAD)
     heads = ["Ítem", "Unidad", "Cant.", "P. Unitario", "Subtotal"]
     for i, h in enumerate(heads):
         pg.insert_text((xs[i] + 5, y + FILA_ALTO - 6), h, fontsize=9, fontname="hebo",
@@ -166,7 +171,8 @@ def _tabla_categoria(pg, y: float, categoria: str, items: list[dict]) -> float:
         if y + FILA_ALTO > ALTO - 120:
             return -y                        # negativo: aviso al llamador de que hay que paginar
         fill = ZEBRA if i % 2 == 0 else (1, 1, 1)
-        pg.draw_rect(pymupdf.Rect(x0, y, x1, y + FILA_ALTO), color=None, fill=fill)
+        pg.draw_rect(pymupdf.Rect(x0, y, x1, y + FILA_ALTO), color=None, fill=fill,
+                    fill_opacity=FONDO_TABLA_OPACIDAD)
         sub = (it.get("precioUnitario") or 0) * (it.get("cantidad") or 0)
         pg.insert_text((xs[0] + 5, y + FILA_ALTO - 6), str(it.get("item") or "")[:60],
                        fontsize=9, color=ITEM_COLOR)

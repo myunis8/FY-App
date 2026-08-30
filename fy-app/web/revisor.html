@@ -130,7 +130,14 @@ aside h2{font-family:'Space Grotesk',sans-serif;font-size:.85rem;margin:0 0 9px;
     </div>
 
     <div class="seccion">
-      <h2>Selección <button class="btn sm" id="b-agregar" style="float:right">Agregar caja</button></h2>
+      <h2>Selección
+        <select id="ag-tipo" style="float:right;margin-left:6px;font-size:.78rem;padding:3px 6px;
+          border-radius:6px;border:1px solid var(--line)"></select>
+        <button class="btn sm" id="b-agregar" style="float:right">Agregar caja</button>
+        <label style="float:right;font-size:.68rem;color:var(--muted);display:flex;
+          align-items:center;gap:4px;margin:2px 8px 0 0" title="Marca la próxima caja que agregues
+          como un extra fuera del presupuesto original">
+          <input type="checkbox" id="ag-extra" style="margin:0">extra</label></h2>
       <div id="p-editor"><div class="vacio-panel">Tocá un elemento o un ambiente del plano para corregirlo.</div></div>
     </div>
 
@@ -396,7 +403,8 @@ function iniciarColocar(aviso, tipo){
   modo = 'colocar';
   pendiente = aviso ? {...(aviso.sugerencia||{}), aviso}
                     : {tipo: tipo || 'toma',
-                       subtipo: tipo === 'toma' || !tipo ? 'toma_doble' : null};
+                       subtipo: tipo === 'toma' || !tipo ? 'toma_doble' : null,
+                       extra: $('ag-extra')?.checked || false};
   barra('Colocá la caja', aviso
     ? `Tocá el punto del plano donde va «${aviso.texto}».`
     : 'Tocá el punto del plano donde va la caja nueva.');
@@ -426,6 +434,7 @@ function colocarEn(xpt, ypt){
     posicionPdfPt: {x: +xpt.toFixed(2), y: +ypt.toFixed(2)},
     origen: 'manual',
     revisadoPorUsuario: true,
+    extra: !!pendiente.extra,
     confianza: {simbolo: 1, etiqueta: 1},
     notas: ['Puesta a mano: el plano no tiene el símbolo dibujado'],
   };
@@ -519,12 +528,9 @@ async function extraer(op={}){
 }
 $('b-extraer').onclick = () => extraer();
 $('b-calibrar').onclick = iniciarCalibrar;
-$('b-agregar').onclick = () => {
-  const t = prompt('¿Qué querés agregar? toma / artefacto / llave / otros', 'toma');
-  const tipo = (t||'').trim().toLowerCase();
-  if(!['toma','artefacto','llave','otros'].includes(tipo)) return;
-  iniciarColocar(null, tipo);
-};
+$('ag-tipo').innerHTML = TIPOS.filter(([t])=>t!=='desconocido')
+  .map(([t,label])=>`<option value="${t}">${esc(label)}</option>`).join('');
+$('b-agregar').onclick = () => iniciarColocar(null, $('ag-tipo').value);
 $('b-guardar').onclick = async () => {
   try{
     await api('/api/obras/'+OBRA_ID, {method:'PUT', body:JSON.stringify(obra)});

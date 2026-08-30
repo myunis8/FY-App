@@ -6,7 +6,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
 from . import (almacen, config as cfgmod, contrato as C, canalizacion as canal_mod, extraccion, github as gh,
-               pdf_presupuesto, pdf_tablero, precios as precios_mod, presupuesto as pres_mod,
+               pdf_informe, pdf_presupuesto, pdf_tablero, precios as precios_mod, presupuesto as pres_mod,
                sync, tablero as tablero_mod, vinculos)
 
 if getattr(sys, "frozen", False):
@@ -16,7 +16,7 @@ else:
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "FY-App"
+    server_version = "FY Manager"
 
     # ------------------------------------------------------------ utilidades
     def _json(self, datos, codigo=200):
@@ -62,6 +62,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._extraer(partes[2])
             if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "revalidar":
                 return self._revalidar(partes[2])
+            if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "seguimiento":
+                return self._actualizar_seguimiento(partes[2])
             if len(partes) == 4 and partes[:3] == ["api", "config", "imagen"]:
                 return self._subir_imagen(partes[3])
             if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "tableros":
@@ -217,9 +219,16 @@ class Handler(BaseHTTPRequestHandler):
             return self._render_plano(partes[2], urlparse(self.path).query)
         if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "presupuesto.pdf":
             return self._pdf_presupuesto(partes[2])
+        if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "informe.pdf":
+            return self._pdf_informe(partes[2], urlparse(self.path).query)
         if (len(partes) == 6 and partes[:2] == ["api", "obras"] and partes[3] == "tableros"
                 and partes[5] == "pdf"):
             return self._pdf_tablero(partes[2], partes[4])
+        if (len(partes) == 6 and partes[:2] == ["api", "obras"] and partes[3] == "tableros"
+                and partes[5] == "unifilar.pdf"):
+            return self._pdf_tablero_unifilar(partes[2], partes[4])
+        if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "tableros.pdf":
+            return self._pdf_tableros_todos(partes[2])
         if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "plano":
             obra = almacen.leer_obra(partes[2])
             nombre = ((obra or {}).get("plano") or {}).get("archivo")
@@ -264,6 +273,22 @@ class Handler(BaseHTTPRequestHandler):
                         it["congelado"] = True
                 obra["presupuesto"]["items"] = sug
                 obra["presupuesto"]["avisosPrecios"] = avisos_precios
+
+                # elementos marcados "fuera del presupuesto original" (ver
+                # circuitos.html): van a extras, no a items, y se recalculan
+                # de la misma forma -- sin pisar los extras que el usuario
+                # haya cargado a mano, que no tienen este origen
+                sug_extra, avisos_extra = pres_mod.sugerir_items(obra, extra=True)
+                extras_previos = {i.get("clave"): i for i in (obra["presupuesto"].get("extras") or [])}
+                for it in sug_extra:
+                    viejo = extras_previos.get(it["clave"])
+                    if viejo and viejo.get("congelado"):
+                        it["precioUnitario"] = viejo["precioUnitario"]
+                        it["congelado"] = True
+                extras_manuales = [i for i in (obra["presupuesto"].get("extras") or [])
+                                   if i.get("origen") != "computo_extra"]
+                obra["presupuesto"]["extras"] = extras_manuales + sug_extra
+                obra["presupuesto"]["avisosPreciosExtra"] = avisos_extra
             if cuerpo.get("congelar"):
                 pres_mod.congelar(obra, cfg.get("usuario", ""))
                 for it in obra["presupuesto"].get("items") or []:
@@ -274,6 +299,7 @@ class Handler(BaseHTTPRequestHandler):
                 "ok": True,
                 "presupuesto": obra.get("presupuesto") or {},
                 "cantidades": pres_mod.cantidades(obra),
+                "cantidadesExtra": pres_mod.cantidades(obra, extra=True),
                 "totales": pres_mod.totales(obra.get("presupuesto") or {}),
                 "comparacion": precios_mod.comparar(
                     (obra.get("presupuesto") or {}).get("items") or []),
@@ -366,6 +392,19 @@ class Handler(BaseHTTPRequestHandler):
         return self._json({"ok": True, "validacion": obra["validacion"],
                            "elementos": obra.get("elementos") or [],
                            "resumen": vinculos.resumen(obra)})
+
+    def _actualizar_seguimiento(self, obra_id):
+        obra = almacen.leer_obra(obra_id)
+        if obra is None:
+            return self._error("Esa obra no está en este equipo.", 404)
+        cuerpo = self._cuerpo() or {}
+        pago = cuerpo.get("pago") or {}
+        seg = C.actualizar_seguimiento(obra, estado=cuerpo.get("estado"),
+                                       pago_estado=pago.get("estado"),
+                                       pago_porcentaje=pago.get("porcentaje"),
+                                       usuario=cfgmod.leer_config().get("usuario", ""))
+        almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
+        return self._json({"ok": True, "seguimiento": seg})
 
     def _guardar_canalizacion(self, obra_id):
         obra = almacen.leer_obra(obra_id)
@@ -563,6 +602,43 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(datos)
 
+    def _pdf_tablero_unifilar(self, obra_id, tablero_id):
+        obra = almacen.leer_obra(obra_id)
+        if obra is None:
+            return self._error("Esa obra no está en este equipo.", 404)
+        t = next((x for x in obra.get("tableros") or [] if x["id"] == tablero_id), None)
+        if t is None:
+            return self._error("Ese tablero no existe.", 404)
+        try:
+            datos = pdf_tablero.generar_unifilar(t, obra)
+        except Exception as e:
+            return self._error(f"No pude generar el PDF: {e}", 500)
+        nombre = (t.get("nombre") or "tablero").replace(" ", "_") + "_unifilar"
+        self.send_response(200)
+        self.send_header("Content-Type", "application/pdf")
+        self.send_header("Content-Length", str(len(datos)))
+        self.send_header("Content-Disposition", f'inline; filename="{nombre}.pdf"')
+        self.end_headers()
+        self.wfile.write(datos)
+
+    def _pdf_tableros_todos(self, obra_id):
+        obra = almacen.leer_obra(obra_id)
+        if obra is None:
+            return self._error("Esa obra no está en este equipo.", 404)
+        if not obra.get("tableros"):
+            return self._error("Esta obra todavía no tiene ningún tablero.", 404)
+        try:
+            datos = pdf_tablero.generar_todos(obra)
+        except Exception as e:
+            return self._error(f"No pude generar el PDF: {e}", 500)
+        nombre = (obra["obra"].get("nombre") or "obra").replace(" ", "_") + "_tableros"
+        self.send_response(200)
+        self.send_header("Content-Type", "application/pdf")
+        self.send_header("Content-Length", str(len(datos)))
+        self.send_header("Content-Disposition", f'inline; filename="{nombre}.pdf"')
+        self.end_headers()
+        self.wfile.write(datos)
+
     def _pdf_presupuesto(self, obra_id):
         obra = almacen.leer_obra(obra_id)
         if obra is None:
@@ -576,6 +652,28 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/pdf")
         self.send_header("Content-Length", str(len(datos)))
         self.send_header("Content-Disposition", f'inline; filename="{nombre}.pdf"')
+        self.end_headers()
+        self.wfile.write(datos)
+
+    def _pdf_informe(self, obra_id, query):
+        obra = almacen.leer_obra(obra_id)
+        if obra is None:
+            return self._error("Esa obra no está en este equipo.", 404)
+        qs = parse_qs(query)
+        pedido = (qs.get("modulos") or [""])[0]
+        if pedido:
+            modulos = [m for m in pedido.split(",") if m in pdf_informe.MODULOS]
+        else:
+            modulos = pdf_informe.MODULOS_POR_DEFECTO
+        try:
+            datos = pdf_informe.generar(obra, modulos)
+        except Exception as e:
+            return self._error(f"No pude generar el informe: {e}", 500)
+        nombre = (obra["obra"].get("nombre") or "informe").replace(" ", "_")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/pdf")
+        self.send_header("Content-Length", str(len(datos)))
+        self.send_header("Content-Disposition", f'inline; filename="{nombre}_informe.pdf"')
         self.end_headers()
         self.wfile.write(datos)
 

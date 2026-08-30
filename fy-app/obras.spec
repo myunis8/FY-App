@@ -1,6 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
 # Empaquetado para Windows:  pyinstaller obras.spec
-# Genera dist\FY-App.exe, un unico archivo sin instalador.
+# Genera dist\FY Manager.exe, un unico archivo sin instalador.
 
 a = Analysis(
     ['obras.py'],
@@ -17,7 +17,7 @@ pyz = PYZ(a.pure)
 
 exe = EXE(
     pyz, a.scripts, a.binaries, a.datas, [],
-    name='FY-App',
+    name='FY Manager',
     debug=False,
     strip=False,
     upx=True,

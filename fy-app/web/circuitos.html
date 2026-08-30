@@ -94,6 +94,23 @@ aside h2{font-family:'Space Grotesk',sans-serif;font-size:.82rem;margin:0 0 9px;
 .el-fila:hover{background:var(--slate-soft)}
 .el-fila.marcado{background:var(--copper-soft);border-color:var(--copper)}
 .el-fila .id{font-family:'IBM Plex Mono',monospace;font-size:.67rem;color:var(--muted)}
+.aviso-familia{font-size:.68rem;color:var(--copper);background:var(--copper-soft);
+  padding:5px 8px;border-radius:6px;margin-top:6px}
+.overlay{position:fixed;inset:0;background:rgba(14,28,46,.5);display:none;
+  align-items:center;justify-content:center;z-index:50;padding:16px}
+.overlay.abierto{display:flex}
+.overlay .caja{background:var(--panel);border-radius:12px;padding:20px 22px;
+  width:min(360px,100%);box-shadow:0 12px 32px rgba(0,0,0,.18)}
+.overlay .caja h3{margin:0 0 14px;font-size:1rem}
+.overlay .campo{margin-bottom:12px}
+.overlay .campo label{display:block;font-size:.72rem;font-weight:600;color:var(--muted);
+  margin-bottom:4px;text-transform:uppercase;letter-spacing:.03em}
+.overlay .campo select,.overlay .campo input[type=number]{width:100%;padding:7px 8px;
+  border:1px solid var(--line);border-radius:7px;font:inherit;font-size:.85rem;box-sizing:border-box}
+.overlay .chk-fila{display:flex;align-items:flex-start;gap:8px;font-size:.78rem;
+  background:var(--copper-soft);padding:9px 10px;border-radius:8px;margin-bottom:14px}
+.overlay .chk-fila input{margin-top:2px}
+.overlay .acciones-modal{display:flex;justify-content:flex-end;gap:8px}
 
 #toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--navy-deep);
   color:#fff;padding:10px 17px;border-radius:var(--radius);font-size:.82rem;display:none;z-index:60}
@@ -164,6 +181,27 @@ aside h2{font-family:'Space Grotesk',sans-serif;font-size:.82rem;margin:0 0 9px;
   </aside>
 </div>
 
+<div class="overlay" id="ov-agregar-el">
+  <div class="caja">
+    <h3>Agregar elemento a mano</h3>
+    <div class="campo"><label for="ae-tipo">Tipo</label>
+      <select id="ae-tipo"></select></div>
+    <div class="campo"><label for="ae-sub">Qué es</label>
+      <select id="ae-sub"></select></div>
+    <div class="campo"><label for="ae-cant">Cuántos</label>
+      <input id="ae-cant" type="number" min="1" value="1"></div>
+    <label class="chk-fila">
+      <input type="checkbox" id="ae-extra">
+      <span>Es un agregado de último momento, fuera del presupuesto que ya le pasé al cliente
+      -- lo quiero cobrar aparte, como extra.</span>
+    </label>
+    <div class="acciones-modal">
+      <button class="btn" id="ae-cancelar">Cancelar</button>
+      <button class="btn primary" id="ae-confirmar">Agregar</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script>
@@ -209,6 +247,20 @@ const SUBTIPOS = {
   llave:['llave_1_tecla','llave_2_teclas','llave_3_teclas'],
 };
 const ZOOM = 2;
+const TIPO_LABEL = {toma:'Toma', artefacto:'Artefacto de iluminación', llave:'Llave / interruptor', otros:'Otros'};
+// tipos de elemento que participan de circuitos (todos salvo "desconocido")
+const FAMILIA = {toma:1, artefacto:1, llave:1, otros:1};
+const SUBTIPO_LABEL = {
+  toma_doble:'Toma doble', toma_simple:'Toma simple', toma_tv:'Toma de TV', toma_datos:'Toma de datos',
+  toma_exterior:'Toma exterior (IP44)', preinstalacion_aa:'Preinstalación de aire acondicionado',
+  toma_heladera:'Toma de heladera', toma_horno:'Toma de horno', toma_microondas:'Toma de microondas',
+  toma_anafe:'Toma de anafe', toma_lavarropas:'Toma de lavarropas', toma_lavavajillas:'Toma de lavavajillas',
+  toma_termotanque:'Toma de termotanque', especial:'Toma especial (genérica)',
+  boca_techo:'Boca de techo', aplique_pared:'Aplique de pared', artefacto_lineal:'Artefacto lineal',
+  alimentacion_extractor:'Alimentación de extractor', alimentacion_estufa:'Alimentación de estufa',
+  alimentacion_bomba:'Alimentación de bomba', alimentacion_otros:'Alimentación (otro)',
+  llave_1_tecla:'Llave de 1 tecla', llave_2_teclas:'Llave de 2 teclas', llave_3_teclas:'Llave de 3 teclas',
+};
 
 const $ = id => document.getElementById(id);
 const OBRA_ID = new URLSearchParams(location.search).get('obra');
@@ -318,9 +370,6 @@ async function clicElemento(id){
   const e = (obra.elementos||[]).find(x=>x.id===id);
   if(modo === 'individual'){
     if(!selCir){ toast('Elegí primero un circuito.'); return; }
-    if(!elegible(e) && !circuitoDe(id)){
-      toast('Ese elemento no entra en un circuito de este tipo.'); return;
-    }
     snapshot();
     const c = obra.circuitos.find(x=>x.id===selCir);
     if((c.elementos||[]).includes(id)){
@@ -329,11 +378,12 @@ async function clicElemento(id){
     } else {
       obra.circuitos.forEach(o => o.elementos = (o.elementos||[]).filter(i=>i!==id));
       c.elementos = [...(c.elementos||[]), id];
-      await actualizar(); toast('Agregado a '+c.nombre);
+      await actualizar();
+      toast(elegible(e) ? 'Agregado a '+c.nombre
+                         : 'Agregado a '+c.nombre+' (no es el tipo habitual -- queda marcado con ⚠ en la lista)');
     }
     return;
   }
-  if(!elegible(e)){ toast('Ese elemento no entra en un circuito de este tipo.'); return; }
   marcados.has(id) ? marcados.delete(id) : marcados.add(id);
   pintarPlano(); pintarLista(); pintarAccion();
 }
@@ -383,9 +433,12 @@ function pintarLista(){
   const els = (obra.elementos||[]).filter(e => FAMILIA[e.tipo]);
   $('lista').innerHTML = els.length ? els.map(e=>{
     const c = circuitoDe(e.id);
+    const regla = c ? (TIPOS[c.tipo]||{}) : null;
+    const noHabitual = c && regla.fam && !(COMPATIBLE[regla.fam]||new Set()).has(familiaDe(e));
     return `<div class="el-fila ${marcados.has(e.id)?'marcado':''}"
       style="${elegible(e)?'':'opacity:.45'}" data-id="${e.id}">
       <span>${esc(rotulo(e))}</span><span style="flex:1"></span>
+      ${noHabitual?`<span class="tag" style="color:var(--copper)" title="No es del tipo habitual para ${esc(regla.n||c.tipo)}">⚠</span>`:''}
       ${c?`<span class="tag" style="color:${colorDe(c)}">${esc(c.nombre)}</span>`:''}
       <span class="id">${esc(e.id)}</span></div>`;
   }).join('') : '<div class="vacio">Esta obra no tiene elementos todavía. '
@@ -403,10 +456,15 @@ function pintarCircuitos(){
   }
   cont.innerHTML = obra.circuitos.map(c=>{
     const regla = TIPOS[c.tipo] || {};
-    const bocas = (c.elementos||[]).filter(id=>{
+    const idsAsignados = c.elementos || [];
+    const bocas = idsAsignados.filter(id=>{
       const e = (obra.elementos||[]).find(x=>x.id===id);
       return e && ['artefacto','toma','otros'].includes(e.tipo);
     }).length;
+    const familiaCircuito = regla.fam;
+    const noHabituales = idsAsignados
+      .map(id => (obra.elementos||[]).find(x=>x.id===id))
+      .filter(e => e && familiaDe(e) && familiaCircuito && !(COMPATIBLE[familiaCircuito]||new Set()).has(familiaDe(e)));
     return `<div class="circuito ${selCir===c.id?'sel':''}"
         style="border-left-color:${colorDe(c)}" data-cir="${c.id}">
       <div class="cab">
@@ -417,6 +475,9 @@ function pintarCircuitos(){
         <button class="btn sm" data-borrar="${c.id}"
           style="color:var(--danger);padding:2px 7px">×</button>
       </div>
+      ${noHabituales.length ? `<div class="aviso-familia" title="${
+          esc(noHabituales.map(e=>rotulo(e)).join(', '))}">⚠ ${noHabituales.length} elemento(s) no son del
+          tipo habitual para ${esc(regla.n||c.tipo)} -- revisá si corresponde armar un circuito aparte.</div>` : ''}
       <div class="rejilla">
         <div><label>Tipo</label><select data-campo="tipo" data-cir="${c.id}">
           ${Object.keys(TIPOS).map(t=>`<option ${t===c.tipo?'selected':''}>${t}</option>`).join('')}
@@ -565,19 +626,36 @@ $('a-agregar').onclick = async () => {
   toast(`${n} agregados a ${c.nombre}`);
 };
 $('a-limpiar').onclick = () => { marcados.clear(); pintar(); };
-$('b-agregar-el').onclick = async () => {
-  const t = (prompt('¿Qué agregás? toma / artefacto / llave / otros', 'toma')||'').trim().toLowerCase();
-  if(!SUBTIPOS[t]) return;
-  const sub = (prompt('¿Qué es?\n'+SUBTIPOS[t].join('\n'), SUBTIPOS[t][0])||'').trim();
-  if(!sub) return;
-  const cant = parseInt(prompt('¿Cuántos?', '1')||'0', 10);
-  if(!(cant > 0)) return;
+$('b-agregar-el').onclick = () => {
+  $('ae-tipo').innerHTML = Object.keys(SUBTIPOS).map(t =>
+    `<option value="${t}">${esc(TIPO_LABEL[t]||t)}</option>`).join('');
+  actualizarSubtipos();
+  $('ae-cant').value = 1;
+  $('ae-extra').checked = false;
+  $('ov-agregar-el').classList.add('abierto');
+};
+function actualizarSubtipos(){
+  const t = $('ae-tipo').value;
+  $('ae-sub').innerHTML = (SUBTIPOS[t]||[]).map(s =>
+    `<option value="${s}">${esc(SUBTIPO_LABEL[s]||s)}</option>`).join('');
+}
+$('ae-tipo').addEventListener('change', actualizarSubtipos);
+$('ae-cancelar').onclick = () => $('ov-agregar-el').classList.remove('abierto');
+$('ov-agregar-el').addEventListener('click', ev => {
+  if(ev.target === $('ov-agregar-el')) $('ov-agregar-el').classList.remove('abierto');
+});
+$('ae-confirmar').onclick = async () => {
+  const t = $('ae-tipo').value, sub = $('ae-sub').value;
+  const cant = parseInt($('ae-cant').value || '0', 10);
+  if(!(cant > 0)){ toast('Poné una cantidad válida.'); return; }
+  const extra = $('ae-extra').checked;
   for(let i=0;i<cant;i++)
     obra.elementos.push({id:`${t[0].toUpperCase()}-man-${Date.now().toString(36)}${i}`,
       tipo:t, subtipo:sub, alturaM:null, posicionM:null, posicionPdfPt:null,
-      origen:'manual', revisadoPorUsuario:true, notas:['Cargado a mano']});
+      origen:'manual', revisadoPorUsuario:true, extra, notas:['Cargado a mano']});
+  $('ov-agregar-el').classList.remove('abierto');
   await actualizar();
-  toast(`${cant} agregados`);
+  toast(`${cant} agregado(s)${extra ? ' -- marcados como extra' : ''}`);
 };
 $('b-guardar').onclick = async () => {
   try{

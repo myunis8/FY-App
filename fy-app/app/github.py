@@ -91,11 +91,11 @@ def verificar(cfg: dict, probar_escritura: bool = True) -> dict:
         return datos
 
     try:
-        contenido = json.dumps({"app": "FY-App",
+        contenido = json.dumps({"app": "FY Manager",
                                 "prueba": "acceso de escritura"}).encode()
         sha = sha_de(cfg, ARCHIVO_PRUEBA)
         subir_archivo(cfg, ARCHIVO_PRUEBA, contenido,
-                      "Prueba de conexión de FY-App", sha)
+                      "Prueba de conexión de FY Manager", sha)
         datos["puedeEscribir"] = True
         datos["perfil"] = "editor"
     except ErrorSync as e:

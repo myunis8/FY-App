@@ -1128,6 +1128,32 @@ def generar(t: dict, obra: dict) -> bytes:
     doc = pymupdf.open()
     _pagina_conexionado(doc, t, obra)
     _pagina_tapa(doc, t, obra)
+    salida = io.BytesIO()
+    doc.save(salida)
+    doc.close()
+    return salida.getvalue()
+
+
+def generar_todos(obra: dict) -> bytes:
+    """Todos los tableros de la obra (principal y seccionales), uno a
+    continuación del otro en un solo PDF -- para no tener que descargar y
+    entregar un archivo por tablero cuando hay más de uno."""
+    doc = pymupdf.open()
+    for t in obra.get("tableros") or []:
+        sub = pymupdf.open(stream=generar(t, obra), filetype="pdf")
+        doc.insert_pdf(sub)
+        sub.close()
+    salida = io.BytesIO()
+    doc.save(salida)
+    doc.close()
+    return salida.getvalue()
+
+
+def generar_unifilar(t: dict, obra: dict) -> bytes:
+    """PDF aparte, sólo con el esquema unifilar -- todavía está en beta
+    (ver notas en _pagina_unifilar), así que se ofrece con su propio botón
+    en vez de venir siempre pegado al PDF principal de conexionado/tapa."""
+    doc = pymupdf.open()
     _pagina_unifilar(doc, t, obra)
     salida = io.BytesIO()
     doc.save(salida)

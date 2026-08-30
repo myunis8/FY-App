@@ -24,9 +24,15 @@ SUB_COCINA = ("toma_horno", "toma_microondas", "toma_anafe", "toma_lavavajillas"
 SUB_TERMO = ("toma_termotanque", "alimentacion_estufa", "toma_lavarropas")
 
 
-def cantidades(obra: dict) -> dict:
-    """Cuenta lo que hay en la obra, agrupado como se cobra."""
-    elementos = obra.get("elementos") or []
+def cantidades(obra: dict, extra: bool = False) -> dict:
+    """Cuenta lo que hay en la obra, agrupado como se cobra.
+
+    Con extra=True, sólo cuenta los elementos marcados a mano como "fuera
+    del presupuesto original" (el checkbox de circuitos.html al agregar una
+    caja nueva) -- así ese conteo se puede sumar aparte, como extra a
+    cobrar, en vez de mezclarse en silencio con lo que ya se presupuestó al
+    principio."""
+    elementos = [e for e in (obra.get("elementos") or []) if bool(e.get("extra")) == extra]
     teclas = collections.Counter((e.get("letra") or "").upper() for e in elementos
                                  if e.get("tipo") == "llave" and e.get("letra"))
     combinados = sum(1 for v in teclas.values() if v > 1)
@@ -54,19 +60,25 @@ def cantidades(obra: dict) -> dict:
         "toma_aa": tomas["toma_aa"],
         "toma_cocina": tomas["toma_cocina"],
         "toma_termo": tomas["toma_termo"],
-        "circuitos": len(obra.get("circuitos") or []),
+        "circuitos": len(obra.get("circuitos") or []) if not extra else 0,
     }
 
 
-def sugerir_items(obra: dict) -> tuple[list[dict], list[str]]:
+def sugerir_items(obra: dict, extra: bool = False) -> tuple[list[dict], list[str]]:
     """Arma las líneas del presupuesto con la lista de precios de hoy.
     Devuelve (items, avisos): si algo que el plano detectó no tiene un ítem
     correspondiente en la lista de precios, esa línea NO se omite en
     silencio -- se informa en avisos, porque significa que falta un renglón
-    entero del presupuesto sin que se note a simple vista."""
+    entero del presupuesto sin que se note a simple vista.
+
+    Con extra=True arma, con la misma lógica, sólo las líneas de los
+    elementos marcados como agregado fuera del presupuesto original (ver
+    cantidades()) -- para mandarlas a presupuesto.extras en vez de
+    presupuesto.items."""
     lista = precios_mod.leer().get("items") or []
     porNombre = {it["item"]: it for it in lista}
-    cant = cantidades(obra)
+    cant = cantidades(obra, extra=extra)
+    prefijo = "extra_" if extra else ""
     salida, avisos = [], []
     for clave, nombres in EQUIVALENCIAS:
         n = cant.get(clave, 0)
@@ -79,15 +91,15 @@ def sugerir_items(obra: dict) -> tuple[list[dict], list[str]]:
                           f"-- esta línea falta del presupuesto hasta que lo agregues.")
             continue
         salida.append({
-            "id": f"it_{clave}",
+            "id": f"it_{prefijo}{clave}",
             "precioId": ref["id"],
             "categoria": ref.get("categoria"),
             "item": ref["item"],
             "unidad": ref.get("unidad") or "u",
             "precioUnitario": float(ref.get("precio") or 0),
             "cantidad": n,
-            "origen": "computo",
-            "clave": clave,
+            "origen": "computo_extra" if extra else "computo",
+            "clave": f"{prefijo}{clave}",
             "opcional": False,
         })
     return salida, avisos
