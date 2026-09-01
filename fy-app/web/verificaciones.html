@@ -61,12 +61,14 @@ th.num{text-align:right}
 </header>
 
 <main>
-  <h2>Caída de tensión por circuito</h2>
+  <h2>Verificación por conductor</h2>
   <div class="nota">El largo es la distancia más larga desde el tablero hasta el punto más
   alejado del circuito, siguiendo la canalización trazada en <b>Routeo</b> (tramo horizontal +
-  bajadas; con varios tableros, al más cercano). Como en el momento del diseño no se conoce la
-  carga final, la caída se evalúa en el <b>peor caso</b>: corriente igual a la ampacidad del
-  conductor. Conductor de cobre; sistema monofásico 230 V salvo que el circuito tenga una
+  bajadas; con varios tableros, al más cercano). Cada conductor se verifica según su tipo:
+  <b>circuitos terminales</b> — caída de tensión en el peor caso (corriente = ampacidad del
+  conductor); <b>acometida</b> — peor caso con corriente = mín(ampacidad, interruptor general
+  del tablero); <b>conductor de protección (PE/PAT)</b> — no lleva caída, se controla la
+  relación de sección PE/fase (IEC/IRAM 60364-5-54). Conductor de cobre; monofásico 230 V salvo
   seccional de 3+ polos. Ampacidad y ρ según IRAM (método B1, 2 conductores en caño, PVC).</div>
   <div id="cont"></div>
 </main>
@@ -88,8 +90,13 @@ const ESTADO = {
   ok:                  {cls:'ok',   txt:'OK'},
   excede_longitud:     {cls:'warn', txt:'Excede longitud'},
   excede_caida_tension:{cls:'bad',  txt:'Excede caída'},
+  pendiente:           {cls:'warn', txt:'Falta interruptor general'},
+  cumple:              {cls:'ok',   txt:'Cumple PE/fase'},
+  no_cumple:           {cls:'bad',  txt:'No cumple PE/fase'},
   sin_dato:            {cls:'na',   txt:'Sin datos'},
 };
+const TIPO_TXT = {terminal:'circuito terminal', acometida:'acometida / alimentador',
+                  pe:'conductor de protección (PE)'};
 
 async function cargar(){
   if(!OBRA_ID){ $('h-sub').textContent = 'Falta el id de la obra en la URL.'; return; }
@@ -109,32 +116,69 @@ function pintar(d){
     tener circuitos ruteados hasta un tablero en Routeo, con la escala del plano calibrada.</div>`;
     return;
   }
+  const secMm2 = s => s!=null ? nf(s, s%1 ? 1 : 0)+' mm²' : '—';
+  const cab = (c, sub) => `<td>${esc(c.nombre)}<span class="sub2">${esc(sub||'')}</span></td>`;
+
   const filas = (d.circuitos||[]).map(c => {
     const ca = c.caida;
+
+    // conductor de PE / PAT: no lleva ΔV, se verifica la relación de sección
+    if(ca && ca.tipo_conductor === 'pe'){
+      const e = ESTADO[ca.estado] || ESTADO.sin_dato;
+      const rel = ca.relacion_pe_fase;
+      const pat = ca.puesta_a_tierra;
+      const detalle = rel
+        ? `<span class="sub2">S PE ${nf(rel.seccion_pe_mm2, rel.seccion_pe_mm2%1?1:0)} · `
+          + `mín ${nf(rel.seccion_pe_minima_mm2, rel.seccion_pe_minima_mm2%1?1:0)} mm² `
+          + `(fase ${nf(rel.seccion_fase_mm2, rel.seccion_fase_mm2%1?1:0)})</span>`
+        : `<span class="sub2">falta la sección de fase asociada</span>`;
+      const patTxt = pat
+        ? `<span class="sub2">PAT ${nf(pat.resistencia_ohm,1)} Ω${
+            pat.limite_ohm!=null ? ' / lím '+nf(pat.limite_ohm,0)+' Ω ('+esc(pat.esquema)+')' : ''}${
+            pat.cumple===false ? ' — no cumple' : ''}</span>` : '';
+      return `<tr>
+        ${cab(c, TIPO_TXT.pe)}
+        <td class="num">${secMm2(c.seccionMm2)}</td>
+        <td class="num">—</td>
+        <td class="num">${c.distanciaM!=null ? nf(c.distanciaM)+' m' : '—'}</td>
+        <td class="num">no aplica</td><td class="num">—</td><td class="num">—</td>
+        <td><span class="pill ${e.cls}">${e.txt}</span>${detalle}${patTxt}</td>
+      </tr>`;
+    }
+
+    // sin análisis (conductor con caída pero sin largo: no llega al tablero)
     if(!ca){
-      return `<tr><td>${esc(c.nombre)}</td>
-        <td class="num">${c.seccionMm2!=null ? esc(c.seccionMm2)+' mm²' : '—'}</td>
+      return `<tr>
+        ${cab(c, '')}
+        <td class="num">${secMm2(c.seccionMm2)}</td>
         <td class="num">${c.proteccionA ? esc(c.proteccionA)+' A' : '—'}</td>
         <td class="num">${c.distanciaM!=null ? nf(c.distanciaM)+' m' : '—'}</td>
         <td class="num">—</td><td class="num">—</td><td class="num">—</td>
         <td><span class="pill na">No llega al tablero</span></td></tr>`;
     }
+
+    // circuito terminal o acometida
     const e = ESTADO[ca.estado] || ESTADO.sin_dato;
     const peor = ca.peor_caso || {};
     const lim = ca.entrada?.limite_pct;
+    const sub = TIPO_TXT[ca.tipo_conductor] + ' · ' + (ca.entrada?.sistema||'');
     const sug = ca.sugerencia
-      ? `<span class="sug">→ pasar a ${nf(ca.sugerencia.seccion_mm2, ca.sugerencia.seccion_mm2%1?1:0)} mm²`
-        + ` (${nf(ca.sugerencia.deltaV_pct,1)} %)</span>` : '';
+      ? `<span class="sug">→ pasar a ${secMm2(ca.sugerencia.seccion_mm2)} (${nf(ca.sugerencia.deltaV_pct,1)} %)</span>`
+      : '';
+    const nota = ca.pendiente_proteccion_general
+      ? `<span class="sub2">definí el interruptor general en Tablero para confirmar</span>` : '';
+    const protA = ca.entrada?.proteccion_a ?? c.proteccionA;
     return `<tr>
-      <td>${esc(c.nombre)}<span class="sub2">${esc(ca.entrada?.sistema||'')}</span></td>
-      <td class="num">${c.seccionMm2!=null ? esc(c.seccionMm2)+' mm²' : '—'}</td>
-      <td class="num">${c.proteccionA ? esc(c.proteccionA)+' A' : '—'}</td>
+      ${cab(c, sub)}
+      <td class="num">${secMm2(c.seccionMm2)}</td>
+      <td class="num">${protA ? nf(protA,0)+' A' : '—'}${
+        ca.tipo_conductor==='acometida' ? '<span class="sub2">interr. general</span>' : ''}</td>
       <td class="num">${nf(c.distanciaM)} m</td>
       <td class="num">${nf(peor.deltaV_pct,2)} %<span class="sub2">lím ${nf(lim,0)} %${
         peor.corriente_a!=null ? ' · '+nf(peor.corriente_a,0)+' A' : ''}</span></td>
       <td class="num">${nf(ca.corriente_max_admisible_a,1)} A</td>
       <td class="num">${nf(ca.longitud_max_admisible_m,1)} m</td>
-      <td><span class="pill ${e.cls}">${e.txt}</span>${sug}</td>
+      <td><span class="pill ${e.cls}">${e.txt}</span>${sug}${nota}</td>
     </tr>`;
   }).join('');
   $('cont').innerHTML = `<div class="tabla-scroll"><table>
@@ -152,6 +196,10 @@ function pintar(d){
       <b>Excede caída</b>: a la corriente de la protección el ΔV % ya supera el límite.
       <b>Excede longitud</b>: a la ampacidad del conductor el ΔV % supera el límite (el tramo es
       más largo que el máximo).
+      <b>Falta interruptor general</b>: la acometida se calculó con la ampacidad del conductor
+      porque todavía no hay interruptor general definido en Tablero; confirmá cuando lo cargues.
+      <b>PE/fase</b>: la sección del conductor de protección cumple (o no) la relación mínima
+      respecto de la fase asociada.
     </div>`;
 }
 

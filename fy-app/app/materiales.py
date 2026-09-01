@@ -336,17 +336,67 @@ def _sistema_de_circuito(obra: dict, circuito_id) -> str:
     return "monofasico"
 
 
+def _interruptor_general_a(obra: dict):
+    """Corriente nominal del interruptor general del tablero (la que limita la
+    acometida), tomada del módulo de tableros -- no de una protección propia
+    del tramo. None si todavía no hay general definido."""
+    for t in obra.get("tableros") or []:
+        for d in t.get("dispositivos") or []:
+            if d.get("tipo") == "termica" and d.get("rol") == "general" and d.get("corriente"):
+                return float(d["corriente"])
+    return None
+
+
+def _diferencial_ma_a_a(obra: dict):
+    """Corriente diferencial nominal IΔn (A) del diferencial general, para el
+    límite de resistencia de PAT en esquema TT. None si no hay."""
+    for t in obra.get("tableros") or []:
+        for d in t.get("dispositivos") or []:
+            if d.get("tipo") == "diferencial" and d.get("sensibilidadMa"):
+                return float(d["sensibilidadMa"]) / 1000.0
+    return None
+
+
+def _analisis_conductor(obra: dict, c: dict, d_max, ctx: dict):
+    """Arma el tramo para caida_tension.analizar_tramo() según el tipo de
+    conductor del circuito (terminal / acometida / pe) y lo analiza.
+    Devuelve None si es un conductor con caída pero todavía sin largo."""
+    tipo = ct.tipo_conductor_de({"ctype": c.get("ctype"), "kind": c.get("kind")})
+    if tipo == "pe":
+        return ct.analizar_tramo({
+            "id": c.get("id"), "tipo_conductor": "pe", "S": c.get("section"),
+            "seccion_fase_mm2": ctx.get("seccion_acometida"),
+            "i_dif_a": ctx.get("i_dif_a"),
+        })
+    if not d_max:
+        return None
+    tramo = {
+        "id": c.get("id"), "L": d_max, "S": c.get("section"), "material": "cobre",
+        "sistema": _sistema_de_circuito(obra, c.get("id")),
+        "categoria": c.get("ctype") or c.get("kind") or "otros",
+        "tipo_conductor": tipo,
+    }
+    if tipo == "acometida":
+        tramo["interruptor_general_a"] = ctx.get("interruptor_general_a")
+    else:
+        tramo["proteccion_a"] = c.get("prot") or None
+    return ct.analizar_tramo(tramo)
+
+
 def computar_verificaciones(obra: dict) -> dict:
     """Por circuito: la distancia más larga desde el tablero hasta el punto
     más alejado, siguiendo la canalización ya trazada en Routeo (tramo
     horizontal + bajadas, misma cuenta que computar_canalizacion), y sobre esa
-    distancia el análisis de caída de tensión (ver caida_tension.py): ΔV% en el
-    peor caso (corriente = ampacidad del conductor), corriente y largo máximos
-    admisibles, estado y sugerencia de sección.
+    distancia el análisis de conductor (ver caida_tension.py), con lógica propia
+    por tipo: circuitos terminales -> caída de tensión al peor caso (I =
+    ampacidad); acometida -> peor caso con I = min(ampacidad, interruptor
+    general); conductor de PE/PAT -> no lleva caída, se verifica la relación
+    de sección PE/fase (y la resistencia de PAT si se dispone del dato).
 
     Si hay más de un tablero, se toma la distancia al más cercano. Si un
     circuito tiene tramos pero ninguno llega a un tablero por la
-    canalización, se informa igual con distancia nula y sin caída."""
+    canalización, se informa igual con distancia nula (los conductores de PE
+    igual se verifican; los de caída quedan sin analizar)."""
     canal = obra.get("canalizacion") or {}
     runs = canal.get("runs") or []
     px_por_m = canal.get("pxPerM")
@@ -359,6 +409,14 @@ def computar_verificaciones(obra: dict) -> dict:
     runs_por_circuito: dict = {}
     for r in runs:
         runs_por_circuito.setdefault(r.get("circuit"), []).append(r)
+
+    seccion_acometida = next(
+        (c.get("section") for c in canal.get("circuits") or []
+         if ct.tipo_conductor_de({"ctype": c.get("ctype"), "kind": c.get("kind")}) == "acometida"),
+        None)
+    ctx = {"interruptor_general_a": _interruptor_general_a(obra),
+           "i_dif_a": _diferencial_ma_a_a(obra),
+           "seccion_acometida": seccion_acometida}
 
     salida = []
     for c in canal.get("circuits") or []:
@@ -379,7 +437,7 @@ def computar_verificaciones(obra: dict) -> dict:
                 "seccionMm2": c.get("section"), "proteccionA": c.get("prot") or None}
         if not inicios:
             salida.append({**fila, "distanciaM": None, "conectadoATablero": False,
-                           "caida": None})
+                           "caida": _analisis_conductor(obra, c, None, ctx)})
             continue
         FUENTE = "\x00src"
         for t in inicios:
@@ -388,14 +446,8 @@ def computar_verificaciones(obra: dict) -> dict:
         dist = _dijkstra(adj, FUENTE)
         dist.pop(FUENTE, None)
         d_max = round(max((v for v in dist.values() if v < math.inf), default=0.0), 1)
-        caida = ct.analizar_tramo({
-            "id": c.get("id"), "L": d_max, "S": c.get("section"), "material": "cobre",
-            "sistema": _sistema_de_circuito(obra, c.get("id")),
-            "categoria": c.get("ctype") or c.get("kind") or "otros",
-            "proteccion_a": c.get("prot") or None,
-        }) if d_max > 0 else None
         salida.append({**fila, "distanciaM": d_max, "conectadoATablero": True,
-                       "caida": caida})
+                       "caida": _analisis_conductor(obra, c, d_max, ctx)})
     return {"disponible": True, "circuitos": salida}
 
 

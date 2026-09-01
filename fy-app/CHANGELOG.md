@@ -3,6 +3,28 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 0.35.0 — Caída de tensión: lógica propia por tipo de conductor
+
+- **El análisis distingue tres tipos de conductor**, identificados por el tipo
+  del circuito (ACO / PAT / resto):
+  - **Circuitos terminales**: sin cambios respecto de 0.34.0.
+  - **Acometida / alimentador principal**: el peor caso usa
+    `min(ampacidad del conductor, corriente del interruptor general del
+    tablero)` -- la corriente del general se toma del módulo de Tablero, no
+    como protección propia del tramo. Si todavía no hay interruptor general
+    definido, se calcula con la ampacidad y el estado queda "Falta
+    interruptor general" (pendiente de confirmar).
+  - **Conductor de protección / PAT**: se excluye del cálculo de caída de
+    tensión. En su lugar se verifica la relación de sección PE/fase
+    (IEC/IRAM 60364-5-54: S_PE = S_fase hasta 16 mm², 16 mm² entre 16 y 35,
+    S_fase/2 por encima) y, si se dispone del dato, la resistencia de puesta
+    a tierra contra su límite (TT: U_L / IΔn; TN / IT quedan fuera de esta
+    versión). Estado "Cumple PE/fase" / "No cumple".
+- `caida_tension.py`: nuevas funciones `tipo_conductor_de`, `seccion_pe_minima`,
+  `limite_resistencia_pat`; `analizar_tramo` pasa a ser un despachador.
+- Verificaciones técnicas muestra cada conductor con las columnas y el estado
+  que le corresponden.
+
 ## 0.34.0 — Cálculo de caída de tensión en Verificaciones técnicas
 
 - **Nuevo módulo de cálculo `app/caida_tension.py`** (puro, sin I/O): dado

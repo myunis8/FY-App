@@ -5,7 +5,19 @@ ni conoce el resto de la app) y devuelve un reporte por tramo. Lo usa
 `materiales.computar_verificaciones()` para el módulo de Verificaciones
 técnicas; más adelante puede alimentar también el DRC de Routeo.
 
-Fórmulas (L = largo de un tramo, ida solamente, no ida y vuelta):
+`analizar_tramo()` despacha según el tipo de conductor (campo `tipo_conductor`
+o el `ctype`/`kind` del circuito, ver `tipo_conductor_de()`):
+
+  - "terminal":  circuito terminal (IUG, TUG, ...). Caída al peor caso, con
+                 I = ampacidad; chequeo "realista" con I = protección del circuito.
+  - "acometida": alimentador principal. Peor caso con I = min(ampacidad,
+                 corriente del interruptor general del tablero). Si todavía no
+                 hay interruptor general, usa la ampacidad y marca "pendiente".
+  - "pe":        conductor de protección / PAT. NO lleva caída de tensión: se
+                 verifica la relación de sección PE/fase (IEC/IRAM 60364-5-54)
+                 y, si se pasa una resistencia de PAT, su límite normativo.
+
+Fórmulas de caída (L = largo de un tramo, ida solamente, no ida y vuelta):
 
     monofásico / CC   ΔV = 2 · L · I · ρ / S
     trifásico         ΔV = √3 · L · I · ρ / S
@@ -117,6 +129,63 @@ def seccion_siguiente(S):
     return None
 
 
+def _ceil_normalizada(x: float):
+    for v in SECCIONES_NORMALIZADAS:
+        if v >= x - 1e-9:
+            return v
+    return round(x, 2)
+
+
+# --------------------------------------------------------- tipo de conductor
+# Tres tipos, con lógica propia (ver analizar_tramo):
+#   - "terminal":  circuito terminal (IUG, TUG, TUE, ...). Regla estándar.
+#   - "acometida": alimentador principal medidor->tablero. El peor caso usa
+#                  min(ampacidad, corriente del interruptor general).
+#   - "pe":        conductor de protección / PAT. NO se le calcula caída de
+#                  tensión; se verifica la relación de sección PE/fase y,
+#                  si hay dato, la resistencia de puesta a tierra.
+TIPO_CONDUCTOR = {
+    "ACO": "acometida", "acometida": "acometida", "alimentador": "acometida",
+    "PAT": "pe", "tierra": "pe", "pe": "pe", "PE": "pe",
+}
+UL_CONTACTO = 50.0                       # V, tensión de contacto convencional (locales secos)
+
+
+def tipo_conductor_de(tramo: dict) -> str:
+    for clave in ("tipo_conductor", "ctype", "kind", "categoria"):
+        v = (tramo.get(clave) or "").strip()
+        if v in TIPO_CONDUCTOR:
+            return TIPO_CONDUCTOR[v]
+    return "terminal"
+
+
+def seccion_pe_minima(seccion_fase):
+    """Sección mínima del conductor de protección según IEC/IRAM 60364-5-54:
+    S_PE = S_fase si S_fase <= 16 mm²; 16 mm² si 16 < S_fase <= 35; S_fase/2
+    si S_fase > 35 -- redondeada hacia arriba a sección normalizada."""
+    s = _num(seccion_fase)
+    if s <= 0:
+        return None
+    if s <= 16:
+        minimo = s
+    elif s <= 35:
+        minimo = 16.0
+    else:
+        minimo = s / 2.0
+    return _ceil_normalizada(minimo)
+
+
+def limite_resistencia_pat(esquema="TT", i_dif_a=None, ul=UL_CONTACTO):
+    """Límite de resistencia de puesta a tierra (Ω).
+    - TT:  U_L / IΔn  (IΔn = corriente diferencial nominal, en A).
+    - TN / IT: el criterio es por impedancia de lazo de falla / primera falla,
+      no por un valor simple de resistencia -- fuera del alcance de esta versión
+      (se devuelve None)."""
+    if (esquema or "TT").strip().upper() == "TT" and i_dif_a and i_dif_a > 0:
+        return round(ul / float(i_dif_a), 1)
+    return None
+
+
 # ------------------------------------------------------------------ cálculo directo
 def caida_tension(*, L, S, I, sistema, material="cobre", tension_v=None, rho=None) -> dict:
     L, S, I = _num(L), _num(S), _num(I)
@@ -155,15 +224,30 @@ def longitud_maxima(*, S, I, sistema, tension_v, limite_pct, material="cobre"):
 
 # ------------------------------------------------------------------ reporte por tramo
 def analizar_tramo(tramo: dict, *, limites=None, norma=NORMA_DEFAULT) -> dict:
-    """Reporte de caída de tensión de un tramo. `tramo` (todo opcional salvo L y S):
+    """Despacha según el tipo de conductor (terminal / acometida / pe). `tramo`
+    (todo opcional salvo S, y L para los que llevan caída):
 
-        {id, L, sistema, S, material, tension_v, categoria, limite_pct,
-         proteccion_a, corriente_a}
+        {id, tipo_conductor, L, sistema, S, material, tension_v, categoria,
+         limite_pct, proteccion_a, corriente_a,      # terminal / acometida
+         interruptor_general_a,                      # acometida
+         seccion_fase_mm2, esquema_tierra, i_dif_a, resistencia_pat_ohm}  # pe
+    """
+    tipo = tipo_conductor_de(tramo)
+    if tipo == "pe":
+        return _analizar_pe(tramo)
+    return _analizar_caida(tramo, tipo=tipo, limites=limites, norma=norma)
+
+
+def _analizar_caida(tramo: dict, *, tipo="terminal", limites=None, norma=NORMA_DEFAULT) -> dict:
+    """Caída de tensión de un conductor terminal o de acometida.
 
     Estados:
-      - "excede_caida_tension": con I = corriente de la protección, ΔV% > límite.
-      - "excede_longitud":      con I = ampacidad del conductor, ΔV% > límite
-                                (equivale a que el largo real supere el máximo).
+      - "excede_caida_tension": a la corriente de referencia de la protección
+        (la del circuito para terminal; el interruptor general para acometida),
+        ΔV% > límite.
+      - "excede_longitud": al peor caso, ΔV% > límite (el largo real supera el
+        máximo admisible).
+      - "pendiente": acometida sin interruptor general definido todavía.
       - "ok" / "sin_dato".
     """
     L = _num(tramo.get("L"))
@@ -174,32 +258,51 @@ def analizar_tramo(tramo: dict, *, limites=None, norma=NORMA_DEFAULT) -> dict:
     categoria = tramo.get("categoria") or "otros"
     limite_pct = (float(tramo["limite_pct"]) if tramo.get("limite_pct") not in (None, "")
                   else limite_de(categoria, limites))
-    prot_a = tramo.get("proteccion_a")
-    prot_a = float(prot_a) if prot_a not in (None, "", 0) else None
     manual_a = tramo.get("corriente_a")
     manual_a = float(manual_a) if manual_a not in (None, "") else None
 
     iz = ampacidad(S, material, norma)
 
+    # --- corriente de referencia según el tipo de conductor
+    pendiente_general = False
+    if tipo == "acometida":
+        i_gen = tramo.get("interruptor_general_a")
+        i_gen = float(i_gen) if i_gen not in (None, "", 0) else None
+        i_prot = i_gen                              # la "protección" de la acometida es el general
+        if i_gen is not None and iz:
+            i_ref = min(iz, i_gen)
+        elif i_gen is not None:
+            i_ref = i_gen
+        else:
+            i_ref = iz
+            pendiente_general = True
+    else:                                            # terminal
+        p = tramo.get("proteccion_a")
+        i_prot = float(p) if p not in (None, "", 0) else None
+        i_ref = iz
+
+    i_peor = manual_a if manual_a is not None else i_ref
+    origen = ("manual" if manual_a is not None
+              else "ampacidad" if tipo != "acometida"
+              else "ampacidad (falta interruptor general)" if pendiente_general
+              else "min(ampacidad, interruptor general)")
+
     entrada = {"L": L, "sistema": sistema, "S": S, "material": material,
                "tension_v": V, "categoria": categoria, "limite_pct": limite_pct,
                "ampacidad_a": round(iz, 1) if iz else None,
-               "proteccion_a": prot_a, "norma": norma}
+               "proteccion_a": round(i_prot, 1) if i_prot else None,
+               "tipo_conductor": tipo, "norma": norma}
 
-    # peor caso: I = ampacidad del conductor (o corriente manual si se forzó)
-    i_peor = manual_a if manual_a is not None else iz
     peor = None
     if i_peor:
         cc = caida_tension(L=L, S=S, I=i_peor, sistema=sistema, material=material, tension_v=V)
-        peor = {"corriente_a": round(i_peor, 1),
-                "origen": "manual" if manual_a is not None else "ampacidad",
+        peor = {"corriente_a": round(i_peor, 1), "origen": origen,
                 "deltaV_v": cc["deltaV_v"], "deltaV_pct": cc["deltaV_pct"]}
 
-    # a la corriente de la protección: chequeo "realista"
     proteccion = None
-    if prot_a:
-        cc = caida_tension(L=L, S=S, I=prot_a, sistema=sistema, material=material, tension_v=V)
-        proteccion = {"corriente_a": round(prot_a, 1),
+    if i_prot:
+        cc = caida_tension(L=L, S=S, I=i_prot, sistema=sistema, material=material, tension_v=V)
+        proteccion = {"corriente_a": round(i_prot, 1),
                       "deltaV_v": cc["deltaV_v"], "deltaV_pct": cc["deltaV_pct"]}
 
     i_max = corriente_maxima(L=L, S=S, sistema=sistema, tension_v=V,
@@ -216,6 +319,8 @@ def analizar_tramo(tramo: dict, *, limites=None, norma=NORMA_DEFAULT) -> dict:
         estado = "excede_caida_tension"
     elif dv_peor > limite_pct:
         estado = "excede_longitud"
+    elif pendiente_general:
+        estado = "pendiente"
     else:
         estado = "ok"
 
@@ -236,6 +341,7 @@ def analizar_tramo(tramo: dict, *, limites=None, norma=NORMA_DEFAULT) -> dict:
 
     return {
         "id": tramo.get("id"),
+        "tipo_conductor": tipo,
         "entrada": entrada,
         "peor_caso": peor,
         "proteccion": proteccion,
@@ -243,7 +349,53 @@ def analizar_tramo(tramo: dict, *, limites=None, norma=NORMA_DEFAULT) -> dict:
         "longitud_max_admisible_m": round(l_max, 1) if l_max is not None else None,
         "margen_pct": margen,
         "estado": estado,
+        "pendiente_proteccion_general": pendiente_general,
         "sugerencia": sugerencia,
+    }
+
+
+def _analizar_pe(tramo: dict) -> dict:
+    """Conductor de protección / PAT: no lleva caída de tensión. Se verifica
+    la relación de sección PE/fase (IEC/IRAM 60364-5-54) y, si se pasa una
+    resistencia de puesta a tierra medida/estimada, su límite normativo.
+
+    Estados: "cumple" | "no_cumple" | "sin_dato"."""
+    s_pe = _num(tramo.get("S"))
+    s_fase_in = tramo.get("seccion_fase_mm2")
+    s_fase = _num(s_fase_in) if s_fase_in not in (None, "", 0) else None
+    s_pe_min = seccion_pe_minima(s_fase) if s_fase else None
+
+    relacion = None
+    if s_pe > 0 and s_pe_min is not None:
+        relacion = {"seccion_pe_mm2": s_pe, "seccion_fase_mm2": s_fase,
+                    "seccion_pe_minima_mm2": s_pe_min,
+                    "cumple": s_pe + 1e-9 >= s_pe_min}
+
+    pat = None
+    r_med = tramo.get("resistencia_pat_ohm")
+    if r_med not in (None, ""):
+        esquema = (tramo.get("esquema_tierra") or "TT").strip().upper()
+        i_dif = tramo.get("i_dif_a")
+        i_dif = float(i_dif) if i_dif not in (None, "", 0) else None
+        lim = limite_resistencia_pat(esquema, i_dif)
+        pat = {"resistencia_ohm": round(float(r_med), 2), "esquema": esquema,
+               "i_dif_a": i_dif, "limite_ohm": lim,
+               "cumple": (float(r_med) <= lim) if lim is not None else None}
+
+    if relacion is None:
+        estado = "sin_dato"
+    else:
+        ok_pat = True if (pat is None or pat["cumple"] is None) else pat["cumple"]
+        estado = "cumple" if (relacion["cumple"] and ok_pat) else "no_cumple"
+
+    return {
+        "id": tramo.get("id"),
+        "tipo_conductor": "pe",
+        "entrada": {"S": s_pe, "seccion_fase_mm2": s_fase,
+                    "esquema_tierra": tramo.get("esquema_tierra") or None},
+        "relacion_pe_fase": relacion,
+        "puesta_a_tierra": pat,
+        "estado": estado,
     }
 
 
