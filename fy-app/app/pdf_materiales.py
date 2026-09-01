@@ -155,6 +155,21 @@ def _tabla_categoria(pg, y: float, categoria: str, items: list[dict], mostrar_pr
     return y + GAP_TABLA_A_CAT
 
 
+def _fila_cable(c: dict) -> dict:
+    """Un renglón de la sección "Cable a comprar": lo que el usuario decidió
+    comprar a mano, ya sea en rollos o en metros (redondeado por él)."""
+    en_metros = c.get("unidad") == "m"
+    cantidad = c.get("cantidad")
+    if cantidad in (None, ""):
+        cantidad = 1
+    etiqueta = "Cable" if en_metros else "Rollo de cable"
+    nombre = f'{etiqueta} {c.get("seccionMm2")} mm² - {c.get("color", "")}'
+    if c.get("notas"):
+        nombre += f' ({c["notas"]})'
+    return {"item": nombre, "unidad": "m" if en_metros else "rollo",
+            "cantidad": cantidad, "precioEstimado": 0}
+
+
 def _es_cable_cano_estimado(e: dict) -> bool:
     """Los metros de cable y caño que salen de Routeo se reportan en pantalla
     para control, pero no van al PDF: en la lista que se le entrega, el cable
@@ -221,15 +236,13 @@ def generar(obra: dict, mostrar_precio: bool = True) -> bytes:
 
     cables = [c for c in (mat.get("cables") or []) if c.get("necesita")]
     if cables:
-        filas_cable = [{"item": f'Rollo de cable {c.get("seccionMm2")} mm² - {c.get("color","")}'
-                       + (f' ({c["notas"]})' if c.get("notas") else ""),
-                       "unidad": "rollo", "cantidad": 1, "precioEstimado": 0} for c in cables]
+        filas_cable = [_fila_cable(c) for c in cables]
         if y > ALTO - 140:
             pg, y = _nueva_pagina(doc, cfg)
-        y = _tabla_categoria(pg, y, "Rollos de cable a comprar", filas_cable, False)
+        y = _tabla_categoria(pg, y, "Cable a comprar", filas_cable, False)
         if y < 0:                              # no entraron las filas: página nueva y de vuelta
             pg, y = _nueva_pagina(doc, cfg)
-            y = _tabla_categoria(pg, y, "Rollos de cable a comprar", filas_cable, False)
+            y = _tabla_categoria(pg, y, "Cable a comprar", filas_cable, False)
 
     if mostrar_precio:
         if y > ALTO - 80:

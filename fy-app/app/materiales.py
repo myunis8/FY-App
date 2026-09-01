@@ -16,7 +16,7 @@ se crea uno nuevo ahí mismo -- así, obra tras obra, se usan siempre los
 mismos nombres en vez de ir acumulando variantes parecidas.
 """
 from __future__ import annotations
-import json, math
+import json, math, heapq
 from pathlib import Path
 from . import config as cfgmod
 
@@ -298,6 +298,76 @@ def computar_canalizacion(obra: dict) -> dict:
         "totalCableM": round(total_cable, 1),
         "totalCanoM": round(total_cano, 1),
     }
+
+
+def _dijkstra(adj: dict, inicio: str) -> dict:
+    dist = {inicio: 0.0}
+    cola = [(0.0, inicio)]
+    while cola:
+        d, u = heapq.heappop(cola)
+        if d > dist.get(u, math.inf):
+            continue
+        for v, w in adj.get(u, {}).items():
+            nd = d + w
+            if nd < dist.get(v, math.inf):
+                dist[v] = nd
+                heapq.heappush(cola, (nd, v))
+    return dist
+
+
+def computar_verificaciones(obra: dict) -> dict:
+    """Por circuito: la distancia más larga desde el tablero hasta el punto
+    más alejado, siguiendo la canalización ya trazada en Routeo (tramo
+    horizontal + bajadas, misma cuenta que computar_canalizacion). Es el dato
+    de entrada para estimar la caída de tensión y fijar un límite de consumo;
+    por ahora sólo informa la distancia, la sección y la protección de cada
+    circuito, sin calcular la caída.
+
+    Si hay más de un tablero, se toma la distancia al más cercano. Si un
+    circuito tiene tramos pero ninguno llega a un tablero por la
+    canalización, se informa igual con distancia nula."""
+    canal = obra.get("canalizacion") or {}
+    runs = canal.get("runs") or []
+    px_por_m = canal.get("pxPerM")
+    tablero_ids = {n["id"] for n in canal.get("nodes") or [] if n.get("kind") == "tablero"}
+    if not runs or not px_por_m or not tablero_ids:
+        return {"disponible": False, "circuitos": []}
+
+    nodos_por_id = {n["id"]: n for n in canal.get("nodes") or []}
+    z_cfg = canal.get("z") or {}
+    runs_por_circuito: dict = {}
+    for r in runs:
+        runs_por_circuito.setdefault(r.get("circuit"), []).append(r)
+
+    salida = []
+    for c in canal.get("circuits") or []:
+        tramos = runs_por_circuito.get(c.get("id")) or []
+        if not tramos:
+            continue
+        adj: dict = {}
+        for r in tramos:
+            a, b = r.get("a"), r.get("b")
+            if not a or not b:
+                continue
+            largo = _run_horiz_m(r, px_por_m) + _run_vert_m(r, nodos_por_id, z_cfg)
+            for x, y in ((a, b), (b, a)):
+                if largo < adj.setdefault(x, {}).get(y, math.inf):
+                    adj[x][y] = largo
+        inicios = [t for t in tablero_ids if t in adj]
+        fila = {"id": c.get("id"), "nombre": c.get("name") or c.get("id"),
+                "seccionMm2": c.get("section"), "proteccionA": c.get("prot") or None}
+        if not inicios:
+            salida.append({**fila, "distanciaM": None, "conectadoATablero": False})
+            continue
+        FUENTE = "\x00src"
+        for t in inicios:
+            adj.setdefault(FUENTE, {})[t] = 0.0
+            adj.setdefault(t, {})[FUENTE] = 0.0
+        dist = _dijkstra(adj, FUENTE)
+        dist.pop(FUENTE, None)
+        d_max = max((v for v in dist.values() if v < math.inf), default=0.0)
+        salida.append({**fila, "distanciaM": round(d_max, 1), "conectadoATablero": True})
+    return {"disponible": True, "circuitos": salida}
 
 
 # --------------------------------------------------- auto-matcheo con la obra

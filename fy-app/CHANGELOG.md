@@ -3,6 +3,28 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 0.32.0 — Lista de materiales: cómputo inicial automático, cable por rollo o metro, y apartado de Verificaciones técnicas
+
+- **Interruptor general, diferencial y protector de tensión en el cómputo.**
+  Se agrupan por especificación entre todos los tableros de la obra ("Interruptor
+  diferencial 40 A 30 mA monofásica", etc.) y se muestran junto a las térmicas
+  en la pantalla de materiales.
+- **PDF de materiales: columna de link de compra.** Si un ítem del catálogo
+  tiene link, el renglón del PDF queda clickeable y muestra el dominio.
+- **Los metros de cable y caño estimados de Routeo ya no salen en el PDF.**
+  Se siguen viendo en pantalla para control, pero en la lista que se entrega
+  el cable va por la sección "Cable a comprar" (que el usuario redondea).
+- **El cómputo se corre solo la primera vez que se abre el módulo** de una
+  obra; después se actualiza a mano con el botón de siempre. La obra queda
+  marcada para no repetirlo.
+- **Sección "Cable a comprar" con unidad elegible:** por rollos o por metros,
+  con cantidad editable. Va tal cual al PDF.
+- **Nuevo apartado "Verificaciones técnicas":** por circuito, la distancia
+  más larga desde el tablero hasta su punto más alejado siguiendo la
+  canalización de Routeo (tramo horizontal + bajadas), con la sección y la
+  protección del circuito. Es la base para estimar caída de tensión y fijar
+  límites de consumo; el cálculo de la caída todavía no se hace acá.
+
 ## 0.31.0 — avisos de Circuitos clickeables, y Lista de materiales completa: catálogo con precio/link/orden, cómputo real de Routeo/Tablero, y PDF propio
 
 - **Circuitos: los avisos del DRC ahora se pueden clickear.** "Quedan 2 sin

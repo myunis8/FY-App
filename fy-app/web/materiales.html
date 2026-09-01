@@ -91,6 +91,7 @@ td.acc{width:76px;text-align:center;white-space:nowrap}
   <div id="termicas-cont"></div>
   <div id="jabalina-cont"></div>
   <div id="canalizacion-cont"></div>
+  <div id="verificaciones-cont"></div>
 
   <h2>Lista de materiales de esta obra</h2>
   <div class="nota">Lo que se actualizó del cómputo automático queda marcado "auto". Podés
@@ -112,14 +113,16 @@ td.acc{width:76px;text-align:center;white-space:nowrap}
     <button class="btn primary sm" id="b-pdf">Descargar PDF</button>
   </div>
 
-  <h2>Rollos de cable a comprar</h2>
-  <div class="nota">Marcá qué secciones y colores necesitás reponer para esta obra.</div>
+  <h2>Cable a comprar</h2>
+  <div class="nota">Marcá qué secciones y colores necesitás reponer. Elegí si lo pedís en
+  rollos o en metros -- vos redondeás la cantidad, esto va tal cual al PDF.</div>
   <table>
-    <thead><tr><th style="width:110px">Sección</th><th>Color</th><th>Notas</th>
-      <th style="width:90px">Comprar</th><th></th></tr></thead>
+    <thead><tr><th style="width:100px">Sección</th><th>Color</th><th style="width:70px">Cant.</th>
+      <th style="width:100px">Unidad</th><th>Notas</th>
+      <th style="width:80px">Comprar</th><th></th></tr></thead>
     <tbody id="t-cables"></tbody>
   </table>
-  <button class="btn sm" id="cb-agregar">+ Agregar rollo</button>
+  <button class="btn sm" id="cb-agregar">+ Agregar cable</button>
 </main>
 
 <div class="overlay" id="ov-pdf">
@@ -152,6 +155,7 @@ const esc = s => (s==null?'':String(s)).replace(/[&<>"]/g,
 
 let catalogo = [], datosObra = {extras:[], cables:[]};
 let cajas = {}, tableros = [], generales = [], termicas = [], jabalina = null, canalizacion = {};
+let verificaciones = {disponible:false, circuitos:[]};
 
 $('b-volver').onclick = () => location.href = '/obra.html?obra=' + OBRA_ID;
 
@@ -160,19 +164,38 @@ async function cargar(){
   const d = await api('/api/obras/'+OBRA_ID+'/materiales');
   aplicarRespuesta(d);
   $('h-sub').textContent = 'Obra ' + OBRA_ID;
+  if(!datosObra.computoInicializado){
+    // primera vez que se abre el módulo para esta obra: se corre el cómputo
+    // solo, se marca la obra para no repetirlo, y de ahí en más va a mano
+    try{ await recalcularComputo({auto:true}); toast('Cómputo inicial calculado'); }
+    catch(e){ toast('No se pudo calcular el cómputo inicial: ' + e.message); }
+  }
   pintarTodo();
 }
 function aplicarRespuesta(d){
-  catalogo = d.catalogo.items || [];
+  if(d.catalogo) catalogo = d.catalogo.items || [];
   datosObra = d.obra || {extras:[], cables:[]};
   datosObra.extras = datosObra.extras || [];
   datosObra.cables = datosObra.cables || [];
   cajas = d.cajas; tableros = d.tableros; generales = d.generales || []; termicas = d.termicas || [];
   jabalina = d.jabalina; canalizacion = d.canalizacion || {disponible:false};
+  verificaciones = d.verificaciones || {disponible:false, circuitos:[]};
 }
 function pintarTodo(){
   pintarCajas(); pintarTableros(); pintarTermicas(); pintarJabalina(); pintarCanalizacion();
+  pintarVerificaciones();
   pintarSelectCatalogo(); pintarExtras(); pintarCables();
+}
+async function recalcularComputo({auto=false}={}){
+  const body = {recalcularComputo:true, guardar:true};
+  if(auto) body.materiales = {...datosObra, computoInicializado:true};
+  const r = await api('/api/obras/'+OBRA_ID+'/materiales', {method:'POST', body: JSON.stringify(body)});
+  aplicarRespuesta({obra: r.materiales, cajas: r.cajas, tableros: r.tableros, generales: r.generales,
+    termicas: r.termicas, jabalina: r.jabalina, canalizacion: r.canalizacion,
+    verificaciones: r.verificaciones});
+  // el catálogo puede haber sumado ítems nuevos -- se relee para que el selector los ofrezca
+  const cat = await api('/api/materiales');
+  catalogo = cat.items || [];
 }
 
 function pintarCajas(){
@@ -242,6 +265,33 @@ function pintarCanalizacion(){
     (estimado -- para el cómputo detallado de Routeo, usá su propia exportación).</div>`;
 }
 
+function pintarVerificaciones(){
+  const cont = $('verificaciones-cont');
+  if(!verificaciones.disponible){
+    cont.innerHTML = `<h2>Verificaciones técnicas</h2>
+      <div class="nota">Aparecen cuando haya circuitos ruteados hasta un tablero en Routeo,
+      con la escala del plano calibrada.</div>`;
+    return;
+  }
+  const filas = (verificaciones.circuitos||[]).map(c => `<tr>
+    <td>${esc(c.nombre)}</td>
+    <td class="num">${c.seccionMm2!=null ? esc(c.seccionMm2)+' mm²' : '—'}</td>
+    <td class="num">${c.proteccionA ? esc(c.proteccionA)+' A' : '—'}</td>
+    <td class="num">${c.distanciaM!=null ? c.distanciaM+' m'
+      : '<span class="chk-no">no llega al tablero</span>'}</td>
+  </tr>`).join('');
+  cont.innerHTML = `<h2>Verificaciones técnicas</h2>
+    <div class="nota">Distancia más larga desde el tablero hasta el punto más alejado de cada
+    circuito, siguiendo la canalización trazada en Routeo (tramo horizontal + bajadas). Es el
+    dato de entrada para estimar la caída de tensión y fijar un límite de consumo -- el cálculo
+    de la caída todavía no se hace acá.</div>
+    <table><thead><tr><th>Circuito</th><th style="width:90px">Sección</th>
+      <th style="width:90px">Protección</th><th style="width:150px">Distancia al tablero</th>
+    </tr></thead><tbody>${filas ||
+      '<tr><td colspan="4" style="color:var(--muted)">Todavía no hay circuitos ruteados.</td></tr>'
+    }</tbody></table>`;
+}
+
 function pintarSelectCatalogo(){
   const porCategoria = {};
   for(const it of catalogo) (porCategoria[it.categoria||'Otros'] ||= []).push(it);
@@ -297,16 +347,22 @@ function pintarCables(){
         `<option value="${s}" ${String(c.seccionMm2)===String(s)?'selected':''}>${s} mm²</option>`).join('')}</select></td>
       <td><select data-c="color">${COLORES_CABLE.map(col=>
         `<option ${c.color===col?'selected':''}>${esc(col)}</option>`).join('')}</select></td>
+      <td class="num"><input data-c="cantidad" type="number" min="0" step="any" value="${c.cantidad ?? 1}"></td>
+      <td><select data-c="unidad">
+        <option value="rollo" ${c.unidad!=='m'?'selected':''}>rollo(s)</option>
+        <option value="m" ${c.unidad==='m'?'selected':''}>metros</option></select></td>
       <td><input data-c="notas" value="${esc(c.notas||'')}" placeholder="ej: quedan 8m, alcanza para..."></td>
       <td style="text-align:center"><input type="checkbox" data-c="necesita" ${c.necesita?'checked':''}></td>
       <td class="acc"><button class="del" data-del="${i}" title="Quitar">×</button></td>
-    </tr>`).join('') : '<tr><td colspan="5" style="color:var(--muted);padding:12px">Todavía no agregaste ningún rollo.</td></tr>';
+    </tr>`).join('') : '<tr><td colspan="7" style="color:var(--muted);padding:12px">Todavía no agregaste ningún cable.</td></tr>';
   $('t-cables').querySelectorAll('tr[data-i]').forEach(tr => {
     const i = +tr.dataset.i;
     tr.querySelectorAll('[data-c]').forEach(el => {
       el.onchange = () => {
         const campo = el.dataset.c;
-        datosObra.cables[i][campo] = el.type==='checkbox' ? el.checked : el.value;
+        const val = el.type==='checkbox' ? el.checked
+          : (campo==='cantidad' ? (parseFloat(el.value)||0) : el.value);
+        datosObra.cables[i][campo] = val;
         guardar();
       };
     });
@@ -317,18 +373,8 @@ function pintarCables(){
 }
 
 $('b-actualizar').onclick = async () => {
-  try{
-    const r = await api('/api/obras/'+OBRA_ID+'/materiales',
-      {method:'POST', body: JSON.stringify({recalcularComputo:true, guardar:true})});
-    aplicarRespuesta({catalogo:{items: catalogo}, obra: r.materiales, cajas: r.cajas,
-      tableros: r.tableros, generales: r.generales, termicas: r.termicas, jabalina: r.jabalina,
-      canalizacion: r.canalizacion});
-    // el catálogo puede haber sumado ítems nuevos -- se relee para que el selector los ofrezca
-    const cat = await api('/api/materiales');
-    catalogo = cat.items || [];
-    pintarTodo();
-    toast('Cómputo actualizado');
-  }catch(e){ toast(e.message); }
+  try{ await recalcularComputo(); pintarTodo(); toast('Cómputo actualizado'); }
+  catch(e){ toast(e.message); }
 };
 
 $('ex-agregar').onclick = () => {
@@ -360,7 +406,8 @@ $('ex-nuevo-catalogo').onclick = async () => {
   toast('Agregado al catálogo -- ya lo podés elegir arriba');
 };
 $('cb-agregar').onclick = () => {
-  datosObra.cables.push({seccionMm2:2.5, color:COLORES_CABLE[0], notas:'', necesita:true});
+  datosObra.cables.push({seccionMm2:2.5, color:COLORES_CABLE[0], cantidad:1, unidad:'rollo',
+    notas:'', necesita:true});
   pintarCables(); guardar();
 };
 

@@ -210,6 +210,7 @@ class Handler(BaseHTTPRequestHandler):
                 "termicas": mat_mod.computar_termicas(obra),
                 "jabalina": mat_mod.computar_jabalina(obra),
                 "canalizacion": mat_mod.computar_canalizacion(obra),
+                "verificaciones": mat_mod.computar_verificaciones(obra),
             })
         if ruta == "/api/tablero/presets":
             return self._json({"presets": tablero_mod.PRESETS})
@@ -351,6 +352,7 @@ class Handler(BaseHTTPRequestHandler):
                 "termicas": mat_mod.computar_termicas(obra),
                 "jabalina": mat_mod.computar_jabalina(obra),
                 "canalizacion": mat_mod.computar_canalizacion(obra),
+                "verificaciones": mat_mod.computar_verificaciones(obra),
             })
 
         if ruta == "/api/config/verificar":
