@@ -44,6 +44,11 @@ SECCIONES_NORMALIZADAS = [1.0, 1.5, 2.5, 4.0, 6.0, 10.0, 16.0, 25.0,
 # ΔV% máximo por categoría de circuito (%). El usuario puede pasar otro.
 LIMITE_CAIDA_DEFAULT = {"iluminacion": 3.0, "fuerza_motriz": 5.0, "otros": 5.0}
 
+# Por encima de este largo (m), el "largo máximo admisible" que despeja la
+# fórmula pierde utilidad práctica (ninguna instalación razonable llega ahí):
+# se informa como no limitante en vez de mostrar un número enorme. Configurable.
+LARGO_MAX_REFERENCIA_M = 500.0
+
 # tipo de circuito de la app -> categoría de límite
 CATEGORIA_POR_TIPO = {
     "IUG": "iluminacion", "IUE": "iluminacion", "iluminacion": "iluminacion",
@@ -223,7 +228,8 @@ def longitud_maxima(*, S, I, sistema, tension_v, limite_pct, material="cobre"):
 
 
 # ------------------------------------------------------------------ reporte por tramo
-def analizar_tramo(tramo: dict, *, limites=None, norma=NORMA_DEFAULT) -> dict:
+def analizar_tramo(tramo: dict, *, limites=None, norma=NORMA_DEFAULT,
+                   largo_ref_m=LARGO_MAX_REFERENCIA_M) -> dict:
     """Despacha según el tipo de conductor (terminal / acometida / pe). `tramo`
     (todo opcional salvo S, y L para los que llevan caída):
 
@@ -235,11 +241,18 @@ def analizar_tramo(tramo: dict, *, limites=None, norma=NORMA_DEFAULT) -> dict:
     tipo = tipo_conductor_de(tramo)
     if tipo == "pe":
         return _analizar_pe(tramo)
-    return _analizar_caida(tramo, tipo=tipo, limites=limites, norma=norma)
+    return _analizar_caida(tramo, tipo=tipo, limites=limites, norma=norma,
+                           largo_ref_m=largo_ref_m)
 
 
-def _analizar_caida(tramo: dict, *, tipo="terminal", limites=None, norma=NORMA_DEFAULT) -> dict:
+def _analizar_caida(tramo: dict, *, tipo="terminal", limites=None, norma=NORMA_DEFAULT,
+                    largo_ref_m=LARGO_MAX_REFERENCIA_M) -> dict:
     """Caída de tensión de un conductor terminal o de acometida.
+
+    La corriente máxima admisible que despeja la fórmula se capa a la ampacidad
+    real del conductor: si la fórmula da más, el factor limitante es la
+    ampacidad, no la caída (el tramo es demasiado corto para que la caída sea
+    la restricción activa). Se informa en `factor_limitante`.
 
     Estados:
       - "excede_caida_tension": a la corriente de referencia de la protección
@@ -305,11 +318,20 @@ def _analizar_caida(tramo: dict, *, tipo="terminal", limites=None, norma=NORMA_D
         proteccion = {"corriente_a": round(i_prot, 1),
                       "deltaV_v": cc["deltaV_v"], "deltaV_pct": cc["deltaV_pct"]}
 
-    i_max = corriente_maxima(L=L, S=S, sistema=sistema, tension_v=V,
-                             limite_pct=limite_pct, material=material)
+    # corriente máxima por caída, capada a la ampacidad real del conductor
+    i_max_formula = corriente_maxima(L=L, S=S, sistema=sistema, tension_v=V,
+                                     limite_pct=limite_pct, material=material)
+    if i_max_formula is None:
+        i_max, factor_limitante = None, None
+    elif iz is not None and i_max_formula > iz:
+        i_max, factor_limitante = round(iz, 1), "ampacidad del conductor"
+    else:
+        i_max, factor_limitante = round(i_max_formula, 1), "caída de tensión"
+
     l_max = (longitud_maxima(S=S, I=i_peor, sistema=sistema, tension_v=V,
                              limite_pct=limite_pct, material=material)
              if i_peor else None)
+    l_max_no_limitante = l_max is not None and l_max > largo_ref_m
 
     dv_peor = peor["deltaV_pct"] if peor else None
     dv_prot = proteccion["deltaV_pct"] if proteccion else None
@@ -345,8 +367,12 @@ def _analizar_caida(tramo: dict, *, tipo="terminal", limites=None, norma=NORMA_D
         "entrada": entrada,
         "peor_caso": peor,
         "proteccion": proteccion,
-        "corriente_max_admisible_a": round(i_max, 1) if i_max is not None else None,
+        "corriente_max_admisible_a": i_max,
+        "corriente_max_formula_a": round(i_max_formula, 1) if i_max_formula is not None else None,
+        "factor_limitante": factor_limitante,
         "longitud_max_admisible_m": round(l_max, 1) if l_max is not None else None,
+        "longitud_max_no_limitante": l_max_no_limitante,
+        "largo_referencia_m": largo_ref_m,
         "margen_pct": margen,
         "estado": estado,
         "pendiente_proteccion_general": pendiente_general,
@@ -399,5 +425,7 @@ def _analizar_pe(tramo: dict) -> dict:
     }
 
 
-def analizar(tramos, *, limites=None, norma=NORMA_DEFAULT) -> list:
-    return [analizar_tramo(t, limites=limites, norma=norma) for t in (tramos or [])]
+def analizar(tramos, *, limites=None, norma=NORMA_DEFAULT,
+             largo_ref_m=LARGO_MAX_REFERENCIA_M) -> list:
+    return [analizar_tramo(t, limites=limites, norma=norma, largo_ref_m=largo_ref_m)
+            for t in (tramos or [])]

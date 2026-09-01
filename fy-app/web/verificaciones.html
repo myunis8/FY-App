@@ -167,6 +167,13 @@ function pintar(d){
       : '';
     const nota = ca.pendiente_proteccion_general
       ? `<span class="sub2">definí el interruptor general en Tablero para confirmar</span>` : '';
+    const fl = ca.factor_limitante === 'ampacidad del conductor' ? 'limita: ampacidad'
+             : ca.factor_limitante === 'caída de tensión' ? 'limita: caída de tensión' : '';
+    const notaFactor = (ca.estado === 'ok' && ca.factor_limitante === 'ampacidad del conductor')
+      ? `<span class="sub2">manda la ampacidad, el tramo es corto para que limite la caída</span>` : '';
+    const lMax = ca.longitud_max_no_limitante
+      ? `<span style="color:var(--muted)">&gt; ${nf(ca.largo_referencia_m,0)} m</span>`
+      : nf(ca.longitud_max_admisible_m,1)+' m';
     const protA = ca.entrada?.proteccion_a ?? c.proteccionA;
     return `<tr>
       ${cab(c, sub)}
@@ -176,23 +183,26 @@ function pintar(d){
       <td class="num">${nf(c.distanciaM)} m</td>
       <td class="num">${nf(peor.deltaV_pct,2)} %<span class="sub2">lím ${nf(lim,0)} %${
         peor.corriente_a!=null ? ' · '+nf(peor.corriente_a,0)+' A' : ''}</span></td>
-      <td class="num">${nf(ca.corriente_max_admisible_a,1)} A</td>
-      <td class="num">${nf(ca.longitud_max_admisible_m,1)} m</td>
-      <td><span class="pill ${e.cls}">${e.txt}</span>${sug}${nota}</td>
+      <td class="num">${nf(ca.corriente_max_admisible_a,1)} A${fl ? '<span class="sub2">'+fl+'</span>' : ''}</td>
+      <td class="num">${lMax}</td>
+      <td><span class="pill ${e.cls}">${e.txt}</span>${sug}${nota}${notaFactor}</td>
     </tr>`;
   }).join('');
   $('cont').innerHTML = `<div class="tabla-scroll"><table>
     <thead><tr>
       <th>Circuito</th><th class="num">Sección</th><th class="num">Protección</th>
       <th class="num">Largo</th><th class="num">ΔV % (peor caso)</th>
-      <th class="num">I máx (ΔV)</th><th class="num">Largo máx</th><th>Estado</th>
+      <th class="num">I máx adm.</th><th class="num">Largo máx</th><th>Estado</th>
     </tr></thead>
     <tbody>${filas ||
       '<tr><td colspan="8" style="color:var(--muted)">No hay circuitos con tramos en Routeo.</td></tr>'
     }</tbody></table></div>
     <div class="leyenda">
-      <b>I máx (ΔV)</b>: corriente que se puede transportar sin superar el ΔV % límite.
-      <b>Largo máx</b>: largo admisible para ese cable en el peor caso.<br>
+      <b>I máx adm.</b>: corriente máxima que admite el tramo, tomando el menor de dos límites:
+      el que fija la caída de tensión y la ampacidad real del conductor. "limita: ampacidad"
+      significa que el tramo es demasiado corto para que la caída sea la restricción activa.
+      <b>Largo máx</b>: largo admisible para ese cable en el peor caso; se muestra sólo el tope
+      de referencia cuando el resultado matemático deja de tener utilidad práctica (tramo corto).<br>
       <b>Excede caída</b>: a la corriente de la protección el ΔV % ya supera el límite.
       <b>Excede longitud</b>: a la ampacidad del conductor el ΔV % supera el límite (el tramo es
       más largo que el máximo).

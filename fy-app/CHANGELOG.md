@@ -3,6 +3,22 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 0.35.1 — Caída de tensión: capar "I máx" a la ampacidad real del conductor
+
+- **Fix**: "I máx" despejaba la corriente que produce el ΔV % límite pero no la
+  comparaba con la ampacidad del conductor, dando valores físicamente
+  imposibles en tramos cortos con sección generosa (ej. 246 A en 6 mm²). Ahora
+  `I_máx = min(I por caída, ampacidad del conductor)`.
+- **Nuevo campo `factor_limitante`** por tramo: "caída de tensión" o "ampacidad
+  del conductor" -- deja claro cuál de los dos criterios mandó en el resultado.
+  Cuando manda la ampacidad, el estado OK aclara que el tramo es corto para que
+  la caída sea la restricción.
+- **"Largo máx"**: por encima de un tope de referencia (500 m, configurable con
+  `largo_ref_m`) se informa como no limitante en vez de mostrar un número sin
+  utilidad práctica.
+- Aplica a todos los circuitos terminales y a la acometida; el conductor de PE
+  no lleva este cálculo.
+
 ## 0.35.0 — Caída de tensión: lógica propia por tipo de conductor
 
 - **El análisis distingue tres tipos de conductor**, identificados por el tipo
