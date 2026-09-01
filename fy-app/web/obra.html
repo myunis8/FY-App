@@ -108,8 +108,14 @@ h2:first-child{margin-top:0}
   </div>
   <div class="plano-fila">
     <div class="txt"><b>Lista de materiales</b>
-      <div class="nota">Cajas, tablero con accesorios, PAT, productos extra y rollos de cable a comprar.</div></div>
+      <div class="nota">Cajas, tablero con accesorios, PAT, productos extra y cable a comprar.</div></div>
     <button class="btn primary sm" id="d-materiales">Abrir</button>
+  </div>
+  <div class="plano-fila">
+    <div class="txt"><b>Verificaciones técnicas</b>
+      <div class="nota">Distancia de cada circuito al tablero, con su sección y protección --
+      base para caída de tensión y límites de consumo.</div></div>
+    <button class="btn primary sm" id="d-verificaciones">Abrir</button>
   </div>
 
   <h2>Seguimiento</h2>
@@ -394,6 +400,7 @@ function pintarBloques(obra){
     (obra.presupuesto?.congeladoEl ? ' · congelado' : ' · sin congelar') : 'Todavía ninguno';
   $('d-presupuesto').onclick = () => location.href = '/presupuesto.html?obra=' + obra.obra.id;
   $('d-materiales').onclick = () => location.href = '/materiales.html?obra=' + obra.obra.id;
+  $('d-verificaciones').onclick = () => location.href = '/verificaciones.html?obra=' + obra.obra.id;
   $('d-pdf').onclick = () => mostrarVistaPreviaPdf(
     '/api/obras/' + obra.obra.id + '/presupuesto.pdf',
     (obra.obra.nombre || 'presupuesto').replace(/\s+/g,'_') + '.pdf');

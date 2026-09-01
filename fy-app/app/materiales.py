@@ -193,17 +193,27 @@ def computar_termicas(obra: dict) -> list[dict]:
     return salida
 
 
+JAB_SECCION_DEFAULT = "3/4\""
+JAB_LARGO_M_DEFAULT = 1.5
+
+
 def computar_jabalina(obra: dict):
     """Una jabalina + su caja de inspección por cada tablero con bornera de
-    tierra. Sección y largo son el estándar AEA para instalaciones
-    residenciales (jabalina copperweld 5/8" x 2,40 m) -- hoy no hay ningún
-    campo para cargar uno distinto obra por obra; si en algún momento se
-    agrega, éste es el lugar natural para leerlo en vez de este default."""
+    tierra. La sección y el largo se toman de la jabalina cargada en Routeo
+    (nodo `kind == "jabalina"`, campos `jabSeccion` / `jabLargoM`); si todavía
+    no se agregó ninguna al plano, se usa el default (3/4" x 1,5 m)."""
     cantidad = sum(1 for t in obra.get("tableros") or []
                    for d in (t.get("dispositivos") or []) if d.get("tipo") == "bornera")
     if not cantidad:
         return None
-    return {"cantidad": cantidad, "seccion": "5/8\"", "largo": "2,40 m"}
+    jab = next((n for n in (obra.get("canalizacion") or {}).get("nodes") or []
+                if n.get("kind") == "jabalina"), None)
+    seccion = ((jab or {}).get("jabSeccion") or "").strip() or JAB_SECCION_DEFAULT
+    largo_m = (jab or {}).get("jabLargoM")
+    if not isinstance(largo_m, (int, float)) or largo_m <= 0:
+        largo_m = JAB_LARGO_M_DEFAULT
+    largo = f"{largo_m:g} m".replace(".", ",")
+    return {"cantidad": cantidad, "seccion": seccion, "largo": largo, "largoM": largo_m}
 
 
 def _resolve_z(nodo, z_cfg):

@@ -210,8 +210,12 @@ class Handler(BaseHTTPRequestHandler):
                 "termicas": mat_mod.computar_termicas(obra),
                 "jabalina": mat_mod.computar_jabalina(obra),
                 "canalizacion": mat_mod.computar_canalizacion(obra),
-                "verificaciones": mat_mod.computar_verificaciones(obra),
             })
+        if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "verificaciones":
+            obra = almacen.leer_obra(partes[2])
+            if obra is None:
+                return self._error("Esa obra no está en este equipo.", 404)
+            return self._json(mat_mod.computar_verificaciones(obra))
         if ruta == "/api/tablero/presets":
             return self._json({"presets": tablero_mod.PRESETS})
         if len(partes) == 4 and partes[:3] == ["api", "config", "imagen"]:
@@ -352,7 +356,6 @@ class Handler(BaseHTTPRequestHandler):
                 "termicas": mat_mod.computar_termicas(obra),
                 "jabalina": mat_mod.computar_jabalina(obra),
                 "canalizacion": mat_mod.computar_canalizacion(obra),
-                "verificaciones": mat_mod.computar_verificaciones(obra),
             })
 
         if ruta == "/api/config/verificar":

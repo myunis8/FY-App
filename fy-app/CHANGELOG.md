@@ -3,6 +3,24 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 0.33.0 — Verificaciones técnicas como módulo propio, jabalina configurable, y avisos de Routeo clickeables
+
+- **"Verificaciones técnicas" pasa a ser un módulo aparte**, al que se entra
+  desde la ventana de la obra igual que a Circuitos, Tablero o Routeo
+  (`web/verificaciones.html`, endpoint `GET /api/obras/{id}/verificaciones`).
+  Se sacó la sección que estaba dentro de la Lista de materiales.
+- **Routeo: los avisos y errores del DRC ahora son clickeables.** Al tocar
+  la fila de un aviso ("tal caño colapsado", "tramo sin cerrar", etc.) la
+  vista se centra en el tramo o la caja señalada, queda seleccionada, y se
+  resalta un segundo con un pulso para ubicarla rápido.
+- **Routeo: la jabalina de puesta a tierra se configura al agregarla al
+  plano.** En su panel se elige la sección (1/2" / 5/8" / 3/4") y el largo
+  en metros; por defecto es 3/4" x 1,5 m. Ese dato se impacta en la Lista
+  de materiales (antes estaba fijo en 5/8" x 2,40 m).
+- **Lista de materiales: el color "Azul (neutro)" pasa a "Celeste
+  (neutro)"**, unificado con la nomenclatura de Routeo y Tablero. Los
+  cables ya cargados se migran solos.
+
 ## 0.32.0 — Lista de materiales: cómputo inicial automático, cable por rollo o metro, y apartado de Verificaciones técnicas
 
 - **Interruptor general, diferencial y protector de tensión en el cómputo.**

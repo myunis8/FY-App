@@ -91,7 +91,6 @@ td.acc{width:76px;text-align:center;white-space:nowrap}
   <div id="termicas-cont"></div>
   <div id="jabalina-cont"></div>
   <div id="canalizacion-cont"></div>
-  <div id="verificaciones-cont"></div>
 
   <h2>Lista de materiales de esta obra</h2>
   <div class="nota">Lo que se actualizó del cómputo automático queda marcado "auto". Podés
@@ -140,7 +139,7 @@ const $ = id => document.getElementById(id);
 const params = new URLSearchParams(location.search);
 const OBRA_ID = params.get('obra');
 const SECCIONES = [1, 1.5, 2.5, 4, 6, 10, 16, 25];
-const COLORES_CABLE = ['Rojo (fase)', 'Negro (fase)', 'Azul (neutro)', 'Verde-amarillo (tierra)', 'Marrón', 'Blanco', 'Otro'];
+const COLORES_CABLE = ['Rojo (fase)', 'Negro (fase)', 'Celeste (neutro)', 'Verde-amarillo (tierra)', 'Marrón', 'Blanco', 'Otro'];
 
 const api = async (ruta, opts={}) => {
   const r = await fetch(ruta, {headers:{'Content-Type':'application/json'}, ...opts});
@@ -155,7 +154,6 @@ const esc = s => (s==null?'':String(s)).replace(/[&<>"]/g,
 
 let catalogo = [], datosObra = {extras:[], cables:[]};
 let cajas = {}, tableros = [], generales = [], termicas = [], jabalina = null, canalizacion = {};
-let verificaciones = {disponible:false, circuitos:[]};
 
 $('b-volver').onclick = () => location.href = '/obra.html?obra=' + OBRA_ID;
 
@@ -177,13 +175,14 @@ function aplicarRespuesta(d){
   datosObra = d.obra || {extras:[], cables:[]};
   datosObra.extras = datosObra.extras || [];
   datosObra.cables = datosObra.cables || [];
+  // los colores viejos "Azul (neutro)" pasan a "Celeste (neutro)" (queda
+  // guardado en el próximo guardar())
+  datosObra.cables.forEach(c => { if(c.color === 'Azul (neutro)') c.color = 'Celeste (neutro)'; });
   cajas = d.cajas; tableros = d.tableros; generales = d.generales || []; termicas = d.termicas || [];
   jabalina = d.jabalina; canalizacion = d.canalizacion || {disponible:false};
-  verificaciones = d.verificaciones || {disponible:false, circuitos:[]};
 }
 function pintarTodo(){
   pintarCajas(); pintarTableros(); pintarTermicas(); pintarJabalina(); pintarCanalizacion();
-  pintarVerificaciones();
   pintarSelectCatalogo(); pintarExtras(); pintarCables();
 }
 async function recalcularComputo({auto=false}={}){
@@ -191,8 +190,7 @@ async function recalcularComputo({auto=false}={}){
   if(auto) body.materiales = {...datosObra, computoInicializado:true};
   const r = await api('/api/obras/'+OBRA_ID+'/materiales', {method:'POST', body: JSON.stringify(body)});
   aplicarRespuesta({obra: r.materiales, cajas: r.cajas, tableros: r.tableros, generales: r.generales,
-    termicas: r.termicas, jabalina: r.jabalina, canalizacion: r.canalizacion,
-    verificaciones: r.verificaciones});
+    termicas: r.termicas, jabalina: r.jabalina, canalizacion: r.canalizacion});
   // el catálogo puede haber sumado ítems nuevos -- se relee para que el selector los ofrezca
   const cat = await api('/api/materiales');
   catalogo = cat.items || [];
@@ -263,33 +261,6 @@ function pintarCanalizacion(){
     </div>
     <div class="nota">Total: ${canalizacion.totalCableM} m de cable, ${canalizacion.totalCanoM} m de caño
     (estimado -- para el cómputo detallado de Routeo, usá su propia exportación).</div>`;
-}
-
-function pintarVerificaciones(){
-  const cont = $('verificaciones-cont');
-  if(!verificaciones.disponible){
-    cont.innerHTML = `<h2>Verificaciones técnicas</h2>
-      <div class="nota">Aparecen cuando haya circuitos ruteados hasta un tablero en Routeo,
-      con la escala del plano calibrada.</div>`;
-    return;
-  }
-  const filas = (verificaciones.circuitos||[]).map(c => `<tr>
-    <td>${esc(c.nombre)}</td>
-    <td class="num">${c.seccionMm2!=null ? esc(c.seccionMm2)+' mm²' : '—'}</td>
-    <td class="num">${c.proteccionA ? esc(c.proteccionA)+' A' : '—'}</td>
-    <td class="num">${c.distanciaM!=null ? c.distanciaM+' m'
-      : '<span class="chk-no">no llega al tablero</span>'}</td>
-  </tr>`).join('');
-  cont.innerHTML = `<h2>Verificaciones técnicas</h2>
-    <div class="nota">Distancia más larga desde el tablero hasta el punto más alejado de cada
-    circuito, siguiendo la canalización trazada en Routeo (tramo horizontal + bajadas). Es el
-    dato de entrada para estimar la caída de tensión y fijar un límite de consumo -- el cálculo
-    de la caída todavía no se hace acá.</div>
-    <table><thead><tr><th>Circuito</th><th style="width:90px">Sección</th>
-      <th style="width:90px">Protección</th><th style="width:150px">Distancia al tablero</th>
-    </tr></thead><tbody>${filas ||
-      '<tr><td colspan="4" style="color:var(--muted)">Todavía no hay circuitos ruteados.</td></tr>'
-    }</tbody></table>`;
 }
 
 function pintarSelectCatalogo(){

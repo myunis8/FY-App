@@ -119,6 +119,8 @@ input[type=color].f{padding:2px;height:29px}
 .drc{display:flex;gap:8px;padding:7px 8px;border-radius:5px;margin-bottom:5px;font-size:12px;line-height:1.45;align-items:flex-start}
 .drc.e{background:var(--err-bg);color:var(--err)}
 .drc.w{background:var(--warn-bg);color:var(--warn)}
+.drc.clickable{cursor:pointer}
+.drc.clickable:hover{filter:brightness(.96)}
 .drc .ic{font-family:var(--fm);font-weight:600;flex:none;line-height:1.45}
 .drc .go{margin-left:auto;flex:none;background:none;border:1px solid currentColor;opacity:.6;border-radius:4px;
   padding:0 5px;font-size:11px;color:inherit;line-height:18px}
@@ -559,6 +561,12 @@ const INSP_SIZES = {
   custom:  {label:"Personalizada", max:8}
 };
 const INSP_DEFAULT = "20x20";
+// jabalina de puesta a tierra: diámetro y largo. El default es una copperweld
+// de 3/4" x 1,5 m; se puede cambiar por jabalina desde su panel y eso llega a
+// la Lista de materiales (ver computar_jabalina en app/materiales.py).
+const JAB_SECCIONES = ['1/2"', '5/8"', '3/4"'];
+const JAB_SECCION_DEFAULT = '3/4"';
+const JAB_LARGO_M_DEFAULT = 1.5;
 const DEVICES = {
   luminaria:"Luminaria", interruptor:"Interruptor", toma:"Tomacorriente",
   especial:"Punto especial", paso:"Caja de paso"
@@ -696,6 +704,7 @@ const S = {
   grid:{on:true, size:40, snap:true},        // grilla de alineación (tamaño en px del plano)
   wires:[],                                  // [{id,circuit,kind:'F'|'N'|'RS'|'RC',light,branch,runIds:[]}]
   tracingWire:null,                          // id del conductor que se está trazando ahora
+  drcPulse:null,                             // {id, t0} -- resalte temporal al clickear un aviso del DRC
   counters:{}
 };
 
@@ -1441,6 +1450,33 @@ function render(){
     ctx.restore();
   }
 
+  // resalte temporal de un aviso del DRC recién clickeado
+  if(S.drcPulse){
+    const DUR = 1600, k = (performance.now() - S.drcPulse.t0) / DUR;
+    if(k >= 1){ S.drcPulse = null; }
+    else {
+      ctx.save();
+      ctx.strokeStyle = "#a9552a";
+      const run = S.runs.find(x=>x.id===S.drcPulse.id);
+      if(run){
+        ctx.globalAlpha = 0.85 * (1 - k);
+        ctx.lineWidth = (9 + 16*k)/S.view.z; ctx.lineCap="round"; ctx.lineJoin="round";
+        tracePath(ctx, run.pts); ctx.stroke();
+      } else {
+        const n = nodeById(S.drcPulse.id);
+        if(n){
+          ctx.lineWidth = 3/S.view.z;
+          for(const off of [0, 0.34, 0.68]){
+            const kk = (k + off) % 1;
+            ctx.globalAlpha = 0.85 * (1 - kk);
+            ctx.beginPath(); ctx.arc(n.x, n.y, (12 + 46*kk)/S.view.z, 0, 7); ctx.stroke();
+          }
+        }
+      }
+      ctx.restore();
+    }
+  }
+
   // borrador
   if(S.draft && S.draft.pts.length){
     const c = activeCi();
@@ -1566,6 +1602,9 @@ cv.addEventListener("pointerdown", e=>{
     if(S.tool==="insp"){
       const preset = INSP_SIZES[INSP_DEFAULT];
       n.inspSize = INSP_DEFAULT; n.inspLabel = preset.label; n.inspMax = preset.max;
+    }
+    if(S.tool==="jabalina"){
+      n.jabSeccion = JAB_SECCION_DEFAULT; n.jabLargoM = JAB_LARGO_M_DEFAULT;
     }
     S.nodes.push(n); S.sel={t:"node",id:n.id};
     refreshAll(); return;
@@ -1994,6 +2033,17 @@ function paintProp(){
         </div>
         <div><label class="f">Medida (editable)</label><input class="f" id="pInspLabel" value="${esc(n.inspLabel||"")}" placeholder="ej: 20×20 cm"></div>
       </div>` : ""}
+      ${n.kind==="jabalina" ? `
+      <div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--line-2)">
+        <label class="f" style="margin-bottom:5px">Jabalina de puesta a tierra</label>
+        <div class="f2">
+          <div><label class="f">Sección</label><select class="f" id="pJabSec">${
+            JAB_SECCIONES.map(s=>`<option value='${s}'${(n.jabSeccion||JAB_SECCION_DEFAULT)===s?" selected":""}>${s}</option>`).join("")
+          }</select></div>
+          <div><label class="f">Largo (m)</label><input class="f mono" id="pJabLargo" type="number" step="0.1" min="0.5" value="${n.jabLargoM ?? JAB_LARGO_M_DEFAULT}"></div>
+        </div>
+        <p class="msg" style="margin:5px 0 0">Va a la Lista de materiales.</p>
+      </div>` : ""}
       <div style="margin-top:6px"><label class="f">Nota</label><input class="f" id="pNote" value="${esc(n.note||"")}" placeholder="opcional"></div>
       ${canConvertInsp?`<button class="btn sm" id="pToInsp" style="width:100%;margin-top:8px">Convertir en caja de inspección</button>`:""}
       <button class="btn sm" id="pDel" style="width:100%;margin-top:8px">Eliminar</button>`;
@@ -2027,6 +2077,11 @@ function paintProp(){
       drcInvalidate(); render(); paintDrc(); paintBom();
     };
     if($("#pInspLabel")) $("#pInspLabel").oninput = e=>{ n.inspLabel = e.target.value; paintBom(); };
+    if($("#pJabSec")) $("#pJabSec").onchange = e=>{ n.jabSeccion = e.target.value; };
+    if($("#pJabLargo")) $("#pJabLargo").oninput = e=>{
+      const v = parseFloat(e.target.value);
+      n.jabLargoM = (isFinite(v) && v > 0) ? v : JAB_LARGO_M_DEFAULT;
+    };
     $("#pNote").oninput = e=>{ n.note=e.target.value; };
     if($("#pToInsp")) $("#pToInsp").onclick = ()=>{
       pushUndo();
@@ -2222,15 +2277,35 @@ function paintDrc(){
   }
   const es=list.filter(d=>d.lvl==="e").length, ws=list.length-es;
   el.innerHTML = `<p class="msg" style="margin:0 0 7px">${es} error${es===1?"":"es"} · ${ws} aviso${ws===1?"":"s"}</p>` +
-    list.map((d,i)=>`<div class="drc ${d.lvl}"><span class="ic">${d.lvl==="e"?"!":"?"}</span><span>${d.txt}</span>${
+    list.map((d,i)=>`<div class="drc ${d.lvl}${d.target?" clickable":""}" data-i="${i}"><span class="ic">${d.lvl==="e"?"!":"?"}</span><span>${d.txt}</span>${
       d.target?`<button class="go" data-i="${i}">ir</button>`:""}</div>`).join("");
-  $$("#drc .go").forEach(b=> b.onclick=()=>{
-    const d = list[+b.dataset.i]; if(!d.target) return;
-    const n = nodeById(d.target);
-    if(n){ S.sel={t:"node",id:n.id}; centerOn(n); }
-    else { const r=S.runs.find(x=>x.id===d.target); if(r){ S.sel={t:"run",id:r.id}; centerOn(r.pts[0]); } }
-    refreshAll();
-  });
+  $$("#drc .drc.clickable").forEach(row=> row.onclick=()=> irADrc(list[+row.dataset.i]));
+  $$("#drc .go").forEach(b=> b.onclick=(e)=>{ e.stopPropagation(); irADrc(list[+b.dataset.i]); });
+}
+
+// lleva la vista al tramo o caja que señala un aviso del DRC, lo selecciona,
+// y lo resalta un momento con un pulso para que sea fácil de ubicar
+function irADrc(d){
+  if(!d || !d.target) return;
+  const n = nodeById(d.target);
+  if(n){ S.sel={t:"node",id:n.id}; centerOn(n); }
+  else {
+    const r = S.runs.find(x=>x.id===d.target);
+    if(!r) return;
+    S.sel={t:"run",id:r.id}; centerOn(r.pts[0]);
+  }
+  refreshAll();
+  pulsarTarget(d.target);
+}
+
+function pulsarTarget(id){
+  S.drcPulse = {id, t0: performance.now()};
+  const tick = ()=>{
+    if(!S.drcPulse) return;
+    render();
+    if(S.drcPulse) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
 }
 
 function centerOn(p){

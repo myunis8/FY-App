@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Verificaciones técnicas</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+:root{
+  --navy:#16283f; --navy-deep:#0e1c2e; --paper:#f1f3f2; --panel:#fff; --line:#dde3e2;
+  --ink:#1c2733; --muted:#5b6b7a; --amber:#e2a33d; --amber-deep:#c07f1f;
+  --copper:#b5651d; --slate-soft:#eef1f3; --green:#2f7d5c; --danger:#b3432f;
+  --radius:10px; font-family:'IBM Plex Sans',system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink)}
+button{font:inherit;cursor:pointer}
+header{background:var(--navy);color:#fff;padding:14px 22px;display:flex;
+  align-items:center;gap:16px;flex-wrap:wrap}
+header h1{font-size:1.05rem;margin:0;font-weight:600;font-family:'Space Grotesk',sans-serif}
+header .sub{font-size:.72rem;color:#9db2c7;margin-top:2px}
+.spacer{flex:1}
+.btn{border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:8px 14px;
+  border-radius:var(--radius);font-size:.83rem;font-weight:500}
+.btn:hover{border-color:var(--muted)}
+.btn.ghost{background:transparent;border-color:#33506e;color:#cfe0f0}
+.btn.ghost:hover{border-color:#5b7fa5}
+main{max-width:920px;margin:0 auto;padding:26px 22px 60px}
+h2{font-family:'Space Grotesk',sans-serif;font-size:.82rem;margin:26px 0 8px;
+  text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+h2:first-child{margin-top:0}
+.nota{font-size:.78rem;color:var(--muted);margin:2px 0 12px;line-height:1.5}
+table{width:100%;border-collapse:collapse;background:var(--panel);border-radius:8px;overflow:hidden;
+  border:1px solid var(--line);margin-bottom:8px}
+th{background:var(--slate-soft);text-align:left;font-size:.68rem;text-transform:uppercase;
+  letter-spacing:.04em;color:var(--muted);padding:8px 10px;font-weight:600}
+td{padding:8px 10px;font-size:.85rem;border-top:1px solid var(--line)}
+td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.sinllegar{color:var(--muted)}
+#toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--navy-deep);
+  color:#fff;padding:11px 18px;border-radius:var(--radius);font-size:.83rem;display:none;z-index:60}
+</style>
+</head>
+<body>
+<header>
+  <div><h1>Verificaciones técnicas</h1><div class="sub" id="h-sub">Cargando…</div></div>
+  <div class="spacer"></div>
+  <button class="btn ghost" id="b-volver">‹ Volver</button>
+</header>
+
+<main>
+  <h2>Distancia de cada circuito al tablero</h2>
+  <div class="nota">Es la distancia más larga desde el tablero hasta el punto más alejado de
+  cada circuito, siguiendo la canalización trazada en <b>Routeo</b> (tramo horizontal + bajadas).
+  Cuando hay más de un tablero se toma la distancia al más cercano. Es el dato de entrada para
+  estimar la <b>caída de tensión</b> y fijar un <b>límite de consumo</b> por circuito; el cálculo
+  de la caída todavía no se hace acá.</div>
+  <div id="cont"></div>
+</main>
+
+<div id="toast"></div>
+<script>
+const $ = id => document.getElementById(id);
+const OBRA_ID = new URLSearchParams(location.search).get('obra');
+const esc = s => (s==null?'':String(s)).replace(/[&<>"]/g,
+  c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function toast(m){ const t=$('toast'); t.textContent=m; t.style.display='block';
+  clearTimeout(t._t); t._t=setTimeout(()=>t.style.display='none',3000); }
+
+$('b-volver').onclick = () => location.href = '/obra.html?obra=' + OBRA_ID;
+
+async function cargar(){
+  if(!OBRA_ID){ $('h-sub').textContent = 'Falta el id de la obra en la URL.'; return; }
+  let d;
+  try{
+    const r = await fetch('/api/obras/'+OBRA_ID+'/verificaciones');
+    d = await r.json();
+    if(!r.ok) throw new Error(d.error || 'Error inesperado');
+  }catch(e){ $('h-sub').textContent = e.message; toast(e.message); return; }
+  $('h-sub').textContent = 'Obra ' + OBRA_ID;
+  pintar(d);
+}
+
+function pintar(d){
+  if(!d.disponible){
+    $('cont').innerHTML = `<div class="nota">Todavía no hay nada que verificar: hace falta
+    tener circuitos ruteados hasta un tablero en Routeo, con la escala del plano calibrada.</div>`;
+    return;
+  }
+  const filas = (d.circuitos||[]).map(c => `<tr>
+    <td>${esc(c.nombre)}</td>
+    <td class="num">${c.seccionMm2!=null ? esc(c.seccionMm2)+' mm²' : '—'}</td>
+    <td class="num">${c.proteccionA ? esc(c.proteccionA)+' A' : '—'}</td>
+    <td class="num">${c.distanciaM!=null ? c.distanciaM+' m'
+      : '<span class="sinllegar">no llega al tablero</span>'}</td>
+  </tr>`).join('');
+  $('cont').innerHTML = `<table>
+    <thead><tr><th>Circuito</th><th style="width:110px;text-align:right">Sección</th>
+      <th style="width:110px;text-align:right">Protección</th>
+      <th style="width:170px;text-align:right">Distancia al tablero</th></tr></thead>
+    <tbody>${filas ||
+      '<tr><td colspan="4" style="color:var(--muted)">No hay circuitos con tramos en Routeo.</td></tr>'
+    }</tbody></table>`;
+}
+
+cargar();
+</script>
+</body>
+</html>
