@@ -132,6 +132,46 @@ def computar_tableros(obra: dict) -> list[dict]:
     return salida
 
 
+def _fases_por_polos(polos) -> str:
+    return "trifásica" if (polos or 2) >= 3 else "monofásica"
+
+
+def computar_generales(obra: dict) -> list[dict]:
+    """Protecciones de cabecera del tablero: interruptor general, interruptor
+    diferencial y protector de tensión. Se agrupan por especificación entre
+    TODOS los tableros de la obra, igual que computar_termicas() -- para
+    comprar da lo mismo de qué tablero es cada una. No entran en
+    computar_termicas() (que es sólo las seccionales, una por circuito)."""
+    grupos: dict[tuple, dict] = {}
+    for t in obra.get("tableros") or []:
+        for d in t.get("dispositivos") or []:
+            tipo, polos = d.get("tipo"), d.get("polos", 2)
+            fases = _fases_por_polos(polos)
+            if tipo == "termica" and d.get("rol") == "general":
+                corr = d.get("corriente")
+                etq = f"Interruptor general C{corr} {fases}" if corr else f"Interruptor general {fases}"
+                clave = ("general", corr, polos)
+            elif tipo == "diferencial":
+                corr, sens = d.get("corriente"), d.get("sensibilidadMa")
+                partes = ["Interruptor diferencial"]
+                if corr:
+                    partes.append(f"{corr} A")
+                if sens:
+                    partes.append(f"{sens} mA")
+                partes.append(fases)
+                etq = " ".join(partes)
+                clave = ("diferencial", corr, sens, polos)
+            elif tipo == "protector":
+                etq = f"Protector de tensión {fases}"
+                clave = ("protector", polos)
+            else:
+                continue
+            g = grupos.setdefault(clave, {"tipo": clave[0], "etiqueta": etq, "cantidad": 0})
+            g["cantidad"] += 1
+    orden = {"general": 0, "diferencial": 1, "protector": 2}
+    return sorted(grupos.values(), key=lambda g: (orden.get(g["tipo"], 9), g["etiqueta"]))
+
+
 def computar_termicas(obra: dict) -> list[dict]:
     """Agrupa las térmicas de TODOS los tableros de la obra por corriente y
     polos (2 polos = monofásica, 3 o más = trifásica) -- para comprar da lo
@@ -273,6 +313,8 @@ def _renglones_computados(obra: dict) -> list:
         renglones.append(("Otros", "Caja rectangular", "u", cajas["rectangulares"]))
     if cajas["inspeccion"]:
         renglones.append(("Canalización externa", "Caja de inspección", "u", cajas["inspeccion"]))
+    for gen in computar_generales(obra):
+        renglones.append(("Accesorios de tablero", gen["etiqueta"], "u", gen["cantidad"]))
     for term in computar_termicas(obra):
         renglones.append(("Accesorios de tablero", term["etiqueta"], "u", term["cantidad"]))
     jaba = computar_jabalina(obra)

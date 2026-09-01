@@ -2,86 +2,255 @@
 
 ## 1. IDENTIDAD DEL PROYECTO
 
-Este repositorio contiene **FY Manager**, una aplicación de escritorio/local destinada a la gestión profesional de instalaciones eléctricas domiciliarias en Argentina.
+Este repositorio contiene **FY Manager**, una aplicación destinada a la gestión profesional de instalaciones eléctricas en Argentina.
 
-El proyecto pertenece a **FY Tech Solutions**.
+Proyecto de:
 
-Repositorio principal:
+**FY Tech Solutions**
+
+Repositorio:
 
 https://github.com/myunis8/FY-App
 
-El sistema está orientado principalmente a profesionales de instalaciones eléctricas y busca centralizar:
+FY Manager busca centralizar el flujo de trabajo de una instalación eléctrica:
 
-- gestión de obras
-- extracción de elementos desde planos eléctricos
-- revisión y corrección de elementos
-- asignación de circuitos
-- canalización / Routeo
-- diseño de tableros eléctricos
-- cálculo de materiales
-- presupuestos
-- generación de PDFs
-- seguimiento futuro de cobros
-- futuras automatizaciones relacionadas con instalaciones eléctricas
+```text
+Plano eléctrico
+      ↓
+Extracción de elementos
+      ↓
+Revisión / corrección
+      ↓
+Circuitos
+      ↓
+Canalización / Routeo
+      ↓
+Tablero
+      ↓
+Materiales
+      ↓
+Presupuesto
+      ↓
+Documentación final
+```
+
+El proyecto está en desarrollo activo.
 
 ---
 
-# 2. REGLA FUNDAMENTAL: RESPETAR EL PROYECTO EXISTENTE
+# 2. REGLA FUNDAMENTAL
 
-Este proyecto está en desarrollo activo y contiene decisiones de arquitectura que deben considerarse intencionales.
+Trabajá siempre sobre el estado ACTUAL del repositorio.
 
-NO asumir que una implementación diferente es mejor simplemente porque resulta más moderna, más elegante o más habitual.
+El código existente es la fuente de verdad.
 
-Antes de modificar arquitectura, estructura de archivos, contrato de datos o comportamiento de módulos:
+No asumir que una implementación mencionada en conversaciones anteriores sigue siendo válida.
 
-1. analizar cómo funciona actualmente;
+Antes de modificar código:
+
+1. inspeccionar el código actual;
 2. identificar las dependencias;
-3. evaluar compatibilidad con obras existentes;
-4. explicar el problema;
-5. proponer la modificación;
-6. esperar confirmación si la modificación es importante.
+3. entender cómo funciona actualmente;
+4. determinar el impacto del cambio;
+5. modificar únicamente lo necesario.
 
-No realizar refactorizaciones grandes como efecto secundario de una tarea pequeña.
-
----
-
-# 3. FUENTE DE VERDAD
-
-La fuente de verdad del código es el contenido actual del repositorio GitHub.
-
-Siempre trabajar sobre la versión más reciente disponible del repositorio.
-
-No asumir que una versión mencionada en una conversación anterior sigue siendo la actual.
-
-Si existe una discrepancia entre:
-
-- una conversación anterior;
-- un ZIP anterior;
-- documentación antigua;
-- y el código actual del repositorio;
-
-el código actual del repositorio tiene prioridad, salvo que el usuario indique explícitamente lo contrario.
-
-Los archivos `README.md`, `RESUMEN-FY-APP.md`, `CHANGELOG.md` y `VERSIONING.md` contienen información adicional importante y deben consultarse cuando corresponda.
+No realizar refactorizaciones grandes como consecuencia secundaria de una tarea pequeña.
 
 ---
 
-# 4. ARQUITECTURA ACTUAL
+# 3. USO DE CLAUDE CODE
 
-La aplicación utiliza actualmente:
+Este proyecto se desarrolla utilizando Claude Code directamente sobre el repositorio local.
 
-- Backend: Python
-- Servidor HTTP: `http.server`
-- Frontend: HTML + JavaScript vanilla
-- Sin framework frontend
-- Sin build step frontend
-- Aplicación modular
-- Estado persistente por obra en `obra.json`
-- Integración con GitHub para sincronización de obras
-- Generación de PDFs desde Python
-- Ejecutable Windows mediante PyInstaller
+Por lo tanto:
 
-La estructura principal actual incluye:
+* modificar directamente los archivos del proyecto;
+* NO devolver bloques de código para que el usuario los copie manualmente;
+* NO generar archivos completos en la respuesta si ya fueron modificados en el workspace;
+* NO generar ZIP salvo que el usuario lo solicite explícitamente;
+* usar las herramientas disponibles para leer, modificar y verificar archivos;
+* revisar siempre los cambios realizados mediante `git diff`;
+* ejecutar pruebas relevantes después de modificar código.
+
+El usuario debe poder revisar los cambios directamente en VS Code.
+
+---
+
+# 4. REGLA SOBRE GIT
+
+Claude Code utiliza Git de forma autónoma en este proyecto.
+
+## Puede hacer automáticamente
+
+* `git status`
+* `git diff`
+* inspeccionar commits, archivos e historial
+* preparar cambios
+* ejecutar tests
+* `git commit`
+* `git push`
+
+## Commit y push automáticos al terminar cada tarea
+
+Orden permanente del usuario (dada el 2026-09-01):
+
+> "quiero que commitees y pushees todo, y de ahora en mas siempre"
+
+Por lo tanto, al terminar cada tarea:
+
+1. revisar `git status` y `git diff`;
+2. verificar que no haya credenciales ni debugging olvidado;
+3. hacer `git commit` con un mensaje corto y claro en inglés;
+4. hacer `git push` a la rama actual.
+
+No hace falta que el usuario lo pida cada vez: ya está pedido de forma permanente.
+
+Si aparecen en el working tree cambios ajenos a la tarea, incluirlos igual en el commit
+(el usuario pidió "commitees y pushees todo") pero avisarlo en la respuesta.
+
+Si `git push` falla (por ejemplo, la rama remota avanzó), informar el error y no forzar.
+
+---
+
+# 5. FLUJO NORMAL DE TRABAJO
+
+Para cada nueva tarea:
+
+## Paso 1 — Inspección
+
+Primero entender el pedido.
+
+Buscar en el código:
+
+* archivos relacionados;
+* funciones relacionadas;
+* endpoints;
+* componentes;
+* estructuras de datos;
+* estilos;
+* lógica existente.
+
+No comenzar modificando código sin haber inspeccionado el área afectada.
+
+---
+
+## Paso 2 — Plan
+
+Antes de una modificación compleja, informar brevemente:
+
+```text
+Voy a modificar:
+
+- archivo A
+- archivo B
+
+Motivo:
+
+...
+
+No se espera impacto en:
+
+...
+```
+
+Para cambios triviales no es necesario realizar una explicación extensa.
+
+---
+
+## Paso 3 — Implementación
+
+Modificar directamente los archivos.
+
+Prioridades:
+
+1. mínima modificación necesaria;
+2. compatibilidad;
+3. reutilización;
+4. claridad;
+5. mantenimiento futuro.
+
+---
+
+## Paso 4 — Verificación
+
+Después de modificar:
+
+1. revisar `git diff`;
+2. verificar que no se hayan modificado archivos accidentalmente;
+3. ejecutar las pruebas correspondientes;
+4. corregir errores;
+5. volver a revisar el diff.
+
+---
+
+## Paso 5 — Resultado
+
+Al terminar informar:
+
+* qué se hizo;
+* archivos modificados;
+* pruebas realizadas;
+* problemas conocidos;
+* si corresponde actualizar versión;
+* el commit y push hechos (mensaje usado y rama).
+
+No pegar nuevamente el código completo salvo que el usuario lo solicite.
+
+---
+
+# 6. NO SOBREREESCRIBIR
+
+Una de las prioridades del proyecto es evitar modificaciones innecesarias.
+
+Si una función necesita cambiarse:
+
+NO reescribir todo el archivo.
+
+Si solamente se modifican unas líneas:
+
+modificar solamente esas líneas.
+
+No regenerar archivos que no necesitan cambios.
+
+No cambiar formato, indentación o estructura de archivos sin necesidad.
+
+Evitar cambios cosméticos mezclados con cambios funcionales.
+
+---
+
+# 7. ARQUITECTURA ACTUAL
+
+El proyecto utiliza actualmente:
+
+* Python;
+* `http.server`;
+* HTML;
+* JavaScript vanilla;
+* CSS;
+* almacenamiento por obra;
+* generación de PDFs;
+* GitHub para sincronización;
+* PyInstaller para distribución.
+
+No introducir:
+
+* React;
+* Vue;
+* Angular;
+* Svelte;
+* Flask;
+* FastAPI;
+* Django;
+
+salvo decisión explícita del usuario.
+
+No agregar un framework solamente por preferencia personal.
+
+---
+
+# 8. ESTRUCTURA PRINCIPAL
+
+La estructura actual incluye:
 
 ```text
 fy-app/
@@ -114,795 +283,743 @@ fy-app/
 │   └── canaliza.html
 │
 ├── obras.py
-├── build.bat
 ├── requirements.txt
-├── VERSIONING.md
+├── README.md
+├── RESUMEN-FY-APP.md
 ├── CHANGELOG.md
-└── README.md
+└── VERSIONING.md
 ```
 
-No asumir que esta estructura permanecerá idéntica para siempre. Si cambia, actualizar la documentación correspondiente.
+La estructura puede cambiar en el futuro.
+
+Si cambia, respetar la estructura actual del repositorio.
 
 ---
 
-# 5. CONTRATO CENTRAL: obra.json
+# 9. obra.json — CONTRATO CENTRAL
 
-`obra.json` es una parte crítica de la arquitectura.
+`obra.json` es un componente crítico del sistema.
 
-Una obra contiene el estado de los distintos módulos del sistema.
+Representa el estado persistente de una obra.
 
-Los módulos pueden consumir y producir diferentes partes de este contrato.
+Los diferentes módulos utilizan diferentes partes de ese estado.
 
-## REGLA DE ORO
+## REGLA CRÍTICA
 
-**Ningún módulo puede eliminar claves de `obra.json` que no comprende.**
+Un módulo NO debe eliminar información que pertenece a otro módulo.
 
-Esto es fundamental para mantener compatibilidad entre módulos y versiones diferentes.
+Si un módulo no conoce una clave de `obra.json`:
 
-Un módulo debe modificar únicamente las partes del contrato que le corresponden.
-
-Si un módulo recibe una obra que contiene información de otro módulo:
-
-- debe conservarla;
-- no debe resetearla;
-- no debe eliminarla;
-- no debe reemplazarla por un estado vacío;
-- no debe asumir que conoce todo el JSON.
-
-Antes de cambiar `contrato.py`, estudiar cuidadosamente:
-
-- `obra_vacia()`
-- `normalizar()`
-- `progreso()`
-- todas las funciones que leen/escriben el contrato.
-
-Los cambios al contrato son cambios de arquitectura y deben tratarse con especial cuidado.
-
----
-
-# 6. COMPATIBILIDAD DE DATOS
-
-Las obras existentes son datos reales y no deben romperse por introducir una funcionalidad nueva.
-
-Cuando sea necesario agregar una nueva clave:
-
-- agregarla de manera compatible;
-- establecer un valor por defecto razonable;
-- mantener las claves existentes;
-- evitar migraciones destructivas.
-
-Cuando sea necesario cambiar una estructura existente:
-
-1. identificar obras antiguas potencialmente afectadas;
-2. determinar si hace falta migración;
-3. implementar la migración de forma explícita;
-4. preservar la información existente.
-
-Nunca eliminar silenciosamente información de una obra.
-
----
-
-# 7. MÓDULOS ACTUALES
-
-## Extractor de plano
-
-Extrae elementos eléctricos desde planos PDF.
-
-Incluye:
-
-- símbolos;
-- posiciones;
-- calibración;
-- elementos detectados;
-- correcciones manuales.
-
-No asumir que la extracción automática es perfecta.
-
-El usuario puede corregir manualmente los elementos.
-
----
-
-## Revisor
-
-Permite revisar y corregir los elementos detectados por el extractor.
-
-Las correcciones manuales del usuario tienen prioridad sobre las inferencias automáticas.
-
-No implementar lógica que vuelva a sobrescribir automáticamente una corrección manual sin una razón explícita.
-
----
-
-## Circuitos
-
-Permite:
-
-- crear circuitos;
-- asignar elementos;
-- visualizar elementos sobre el plano;
-- definir información descriptiva del circuito.
-
-El campo de notas/descripción del circuito puede ser utilizado posteriormente por otros módulos, por ejemplo tablero y documentación.
-
----
-
-## Routeo / Canalización
-
-`web/canaliza.html` corresponde a la aplicación integrada de canalización conocida visualmente como **Routeo**.
-
-IMPORTANTE:
-
-- el nombre visible es Routeo;
-- los nombres internos `canaliza` / `canalizacion` se mantienen deliberadamente;
-- no reimplementar Routeo desde cero;
-- no reemplazarlo por otra solución sin una decisión explícita.
-
----
-
-## Tablero eléctrico
-
-El módulo de tablero incluye:
-
-- dispositivos;
-- térmicas;
-- peines;
-- conectores;
-- cables;
-- ruteo manual;
-- posiciones;
-- descripción por dispositivo;
-- exportación PDF;
-- guía de tapa.
-
-### Conectores de peine
-
-El sistema actual utiliza conectores de peine.
-
-El concepto antiguo de `puente` fue eliminado.
-
-Si aparece código o datos antiguos con:
-
-```text
-tipo: "puente"
-```
-
-no asumir que pertenece al modelo actual.
-
-El sistema actual utiliza:
-
-```text
-tipo: "conectorPeine"
-```
-
-La polaridad del conector se determina automáticamente según la barra del peine que toca.
-
-No agregar un selector manual de polaridad salvo que se solicite explícitamente.
-
----
-
-## Presupuesto
-
-El módulo de presupuesto utiliza:
-
-- elementos de la obra;
-- circuitos;
-- lista de precios;
-- cantidades;
-- extras;
-- opcionales;
-- descuentos;
-- información de la obra.
-
-El presupuesto debe mantener consistencia con la lista de precios.
-
-Si un elemento no tiene correspondencia con la lista de precios, debe hacerse visible para el usuario y no ocultarse silenciosamente.
-
----
-
-## PDF
-
-Los PDFs generados por el sistema son documentos finales destinados al uso profesional.
-
-No considerar suficiente que un PDF "se genere sin excepción".
-
-Debe verificarse:
-
-- contenido;
-- distribución;
-- márgenes;
-- textos;
-- cortes de página;
-- legibilidad;
-- superposición;
-- elementos gráficos;
-- consistencia visual.
-
-Cuando se modifique generación de PDF, realizar una prueba real y revisar visualmente el resultado cuando sea posible.
-
----
-
-# 8. FRONTEND
-
-El frontend utiliza HTML y JavaScript vanilla.
-
-No introducir React, Vue, Angular, Svelte u otro framework salvo decisión explícita del usuario.
-
-No agregar un sistema de build innecesario.
-
-Preferir:
-
-- funciones pequeñas;
-- componentes reutilizables cuando corresponda;
-- CSS existente;
-- patrones ya utilizados en el proyecto;
-- APIs existentes.
-
-Antes de crear una nueva función utilitaria, buscar si ya existe una equivalente.
-
-Antes de crear un nuevo componente visual, buscar si existe uno reutilizable.
-
----
-
-# 9. BACKEND
-
-El backend utiliza Python y `http.server`.
-
-No introducir Flask, FastAPI, Django u otro framework salvo decisión explícita.
-
-Mantener las dependencias externas al mínimo.
-
-Antes de agregar una dependencia:
-
-1. determinar si realmente es necesaria;
-2. comprobar si puede resolverse con la biblioteca estándar;
-3. evaluar impacto sobre el ejecutable;
-4. evaluar impacto sobre instalaciones existentes.
-
----
-
-# 10. SEGURIDAD
-
-El token de GitHub utilizado por la aplicación es información sensible.
+DEBE CONSERVARLA.
 
 Nunca:
 
-- incluir tokens en el código;
-- incluir tokens en el frontend;
-- incluir tokens en HTML;
-- incluir tokens en JavaScript;
-- incluir tokens en PDFs;
-- incluir tokens en logs;
-- incluir tokens en commits;
-- incluir tokens en archivos entregados;
-- inventar tokens.
+* resetearla;
+* eliminarla;
+* reemplazarla por `{}`;
+* reemplazarla por `[]`;
+* sobrescribirla con un valor vacío.
 
-La comunicación con GitHub debe realizarse desde Python/backend.
+Antes de modificar:
 
----
+```text
+app/contrato.py
+```
 
-# 11. GITHUB Y SINCRONIZACIÓN DE OBRAS
+analizar:
 
-El código del programa y los datos de las obras son conceptos diferentes.
+* `obra_vacia()`;
+* `normalizar()`;
+* `progreso()`;
+* todas las funciones que leen y escriben el contrato.
 
-El repositorio del código `FY-App` contiene el programa.
-
-Las obras se sincronizan con otro repositorio configurado por el usuario.
-
-No mezclar ambos conceptos.
-
-La sincronización de obras utiliza mecanismos de control mediante SHA para evitar sobrescribir cambios realizados por otra persona.
-
-No eliminar ni debilitar esta protección sin una razón explícita.
+Los cambios al contrato requieren especial cuidado.
 
 ---
 
-# 12. VERSIONADO
+# 10. COMPATIBILIDAD DE OBRAS
+
+Las obras existentes son datos reales.
+
+Una nueva versión del software no debe destruir información creada por versiones anteriores.
+
+Cuando se agregue una nueva propiedad:
+
+* proporcionar valor por defecto;
+* mantener propiedades existentes;
+* hacer el cambio compatible.
+
+Si se necesita cambiar una estructura:
+
+1. identificar versiones antiguas;
+2. analizar compatibilidad;
+3. implementar migración si corresponde;
+4. preservar información.
+
+Nunca realizar migraciones destructivas silenciosas.
+
+---
+
+# 11. EXTRACTOR
+
+El extractor permite obtener elementos eléctricos desde planos PDF.
+
+Puede trabajar con:
+
+* símbolos;
+* posiciones;
+* calibración;
+* elementos detectados;
+* correcciones.
+
+La extracción automática puede equivocarse.
+
+Las correcciones manuales realizadas por el usuario tienen prioridad.
+
+No sobrescribir automáticamente una corrección manual.
+
+---
+
+# 12. REVISOR
+
+El revisor permite inspeccionar y corregir los elementos detectados.
+
+Las modificaciones manuales del usuario deben considerarse intencionales.
+
+Si una función automática vuelve a procesar los datos:
+
+debe respetar las correcciones manuales existentes.
+
+---
+
+# 13. CIRCUITOS
+
+El módulo de circuitos permite:
+
+* crear circuitos;
+* asignar elementos;
+* visualizar circuitos;
+* visualizar elementos sobre el plano;
+* almacenar información descriptiva.
+
+Los datos de circuitos pueden ser utilizados posteriormente por:
+
+* tablero;
+* presupuesto;
+* materiales;
+* documentación.
+
+No cambiar el contrato de circuitos sin analizar sus consumidores.
+
+---
+
+# 14. ROUTEO / CANALIZACIÓN
+
+El módulo:
+
+```text
+web/canaliza.html
+```
+
+corresponde visualmente a **Routeo**.
+
+Internamente puede seguir utilizando nombres como:
+
+```text
+canaliza
+canalizacion
+```
+
+Esto es intencional.
+
+No renombrar todo el módulo simplemente para cambiar la terminología visual.
+
+Routeo permite realizar el trazado de canalizaciones.
+
+No reemplazar el módulo existente sin analizar primero su funcionamiento actual.
+
+---
+
+# 15. TABLERO
+
+El módulo de tablero permite:
+
+* dispositivos;
+* térmicas;
+* peines;
+* conectores;
+* cables;
+* ruteo manual;
+* posiciones;
+* descripciones;
+* PDF;
+* guía de tapa.
+
+## Conectores de peine
+
+El modelo actual utiliza:
+
+```text
+conectorPeine
+```
+
+El concepto antiguo:
+
+```text
+puente
+```
+
+ya no corresponde al modelo actual.
+
+No reintroducirlo.
+
+La polaridad del conector se determina automáticamente según la barra del peine que toca.
+
+No agregar selección manual de polaridad salvo solicitud explícita.
+
+---
+
+# 16. PRESUPUESTO
+
+El presupuesto puede utilizar información de:
+
+* obra;
+* elementos;
+* circuitos;
+* precios;
+* materiales;
+* extras;
+* opcionales;
+* descuentos.
+
+Los elementos sin correspondencia de precios no deben desaparecer silenciosamente.
+
+Deben poder detectarse y corregirse.
+
+---
+
+# 17. PDF
+
+Los PDFs son documentos profesionales.
+
+No considerar suficiente que simplemente "se genere".
+
+Verificar cuando corresponda:
+
+* contenido;
+* posiciones;
+* márgenes;
+* textos;
+* tablas;
+* saltos de página;
+* superposición;
+* legibilidad;
+* consistencia visual.
+
+Si el cambio es visual, generar y revisar el PDF real.
+
+---
+
+# 18. FRONTEND
+
+El frontend utiliza HTML + JavaScript vanilla.
+
+Antes de crear:
+
+* una función;
+* un componente;
+* un estilo;
+* una utilidad;
+
+buscar primero si ya existe algo equivalente.
+
+Reutilizar antes que duplicar.
+
+Mantener:
+
+* estilo visual;
+* nombres;
+* patrones;
+* comportamiento.
+
+No introducir frameworks frontend sin autorización.
+
+---
+
+# 19. BACKEND
+
+El backend utiliza Python.
+
+Mantener el diseño actual basado en `http.server`.
+
+Evitar dependencias innecesarias.
+
+Antes de agregar una dependencia:
+
+1. verificar si la biblioteca estándar resuelve el problema;
+2. evaluar impacto;
+3. evaluar distribución con PyInstaller;
+4. evaluar compatibilidad.
+
+---
+
+# 20. SEGURIDAD
+
+Nunca incluir secretos en el repositorio.
+
+Nunca guardar:
+
+* tokens;
+* passwords;
+* API keys;
+* credenciales;
+
+en:
+
+* código;
+* HTML;
+* JavaScript;
+* PDFs;
+* logs;
+* commits;
+* documentación.
+
+La autenticación de GitHub debe permanecer del lado del backend.
+
+---
+
+# 21. GITHUB
+
+El repositorio:
+
+```text
+myunis8/FY-App
+```
+
+contiene el código de FY Manager.
+
+Las obras sincronizadas por el programa son otro concepto.
+
+No mezclar:
+
+```text
+repositorio del programa
+```
+
+con:
+
+```text
+repositorios de obras
+```
+
+La protección contra conflictos mediante SHA debe conservarse.
+
+No eliminar controles de concurrencia sin una razón explícita.
+
+---
+
+# 22. VERSIONADO
 
 El proyecto utiliza versionado semántico.
 
-La versión se encuentra en:
+La versión principal está definida en:
 
 ```text
 app/__init__.py
 ```
 
-Reglas generales:
+Reglas:
 
-- PATCH: corrección de bugs, pequeños ajustes o cambios internos sin nueva funcionalidad significativa.
-- MINOR: nueva funcionalidad compatible.
-- MAJOR: cambios incompatibles importantes.
+PATCH:
+correcciones y pequeños cambios compatibles.
 
-Cada entrega que modifique funcionalidad debe evaluar si corresponde incrementar la versión.
+MINOR:
+nueva funcionalidad compatible.
 
-No incrementar MAJOR arbitrariamente.
+MAJOR:
+cambios incompatibles.
+
+Antes de cambiar la versión analizar el tipo de modificación.
 
 ---
 
-# 13. CHANGELOG
+# 23. CHANGELOG
 
-Toda entrega relevante debe actualizar:
+Los cambios relevantes deben registrarse en:
 
 ```text
 CHANGELOG.md
 ```
 
-La nueva entrada debe colocarse arriba de las anteriores.
+No registrar cada modificación interna trivial.
 
-No limitarse a enumerar archivos modificados.
+Registrar:
 
-Explicar:
-
-- qué cambió;
-- por qué;
-- qué comportamiento se modificó;
-- cómo se probó;
-- cualquier limitación conocida.
+* funcionalidades nuevas;
+* cambios de comportamiento;
+* correcciones importantes;
+* cambios de arquitectura.
 
 ---
 
-# 14. ESTILO DE COMMITS
+# 24. COMMITS
 
-Los commits deben estar en inglés.
+Los mensajes de commit deben ser:
 
-Deben ser cortos y claros.
+* cortos;
+* claros;
+* en inglés.
 
-Preferir:
+Ejemplos:
 
 ```text
 Add circuit descriptions
 Fix PDF page overflow
-Change panel connector rendering
-Remove obsolete bridge logic
 Update budget calculation
+Remove obsolete bridge logic
+Improve panel rendering
 ```
 
-Evitar:
+No utilizar mensajes excesivamente largos.
 
-```text
-feat: agregar una funcionalidad nueva para...
-```
+El commit y el push son automáticos al terminar cada tarea (ver sección 4).
 
-salvo que el usuario solicite explícitamente Conventional Commits.
-
-El comando esperado normalmente es:
+Antes de cada commit revisar:
 
 ```bash
-git add -A
-git commit -m "Short English description"
-git push
+git status
+git diff
 ```
 
-No generar mensajes de commit largos.
+El commit prioriza los cambios relacionados con la tarea; si hay cambios
+sueltos de otra cosa en el working tree, se incluyen igual (orden del usuario:
+"commitees y pushees todo") y se avisa en la respuesta.
 
 ---
 
-# 15. REGLAS PARA IMPLEMENTAR CAMBIOS
+# 25. GIT DIFF
 
-Cuando el usuario solicite una modificación:
+Antes de considerar terminada una tarea:
 
-## Paso 1 — Entender
+revisar siempre:
 
-Determinar exactamente:
+```bash
+git diff
+```
 
-- qué quiere cambiar;
-- qué comportamiento espera;
-- qué parte del sistema está involucrada.
+Buscar:
 
-Si la solicitud es ambigua y puede producir comportamientos diferentes, preguntar antes de implementar.
+* cambios accidentales;
+* archivos modificados sin relación;
+* código duplicado;
+* debugging olvidado;
+* prints innecesarios;
+* credenciales;
+* cambios de formato masivos.
 
----
+Si aparecen modificaciones ajenas a la tarea:
 
-## Paso 2 — Investigar
+NO eliminarlas automáticamente.
 
-Buscar primero en el código existente:
-
-- funciones relacionadas;
-- endpoints;
-- estructuras de datos;
-- componentes;
-- estilos;
-- generación de PDF;
-- código similar.
-
-No comenzar a escribir código inmediatamente.
+Informar al usuario.
 
 ---
 
-## Paso 3 — Impacto
+# 26. PRUEBAS
 
-Determinar:
+No considerar una tarea terminada simplemente porque el código "parece correcto".
 
-- archivos afectados;
-- módulos afectados;
-- impacto sobre `obra.json`;
-- impacto sobre obras existentes;
-- impacto sobre PDFs;
-- impacto sobre frontend;
-- impacto sobre backend.
+Para backend:
 
----
+* ejecutar el servidor;
+* probar rutas;
+* verificar respuestas;
+* verificar persistencia.
 
-## Paso 4 — Implementación
+Para frontend:
 
-Modificar únicamente lo necesario.
-
-No reescribir archivos enteros si solamente se modifican algunas funciones.
-
-No realizar refactorizaciones no solicitadas como parte de una tarea.
-
----
-
-## Paso 5 — Verificación
-
-Probar el comportamiento real.
-
-No considerar terminada una modificación simplemente porque:
-
-- compila;
-- Python no genera excepción;
-- JavaScript no muestra errores inmediatos.
-
-Siempre que sea posible probar la funcionalidad real.
-
----
-
-# 16. BUGS
-
-Cuando el usuario informa que algo sigue funcionando mal después de una corrección:
-
-NO asumir que el diagnóstico anterior era correcto.
-
-NO aplicar otro parche sobre el mismo lugar automáticamente.
-
-Primero:
-
-1. reproducir el problema;
-2. identificar el caso exacto;
-3. analizar el flujo;
-4. revisar el estado real de los datos;
-5. revisar el resultado visual si corresponde;
-6. determinar la causa;
-7. recién entonces modificar el código.
-
-Si el usuario proporciona una imagen, PDF o ejemplo concreto, utilizarlo como evidencia del comportamiento real.
-
----
-
-# 17. PRUEBAS
-
-El estándar de prueba debe ser lo más cercano posible al uso real.
-
-Para cambios de backend:
-
-- levantar el servidor;
-- probar las rutas reales;
-- verificar respuestas;
-- verificar que los datos persistan correctamente.
-
-Para cambios de frontend:
-
-- cargar la página real;
-- interactuar con ella;
-- probar clicks;
-- probar formularios;
-- verificar estados;
-- verificar errores de consola.
-
-Para páginas interactivas complejas:
-
-- preferir pruebas reales con navegador automatizado cuando esté disponible;
-- no asumir que una función funciona sólo porque el código parece correcto.
+* abrir la página;
+* probar interacción;
+* probar formularios;
+* revisar errores de consola;
+* verificar estados.
 
 Para PDFs:
 
-- generar el PDF;
-- abrir/renderizar el resultado;
-- revisar visualmente cuando el cambio sea gráfico o de layout.
+* generar PDF;
+* abrirlo;
+* revisar contenido;
+* revisar layout.
+
+Para funcionalidades complejas:
+
+usar pruebas automatizadas o navegador automatizado cuando estén disponibles.
 
 ---
 
-# 18. PRUEBA DEL ZIP
+# 27. BUGS
 
-Cuando sea necesario generar un ZIP para entregar el proyecto:
+Cuando el usuario informa que una corrección no funcionó:
 
-1. realizar primero las pruebas sobre el árbol de trabajo;
-2. actualizar versión;
-3. actualizar CHANGELOG;
-4. generar el ZIP;
-5. descomprimir el ZIP en una ubicación limpia;
-6. ejecutar las pruebas desde esa copia;
-7. corregir cualquier problema que sólo aparezca en el paquete;
-8. entregar únicamente después de superar la prueba final.
+NO aplicar parches sucesivos a ciegas.
 
-Nunca asumir que el árbol de desarrollo y el ZIP son equivalentes.
+Primero:
 
----
+1. reproducir;
+2. observar;
+3. identificar causa;
+4. revisar datos;
+5. revisar flujo;
+6. corregir causa real.
 
-# 19. REGLA DE ENTREGA
-
-El objetivo es minimizar el código innecesariamente generado.
-
-### Si el cambio es pequeño
-
-NO generar un ZIP completo.
-
-Entregar:
-
-1. resumen;
-2. archivos modificados;
-3. contenido completo de cada archivo modificado;
-4. instrucciones especiales si existen;
-5. commit sugerido.
-
-### Si el cambio es grande
-
-Se puede generar un ZIP.
-
-Generar ZIP cuando:
-
-- se crean muchos archivos;
-- cambia significativamente la estructura;
-- se realizan modificaciones en gran parte del proyecto;
-- el usuario lo solicita explícitamente.
-
-El ZIP debe contener el proyecto directamente en su raíz.
-
-NO crear:
-
-```text
-fy-app/fy-app/...
-```
-
-Debe ser:
-
-```text
-fy-app.zip
-├── app/
-├── web/
-├── obras.py
-├── requirements.txt
-└── ...
-```
+No asumir que el diagnóstico anterior era correcto.
 
 ---
 
-# 20. NO REPETIR CÓDIGO SIN NECESIDAD
+# 28. CAMBIOS DE ARQUITECTURA
 
-Una de las prioridades del proyecto es reducir respuestas innecesariamente grandes.
+Si una solicitud requiere:
 
-Si sólo cambian:
+* cambiar `obra.json`;
+* cambiar el sistema de módulos;
+* cambiar la persistencia;
+* cambiar el servidor;
+* cambiar el sistema de sincronización;
+* introducir un framework;
+* cambiar la arquitectura frontend;
 
-```text
-app/server.py
-web/index.html
-```
+primero explicar el impacto.
 
-no volver a generar:
-
-```text
-app/tablero.py
-app/presupuesto.py
-...
-```
-
-No entregar archivos que no fueron modificados.
-
-No repetir código completo en explicaciones si no es necesario.
+No implementar una modificación arquitectónica grande como parte de una solución rápida sin advertirlo.
 
 ---
 
-# 21. COMUNICACIÓN CON EL USUARIO
+# 29. AUTOMATIZACIÓN
 
-El usuario es el desarrollador responsable del proyecto.
+Uno de los objetivos futuros de FY Manager es automatizar tareas de diseño y presupuestación.
 
-No ocultar decisiones técnicas importantes.
+La automatización debe ser:
 
-Cuando exista una decisión de arquitectura relevante:
+* explicable;
+* modificable;
+* reversible;
+* visible para el usuario.
 
-- explicar brevemente el problema;
-- explicar la solución propuesta;
-- explicar las consecuencias.
+El software debe asistir al profesional.
 
-Evitar explicaciones innecesariamente largas para cambios simples.
+No ocultar decisiones importantes.
 
-Priorizar respuestas prácticas.
-
----
-
-# 22. TERMINOLOGÍA ELÉCTRICA
-
-El software está orientado al contexto argentino.
-
-Utilizar terminología habitual en Argentina y referencias AEA cuando corresponda.
-
-No asumir automáticamente normas estadounidenses.
-
-Usar unidades del sistema métrico:
-
-- V
-- A
-- W
-- kW
-- mm²
-- m
-- Ω
-
-No utilizar AWG salvo que sea solicitado.
-
-No convertir automáticamente conceptos eléctricos argentinos a terminología estadounidense.
-
-Cuando una decisión eléctrica dependa de una norma, distinguir claramente entre:
-
-- requisito normativo;
-- buena práctica;
-- decisión de diseño del software.
-
-No inventar requisitos de la AEA.
+No asumir automáticamente que una decisión eléctrica es correcta si depende de información que el usuario no proporcionó.
 
 ---
 
-# 23. AUTOMATIZACIÓN
+# 30. CONTEXTO ELÉCTRICO
 
-El objetivo futuro del proyecto incluye automatizar parte del trabajo de diseño y presupuestación de instalaciones eléctricas.
+FY Manager está orientado a instalaciones eléctricas en Argentina.
 
-Actualmente algunas decisiones todavía son manuales.
+Utilizar terminología habitual argentina.
 
-No implementar automatización "inteligente" simplemente por parecer conveniente.
+Cuando corresponda utilizar criterios AEA.
 
-Una automatización debe:
+No inventar requisitos normativos.
 
-- ser explicable;
-- permitir modificación manual;
-- no ocultar las decisiones tomadas;
-- permitir al usuario corregir resultados.
+Distinguir entre:
 
-La aplicación debe asistir al profesional, no quitarle control.
+* requisito normativo;
+* buena práctica;
+* decisión de diseño;
+* simplificación del software.
+
+Un cálculo automático debe dejar claro qué supuestos utiliza.
 
 ---
 
-# 24. DISEÑO UX
+# 31. UX
 
-La aplicación debe sentirse como una herramienta profesional de trabajo.
+FY Manager debe sentirse como una herramienta profesional.
 
 Prioridades:
 
 1. claridad;
 2. rapidez;
 3. consistencia;
-4. información útil;
-5. apariencia profesional.
+4. confiabilidad;
+5. facilidad de uso.
 
 Evitar:
 
-- interfaces excesivamente recargadas;
-- modales innecesarios;
-- confirmaciones constantes;
-- animaciones decorativas;
-- pasos innecesarios;
-- configuraciones difíciles de encontrar.
+* modales innecesarios;
+* pasos innecesarios;
+* interfaces recargadas;
+* animaciones decorativas;
+* configuraciones difíciles de encontrar.
 
-Cuando exista una acción frecuente, intentar minimizar la cantidad de clicks.
-
----
-
-# 25. PRESERVACIÓN DE FUNCIONALIDAD
-
-Antes de modificar una función existente preguntarse:
-
-- ¿quién la utiliza?
-- ¿qué datos recibe?
-- ¿qué devuelve?
-- ¿qué otras páginas dependen de ella?
-- ¿qué obras existentes dependen de su comportamiento?
-
-No romper comportamiento existente para resolver una funcionalidad nueva.
-
-Si una modificación necesariamente cambia comportamiento anterior, indicarlo explícitamente.
+Las operaciones frecuentes deben requerir pocos pasos.
 
 ---
 
-# 26. NO INVENTAR
+# 32. NO INVENTAR
 
-Si falta información sobre:
+Si falta información:
 
-- estructura;
-- comportamiento;
-- reglas de negocio;
-- contrato de datos;
-- intención del usuario;
+NO inventar.
 
-no inventar una solución definitiva.
+Si no está claro:
 
-Investigar primero.
+* investigar en el código;
+* revisar documentación;
+* buscar usos existentes;
+* preguntar al usuario si sigue siendo ambiguo.
 
-Si no es posible determinarlo, explicar la incertidumbre y preguntar.
-
----
-
-# 27. DOCUMENTACIÓN
-
-Cuando una modificación cambia una decisión arquitectónica importante, actualizar la documentación correspondiente.
-
-No llenar documentación con información redundante.
-
-Mantenerla útil y concisa.
-
-La documentación no debe convertirse en una copia del código.
+Es preferible una pregunta breve a implementar una arquitectura incorrecta.
 
 ---
 
-# 28. ESTADO ACTUAL CONOCIDO
+# 33. NO HACER REFACTORIZACIONES NO SOLICITADAS
 
-Los módulos principales actualmente implementados incluyen:
+Si el usuario pide:
 
-1. Extractor de plano — implementado.
-2. Revisor y correcciones — implementado.
-3. Circuitos sobre plano — implementado.
-4. Precios y presupuesto — implementado.
-5. PDF de presupuesto — implementado.
-6. Tablero eléctrico — implementado.
-7. PDF de tablero — implementado.
-8. Routeo / canalización — integrado.
-9. Seguimiento de cobro — pendiente.
+> "agregar un botón"
 
-Existe como backlog futuro la generación de un PDF consolidado que pueda reunir:
+no aprovechar la tarea para:
 
-- Routeo;
-- tablero;
-- presupuesto;
-- futuros módulos.
+* reorganizar todo el frontend;
+* renombrar archivos;
+* cambiar arquitectura;
+* reescribir CSS;
+* cambiar el sistema de datos.
 
-Ese PDF debe diseñarse de manera modular para permitir incorporar nuevas secciones posteriormente.
+Si se detecta una mejora importante:
+
+informarla por separado.
 
 ---
 
-# 29. PRIORIDAD DE DECISIONES
+# 34. ZIP
 
-Cuando haya conflicto entre instrucciones, utilizar este orden:
+El ZIP NO es el mecanismo normal de trabajo.
 
-1. solicitud explícita actual del usuario;
-2. código actual del repositorio;
-3. contrato de `obra.json`;
-4. reglas de este archivo;
-5. documentación histórica;
-6. suposiciones propias.
+El desarrollo se realiza directamente sobre el repositorio local.
 
-Nunca utilizar una decisión antigua de una conversación para contradecir el código actual sin verificar primero.
+Sólo generar ZIP cuando:
 
----
+* el usuario lo solicite;
+* sea necesario distribuir una versión;
+* sea necesario entregar una build.
 
-# 30. OBJETIVO FINAL
+Cuando se genere un ZIP:
 
-FY Manager debe evolucionar hacia una herramienta profesional que permita pasar desde:
+1. verificar código;
+2. actualizar versión si corresponde;
+3. actualizar CHANGELOG;
+4. generar ZIP;
+5. descomprimirlo;
+6. ejecutar la aplicación desde la copia;
+7. verificar que funciona.
+
+No incluir:
 
 ```text
-Plano eléctrico
-      ↓
-Extracción de elementos
-      ↓
-Revisión
-      ↓
-Circuitos
-      ↓
-Canalización / Routeo
-      ↓
-Tablero
-      ↓
-Cómputo de materiales
-      ↓
-Presupuesto
-      ↓
-Documentación final
+.git/
+__pycache__/
+venv/
+logs/
+archivos temporales
 ```
 
-manteniendo en todo momento:
+salvo solicitud explícita.
 
-- trazabilidad;
-- control del profesional;
-- datos consistentes;
-- compatibilidad entre versiones;
-- interfaz simple;
-- documentación profesional.
+---
+
+# 35. RESPUESTAS DE CLAUDE CODE
+
+Después de una tarea terminada, responder de forma concisa.
+
+Formato recomendado:
+
+```text
+## Implementado
+
+- ...
+- ...
+
+## Archivos modificados
+
+- ...
+- ...
+
+## Pruebas
+
+- ...
+- ...
+
+## Commit y push
+
+`Add ...` — pusheado a `main`
+```
+
+No pegar nuevamente el contenido completo de los archivos modificados.
+
+El usuario puede ver los cambios directamente en VS Code.
+
+---
+
+# 36. REGLA ESPECIAL PARA TAREAS COMPLEJAS
+
+Si una tarea tiene muchas partes:
+
+no intentar resolver todo de una vez sin validar.
+
+Dividir en etapas.
+
+Por ejemplo:
+
+```text
+1. Backend
+2. Contrato de datos
+3. Frontend
+4. Persistencia
+5. PDF
+6. Pruebas
+```
+
+Después de cada etapa verificar que no se haya roto funcionalidad existente.
+
+---
+
+# 37. OBJETIVO DEL PROYECTO
+
+El objetivo final es que FY Manager permita gestionar de forma integrada:
+
+```text
+PLANO
+ ↓
+EXTRACCIÓN
+ ↓
+REVISIÓN
+ ↓
+CIRCUITOS
+ ↓
+ROUTEO
+ ↓
+TABLERO
+ ↓
+MATERIALES
+ ↓
+PRESUPUESTO
+ ↓
+DOCUMENTACIÓN
+```
+
+manteniendo:
+
+* datos consistentes;
+* trazabilidad;
+* control profesional;
+* compatibilidad;
+* facilidad de uso;
+* arquitectura mantenible.
 
 La prioridad no es agregar funcionalidades rápidamente.
 
-La prioridad es construir una base sólida sobre la cual puedan agregarse funcionalidades sin romper las anteriores.
+La prioridad es construir una base sólida que permita agregar funcionalidades sin romper las existentes.

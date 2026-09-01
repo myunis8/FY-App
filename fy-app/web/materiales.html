@@ -151,7 +151,7 @@ const esc = s => (s==null?'':String(s)).replace(/[&<>"]/g,
   c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
 let catalogo = [], datosObra = {extras:[], cables:[]};
-let cajas = {}, tableros = [], termicas = [], jabalina = null, canalizacion = {};
+let cajas = {}, tableros = [], generales = [], termicas = [], jabalina = null, canalizacion = {};
 
 $('b-volver').onclick = () => location.href = '/obra.html?obra=' + OBRA_ID;
 
@@ -167,7 +167,7 @@ function aplicarRespuesta(d){
   datosObra = d.obra || {extras:[], cables:[]};
   datosObra.extras = datosObra.extras || [];
   datosObra.cables = datosObra.cables || [];
-  cajas = d.cajas; tableros = d.tableros; termicas = d.termicas || [];
+  cajas = d.cajas; tableros = d.tableros; generales = d.generales || []; termicas = d.termicas || [];
   jabalina = d.jabalina; canalizacion = d.canalizacion || {disponible:false};
 }
 function pintarTodo(){
@@ -199,12 +199,15 @@ function pintarTableros(){
     </tr>`).join('') + `</tbody></table>`;
 }
 function pintarTermicas(){
-  if(!termicas.length){ $('termicas-cont').innerHTML = ''; return; }
+  if(!generales.length && !termicas.length){ $('termicas-cont').innerHTML = ''; return; }
+  const filasGen = generales.map(g => `<tr><td>${esc(g.etiqueta)}</td><td>—</td>
+      <td class="num">${g.cantidad}</td></tr>`).join('');
+  const filasTerm = termicas.map(t => `<tr><td>Térmica C${t.corriente}</td><td>${t.fases}</td>
+      <td class="num">${t.cantidad}</td></tr>`).join('');
   $('termicas-cont').innerHTML = `<h2>Térmicas y protecciones</h2><table>
-    <thead><tr><th>Protección</th><th style="width:100px">Fases</th>
+    <thead><tr><th>Protección</th><th style="width:120px">Fases</th>
     <th style="width:80px">Cantidad</th></tr></thead><tbody>` +
-    termicas.map(t => `<tr><td>C${t.corriente}</td><td>${t.fases}</td>
-      <td class="num">${t.cantidad}</td></tr>`).join('') + `</tbody></table>`;
+    filasGen + filasTerm + `</tbody></table>`;
 }
 function pintarJabalina(){
   if(!jabalina){ $('jabalina-cont').innerHTML = ''; return; }
@@ -318,7 +321,8 @@ $('b-actualizar').onclick = async () => {
     const r = await api('/api/obras/'+OBRA_ID+'/materiales',
       {method:'POST', body: JSON.stringify({recalcularComputo:true, guardar:true})});
     aplicarRespuesta({catalogo:{items: catalogo}, obra: r.materiales, cajas: r.cajas,
-      tableros: r.tableros, termicas: r.termicas, jabalina: r.jabalina, canalizacion: r.canalizacion});
+      tableros: r.tableros, generales: r.generales, termicas: r.termicas, jabalina: r.jabalina,
+      canalizacion: r.canalizacion});
     // el catálogo puede haber sumado ítems nuevos -- se relee para que el selector los ofrezca
     const cat = await api('/api/materiales');
     catalogo = cat.items || [];
