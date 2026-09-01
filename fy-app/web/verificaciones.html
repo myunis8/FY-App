@@ -9,7 +9,9 @@
 :root{
   --navy:#16283f; --navy-deep:#0e1c2e; --paper:#f1f3f2; --panel:#fff; --line:#dde3e2;
   --ink:#1c2733; --muted:#5b6b7a; --amber:#e2a33d; --amber-deep:#c07f1f;
-  --copper:#b5651d; --slate-soft:#eef1f3; --green:#2f7d5c; --danger:#b3432f;
+  --copper:#b5651d; --slate-soft:#eef1f3;
+  --green:#2f7d5c; --green-soft:#dcefe4; --warn:#a06a12; --warn-soft:#f6e8cf;
+  --danger:#b3432f; --danger-soft:#f8ded7;
   --radius:10px; font-family:'IBM Plex Sans',system-ui,sans-serif;
 }
 *{box-sizing:border-box}
@@ -25,18 +27,28 @@ header .sub{font-size:.72rem;color:#9db2c7;margin-top:2px}
 .btn:hover{border-color:var(--muted)}
 .btn.ghost{background:transparent;border-color:#33506e;color:#cfe0f0}
 .btn.ghost:hover{border-color:#5b7fa5}
-main{max-width:920px;margin:0 auto;padding:26px 22px 60px}
+main{max-width:1040px;margin:0 auto;padding:26px 22px 60px}
 h2{font-family:'Space Grotesk',sans-serif;font-size:.82rem;margin:26px 0 8px;
   text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
 h2:first-child{margin-top:0}
 .nota{font-size:.78rem;color:var(--muted);margin:2px 0 12px;line-height:1.5}
+.tabla-scroll{overflow-x:auto}
 table{width:100%;border-collapse:collapse;background:var(--panel);border-radius:8px;overflow:hidden;
-  border:1px solid var(--line);margin-bottom:8px}
-th{background:var(--slate-soft);text-align:left;font-size:.68rem;text-transform:uppercase;
+  border:1px solid var(--line);margin-bottom:8px;min-width:820px}
+th{background:var(--slate-soft);text-align:left;font-size:.66rem;text-transform:uppercase;
   letter-spacing:.04em;color:var(--muted);padding:8px 10px;font-weight:600}
-td{padding:8px 10px;font-size:.85rem;border-top:1px solid var(--line)}
+td{padding:8px 10px;font-size:.83rem;border-top:1px solid var(--line);vertical-align:top}
 td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
-.sinllegar{color:var(--muted)}
+th.num{text-align:right}
+.sub2{display:block;font-size:.7rem;color:var(--muted);margin-top:1px}
+.pill{display:inline-block;font-size:.68rem;font-weight:700;padding:2px 8px;border-radius:99px;white-space:nowrap}
+.pill.ok{background:var(--green-soft);color:var(--green)}
+.pill.warn{background:var(--warn-soft);color:var(--warn)}
+.pill.bad{background:var(--danger-soft);color:var(--danger)}
+.pill.na{background:var(--slate-soft);color:var(--muted)}
+.sug{display:block;font-size:.72rem;color:var(--copper);margin-top:3px}
+.leyenda{font-size:.74rem;color:var(--muted);line-height:1.6;margin-top:10px}
+.leyenda b{color:var(--ink)}
 #toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--navy-deep);
   color:#fff;padding:11px 18px;border-radius:var(--radius);font-size:.83rem;display:none;z-index:60}
 </style>
@@ -49,12 +61,13 @@ td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 </header>
 
 <main>
-  <h2>Distancia de cada circuito al tablero</h2>
-  <div class="nota">Es la distancia más larga desde el tablero hasta el punto más alejado de
-  cada circuito, siguiendo la canalización trazada en <b>Routeo</b> (tramo horizontal + bajadas).
-  Cuando hay más de un tablero se toma la distancia al más cercano. Es el dato de entrada para
-  estimar la <b>caída de tensión</b> y fijar un <b>límite de consumo</b> por circuito; el cálculo
-  de la caída todavía no se hace acá.</div>
+  <h2>Caída de tensión por circuito</h2>
+  <div class="nota">El largo es la distancia más larga desde el tablero hasta el punto más
+  alejado del circuito, siguiendo la canalización trazada en <b>Routeo</b> (tramo horizontal +
+  bajadas; con varios tableros, al más cercano). Como en el momento del diseño no se conoce la
+  carga final, la caída se evalúa en el <b>peor caso</b>: corriente igual a la ampacidad del
+  conductor. Conductor de cobre; sistema monofásico 230 V salvo que el circuito tenga una
+  seccional de 3+ polos. Ampacidad y ρ según IRAM (método B1, 2 conductores en caño, PVC).</div>
   <div id="cont"></div>
 </main>
 
@@ -66,8 +79,17 @@ const esc = s => (s==null?'':String(s)).replace(/[&<>"]/g,
   c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 function toast(m){ const t=$('toast'); t.textContent=m; t.style.display='block';
   clearTimeout(t._t); t._t=setTimeout(()=>t.style.display='none',3000); }
+const nf = (n,d=1) => (n==null || isNaN(n)) ? '—'
+  : Number(n).toLocaleString('es-AR',{minimumFractionDigits:d, maximumFractionDigits:d});
 
 $('b-volver').onclick = () => location.href = '/obra.html?obra=' + OBRA_ID;
+
+const ESTADO = {
+  ok:                  {cls:'ok',   txt:'OK'},
+  excede_longitud:     {cls:'warn', txt:'Excede longitud'},
+  excede_caida_tension:{cls:'bad',  txt:'Excede caída'},
+  sin_dato:            {cls:'na',   txt:'Sin datos'},
+};
 
 async function cargar(){
   if(!OBRA_ID){ $('h-sub').textContent = 'Falta el id de la obra en la URL.'; return; }
@@ -87,20 +109,50 @@ function pintar(d){
     tener circuitos ruteados hasta un tablero en Routeo, con la escala del plano calibrada.</div>`;
     return;
   }
-  const filas = (d.circuitos||[]).map(c => `<tr>
-    <td>${esc(c.nombre)}</td>
-    <td class="num">${c.seccionMm2!=null ? esc(c.seccionMm2)+' mm²' : '—'}</td>
-    <td class="num">${c.proteccionA ? esc(c.proteccionA)+' A' : '—'}</td>
-    <td class="num">${c.distanciaM!=null ? c.distanciaM+' m'
-      : '<span class="sinllegar">no llega al tablero</span>'}</td>
-  </tr>`).join('');
-  $('cont').innerHTML = `<table>
-    <thead><tr><th>Circuito</th><th style="width:110px;text-align:right">Sección</th>
-      <th style="width:110px;text-align:right">Protección</th>
-      <th style="width:170px;text-align:right">Distancia al tablero</th></tr></thead>
+  const filas = (d.circuitos||[]).map(c => {
+    const ca = c.caida;
+    if(!ca){
+      return `<tr><td>${esc(c.nombre)}</td>
+        <td class="num">${c.seccionMm2!=null ? esc(c.seccionMm2)+' mm²' : '—'}</td>
+        <td class="num">${c.proteccionA ? esc(c.proteccionA)+' A' : '—'}</td>
+        <td class="num">${c.distanciaM!=null ? nf(c.distanciaM)+' m' : '—'}</td>
+        <td class="num">—</td><td class="num">—</td><td class="num">—</td>
+        <td><span class="pill na">No llega al tablero</span></td></tr>`;
+    }
+    const e = ESTADO[ca.estado] || ESTADO.sin_dato;
+    const peor = ca.peor_caso || {};
+    const lim = ca.entrada?.limite_pct;
+    const sug = ca.sugerencia
+      ? `<span class="sug">→ pasar a ${nf(ca.sugerencia.seccion_mm2, ca.sugerencia.seccion_mm2%1?1:0)} mm²`
+        + ` (${nf(ca.sugerencia.deltaV_pct,1)} %)</span>` : '';
+    return `<tr>
+      <td>${esc(c.nombre)}<span class="sub2">${esc(ca.entrada?.sistema||'')}</span></td>
+      <td class="num">${c.seccionMm2!=null ? esc(c.seccionMm2)+' mm²' : '—'}</td>
+      <td class="num">${c.proteccionA ? esc(c.proteccionA)+' A' : '—'}</td>
+      <td class="num">${nf(c.distanciaM)} m</td>
+      <td class="num">${nf(peor.deltaV_pct,2)} %<span class="sub2">lím ${nf(lim,0)} %${
+        peor.corriente_a!=null ? ' · '+nf(peor.corriente_a,0)+' A' : ''}</span></td>
+      <td class="num">${nf(ca.corriente_max_admisible_a,1)} A</td>
+      <td class="num">${nf(ca.longitud_max_admisible_m,1)} m</td>
+      <td><span class="pill ${e.cls}">${e.txt}</span>${sug}</td>
+    </tr>`;
+  }).join('');
+  $('cont').innerHTML = `<div class="tabla-scroll"><table>
+    <thead><tr>
+      <th>Circuito</th><th class="num">Sección</th><th class="num">Protección</th>
+      <th class="num">Largo</th><th class="num">ΔV % (peor caso)</th>
+      <th class="num">I máx (ΔV)</th><th class="num">Largo máx</th><th>Estado</th>
+    </tr></thead>
     <tbody>${filas ||
-      '<tr><td colspan="4" style="color:var(--muted)">No hay circuitos con tramos en Routeo.</td></tr>'
-    }</tbody></table>`;
+      '<tr><td colspan="8" style="color:var(--muted)">No hay circuitos con tramos en Routeo.</td></tr>'
+    }</tbody></table></div>
+    <div class="leyenda">
+      <b>I máx (ΔV)</b>: corriente que se puede transportar sin superar el ΔV % límite.
+      <b>Largo máx</b>: largo admisible para ese cable en el peor caso.<br>
+      <b>Excede caída</b>: a la corriente de la protección el ΔV % ya supera el límite.
+      <b>Excede longitud</b>: a la ampacidad del conductor el ΔV % supera el límite (el tramo es
+      más largo que el máximo).
+    </div>`;
 }
 
 cargar();

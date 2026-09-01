@@ -18,7 +18,7 @@ mismos nombres en vez de ir acumulando variantes parecidas.
 from __future__ import annotations
 import json, math, heapq
 from pathlib import Path
-from . import config as cfgmod
+from . import config as cfgmod, caida_tension as ct
 
 ARCHIVO = "materiales.json"
 
@@ -325,17 +325,28 @@ def _dijkstra(adj: dict, inicio: str) -> dict:
     return dist
 
 
+def _sistema_de_circuito(obra: dict, circuito_id) -> str:
+    """monofásico salvo que el circuito tenga en algún tablero una seccional
+    de 3 o más polos (trifásica). Es el default residencial; si en el futuro
+    Routeo guarda el sistema por circuito, se lee de ahí."""
+    for t in obra.get("tableros") or []:
+        for d in t.get("dispositivos") or []:
+            if d.get("circuitoId") == circuito_id:
+                return "trifasico" if (d.get("polos") or 2) >= 3 else "monofasico"
+    return "monofasico"
+
+
 def computar_verificaciones(obra: dict) -> dict:
     """Por circuito: la distancia más larga desde el tablero hasta el punto
     más alejado, siguiendo la canalización ya trazada en Routeo (tramo
-    horizontal + bajadas, misma cuenta que computar_canalizacion). Es el dato
-    de entrada para estimar la caída de tensión y fijar un límite de consumo;
-    por ahora sólo informa la distancia, la sección y la protección de cada
-    circuito, sin calcular la caída.
+    horizontal + bajadas, misma cuenta que computar_canalizacion), y sobre esa
+    distancia el análisis de caída de tensión (ver caida_tension.py): ΔV% en el
+    peor caso (corriente = ampacidad del conductor), corriente y largo máximos
+    admisibles, estado y sugerencia de sección.
 
     Si hay más de un tablero, se toma la distancia al más cercano. Si un
     circuito tiene tramos pero ninguno llega a un tablero por la
-    canalización, se informa igual con distancia nula."""
+    canalización, se informa igual con distancia nula y sin caída."""
     canal = obra.get("canalizacion") or {}
     runs = canal.get("runs") or []
     px_por_m = canal.get("pxPerM")
@@ -367,7 +378,8 @@ def computar_verificaciones(obra: dict) -> dict:
         fila = {"id": c.get("id"), "nombre": c.get("name") or c.get("id"),
                 "seccionMm2": c.get("section"), "proteccionA": c.get("prot") or None}
         if not inicios:
-            salida.append({**fila, "distanciaM": None, "conectadoATablero": False})
+            salida.append({**fila, "distanciaM": None, "conectadoATablero": False,
+                           "caida": None})
             continue
         FUENTE = "\x00src"
         for t in inicios:
@@ -375,8 +387,15 @@ def computar_verificaciones(obra: dict) -> dict:
             adj.setdefault(t, {})[FUENTE] = 0.0
         dist = _dijkstra(adj, FUENTE)
         dist.pop(FUENTE, None)
-        d_max = max((v for v in dist.values() if v < math.inf), default=0.0)
-        salida.append({**fila, "distanciaM": round(d_max, 1), "conectadoATablero": True})
+        d_max = round(max((v for v in dist.values() if v < math.inf), default=0.0), 1)
+        caida = ct.analizar_tramo({
+            "id": c.get("id"), "L": d_max, "S": c.get("section"), "material": "cobre",
+            "sistema": _sistema_de_circuito(obra, c.get("id")),
+            "categoria": c.get("ctype") or c.get("kind") or "otros",
+            "proteccion_a": c.get("prot") or None,
+        }) if d_max > 0 else None
+        salida.append({**fila, "distanciaM": d_max, "conectadoATablero": True,
+                       "caida": caida})
     return {"disponible": True, "circuitos": salida}
 
 

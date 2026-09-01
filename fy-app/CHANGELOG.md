@@ -3,6 +3,23 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 0.34.0 — Cálculo de caída de tensión en Verificaciones técnicas
+
+- **Nuevo módulo de cálculo `app/caida_tension.py`** (puro, sin I/O): dado
+  largo, sección, material, sistema mono/tri y corriente, calcula ΔV y ΔV %.
+  También el inverso (corriente máxima para un ΔV % límite) y el largo máximo
+  admisible. Tabla de ampacidad y ρ según IRAM (método B1, 2 conductores en
+  caño, PVC), con la estructura lista para NEC / IEC y para factores de
+  corrección (temperatura, agrupamiento) más adelante.
+- **Verificaciones técnicas ahora muestra, por circuito:** ΔV % en el peor
+  caso (corriente = ampacidad del conductor), corriente máxima admisible por
+  caída, largo máximo admisible, estado (OK / excede longitud / excede
+  caída) y, si excede, la próxima sección normalizada que lo resolvería.
+  Límites por defecto: 3 % iluminación, 5 % el resto. Sistema monofásico
+  230 V salvo que el circuito tenga una seccional de 3+ polos.
+- Pendiente: llevar esta verificación también al DRC de Routeo, para ver la
+  alerta mientras se diseña el tendido.
+
 ## 0.33.0 — Verificaciones técnicas como módulo propio, jabalina configurable, y avisos de Routeo clickeables
 
 - **"Verificaciones técnicas" pasa a ser un módulo aparte**, al que se entra
