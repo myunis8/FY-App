@@ -125,3 +125,5 @@ vieja no destruya datos de una nueva.
   que rehacer el armado cada vez — cada módulo aporta su(s) página(s) ya
   generadas y esto sólo las concatena con una portada/índice.
 
+<!-- push test: 2026-09-01 -->
+
