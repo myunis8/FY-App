@@ -1,0 +1,9 @@
+{
+  "name": "fy-app-devtools",
+  "private": true,
+  "description": "Herramientas de desarrollo (repro de bugs con navegador). No forma parte de la app empaquetada.",
+  "type": "module",
+  "devDependencies": {
+    "puppeteer-core": "^23.0.0"
+  }
+}
