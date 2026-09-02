@@ -80,18 +80,21 @@ class _T:
     En canaliza.html esos se escribían `X/z` para quedar de tamaño de pantalla
     constante -- ahí el editor está siempre "zoomeado" mostrando una parte del
     plano. En el PDF el plano entero entra en una página, así que la anotación
-    se dimensiona como una fracción fija del dibujo (`_REF` ~= el ancho de una
-    ventana de editor típica) para que se lea bien, no como `k` a secas (que
-    dejaba líneas de pelo, casi invisibles)."""
+    se dimensiona como una fracción fija del ÁREA DE DIBUJO de la página
+    (`_REF`), no del recorte del plano -- así un plano apaisado y uno vertical
+    dan la misma escala de íconos, y no como `k` a secas (que dejaba líneas de
+    pelo casi invisibles)."""
 
-    _REF = 900.0
+    _REF = 1050.0
 
     def __init__(self, rect: pymupdf.Rect, base_w: float, base_h: float):
         self.k = min(rect.width / base_w, rect.height / base_h)
         self.ox = rect.x0 + (rect.width - base_w * self.k) / 2
         self.oy = rect.y0 + (rect.height - base_h * self.k) / 2
+        # el lado más corto del área de dibujo de la hoja: no depende de si el
+        # plano es apaisado o vertical, sólo de la orientación de la hoja
+        self.u = min(rect.width, rect.height) / self._REF
         self.rect = pymupdf.Rect(self.ox, self.oy, self.ox + base_w * self.k, self.oy + base_h * self.k)
-        self.u = max(self.rect.width, self.rect.height) / self._REF
 
     def p(self, pt):
         return pymupdf.Point(self.ox + pt["x"] * self.k, self.oy + pt["y"] * self.k)
