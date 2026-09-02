@@ -401,7 +401,7 @@ def generar(obra: dict, proyecto: dict, hojas: dict, *, formato="a4",
     if hojas.get("general", True):
         sub = f"{_fmt(P.px_per_m, 1)} px/m" if P.px_per_m else "sin escala"
         pg, _ = _plan_page(doc, W, H, "Routeo — todos los circuitos", sub, plano_png, base_w, base_h,
-                           88, lambda p, T: _draw_scene(p, T, P, labels=True, lens=False,
+                           88, lambda p, T: _draw_scene(p, T, P, labels=False, lens=False,
                                                         crossings=crossings, problems=problems))
         _legend_circuitos(pg, W, H - 74, [c for c in P.circuits if P.is_ci_visible(c["id"])])
         _footer(pg, W, H, base_name, "Hoja general")
@@ -430,7 +430,7 @@ def generar(obra: dict, proyecto: dict, hojas: dict, *, formato="a4",
         cab = sum(P.run_len_m(r) * (r.get("cables") or 0) for r in rs)
         sub = DEV_KIND.get(c.get("kind"), c.get("kind")) + (f' — {c["detail"]}' if c.get("detail") else "")
         pg, _ = _plan_page(doc, W, H, f'Circuito {c.get("name")}', sub, plano_png, base_w, base_h, 96,
-                           lambda p, T, _cid=cid: _draw_scene(p, T, P, only=_cid, labels=True, lens=False,
+                           lambda p, T, _cid=cid: _draw_scene(p, T, P, only=_cid, labels=False, lens=False,
                                                               detailed=True, crossings=crossings, problems=problems))
         y = H - 84
         celdas = [("Sección", f'{c.get("section")} mm²'), ("Protección", f'{c.get("prot")} A'),
