@@ -18,3 +18,8 @@ config.json
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Node: herramientas de desarrollo (repro de bugs con navegador headless)
+node_modules/
+tools/_repro/
+tools/_repro-plano.pdf
