@@ -67,7 +67,7 @@ def _plano_imagen(obra: dict):
     doc = pymupdf.open(str(ruta))
     pg = doc[0]
     pt_w, pt_h = pg.rect.width, pg.rect.height
-    rz = min(4.0, max(1.5, 2400.0 / max(pt_w, pt_h)))
+    rz = min(5.0, max(2.0, 3200.0 / max(pt_w, pt_h)))
     png = pg.get_pixmap(matrix=pymupdf.Matrix(rz, rz)).tobytes("png")
     doc.close()
     return png, pt_w * ZOOM_PLANO, pt_h * ZOOM_PLANO
@@ -75,19 +75,23 @@ def _plano_imagen(obra: dict):
 
 class _T:
     """Mapeo px-del-plano -> puntos de la página. `k` escala posiciones; `u`
-    escala anchos/radios/tipos. En canaliza.html esos se escribían `X/z` para
-    quedar de tamaño de pantalla constante; en un PDF de escala fija lo natural
-    es dibujar a la escala de la imagen, así que `u == k` (un poco realzado para
-    que la anotación se lea sobre el plano)."""
+    escala anchos/radios/tipos de la anotación (caños, cajas, etiquetas).
 
-    SCENE = 1.15
+    En canaliza.html esos se escribían `X/z` para quedar de tamaño de pantalla
+    constante -- ahí el editor está siempre "zoomeado" mostrando una parte del
+    plano. En el PDF el plano entero entra en una página, así que la anotación
+    se dimensiona como una fracción fija del dibujo (`_REF` ~= el ancho de una
+    ventana de editor típica) para que se lea bien, no como `k` a secas (que
+    dejaba líneas de pelo, casi invisibles)."""
+
+    _REF = 900.0
 
     def __init__(self, rect: pymupdf.Rect, base_w: float, base_h: float):
         self.k = min(rect.width / base_w, rect.height / base_h)
         self.ox = rect.x0 + (rect.width - base_w * self.k) / 2
         self.oy = rect.y0 + (rect.height - base_h * self.k) / 2
-        self.u = self.k * self.SCENE
         self.rect = pymupdf.Rect(self.ox, self.oy, self.ox + base_w * self.k, self.oy + base_h * self.k)
+        self.u = max(self.rect.width, self.rect.height) / self._REF
 
     def p(self, pt):
         return pymupdf.Point(self.ox + pt["x"] * self.k, self.oy + pt["y"] * self.k)

@@ -13,7 +13,7 @@
    de variable de este módulo y sólo cambian los valores, para no tocar cada regla. */
 :root{
   --bg:#f1f3f2; --panel:#fff; --panel-2:#eef1f3; --line:#dde3e2; --line-2:#e7ebea;
-  --ink:#1c2733; --ink-2:#5b6b7a; --ink-3:#8b98a5; --navy:#16283f;
+  --ink:#1c2733; --ink-2:#5b6b7a; --ink-3:#8b98a5; --navy:#16283f; --navy-deep:#0e1c2e;
   --accent:#b5651d; --accent-bg:#f6ece3;
   --amber:#e2a33d; --amber-deep:#c07f1f;
   --err:#b3432f; --err-bg:#f8ded7; --warn:#a06a12; --warn-bg:#f6e8cf; --ok:#2f7d5c;
@@ -32,11 +32,15 @@ button{cursor:pointer}
 #app{display:grid;grid-template-rows:auto 1fr;height:100%}
 
 /* ---------- top bar ---------- */
-#top{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--panel);border-bottom:1px solid var(--line);flex-wrap:wrap}
+/* barra superior: navy, como el header del resto de la app */
+#top{display:flex;align-items:center;gap:8px;padding:10px 16px;background:var(--navy);
+  color:#cfe0f0;border-bottom:1px solid var(--navy-deep);flex-wrap:wrap}
 #brand{display:flex;align-items:baseline;gap:8px;margin-right:6px}
-#brand b{font-family:var(--fh);font-weight:600;font-size:14px;letter-spacing:-.01em;color:var(--navy)}
-#brand span{font-size:11px;color:var(--ink-3)}
+#brand b{font-family:var(--fh);font-weight:600;font-size:14px;letter-spacing:-.01em;color:#fff}
+#brand span{font-size:11px;color:#9db2c7}
+#top .msg{color:#9db2c7}
 .sep{width:1px;height:22px;background:var(--line);margin:0 4px}
+#top .sep{background:#33506e}
 .btn{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:6px 10px;color:var(--ink);white-space:nowrap}
 .btn:hover{background:var(--panel-2);border-color:#c3c9cf}
 .btn:active{background:#eceff1}
@@ -44,8 +48,13 @@ button{cursor:pointer}
 .btn.primary:hover{background:#d7962f}
 .btn.sm{padding:4px 8px;font-size:12px}
 .btn:disabled{opacity:.45;cursor:not-allowed}
-#scaleChip{margin-left:auto;display:flex;align-items:center;gap:8px;font-family:var(--fm);font-size:12px;color:var(--ink-2);
-  background:var(--panel-2);border:1px solid var(--line);border-radius:var(--r);padding:5px 9px}
+/* botones dentro de la barra navy: estilo "ghost" claro (salvo el primary) */
+#top .btn{background:transparent;border-color:#33506e;color:#cfe0f0}
+#top .btn:hover{background:rgba(255,255,255,.06);border-color:#5b7fa5}
+#top .btn.primary{background:var(--amber);border-color:var(--amber-deep);color:#2a1e07}
+#top .btn.primary:hover{background:#d7962f}
+#scaleChip{margin-left:auto;display:flex;align-items:center;gap:8px;font-family:var(--fm);font-size:12px;color:#cfe0f0;
+  background:rgba(255,255,255,.08);border:1px solid #33506e;border-radius:var(--r);padding:5px 9px}
 #scaleChip.unset{background:var(--warn-bg);border-color:#e8d49a;color:var(--warn)}
 .dot{width:7px;height:7px;border-radius:50%;background:var(--ok);flex:none}
 #scaleChip.unset .dot{background:var(--warn)}
