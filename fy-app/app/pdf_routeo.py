@@ -55,7 +55,10 @@ def _page_size(fmt, ori):
 
 
 # --------------------------------------------------------------- plano de fondo
-def _plano_pixmap(obra: dict):
+def _plano_imagen(obra: dict):
+    """Devuelve (png_bytes, base_w, base_h). Se embebe el plano como PNG ya
+    comprimido (no un Pixmap crudo) para que el PDF quede liviano y siga
+    liviano al concatenarlo en el informe general."""
     oid = (obra.get("obra") or {}).get("id")
     nombre = (obra.get("plano") or {}).get("archivo")
     ruta = almacen.ruta_plano(oid, nombre) if (oid and nombre) else None
@@ -64,10 +67,10 @@ def _plano_pixmap(obra: dict):
     doc = pymupdf.open(str(ruta))
     pg = doc[0]
     pt_w, pt_h = pg.rect.width, pg.rect.height
-    rz = min(6.0, max(1.5, 3500.0 / max(pt_w, pt_h)))
-    pix = pg.get_pixmap(matrix=pymupdf.Matrix(rz, rz))
+    rz = min(4.0, max(1.5, 2400.0 / max(pt_w, pt_h)))
+    png = pg.get_pixmap(matrix=pymupdf.Matrix(rz, rz)).tobytes("png")
     doc.close()
-    return pix, pt_w * ZOOM_PLANO, pt_h * ZOOM_PLANO
+    return png, pt_w * ZOOM_PLANO, pt_h * ZOOM_PLANO
 
 
 class _T:
@@ -313,12 +316,12 @@ def _footer(pg, W, H, base_name, etiqueta):
     pg.insert_text((W - MARGEN - tw, H - 16), etiqueta, fontsize=7.5, fontname="helv", color=MUTED)
 
 
-def _plan_page(doc, W, H, titulo, sub, plano_pix, base_w, base_h, alto_reserva, draw_fn):
+def _plan_page(doc, W, H, titulo, sub, plano_png, base_w, base_h, alto_reserva, draw_fn):
     pg = doc.new_page(width=W, height=H)
     y0 = _header(pg, W, titulo, sub)
     rect = pymupdf.Rect(MARGEN, y0 + 4, W - MARGEN, H - alto_reserva)
     T = _T(rect, base_w, base_h)
-    pg.insert_image(T.rect, pixmap=plano_pix)
+    pg.insert_image(T.rect, stream=plano_png)
     draw_fn(pg, T)
     return pg, T
 
@@ -340,10 +343,10 @@ def _legend_circuitos(pg, W, y, circuits):
 
 def generar(obra: dict, proyecto: dict, hojas: dict, *, formato="a4",
             orientacion="landscape", ocultos=None) -> bytes:
-    plano = _plano_pixmap(obra)
+    plano = _plano_imagen(obra)
     if plano is None:
         raise ValueError("Esta obra no tiene un plano cargado en Routeo.")
-    plano_pix, base_w, base_h = plano
+    plano_png, base_w, base_h = plano
     P = cg.Proyecto(proyecto, ocultos=ocultos)
     W, H = _page_size(formato, orientacion)
     base_name = P.base_name
@@ -353,14 +356,14 @@ def generar(obra: dict, proyecto: dict, hojas: dict, *, formato="a4",
 
     if hojas.get("general", True):
         sub = f"{_fmt(P.px_per_m, 1)} px/m" if P.px_per_m else "sin escala"
-        pg, _ = _plan_page(doc, W, H, "Routeo — todos los circuitos", sub, plano_pix, base_w, base_h,
+        pg, _ = _plan_page(doc, W, H, "Routeo — todos los circuitos", sub, plano_png, base_w, base_h,
                            88, lambda p, T: _draw_scene(p, T, P, labels=True, lens=False, crossings=crossings))
         _legend_circuitos(pg, W, H - 74, [c for c in P.circuits if P.is_ci_visible(c["id"])])
         _footer(pg, W, H, base_name, "Hoja general")
 
     if hojas.get("detallado"):
         pg, _ = _plan_page(doc, W, H, "Cableado detallado — todos los circuitos",
-                           "cables reales dentro de cada caño", plano_pix, base_w, base_h, 78,
+                           "cables reales dentro de cada caño", plano_png, base_w, base_h, 78,
                            lambda p, T: _draw_scene(p, T, P, labels=False, lens=False, detailed=True,
                                                     crossings=crossings))
         y = H - 66
@@ -381,7 +384,7 @@ def generar(obra: dict, proyecto: dict, hojas: dict, *, formato="a4",
         vert = sum(P.run_vert_m(r) for r in rs)
         cab = sum(P.run_len_m(r) * (r.get("cables") or 0) for r in rs)
         sub = DEV_KIND.get(c.get("kind"), c.get("kind")) + (f' — {c["detail"]}' if c.get("detail") else "")
-        pg, _ = _plan_page(doc, W, H, f'Circuito {c.get("name")}', sub, plano_pix, base_w, base_h, 96,
+        pg, _ = _plan_page(doc, W, H, f'Circuito {c.get("name")}', sub, plano_png, base_w, base_h, 96,
                            lambda p, T, _cid=cid: _draw_scene(p, T, P, only=_cid, labels=True, lens=False,
                                                               detailed=True, crossings=crossings))
         y = H - 84

@@ -8,18 +8,16 @@ aporta su(s) página(s) ya generadas, y esto sólo arma la portada y las
 concatena -- así sumar un módulo nuevo el día de mañana es agregar una
 entrada en MODULOS y una función que aporte sus páginas, no rehacer nada.
 
-Routeo es un caso aparte: su PDF (el plano detallado, con la foto del plano
-como fondo) lo arma el navegador con jsPDF a partir del canvas, y esos datos
-no existen del lado del servidor. Acá se muestra un resumen calculado a
-partir de los mismos números que ya se guardaron (largo de cable por
-sección, cantidad de tramos) -- no el dibujo. Para el plano completo y el
-cómputo de cajas/caños, hay que exportarlo aparte desde el propio módulo.
+Routeo aporta dos cosas: "routeo_plano" es la hoja general del plano (con la
+foto de fondo, los circuitos y la leyenda), que la genera pdf_routeo.py del
+lado del servidor igual que el resto; "routeo" es el resumen de materiales
+calculado a partir de los tramos guardados.
 """
 from __future__ import annotations
 import io, math
 from datetime import datetime
 import pymupdf
-from . import config as cfgmod, pdf_tablero, pdf_presupuesto
+from . import config as cfgmod, pdf_tablero, pdf_presupuesto, pdf_routeo
 
 ANCHO, ALTO = 595.28, 841.89           # A4 en puntos, igual que el resto de los PDFs
 MARGEN = 44
@@ -32,17 +30,18 @@ LOGO_LADO = 46
 
 # orden fijo en el que aparecen los módulos si están elegidos -- no depende
 # del orden en que vengan en el pedido del cliente
-ORDEN_MODULOS = ["circuitos", "tableros", "routeo", "presupuesto", "unifilar"]
+ORDEN_MODULOS = ["circuitos", "tableros", "routeo_plano", "routeo", "presupuesto", "unifilar"]
 MODULOS = {
-    "circuitos":   "Circuitos",
-    "tableros":    "Tablero(s) -- conexionado y guía de tapa",
-    "routeo":      "Routeo (resumen de materiales)",
-    "presupuesto": "Presupuesto",
-    "unifilar":    "Esquema unifilar (beta)",
+    "circuitos":    "Circuitos",
+    "tableros":     "Tablero(s) -- conexionado y guía de tapa",
+    "routeo_plano": "Routeo -- plano general (todos los circuitos, 1 hoja)",
+    "routeo":       "Routeo (resumen de materiales)",
+    "presupuesto":  "Presupuesto",
+    "unifilar":     "Esquema unifilar (beta)",
 }
 # todos marcados por defecto salvo el unifilar (beta) y el resumen de
 # materiales de routeo (todavía en ajuste, se deja como opción aparte)
-MODULOS_POR_DEFECTO = ["circuitos", "tableros", "presupuesto"]
+MODULOS_POR_DEFECTO = ["circuitos", "tableros", "routeo_plano", "presupuesto"]
 
 
 def _logo(pg):
@@ -199,6 +198,15 @@ def generar(obra: dict, modulos: list[str] | set[str]) -> bytes:
     if "circuitos" in modulos:
         _pagina_circuitos(doc, obra)
 
+    if "routeo_plano" in modulos:
+        try:
+            b = pdf_routeo.generar(obra, obra.get("canalizacion") or {}, {"general": True})
+            sub = pymupdf.open(stream=b, filetype="pdf")
+            doc.insert_pdf(sub)
+            sub.close()
+        except ValueError:
+            pass                       # obra sin plano: se omite la hoja, como antes
+
     if "routeo" in modulos:
         _resumen_routeo(doc, obra)
 
@@ -220,6 +228,8 @@ def generar(obra: dict, modulos: list[str] | set[str]) -> bytes:
         sub.close()
 
     salida = io.BytesIO()
-    doc.save(salida)
+    # deflate: ahora el informe puede traer la hoja del plano de Routeo (con la
+    # foto de fondo), así que conviene recomprimir en vez de guardar en crudo
+    doc.save(salida, deflate=True, garbage=3)
     doc.close()
     return salida.getvalue()

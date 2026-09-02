@@ -345,7 +345,6 @@ table.t input:focus{outline:none;border-color:var(--accent);background:#fff}
 <div id="busy"><div>Procesando…</div></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 /* ---------------------------------------------------------------------
    Integración con FY Manager. No toca nada de la lógica de Canaliza: sólo usa
@@ -2707,325 +2706,37 @@ $("#pdfGo").onclick = async ()=>{
   busy(false);
 };
 
-// cache del fondo ya reescalado, para no repetir el resize de la foto del
-// plano (puede ser de varios megapíxeles) en cada una de las hojas del PDF
-// -- makePdf() genera siempre a res:6000, así que la escala `s` es idéntica
-// en la hoja general, la detallada y cada una de las N hojas por circuito.
-// Se invalida sola si cambia el plano de base o el tamaño pedido.
-let _fondoCache = null;   // {base, w, h, canvas}
-
-function planCanvas(opt){
-  const W = S.base.width, H = S.base.height;
-  const max = opt.res || 3200;
-  // permitimos agrandar un poco planos de baja resolución (hasta 2.5x) para que las
-  // cajas/caños dibujados queden nítidos aunque la foto de fondo sea de baja calidad;
-  // si el plano ya es grande, lo achicamos para no generar archivos gigantes
-  const s = Math.min(2.5, max/Math.max(W,H));
-  const cw = Math.round(W*s), ch = Math.round(H*s);
-  if(!_fondoCache || _fondoCache.base!==S.base || _fondoCache.w!==cw || _fondoCache.h!==ch){
-    const bg = document.createElement("canvas");
-    bg.width=cw; bg.height=ch;
-    const bgCtx = bg.getContext("2d");
-    bgCtx.imageSmoothingEnabled = true; bgCtx.imageSmoothingQuality = "high";
-    bgCtx.drawImage(S.base, 0, 0, cw, ch);
-    _fondoCache = {base:S.base, w:cw, h:ch, canvas:bg};
+// -- PDF de Routeo: lo genera el servidor (app/pdf_routeo.py) con pymupdf,
+// igual que Presupuesto / Lista de materiales. Acá sólo se arma el pedido con
+// buildProjectData() y qué hojas se quieren, y se muestra el resultado.
+async function makePdf(){
+  const hojas = {
+    general:   $("#pxAll")   ? $("#pxAll").checked   : true,
+    detallado: $("#pxDetail")? $("#pxDetail").checked: false,
+    bom:       $("#pxBom")   ? $("#pxBom").checked   : false,
+    circuitos: Array.from(document.querySelectorAll(".pxC:checked")).map(i=>i.value),
+  };
+  const body = {
+    proyecto: buildProjectData(),
+    hojas,
+    formato: $("#pdfSize").value,
+    orientacion: $("#pdfOri").value,
+    ocultos: [...S.hiddenCircuits],
+  };
+  const res = await fetch(`/api/obras/${OBRA_ID}/routeo.pdf`, {
+    method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body),
+  });
+  if(!res.ok){
+    const d = await res.json().catch(()=>({}));
+    throw new Error(d.error || "No se pudo generar el PDF.");
   }
-  const c = document.createElement("canvas");
-  c.width=cw; c.height=ch;
-  const g=c.getContext("2d");
-  g.imageSmoothingEnabled = true; g.imageSmoothingQuality = "high";
-  g.fillStyle="#fff"; g.fillRect(0,0,c.width,c.height);
-  // fondo ya reescalado exactamente al tamaño final: blit 1:1, sin volver a
-  // resamplear la foto original -- por eso va ANTES del g.scale(s,s) (si no,
-  // se escalaría dos veces). El resto de la escena sigue en coordenadas
-  // naturales del plano, como siempre.
-  g.drawImage(_fondoCache.canvas, 0, 0);
-  g.save(); g.scale(s,s);
-  drawScene(g, Object.assign({z:s, skipBase:true}, opt));
-  // findCrossings() recorre todos los cruces de TODO el proyecto (cuesta
-  // O(tramos²)) y da exactamente lo mismo para cualquier hoja del mismo PDF
-  // -- si no viene ya calculado (opt.crossings, ver makePdf), se calcula acá
-  // como antes, para no romper a nadie más que use planCanvas.
-  const crossings = opt.crossings || findCrossings();
-  for(const cr of crossings){
-    if(opt.only && !cr.a.runs.some(r=>r.circuit===opt.only) && !cr.b.runs.some(r=>r.circuit===opt.only)) continue;
-    drawCrossingMark(g, cr, s);
-  }
-  g.restore();
-  return c;
+  mostrarVistaPreviaPdf(await res.blob(),
+    (S.baseName.replace(/\.[^.]+$/,"")||"canalizacion")+".pdf");
 }
 
-async function makePdf(soloBytes){
-  const {jsPDF} = window.jspdf;
-  const fmtP = $("#pdfSize").value, ori = $("#pdfOri").value;
-  const doc = new jsPDF({orientation:ori, unit:"mm", format:fmtP});
-  const PW = doc.internal.pageSize.getWidth(), PH = doc.internal.pageSize.getHeight();
-  const M = 12;
-  let first = true;
-
-  const wanted = Array.from(document.querySelectorAll(".pxC:checked")).map(i=>i.value);
-  const bom = computeBom();
-  // los cruces de todo el proyecto son los mismos para cualquier hoja de
-  // este PDF (no dependen de qué circuito se esté dibujando) -- calcularlos
-  // una sola vez acá, en vez de una vez por cada hoja, es lo que más pesaba
-  // cuando había varios circuitos (era O(tramos²) repetido N veces).
-  const crossings = findCrossings();
-
-  function header(title, sub){
-    if(!first) doc.addPage(); first=false;
-    doc.setDrawColor(200); doc.setLineWidth(.3);
-    doc.line(M, M+9, PW-M, M+9);
-    doc.setFont("helvetica","bold"); doc.setFontSize(12); doc.setTextColor(20);
-    doc.text(title, M, M+5);
-    doc.setFont("helvetica","normal"); doc.setFontSize(8); doc.setTextColor(120);
-    doc.text(sub, PW-M, M+5, {align:"right"});
-  }
-  function foot(n){
-    doc.setFont("helvetica","normal"); doc.setFontSize(7); doc.setTextColor(150);
-    doc.text((S.baseName||"plano")+"  ·  "+new Date().toLocaleDateString("es-AR"), M, PH-6);
-    doc.text(n, PW-M, PH-6, {align:"right"});
-  }
-  function putPlan(c, top, bottom, opt){
-    opt = opt || {};
-    const availW = PW-M*2, availH = (bottom||PH-14)-top;
-    const s = Math.min(availW/c.width, availH/c.height);
-    const w=c.width*s, h=c.height*s;
-    // PNG (sin pérdida) para las hojas donde importa distinguir bien el color de cada
-    // cable — el JPEG "corre" el color en líneas finas y las hace ilegibles al hacer zoom.
-    // El parámetro de compresión (sin pérdida, FlateDecode) es necesario: sin él, jsPDF
-    // embebe el bitmap crudo sin comprimir en vez de aprovechar que un PNG ya viene
-    // comprimido, e infla el archivo varios órdenes de magnitud (medido: una hoja de
-    // ~700 KB de PNG terminaba pesando más de 100 MB en el PDF final).
-    if(opt.png) doc.addImage(c.toDataURL("image/png"), "PNG", M+(availW-w)/2, top, w, h, undefined, "SLOW");
-    else doc.addImage(c.toDataURL("image/jpeg",.95), "JPEG", M+(availW-w)/2, top, w, h);
-  }
-
-  // ---- hoja general
-  if($("#pxAll").checked){
-    header("Routeo — todos los circuitos", S.pxPerM?fmt(S.pxPerM,1)+" px/m":"sin escala");
-    const c = planCanvas({labels:true, lens:false, res:6000, crossings});
-    putPlan(c, M+14, PH-40, {png:true});
-    // leyenda
-    let y = PH-34;
-    doc.setFontSize(8); doc.setTextColor(20); doc.setFont("helvetica","bold");
-    doc.text("Referencias", M, y); y+=4.5;
-    doc.setFont("helvetica","normal");
-    let x=M;
-    for(const cc of S.circuits){
-      const rgb = hex2rgb(cc.color);
-      doc.setDrawColor(rgb[0],rgb[1],rgb[2]); doc.setLineWidth(1);
-      doc.line(x, y-1.2, x+7, y-1.2);
-      doc.setTextColor(40);
-      const t = cc.name+(cc.detail?" ("+cc.detail+")":"")+"  "+cc.section+"mm² · "+cc.prot+"A";
-      doc.text(t, x+9, y);
-      x += 11 + doc.getTextWidth(t);
-      if(x > PW-M-45){ x=M; y+=4.5; }
-    }
-    foot("Hoja general");
-  }
-
-  // ---- hoja de cableado detallado (todos los circuitos, con los conductores reales dentro de cada caño)
-  if($("#pxDetail").checked){
-    header("Cableado detallado — todos los circuitos", "cables reales dentro de cada caño");
-    const c = planCanvas({labels:false, lens:false, detailed:true, res:6000, crossings});
-    putPlan(c, M+14, PH-40, {png:true});
-    let y = PH-34;
-    doc.setFontSize(8); doc.setTextColor(20); doc.setFont("helvetica","bold");
-    doc.text("Cómo leer los caños", M, y); y+=4.5;
-    doc.setFont("helvetica","normal"); doc.setTextColor(60); doc.setFontSize(7);
-    doc.text("Cada línea de color adentro del caño es un conductor. Cuanto más gruesa, mayor la sección: fino = 1.5 mm² (iluminación), medio = 2.5 mm² (tomas), grueso = 4-6 mm² (especiales/acometida), el más grueso = puesta a tierra de gran sección.", M, y, {maxWidth: PW-M*2});
-    y+=7;
-    doc.setFontSize(8); doc.setFont("helvetica","bold"); doc.setTextColor(20);
-    doc.text("Referencias de color", M, y); y+=4.5;
-    doc.setFont("helvetica","normal"); doc.setFontSize(7);
-    const legend = [
-      ["Marrón (fase)", WIRE_HEX["Marrón (fase)"]],
-      ["Celeste (neutro)", WIRE_HEX["Celeste (neutro)"]],
-      ["Verde-amarillo (tierra)", WIRE_HEX["Verde-amarillo (tierra)"]],
-      ["Retorno simple, 1ª luz", RS_SHADES[0]],
-      ["Retorno simple, 2ª luz", RS_SHADES[1]],
-      ["Retorno simple, 3ª luz", RS_SHADES[2]],
-      ["Combinada, 1ª luz (las 2 ramas)", RC_SHADES[0]],
-      ["Combinada, 2ª luz (las 2 ramas)", RC_SHADES[1]],
-      ["Combinada, 3ª luz (las 2 ramas)", RC_SHADES[2]]
-    ];
-    let lx=M;
-    for(const [label, colorOrNote] of legend){
-      if(colorOrNote.startsWith && colorOrNote.startsWith("#")){
-        const rgb = hex2rgb(colorOrNote);
-        doc.setFillColor(rgb[0],rgb[1],rgb[2]); doc.rect(lx, y-2.6, 6, 2.6, "F");
-        doc.setDrawColor(120); doc.setLineWidth(.15); doc.rect(lx, y-2.6, 6, 2.6, "S");
-        doc.setTextColor(40); doc.text(label, lx+8, y);
-        lx += 10 + doc.getTextWidth(label);
-      } else {
-        doc.setTextColor(110); doc.text(label+": "+colorOrNote, lx, y, {maxWidth: PW-M*2-lx});
-        lx = M; y += 4;
-      }
-      if(lx > PW-M-50){ lx=M; y+=4.5; }
-    }
-    foot("Cableado detallado");
-  }
-
-  // ---- una hoja por circuito
-  for(const id of wanted){
-    const c = ciById(id); if(!c) continue;
-    const rs = S.runs.filter(r=>r.circuit===id);
-    const len = rs.reduce((a,r)=>a+runLenM(r),0);
-    const cab = rs.reduce((a,r)=>a+runLenM(r)*r.cables,0);
-    header("Circuito "+c.name, DEV_KIND(c.kind) + (c.detail ? " — "+c.detail : ""));
-    // antes esto sólo pasaba para iluminación; los circuitos de tomas/especiales
-    // también tienen sus conductores reales (fase/neutro/tierra) y merecen verse
-    // igual de detallados en su propia hoja, no sólo en la general
-    const cnv = planCanvas({only:id, labels:true, lens:false, detailed:true, res:6000, crossings});
-    putPlan(cnv, M+14, PH-34, {png:true});
-
-    let y=PH-28;
-    doc.setFontSize(8); doc.setFont("helvetica","bold"); doc.setTextColor(20);
-    doc.text("Datos del circuito", M, y);
-    doc.setFont("helvetica","normal"); doc.setTextColor(60); y+=4.5;
-    const vert = rs.reduce((a,r)=>a+runVert(r),0);
-    const wireCount = c.kind==="iluminacion" ? S.wires.filter(w=>w.circuit===c.id && w.runIds.length).length : c.cables;
-    const cells = [
-      ["Sección", c.section+" mm²"], ["Conductores", String(wireCount)],
-      ["Protección", c.prot+" A"], ["Tramos", String(rs.length)],
-      ["Horizontal", fmt(len-vert,1)+" m"], ["Vertical", fmt(vert,1)+" m"],
-      ["Cable", fmt(cab,1)+" m"]
-    ];
-    let cx=M;
-    for(const [k,v] of cells){
-      doc.setTextColor(130); doc.text(k, cx, y);
-      doc.setTextColor(20); doc.setFont("helvetica","bold"); doc.text(v, cx, y+4);
-      doc.setFont("helvetica","normal");
-      cx += Math.max(26, doc.getTextWidth(v)+14);
-    }
-    // detalle de tramos
-    y+=11;
-    if(rs.length && y < PH-12){
-      doc.setDrawColor(215); doc.setLineWidth(.2); doc.line(M,y-4,PW-M,y-4);
-      doc.setFontSize(7); doc.setTextColor(130);
-      const cols=[M, M+40, M+56, M+72, M+88, M+104, M+122];
-      doc.text("Tramo",cols[0],y); doc.text("Caño",cols[1],y); doc.text("Cond.",cols[2],y);
-      doc.text("Horiz.",cols[3],y); doc.text("Vert.",cols[4],y);
-      doc.text("Total",cols[5],y); doc.text("Cable",cols[6],y);
-      doc.setTextColor(40); y+=3.6;
-      const gAll = conduitGroups();
-      for(const r of rs){
-        if(y>PH-9) break;
-        const a=nodeById(r.a), b=nodeById(r.b);
-        const gg = gAll.get(groupKey(r));
-        const sh = gg && gg.runs.length>1 ? "  (compartido)" : "";
-        doc.text((a?a.label:"libre")+" → "+(b?b.label:"libre")+sh, cols[0], y);
-        doc.text(diaLbl(r.dia), cols[1], y);
-        doc.text(String(r.cables), cols[2], y);
-        doc.text(fmt(runHoriz(r),2), cols[3], y);
-        doc.text(fmt(runVert(r),2), cols[4], y);
-        doc.text(fmt(runLenM(r),2)+" m", cols[5], y);
-        doc.text(fmt(runLenM(r)*r.cables,2)+" m", cols[6], y);
-        y+=3.4;
-      }
-    }
-    foot("Circuito "+c.name);
-  }
-
-  // ---- cómputo
-  if($("#pxBom").checked){
-    header("Cómputo de materiales", S.pxPerM?"escala "+fmt(S.pxPerM,1)+" px/m":"sin escala");
-    let y=M+20;
-    const col2 = PW/2+4;
-
-    doc.setFont("helvetica","bold"); doc.setFontSize(9); doc.setTextColor(20);
-    doc.text("Cable por sección", M, y);
-    doc.setFont("helvetica","normal"); doc.setFontSize(8); y+=5;
-    const cs=Object.keys(bom.cable).filter(k=>bom.cable[k]>0).sort((a,b)=>a-b);
-    for(const s of cs){
-      doc.setTextColor(80); doc.text(s+" mm²", M, y);
-      doc.setTextColor(20); doc.text(fmt(bom.cable[s],1)+" m", M+42, y, {align:"right"}); y+=4.4;
-      const colors = bom.cableColor[s]||{};
-      for(const col of Object.keys(colors).sort()){
-        doc.setFont("helvetica","normal"); doc.setFontSize(7); doc.setTextColor(130);
-        doc.text(col, M+3, y);
-        doc.text(fmt(colors[col],1)+" m", M+42, y, {align:"right"}); y+=3.6;
-        doc.setFontSize(8);
-      }
-    }
-    doc.setFont("helvetica","bold"); doc.setTextColor(20); doc.text("Total", M, y);
-    doc.text(fmt(bom.totalCable,1)+" m", M+42, y, {align:"right"});
-
-    let y2=M+20;
-    doc.setFont("helvetica","bold"); doc.setFontSize(9);
-    doc.text("Caño corrugado", col2, y2);
-    doc.setFont("helvetica","normal"); doc.setFontSize(8); y2+=5;
-    const ds=Object.keys(bom.conduit).filter(k=>bom.conduit[k]>0).sort((a,b)=>diaOf(a).mm-diaOf(b).mm);
-    for(const d of ds){ doc.setTextColor(80); doc.text(diaLbl(d)+"  ("+diaOf(d).mm+" mm)", col2, y2);
-      doc.setTextColor(20); doc.text(fmt(bom.conduit[d],1)+" m", col2+42, y2, {align:"right"}); y2+=4.4; }
-    doc.setFont("helvetica","bold"); doc.text("Total", col2, y2);
-    doc.text(fmt(bom.totalConduit,1)+" m", col2+42, y2, {align:"right"});
-
-    y = Math.max(y,y2)+11;
-    doc.setFont("helvetica","bold"); doc.setFontSize(9); doc.setTextColor(20);
-    doc.text("Cajas", M, y); doc.setFont("helvetica","normal"); doc.setFontSize(8); y+=5;
-    const boxRows = [["Octogonales",bom.boxes.oct||0],["Rectangulares",bom.boxes.rect||0],["Tableros",bom.boxes.tablero||0]];
-    if(bom.boxes.medidor) boxRows.push(["Medidores", bom.boxes.medidor]);
-    if(bom.boxes.jabalina) boxRows.push(["Jabalinas", bom.boxes.jabalina]);
-    for(const [k,v] of boxRows){
-      doc.setTextColor(80); doc.text(k, M, y);
-      doc.setTextColor(20); doc.text(String(v), M+42, y, {align:"right"}); y+=4.4;
-    }
-    if(bom.boxes.insp){
-      doc.setTextColor(80); doc.text("De inspección", M, y);
-      doc.setTextColor(20); doc.text(String(bom.boxes.insp), M+42, y, {align:"right"}); y+=4.4;
-      for(const k of Object.keys(bom.boxesInsp).sort()){
-        doc.setTextColor(120); doc.text("  "+k, M, y);
-        doc.setTextColor(20); doc.text(String(bom.boxesInsp[k]), M+42, y, {align:"right"}); y+=4.4;
-      }
-    }
-
-    y+=7;
-    doc.setFont("helvetica","bold"); doc.setFontSize(9); doc.text("Resumen por circuito", M, y);
-    y+=5.5; doc.setFontSize(7); doc.setTextColor(130); doc.setFont("helvetica","normal");
-    const cc=[M, M+30, M+48, M+64, M+82, M+102, M+124];
-    ["Circuito","Sección","Protec.","Tramos","Recorrido","Cable","Tipo"].forEach((h,i)=>doc.text(h,cc[i],y));
-    y+=3.8; doc.setTextColor(30);
-    for(const r of bom.byCircuit){
-      if(y>PH-30) break;
-      doc.text(r.c.name, cc[0], y);
-      doc.text(r.c.section+" mm²", cc[1], y);
-      doc.text(r.c.prot+" A", cc[2], y);
-      doc.text(String(r.runs), cc[3], y);
-      doc.text(fmt(r.len,1)+" m", cc[4], y);
-      doc.text(fmt(r.cab,1)+" m", cc[5], y);
-      doc.text(DEV_KIND(r.c.kind), cc[6], y);
-      y+=3.8;
-    }
-
-    const obs = drcCached();
-    if(obs.length && y<PH-26){
-      y+=7; doc.setFont("helvetica","bold"); doc.setFontSize(9); doc.setTextColor(20);
-      doc.text("Observaciones de reglas de diseño", M, y);
-      y+=5; doc.setFont("helvetica","normal"); doc.setFontSize(7.5);
-      for(const o of obs){
-        if(y>PH-10) break;
-        doc.setTextColor(o.lvl==="e"?179:138, o.lvl==="e"?38:97, o.lvl==="e"?30:0);
-        const lines = doc.splitTextToSize((o.lvl==="e"?"! ":"? ")+stripTags(o.txt), PW-M*2);
-        doc.text(lines, M, y); y += lines.length*3.4+1;
-      }
-    }
-    doc.setFontSize(7); doc.setTextColor(150);
-    doc.text("Cálculo con "+S.rules.waste+"% de desperdicio, "+S.rules.spare+" cm de reserva por conexión y bajadas verticales sobre cielorraso de "+
-      fmt(S.z.ceiling,2)+" m. Tablero "+fmt(S.z.tablero,2)+" m · tomas "+fmt(S.z.toma,2)+" m · interruptores "+fmt(S.z.interruptor,2)+" m."+
-      (bom.shared?"  "+bom.shared+" caño(s) compartido(s) computados una sola vez.":""), M, PH-11);
-    foot("Cómputo");
-  }
-
-  if(soloBytes) return doc.output("arraybuffer");
-  mostrarVistaPreviaPdf(doc, (S.baseName.replace(/\.[^.]+$/,"")||"canalizacion")+".pdf");
-}
-
-// vista previa de PDF: en vez de descargar directo, se muestra en un iframe
-// adentro de la app (el doc de jsPDF ya está armado en memoria, así que no
-// hace falta pedir nada al servidor), con un botón de Descargar recién ahí.
-function mostrarVistaPreviaPdf(doc, nombreArchivo){
-  const blob = doc.output("blob");
+// vista previa: se muestra el PDF (blob que devolvió el servidor) en un iframe
+// adentro de la app, con el botón de Descargar recién ahí.
+function mostrarVistaPreviaPdf(blob, nombreArchivo){
   const objUrl = URL.createObjectURL(blob);
   $("#pdfPFrame").src = objUrl;
   open$("#mPdfPreview");
@@ -3052,11 +2763,6 @@ function mostrarVistaPreviaPdf(doc, nombreArchivo){
 function DEV_KIND(k){
   return {iluminacion:"Iluminación", tomas:"Tomacorrientes", especial:"Especial", exterior:"Exterior",
     acometida:"Acometida", tierra:"Puesta a tierra"}[k]||k;
-}
-function stripTags(s){ return s.replace(/<[^>]+>/g,""); }
-function hex2rgb(h){
-  const m=/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(h);
-  return m?[parseInt(m[1],16),parseInt(m[2],16),parseInt(m[3],16)]:[0,0,0];
 }
 
 /* ============================ misc UI ============================ */
@@ -3151,23 +2857,9 @@ buildTools();
 // ---- integración externa: no toca nada de lo existente, sólo expone hooks ----
 // solo lectura/depuración: útil para inspeccionar el estado interno desde
 // la consola del navegador sin tener que exportar todo el proyecto
-window.canalizaDebug = {S, activeCi, ciById, nodeById, findNode, planCanvas, wireHex, conduitConductors};
+window.canalizaDebug = {S, activeCi, ciById, nodeById, findNode, wireHex, conduitConductors};
 
 window.canalizaExportar = buildProjectData;
-// para el informe general: arma sólo la hoja general (todos los circuitos
-// juntos sobre el plano), no el PDF completo de Routeo -- ese trae además
-// una hoja por circuito a resolución alta, y termina pesando demasiado
-// para unirlo con el resto del informe (una sola hoja alcanza para lo que
-// necesita un informe general; el detalle circuito por circuito se sigue
-// exportando aparte, desde el propio botón de Routeo).
-window.canalizaGenerarPdfBytes = async function(){
-  if(!S.base) throw new Error("Esta obra no tiene un plano cargado en Routeo todavía.");
-  $("#pdfList").innerHTML =
-    `<label class="chk"><input type="checkbox" id="pxAll" checked> Hoja con todos los circuitos juntos</label>` +
-    `<label class="chk"><input type="checkbox" id="pxDetail"> Hoja de cableado detallado (todos los circuitos, cables adentro de cada caño)</label>` +
-    `<label class="chk"><input type="checkbox" id="pxBom"> Hoja de cómputo de materiales y observaciones</label>`;
-  return await makePdf(true);
-};
 window.canalizaImportar = applyProjectData;
 
 })();
