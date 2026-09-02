@@ -110,16 +110,23 @@ def _stroke(pg, pts, color, width, *, dash=None, close=False, opacity=1.0):
     sh.commit()
 
 
-def _poly_pts(pts):
-    return [{"x": p.x, "y": p.y} for p in pts]
-
-
 # --------------------------------------------------------------- dibujo del plano
 def _draw_conduit(pg, T, P, grp, bad, vis, detailed):
-    base = T.pts(grp["runs"][0]["pts"])
-    if len(base) < 2:
+    base_w = grp["runs"][0].get("pts") or []        # polilínea en coords del plano
+    if len(base_w) < 2:
         return
+    base = T.pts(base_w)                            # coords de página, para las envolturas
     u = T.u
+    # los cables van en paralelo, corridos del eje del caño. El offset se aplica
+    # sobre las coords DEL PLANO y recién ahí se transforma una sola vez -- si se
+    # aplicara sobre `base` (ya transformada) y se volviera a pasar por T.pts(),
+    # la línea de color queda re-escalada y pegada arriba a la izquierda.
+    off_u = u / T.k                                 # "1 de offset raw" -> u pt en la página
+
+    def _linea(off_raw, color, w, *, opacity=1.0, dash=None):
+        pts = base if not off_raw else T.pts(offset_poly(base_w, off_raw * off_u))
+        _stroke(pg, pts, color, w, opacity=opacity, dash=dash)
+
     if detailed:
         items = P.conduit_conductors(vis)
         n = max(len(items), 1)
@@ -130,11 +137,10 @@ def _draw_conduit(pg, T, P, grp, bad, vis, detailed):
         _stroke(pg, base, (1, 1, 1), (pipe_w - 2.6) * u)
         sp = min(5.6, (pipe_w - 2.5) / n)
         for i, it in enumerate(items):
-            off = (i - (n - 1) / 2) * sp if n > 1 else 0
-            pts = T.pts(offset_poly(_poly_pts(base), off * u))
+            off_raw = (i - (n - 1) / 2) * sp if n > 1 else 0
             w = cond_width(it["section"])
-            _stroke(pg, pts, (15 / 255, 18 / 255, 20 / 255), (w + 1.1) * u, opacity=0.6)
-            _stroke(pg, pts, _rgb(it["color"]), w * u)
+            _linea(off_raw, (15 / 255, 18 / 255, 20 / 255), (w + 1.1) * u, opacity=0.6)
+            _linea(off_raw, _rgb(it["color"]), w * u)
         return
 
     _stroke(pg, base, (1, 1, 1), 11 * u, opacity=0.9)
@@ -147,10 +153,9 @@ def _draw_conduit(pg, T, P, grp, bad, vis, detailed):
         c = P.circuit(r.get("circuit"))
         if not c:
             continue
-        off = (i - (n - 1) / 2) * 3.4 if n > 1 else 0
-        pts = T.pts(offset_poly(_poly_pts(base), off * u))
+        off_raw = (i - (n - 1) / 2) * 3.4 if n > 1 else 0
         dash = f"[{9 * u} {6 * u}] 0" if c.get("dash") else None
-        _stroke(pg, pts, _rgb(c.get("color")), (2.2 if n > 1 else 2.8) * u, dash=dash)
+        _linea(off_raw, _rgb(c.get("color")), (2.2 if n > 1 else 2.8) * u, dash=dash)
 
 
 def _draw_device(pg, T, dev, cx, cy, R, color):
