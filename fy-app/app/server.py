@@ -6,7 +6,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
 from . import (almacen, config as cfgmod, contrato as C, canalizacion as canal_mod, extraccion, github as gh,
-               materiales as mat_mod, pdf_informe, pdf_materiales, pdf_presupuesto, pdf_tablero,
+               materiales as mat_mod, pdf_informe, pdf_materiales, pdf_presupuesto, pdf_routeo, pdf_tablero,
                precios as precios_mod, presupuesto as pres_mod, sync, tablero as tablero_mod, vinculos)
 
 if getattr(sys, "frozen", False):
@@ -357,6 +357,9 @@ class Handler(BaseHTTPRequestHandler):
                 "jabalina": mat_mod.computar_jabalina(obra),
                 "canalizacion": mat_mod.computar_canalizacion(obra),
             })
+
+        if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "routeo.pdf":
+            return self._pdf_routeo(partes[2], cuerpo)
 
         if ruta == "/api/config/verificar":
             datos = gh.verificar({**cfg, **{k: v for k, v in cuerpo.items() if v}},
@@ -741,6 +744,29 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as e:
             return self._error(f"No pude generar la lista de materiales: {e}", 500)
         nombre = (obra["obra"].get("nombre") or "obra").replace(" ", "_") + "_materiales"
+        self.send_response(200)
+        self.send_header("Content-Type", "application/pdf")
+        self.send_header("Content-Length", str(len(datos)))
+        self.send_header("Content-Disposition", f'inline; filename="{nombre}.pdf"')
+        self.end_headers()
+        self.wfile.write(datos)
+
+    def _pdf_routeo(self, obra_id, cuerpo):
+        obra = almacen.leer_obra(obra_id)
+        if obra is None:
+            return self._error("Esa obra no está en este equipo.", 404)
+        proyecto = cuerpo.get("proyecto") or obra.get("canalizacion") or {}
+        try:
+            datos = pdf_routeo.generar(
+                obra, proyecto, cuerpo.get("hojas") or {},
+                formato=cuerpo.get("formato", "a4"),
+                orientacion=cuerpo.get("orientacion", "landscape"),
+                ocultos=cuerpo.get("ocultos"))
+        except ValueError as e:
+            return self._error(str(e), 400)
+        except Exception as e:
+            return self._error(f"No pude generar el PDF de Routeo: {e}", 500)
+        nombre = (obra["obra"].get("nombre") or "obra").replace(" ", "_") + "_routeo"
         self.send_response(200)
         self.send_header("Content-Type", "application/pdf")
         self.send_header("Content-Length", str(len(datos)))
