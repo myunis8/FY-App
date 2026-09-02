@@ -18,6 +18,7 @@ papel independientemente del zoom. Acá `T.u` reproduce ese factor: cada `X`
 """
 from __future__ import annotations
 import io
+import re
 from datetime import datetime
 import pymupdf
 from . import config as cfgmod, almacen, canaliza_geom as cg
@@ -28,7 +29,34 @@ INK = (0x1c / 255, 0x27 / 255, 0x33 / 255)
 MUTED = (0x5b / 255, 0x6b / 255, 0x7a / 255)
 LINE = (0.80, 0.80, 0.80)
 MARGEN = 34.0
-ZOOM_PLANO = 3.0                       # las coords de nodes/runs están en px del plano a este zoom
+ZOOM_PLANO = 3.0                       # zoom por defecto del plano (obras nuevas)
+
+
+def _zoom_coords(obra: dict, proyecto: dict) -> float:
+    """Zoom con el que se calcularon las coords de nodes/runs de esta obra.
+    Antes el editor usaba ZOOM_PLANO=2; ahora 3. Se deduce de la escala
+    guardada (pxPerM del proyecto / ptPorMetro del plano) o, si no, del
+    ``?zoom=`` de baseSrc. Si nada sirve, se asume ZOOM_PLANO."""
+    ppm = (proyecto or {}).get("pxPerM")
+    ptm = (((obra or {}).get("plano") or {}).get("escala") or {}).get("ptPorMetro")
+    try:
+        if ppm and ptm:
+            z = float(ppm) / float(ptm)
+            if 0.5 < z < 8.0:
+                snap = round(z * 2) / 2          # 2.0001 -> 2.0, 2.98 -> 3.0
+                return snap if abs(snap - z) < 0.03 else round(z, 4)
+    except (TypeError, ValueError, ZeroDivisionError):
+        pass
+    src = (proyecto or {}).get("baseSrc") or ""
+    m = re.search(r"[?&]zoom=([\d.]+)", src)
+    if m:
+        try:
+            z = float(m.group(1))
+            if 0.5 < z < 8.0:
+                return z
+        except ValueError:
+            pass
+    return ZOOM_PLANO
 
 FORMATOS = {"a4": (595.28, 841.89), "a3": (841.89, 1190.55), "letter": (612.0, 792.0)}
 
@@ -55,7 +83,7 @@ def _page_size(fmt, ori):
 
 
 # --------------------------------------------------------------- plano de fondo
-def _plano_imagen(obra: dict):
+def _plano_imagen(obra: dict, zoom: float = ZOOM_PLANO):
     """Devuelve (png_bytes, base_w, base_h). Se embebe el plano como PNG ya
     comprimido (no un Pixmap crudo) para que el PDF quede liviano y siga
     liviano al concatenarlo en el informe general."""
@@ -70,7 +98,7 @@ def _plano_imagen(obra: dict):
     rz = min(5.0, max(2.0, 3200.0 / max(pt_w, pt_h)))
     png = pg.get_pixmap(matrix=pymupdf.Matrix(rz, rz)).tobytes("png")
     doc.close()
-    return png, pt_w * ZOOM_PLANO, pt_h * ZOOM_PLANO
+    return png, pt_w * zoom, pt_h * zoom
 
 
 class _T:
@@ -358,7 +386,7 @@ def _legend_circuitos(pg, W, y, circuits):
 
 def generar(obra: dict, proyecto: dict, hojas: dict, *, formato="a4",
             orientacion="landscape", ocultos=None) -> bytes:
-    plano = _plano_imagen(obra)
+    plano = _plano_imagen(obra, _zoom_coords(obra, proyecto))
     if plano is None:
         raise ValueError("Esta obra no tiene un plano cargado en Routeo.")
     plano_png, base_w, base_h = plano
