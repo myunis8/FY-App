@@ -243,13 +243,36 @@ def _run_horiz_m(run, px_por_m):
     return total / px_por_m if px_por_m else 0.0
 
 
-def _run_vert_m(run, nodos_por_id, z_cfg):
+def _grados_techo(runs):
+    """Cuántos tramos "por cielorraso" llegan a cada nodo -- para repartir la
+    bajada de esa caja entre todos ellos (ver _run_vert_m)."""
+    g: dict = {}
+    for r in runs or []:
+        if r.get("route") == "directo":
+            continue
+        for k in ("a", "b"):
+            nid = r.get(k)
+            if nid:
+                g[nid] = g.get(nid, 0) + 1
+    return g
+
+
+def _run_vert_m(run, nodos_por_id, z_cfg, grados_techo=None):
+    """MISMA LÓGICA QUE runVert() en web/canaliza.html -- las dos deben coincidir.
+    "directo": diferencia de altura entre las dos cajas. "por cielorraso": la
+    subida/bajada de cada caja se reparte entre los tramos por cielorraso que
+    llegan a ella, así una caja intermedia de una cadena al mismo nivel no
+    cuenta su bajada una vez por tramo (antes se sumaba entera en cada
+    extremo de cada tramo, inflando el metraje de cable)."""
     za = _resolve_z(nodos_por_id.get(run.get("a")), z_cfg)
     zb = _resolve_z(nodos_por_id.get(run.get("b")), z_cfg)
     if run.get("route") == "directo":
         return abs(za - zb)
     techo = z_cfg.get("ceiling", 2.4)
-    return max(0.0, techo - za) + max(0.0, techo - zb)
+    gt = grados_techo or {}
+    da = max(1, gt.get(run.get("a"), 1))
+    db = max(1, gt.get(run.get("b"), 1))
+    return max(0.0, techo - za) / da + max(0.0, techo - zb) / db
 
 
 def _grupo_de_cano(run):
@@ -278,12 +301,13 @@ def computar_canalizacion(obra: dict) -> dict:
     circuitos_por_id = {c["id"]: c for c in canal.get("circuits") or []}
     z_cfg = canal.get("z") or {}
 
+    grados_techo = _grados_techo(runs)
     cable_por_seccion: dict = {}
     total_cable = 0.0
     for r in runs:
         c = circuitos_por_id.get(r.get("circuit")) or {}
         seccion = c.get("section") or 0
-        largo = _run_horiz_m(r, px_por_m) + _run_vert_m(r, nodos_por_id, z_cfg)
+        largo = _run_horiz_m(r, px_por_m) + _run_vert_m(r, nodos_por_id, z_cfg, grados_techo)
         metros = largo * (r.get("cables") or 1)
         cable_por_seccion[seccion] = cable_por_seccion.get(seccion, 0.0) + metros
         total_cable += metros
@@ -295,7 +319,7 @@ def computar_canalizacion(obra: dict) -> dict:
     total_cano = 0.0
     for tramos in grupos.values():
         horiz = max((_run_horiz_m(r, px_por_m) for r in tramos), default=0.0)
-        vert = max((_run_vert_m(r, nodos_por_id, z_cfg) for r in tramos), default=0.0)
+        vert = max((_run_vert_m(r, nodos_por_id, z_cfg, grados_techo) for r in tramos), default=0.0)
         largo = horiz + vert
         dia = tramos[0].get("dia") or "sin especificar"
         cano_por_diametro[dia] = cano_por_diametro.get(dia, 0.0) + largo
@@ -406,6 +430,7 @@ def computar_verificaciones(obra: dict) -> dict:
 
     nodos_por_id = {n["id"]: n for n in canal.get("nodes") or []}
     z_cfg = canal.get("z") or {}
+    grados_techo = _grados_techo(runs)
     runs_por_circuito: dict = {}
     for r in runs:
         runs_por_circuito.setdefault(r.get("circuit"), []).append(r)
@@ -428,7 +453,7 @@ def computar_verificaciones(obra: dict) -> dict:
             a, b = r.get("a"), r.get("b")
             if not a or not b:
                 continue
-            largo = _run_horiz_m(r, px_por_m) + _run_vert_m(r, nodos_por_id, z_cfg)
+            largo = _run_horiz_m(r, px_por_m) + _run_vert_m(r, nodos_por_id, z_cfg, grados_techo)
             for x, y in ((a, b), (b, a)):
                 if largo < adj.setdefault(x, {}).get(y, math.inf):
                     adj[x][y] = largo

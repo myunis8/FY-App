@@ -894,11 +894,23 @@ function runLenPx(r){
 }
 function runHoriz(r){ return S.pxPerM ? runLenPx(r)/S.pxPerM : 0; }
 
+// cuántos tramos "por cielorraso" llegan a un nodo -- para repartir la bajada
+// de esa caja entre todos ellos y no contarla una vez por tramo
+function ceilingRunsAt(nodeId){
+  if(!nodeId) return 1;
+  const n = S.runs.reduce((a,r)=>
+    a + ((r.a===nodeId || r.b===nodeId) && r.route!=="directo" ? 1 : 0), 0);
+  return n || 1;
+}
 function runVert(r){
   const za = resolveZ(nodeById(r.a)), zb = resolveZ(nodeById(r.b));
   if(r.route==="directo") return Math.abs(za-zb);
   const c = S.z.ceiling;
-  return Math.max(0, c-za) + Math.max(0, c-zb);
+  // "por cielorraso": la subida/bajada de cada caja se reparte entre los
+  // tramos por cielorraso que llegan a ella, así una caja intermedia de una
+  // cadena al mismo nivel no cuenta su bajada una vez por tramo (antes se
+  // sumaba entera en ambos extremos de cada tramo, inflando el cable).
+  return Math.max(0, c-za)/ceilingRunsAt(r.a) + Math.max(0, c-zb)/ceilingRunsAt(r.b);
 }
 function runLenM(r){ return S.pxPerM ? runHoriz(r) + runVert(r) : 0; }
 
