@@ -161,6 +161,17 @@ class Proyecto:
         self.hidden = set(ocultos or [])
         self._by_node = {n["id"]: n for n in self.nodes}
         self._by_circ = {c["id"]: c for c in self.circuits}
+        # cuántos tramos "por cielorraso" llegan a cada nodo, para repartir la
+        # bajada de esa caja (ver run_vert_m -- mismo criterio que runVert() en
+        # canaliza.html y _run_vert_m() en materiales.py)
+        self._grados_techo: dict = {}
+        for rr in self.runs:
+            if rr.get("route") == "directo":
+                continue
+            for k in ("a", "b"):
+                nid = rr.get(k)
+                if nid:
+                    self._grados_techo[nid] = self._grados_techo.get(nid, 0) + 1
 
     # ---------------------------------------------------------------- básicos
     def node(self, nid):
@@ -192,12 +203,19 @@ class Proyecto:
         return self.run_len_px(r) / self.px_per_m if self.px_per_m else 0.0
 
     def run_vert_m(self, r):
+        """MISMA LÓGICA QUE runVert() en canaliza.html y _run_vert_m() en
+        materiales.py. "por cielorraso": la bajada de cada caja se reparte
+        entre los tramos por cielorraso que llegan a ella, así una caja
+        intermedia de una cadena al mismo nivel no cuenta su bajada una vez
+        por tramo."""
         za = self.resolve_z(self.node(r.get("a")))
         zb = self.resolve_z(self.node(r.get("b")))
         if r.get("route") == "directo":
             return abs(za - zb)
         c = self.z["ceiling"]
-        return max(0.0, c - za) + max(0.0, c - zb)
+        da = max(1, self._grados_techo.get(r.get("a"), 1))
+        db = max(1, self._grados_techo.get(r.get("b"), 1))
+        return max(0.0, c - za) / da + max(0.0, c - zb) / db
 
     def run_len_m(self, r):
         return (self.run_horiz_m(r) + self.run_vert_m(r)) if self.px_per_m else 0.0
