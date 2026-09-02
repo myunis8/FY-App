@@ -35,6 +35,7 @@ Z0 = {"ceiling": 2.60, "tablero": 1.80, "luminaria": 2.60, "interruptor": 1.20,
       "toma": 0.30, "especial": 1.20, "paso": 2.60, "medidor": 1.50, "jabalina": 0}
 
 RULES0 = {"maxOct": 4, "maxRect": 3, "longRun": 25, "waste": 10, "spare": 15}
+INSP_MAX_DEFAULT = 10                       # caños en una caja de inspección (== INSP_SIZES 20x20)
 
 CROSS_CLEARANCE_M = 0.08                    # separación mínima para "resuelto en altura"
 # tolerancia (px del plano) para no marcar como cruce el empalme dentro de una
@@ -362,6 +363,38 @@ class Proyecto:
         if not rs:
             return True
         return any(self.is_ci_visible(r.get("circuit")) for r in rs)
+
+    # ------------------------------------------------------------- DRC (errores)
+    def node_max_conduits(self, n):
+        k = n.get("kind")
+        if k == "oct":
+            return self.rules["maxOct"]
+        if k == "rect":
+            return self.rules["maxRect"]
+        if k == "insp":
+            return n.get("inspMax") or INSP_MAX_DEFAULT
+        return None                                  # tablero/medidor/jabalina: sin límite
+
+    def drc_error_targets(self):
+        """Ids que el DRC del editor marca en ROJO sobre el dibujo (sólo los
+        errores de nivel "e" que tienen un objeto en el plano): caño excedido
+        en capacidad -> id del primer tramo del grupo; caja con más caños de
+        los que admite -> id de la caja. Es el mismo criterio que `problems`
+        en drawScene() de canaliza.html (no incluye avisos ni el texto del
+        listado, que no va al PDF)."""
+        malos = set()
+        for g in self.conduit_groups().values():
+            f = g["fill"]
+            if f == math.inf or f > 1:
+                malos.add(g["runs"][0].get("id"))
+        for n in self.nodes:
+            mx = self.node_max_conduits(n)
+            if mx is not None:
+                claves = {self.group_key(r) for r in self.runs_at_node(n["id"])}
+                if len(claves) > mx:
+                    malos.add(n["id"])
+        malos.discard(None)
+        return malos
 
     # ------------------------------------------------------------- cómputo
     def compute_bom(self):

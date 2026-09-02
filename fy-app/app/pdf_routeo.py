@@ -165,12 +165,12 @@ def _draw_device(pg, T, dev, cx, cy, R, color):
         _stroke(pg, [pymupdf.Point(cx + ax, cy + ay), pymupdf.Point(cx + bx, cy + by)], color, 1.6 * u)
 
 
-def _draw_node(pg, T, P, n):
+def _draw_node(pg, T, P, n, bad=False):
     u, R = T.u, 10 * T.u
     ctr = T.p(n)
     cx, cy = ctr.x, ctr.y
     ci = P.circuit(n.get("circuitId")) if n.get("circuitId") else None
-    stroke = _rgb(ci["color"]) if ci else (15 / 255, 18 / 255, 20 / 255)
+    stroke = _rgb("#b3261e") if bad else (_rgb(ci["color"]) if ci else (15 / 255, 18 / 255, 20 / 255))
     kind = n.get("kind")
     sh = pg.new_shape()
     if kind == "tablero":
@@ -244,7 +244,9 @@ def _label(pg, T, x, y, text, fs):
     pg.insert_text((x, y), text, fontsize=fs, fontname="helv", color=(15 / 255, 18 / 255, 20 / 255))
 
 
-def _draw_scene(pg, T, P, *, only=None, detailed=False, labels=True, lens=True, crossings=None):
+def _draw_scene(pg, T, P, *, only=None, detailed=False, labels=True, lens=True,
+                crossings=None, problems=None):
+    problems = problems if problems is not None else P.drc_error_targets()
     groups = P.conduit_groups()
     for grp in groups.values():
         relevant = (any(r.get("circuit") == only for r in grp["runs"]) if only
@@ -259,7 +261,8 @@ def _draw_scene(pg, T, P, *, only=None, detailed=False, labels=True, lens=True, 
             vis = [r for r in grp["runs"] if P.is_ci_visible(r.get("circuit"))]
         if not vis:
             continue
-        _draw_conduit(pg, T, P, grp, False, vis, detailed)
+        bad = any(r.get("id") in problems for r in grp["runs"])
+        _draw_conduit(pg, T, P, grp, bad, vis, detailed)
 
     # etiquetas del caño (horizontales, con fondo -- ver nota del módulo)
     if lens and P.px_per_m:
@@ -285,7 +288,7 @@ def _draw_scene(pg, T, P, *, only=None, detailed=False, labels=True, lens=True, 
     for n in P.nodes:
         if not P.node_visible(n, only):
             continue
-        _draw_node(pg, T, P, n)
+        _draw_node(pg, T, P, n, n.get("id") in problems)
         if labels:
             ci = P.circuit(n.get("circuitId")) if n.get("circuitId") else None
             t = (n.get("label") or "") + (f' · {ci["name"]}' if ci else "")
@@ -351,13 +354,15 @@ def generar(obra: dict, proyecto: dict, hojas: dict, *, formato="a4",
     W, H = _page_size(formato, orientacion)
     base_name = P.base_name
     crossings = P.find_crossings()
+    problems = P.drc_error_targets()          # ids que van en rojo (mismo criterio que el editor)
     doc = pymupdf.open()
     hojas = hojas or {}
 
     if hojas.get("general", True):
         sub = f"{_fmt(P.px_per_m, 1)} px/m" if P.px_per_m else "sin escala"
         pg, _ = _plan_page(doc, W, H, "Routeo — todos los circuitos", sub, plano_png, base_w, base_h,
-                           88, lambda p, T: _draw_scene(p, T, P, labels=True, lens=False, crossings=crossings))
+                           88, lambda p, T: _draw_scene(p, T, P, labels=True, lens=False,
+                                                        crossings=crossings, problems=problems))
         _legend_circuitos(pg, W, H - 74, [c for c in P.circuits if P.is_ci_visible(c["id"])])
         _footer(pg, W, H, base_name, "Hoja general")
 
@@ -365,7 +370,7 @@ def generar(obra: dict, proyecto: dict, hojas: dict, *, formato="a4",
         pg, _ = _plan_page(doc, W, H, "Cableado detallado — todos los circuitos",
                            "cables reales dentro de cada caño", plano_png, base_w, base_h, 78,
                            lambda p, T: _draw_scene(p, T, P, labels=False, lens=False, detailed=True,
-                                                    crossings=crossings))
+                                                    crossings=crossings, problems=problems))
         y = H - 66
         pg.insert_text((MARGEN, y), "Cómo leer los caños", fontsize=8.5, fontname="hebo", color=NAVY)
         pg.insert_textbox(pymupdf.Rect(MARGEN, y + 4, W - MARGEN, y + 30),
@@ -386,7 +391,7 @@ def generar(obra: dict, proyecto: dict, hojas: dict, *, formato="a4",
         sub = DEV_KIND.get(c.get("kind"), c.get("kind")) + (f' — {c["detail"]}' if c.get("detail") else "")
         pg, _ = _plan_page(doc, W, H, f'Circuito {c.get("name")}', sub, plano_png, base_w, base_h, 96,
                            lambda p, T, _cid=cid: _draw_scene(p, T, P, only=_cid, labels=True, lens=False,
-                                                              detailed=True, crossings=crossings))
+                                                              detailed=True, crossings=crossings, problems=problems))
         y = H - 84
         celdas = [("Sección", f'{c.get("section")} mm²'), ("Protección", f'{c.get("prot")} A'),
                   ("Tramos", str(len(rs))), ("Horizontal", f'{_fmt(length - vert, 1)} m'),
@@ -494,6 +499,9 @@ def _hoja_bom(doc, W, H, P, base_name):
             pg.insert_text((cols[i], y), v, fontsize=7, fontname="helv", color=INK)
         y += 10
 
+    # El listado de texto "Observaciones de reglas de diseño" (DRC) que armaba
+    # el makePdf() de jsPDF NO se reproduce acá a propósito: el DRC se ve en el
+    # panel del editor y las marcas rojas sobre el dibujo del plano se mantienen.
     nota = (f'Cálculo con {P.rules["waste"]}% de desperdicio, {P.rules["spare"]} cm de reserva por '
             f'conexión y bajadas verticales sobre cielorraso de {_fmt(P.z["ceiling"])} m.')
     if b["shared"]:
