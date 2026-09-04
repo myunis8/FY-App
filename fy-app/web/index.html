@@ -178,6 +178,7 @@ main{max-width:1180px;margin:0 auto;padding:26px 22px 60px}
 
 <main>
   <div class="stats" id="stats"></div>
+  <div class="stats" id="stats-ganancia" style="margin-top:-4px"></div>
   <div class="actividad" id="actividad" style="display:none">
     <h2>Actividad reciente</h2>
     <div id="actividad-lista"></div>
@@ -315,7 +316,7 @@ const ESTADOS = {preliminar:'Preliminar', aprobado:'Aprobado',
                  en_curso:'En curso', realizado:'Realizado'};
 const PAGOS = {pendiente:'Pendiente', parcial:'Pago parcial', pagado:'Pagado'};
 
-let estadoApp = null, obras = [];
+let estadoApp = null, obras = [], finanzas = null;
 
 const $ = id => document.getElementById(id);
 const api = async (ruta, opts={}) => {
@@ -379,6 +380,7 @@ async function sincronizar(){
 /* ---------------- grilla ---------------- */
 async function cargarObras(){
   obras = (await api('/api/obras')).obras;
+  try{ finanzas = await api('/api/finanzas'); }catch(e){ finanzas = null; }
   render();
 }
 function filtrar(){
@@ -412,6 +414,22 @@ function pintarStats(){
   ).join('') + `<div class="stat"><div class="n">${plata(totalPresupuestado)}</div>
     <div class="l">Total presupuestado</div></div>`;
 }
+function pintarGanancias(){
+  // ganancia = mano de obra (lo único que se presupuesta acá por ahora, ver
+  // presupuesto.eventos_ganancia); se reconoce cuando se fue cobrando, no
+  // al presupuestar ni todo junto al final de la obra
+  if(!finanzas){ $('stats-ganancia').innerHTML = ''; return; }
+  const hoy = new Date();
+  const claveMes = hoy.toISOString().slice(0,7), claveAnio = String(hoy.getFullYear());
+  const tiles = [
+    ['Ganancia este mes', finanzas.porMes[claveMes] || 0],
+    ['Ganancia este año', finanzas.porAnio[claveAnio] || 0],
+    ['Promedio por obra cobrada', finanzas.promedioPorObra || 0],
+  ];
+  $('stats-ganancia').innerHTML = tiles.map(([l,n]) =>
+    `<div class="stat"><div class="n" style="color:var(--green)">${plata(n)}</div><div class="l">${l}</div></div>`
+  ).join('');
+}
 function pintarActividad(){
   const items = obras.map(o => o.ultimaActividad ? {...o.ultimaActividad, obraNombre:o.nombre} : null)
     .filter(Boolean).sort((a,b) => (b.el||0) - (a.el||0)).slice(0, 8);
@@ -424,6 +442,7 @@ function pintarActividad(){
 }
 function render(){
   pintarStats();
+  pintarGanancias();
   pintarActividad();
   const cont = $('lista'), lista = filtrar();
   $('conteo').textContent = obras.length

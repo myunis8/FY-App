@@ -196,6 +196,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"obras": almacen.listar_resumenes()})
         if ruta == "/api/historial":
             return self._json({"historial": almacen.listar_historial()})
+        if ruta == "/api/finanzas":
+            return self._json(almacen.listar_finanzas())
         if ruta == "/api/precios":
             return self._json(precios_mod.leer())
         if ruta == "/api/materiales":

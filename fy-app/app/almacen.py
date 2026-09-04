@@ -1,9 +1,11 @@
 """Almacen local en disco. El repo de GitHub es un espejo, no la fuente."""
 from __future__ import annotations
 import json, shutil
+from datetime import datetime
 from pathlib import Path
 from . import config as cfgmod
 from . import contrato as C
+from . import presupuesto as pres_mod
 
 
 def _dir(obra_id: str) -> Path:
@@ -57,6 +59,40 @@ def listar_historial(limite: int = 500) -> list[dict]:
             todo.append({**h, "obraId": d.name, "obraNombre": nombre})
     todo.sort(key=lambda h: h.get("el") or 0, reverse=True)
     return todo[:limite]
+
+
+def listar_finanzas() -> dict:
+    """Ganancia reconocida de todas las obras, agrupada por mes y por año
+    -- ver presupuesto.eventos_ganancia() para de dónde sale cada monto y
+    en qué momento se reconoce (cuando se fue cobrando, no todo junto al
+    final ni al presupuestar)."""
+    cfgmod.asegurar_carpetas()
+    por_mes: dict[str, float] = {}
+    por_anio: dict[str, float] = {}
+    total = 0.0
+    obras_con_cobro = 0
+    for d in cfgmod.DIR_OBRAS.iterdir() if cfgmod.DIR_OBRAS.exists() else []:
+        if not d.is_dir():
+            continue
+        obra = _leer_json(d / "obra.json")
+        if obra is None:
+            continue
+        eventos = pres_mod.eventos_ganancia(obra)
+        if eventos:
+            obras_con_cobro += 1
+        for ev in eventos:
+            dt = datetime.fromtimestamp((ev.get("el") or 0) / 1000)
+            clave_mes, clave_anio = dt.strftime("%Y-%m"), dt.strftime("%Y")
+            por_mes[clave_mes] = por_mes.get(clave_mes, 0) + ev["monto"]
+            por_anio[clave_anio] = por_anio.get(clave_anio, 0) + ev["monto"]
+            total += ev["monto"]
+    return {
+        "porMes": dict(sorted(por_mes.items())),
+        "porAnio": dict(sorted(por_anio.items())),
+        "total": round(total, 2),
+        "promedioPorObra": round(total / obras_con_cobro, 2) if obras_con_cobro else 0,
+        "obrasConCobro": obras_con_cobro,
+    }
 
 
 def leer_obra(obra_id: str) -> dict | None:

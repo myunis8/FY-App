@@ -153,6 +153,29 @@ def totales(pres: dict) -> dict:
     }
 
 
+def eventos_ganancia(obra: dict) -> list[dict]:
+    """Ganancia reconocida en cada cambio de "% pagado" del seguimiento,
+    proporcional a cuánto se cobró -- si una obra se cobra en partes, el
+    ingreso se reconoce a medida que entra, no todo junto al final.
+
+    Por ahora esta app sólo presupuesta mano de obra (todavía no se carga
+    costo de materiales), así que el total del presupuesto es ganancia
+    pura, sin nada que restar. El día que se sume costo de material con un
+    margen propio, esta es la única función que hay que tocar: acá es
+    donde se define qué es "ganancia" de una obra."""
+    total = totales(obra.get("presupuesto") or {}).get("total") or 0
+    eventos = []
+    for h in (obra.get("seguimiento") or {}).get("historial") or []:
+        if h.get("campo") != "pago":
+            continue
+        antes = (h.get("de") or {}).get("porcentaje") or 0
+        despues = (h.get("a") or {}).get("porcentaje") or 0
+        delta = despues - antes
+        if delta > 0:
+            eventos.append({"el": h.get("el"), "monto": round(total * delta / 100, 2)})
+    return eventos
+
+
 def congelar(obra: dict, usuario: str = "") -> dict:
     """Deja constancia de con qué lista de precios se armó."""
     pres = obra.setdefault("presupuesto", {})
