@@ -28,6 +28,8 @@ html,body{height:100%;margin:0}
 body{font-family:var(--fs);font-size:13px;color:var(--ink);background:var(--bg);overflow:hidden}
 button,input,select{font-family:inherit;font-size:13px;color:inherit}
 button{cursor:pointer}
+input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+input[type=number]{-moz-appearance:textfield}
 .mono{font-family:var(--fm)}
 
 #app{display:grid;grid-template-rows:auto 1fr;height:100%}
