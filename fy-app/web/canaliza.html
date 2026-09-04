@@ -190,7 +190,8 @@ table.t input:focus{outline:none;border-color:var(--accent);background:#fff}
   <button class="btn" id="bUndo" title="Deshacer (Ctrl+Z)" disabled>↶ Deshacer</button>
   <button class="btn" id="bRedo" title="Rehacer (Ctrl+Shift+Z)" disabled>↷ Rehacer</button>
   <div class="sep"></div>
-  <button class="btn primary" id="bPdf">Exportar PDF</button>
+  <button class="btn primary" id="bPdfPlanos">📐 PDF de planos</button>
+  <button class="btn primary" id="bPdfBom">📋 PDF de materiales</button>
   <div id="scaleChip" class="unset"><span class="dot"></span><span id="scaleTxt">Sin escala</span>
     <button class="btn sm" id="bCal">Calibrar</button></div>
 </div>
@@ -325,8 +326,8 @@ table.t input:focus{outline:none;border-color:var(--accent);background:#fff}
 </div></div>
 
 <div class="mask" id="mPdf"><div class="modal">
-  <h2>Exportar PDF</h2>
-  <p class="sub">Una hoja por circuito, más las hojas generales que elijas. Se abre en cualquier visor, sin necesidad de capas.</p>
+  <h2 id="pdfTitulo">Exportar PDF</h2>
+  <p class="sub" id="pdfSub">Una hoja por circuito, más las hojas generales que elijas. Se abre en cualquier visor, sin necesidad de capas.</p>
   <div id="pdfList"></div>
   <div style="margin-top:12px" class="f2">
     <div><label class="f" for="pdfSize">Tamaño de hoja</label><select class="f" id="pdfSize"><option value="a4">A4</option><option value="a3">A3</option><option value="letter">Carta</option></select></div>
@@ -335,7 +336,7 @@ table.t input:focus{outline:none;border-color:var(--accent);background:#fff}
   <div class="acts"><button class="btn" data-close>Cancelar</button><button class="btn primary" id="pdfGo">Generar PDF</button></div>
 </div></div>
 
-<div class="mask" id="mPdfPreview"><div class="modal" style="width:min(920px,96vw);height:min(860px,92vh);
+<div class="mask" id="mPdfPreview"><div class="modal" style="width:min(1300px,97vw);height:min(960px,94vh);
     display:flex;flex-direction:column;padding:0;overflow:hidden">
   <div style="padding:10px 14px;border-bottom:1px solid var(--line);display:flex;
       align-items:center;justify-content:space-between">
@@ -2714,15 +2715,28 @@ function dl(blob, name){
 
 /* ============================ exportar PDF ============================ */
 
-$("#bPdf").onclick = ()=>{
+let pdfMode = "planos";
+
+$("#bPdfPlanos").onclick = ()=>{
   if(!S.base){ alert("Cargá primero un plano base."); return; }
+  pdfMode = "planos";
+  $("#pdfTitulo").textContent = "PDF de planos";
+  $("#pdfSub").textContent = "Una hoja por circuito, más las hojas generales que elijas. Se abre en cualquier visor, sin necesidad de capas.";
   const l=$("#pdfList");
   l.innerHTML =
     `<label class="chk"><input type="checkbox" id="pxAll" checked> Hoja con todos los circuitos juntos</label>` +
     `<label class="chk"><input type="checkbox" id="pxDetail" checked> Hoja de cableado detallado (todos los circuitos, cables adentro de cada caño)</label>` +
     S.circuits.map(c=>`<label class="chk"><input type="checkbox" class="pxC" value="${c.id}" checked>
-      <span class="sw" style="background:${c.color};margin-top:2px"></span> Hoja de ${esc(c.name)}</label>`).join("") +
-    `<label class="chk"><input type="checkbox" id="pxBom" checked> Hoja de cómputo de materiales y observaciones</label>`;
+      <span class="sw" style="background:${c.color};margin-top:2px"></span> Hoja de ${esc(c.name)}</label>`).join("");
+  open$("#mPdf");
+};
+
+$("#bPdfBom").onclick = ()=>{
+  if(!S.base){ alert("Cargá primero un plano base."); return; }
+  pdfMode = "bom";
+  $("#pdfTitulo").textContent = "PDF de materiales";
+  $("#pdfSub").textContent = "Cómputo de cable por sección, caño corrugado, cajas y resumen por circuito.";
+  $("#pdfList").innerHTML = "";
   open$("#mPdf");
 };
 
@@ -2736,12 +2750,14 @@ $("#pdfGo").onclick = async ()=>{
 // igual que Presupuesto / Lista de materiales. Acá sólo se arma el pedido con
 // buildProjectData() y qué hojas se quieren, y se muestra el resultado.
 async function makePdf(){
-  const hojas = {
-    general:   $("#pxAll")   ? $("#pxAll").checked   : true,
-    detallado: $("#pxDetail")? $("#pxDetail").checked: false,
-    bom:       $("#pxBom")   ? $("#pxBom").checked   : false,
-    circuitos: Array.from(document.querySelectorAll(".pxC:checked")).map(i=>i.value),
-  };
+  const hojas = pdfMode === "bom"
+    ? { general:false, detallado:false, bom:true, circuitos:[] }
+    : {
+        general:   $("#pxAll")   ? $("#pxAll").checked   : true,
+        detallado: $("#pxDetail")? $("#pxDetail").checked: false,
+        bom:       false,
+        circuitos: Array.from(document.querySelectorAll(".pxC:checked")).map(i=>i.value),
+      };
   const body = {
     proyecto: buildProjectData(),
     hojas,
@@ -2756,8 +2772,9 @@ async function makePdf(){
     const d = await res.json().catch(()=>({}));
     throw new Error(d.error || "No se pudo generar el PDF.");
   }
+  const sufijo = pdfMode === "bom" ? "_materiales" : "_planos";
   mostrarVistaPreviaPdf(await res.blob(),
-    (S.baseName.replace(/\.[^.]+$/,"")||"canalizacion")+".pdf");
+    (S.baseName.replace(/\.[^.]+$/,"")||"canalizacion")+sufijo+".pdf");
 }
 
 // vista previa: se muestra el PDF (blob que devolvió el servidor) en un iframe
