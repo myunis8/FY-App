@@ -47,16 +47,19 @@ header .sub{font-size:.72rem;color:#9db2c7;margin-top:2px}
 .punto{width:8px;height:8px;border-radius:50%;background:#5b7fa5}
 .punto.ok{background:#57b183}.punto.mal{background:#d9705e}
 
-main{max-width:1180px;margin:0 auto;padding:26px 22px 60px}
+main{max-width:1360px;margin:0 auto;padding:26px 22px 60px;display:grid;
+  grid-template-columns:280px 1fr;gap:22px;align-items:start}
+.panel-lateral{display:flex;flex-direction:column;gap:14px;position:sticky;top:20px}
+@media(max-width:900px){main{grid-template-columns:1fr}.panel-lateral{position:static}}
 
-/* ---------- dashboard ---------- */
-.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(126px,1fr));gap:10px;margin-bottom:14px}
-.stat{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:12px 14px}
-.stat .n{font-family:'Space Grotesk',sans-serif;font-size:1.5rem;font-weight:700;line-height:1.1}
-.stat .l{font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:3px}
-.actividad{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
-  padding:12px 14px;margin-bottom:20px}
-.actividad h2{margin:0 0 8px;font-size:.78rem}
+/* ---------- dashboard (panel lateral) ---------- */
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:13px 15px}
+.panel h2{margin:0 0 6px;font-size:.78rem}
+.stat-lista{display:flex;flex-direction:column}
+.stat-lista .fila{display:flex;justify-content:space-between;align-items:baseline;gap:10px;
+  font-size:.82rem;padding:6px 0;border-top:1px solid var(--line)}
+.stat-lista .fila:first-child{border-top:none}
+.stat-lista .fila .n{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:.92rem;white-space:nowrap}
 .actividad .fila{display:flex;justify-content:space-between;gap:10px;font-size:.8rem;
   padding:5px 0;border-top:1px solid var(--line)}
 .actividad .fila:first-of-type{border-top:none}
@@ -177,33 +180,43 @@ main{max-width:1180px;margin:0 auto;padding:26px 22px 60px}
 </header>
 
 <main>
-  <div class="stats" id="stats"></div>
-  <div class="stats" id="stats-ganancia" style="margin-top:-4px"></div>
-  <div class="actividad" id="actividad" style="display:none">
-    <h2>Actividad reciente</h2>
-    <div id="actividad-lista"></div>
-  </div>
+  <aside class="panel-lateral">
+    <div class="panel">
+      <h2>Resumen</h2>
+      <div class="stat-lista" id="stats"></div>
+    </div>
+    <div class="panel">
+      <h2>Ganancias</h2>
+      <div class="stat-lista" id="stats-ganancia"></div>
+    </div>
+    <div class="panel actividad" id="actividad" style="display:none">
+      <h2>Actividad reciente</h2>
+      <div id="actividad-lista"></div>
+    </div>
+  </aside>
 
-  <div class="filtros">
-    <input id="f-buscar" placeholder="Buscar por obra o cliente" aria-label="Buscar">
-    <select id="f-estado" aria-label="Filtrar por estado">
-      <option value="">Todos los estados</option>
-      <option value="preliminar">Preliminar</option>
-      <option value="aprobado">Aprobado</option>
-      <option value="en_curso">En curso</option>
-      <option value="realizado">Realizado</option>
-    </select>
-    <select id="f-etapa" aria-label="Filtrar por etapa pendiente">
-      <option value="">Cualquier etapa</option>
-      <option value="extraido">Falta extraer el plano</option>
-      <option value="circuitosAsignados">Faltan circuitos</option>
-      <option value="canalizado">Falta canalizar</option>
-      <option value="presupuestado">Falta presupuestar</option>
-    </select>
-    <div class="spacer"></div>
-    <span class="conteo" id="conteo"></span>
+  <div>
+    <div class="filtros">
+      <input id="f-buscar" placeholder="Buscar por obra o cliente" aria-label="Buscar">
+      <select id="f-estado" aria-label="Filtrar por estado">
+        <option value="">Todos los estados</option>
+        <option value="preliminar">Preliminar</option>
+        <option value="aprobado">Aprobado</option>
+        <option value="en_curso">En curso</option>
+        <option value="realizado">Realizado</option>
+      </select>
+      <select id="f-etapa" aria-label="Filtrar por etapa pendiente">
+        <option value="">Cualquier etapa</option>
+        <option value="extraido">Falta extraer el plano</option>
+        <option value="circuitosAsignados">Faltan circuitos</option>
+        <option value="canalizado">Falta canalizar</option>
+        <option value="presupuestado">Falta presupuestar</option>
+      </select>
+      <div class="spacer"></div>
+      <span class="conteo" id="conteo"></span>
+    </div>
+    <div id="lista"></div>
   </div>
-  <div id="lista"></div>
 </main>
 
 <!-- configuración -->
@@ -401,7 +414,7 @@ function pintarStats(){
     totalPresupuestado += o.total || 0;
     if((o.pago||{}).estado !== 'pagado') pagoPendiente++;
   }
-  const tiles = [
+  const filas = [
     ['Obras', obras.length, 'var(--ink)'],
     ['Preliminar', porEstado.preliminar, 'var(--muted)'],
     ['Aprobado', porEstado.aprobado, 'var(--blue)'],
@@ -409,10 +422,9 @@ function pintarStats(){
     ['Realizado', porEstado.realizado, 'var(--green)'],
     ['Con pago pendiente', pagoPendiente, 'var(--danger)'],
   ];
-  $('stats').innerHTML = tiles.map(([l,n,c]) =>
-    `<div class="stat"><div class="n" style="color:${c}">${n}</div><div class="l">${l}</div></div>`
-  ).join('') + `<div class="stat"><div class="n">${plata(totalPresupuestado)}</div>
-    <div class="l">Total presupuestado</div></div>`;
+  $('stats').innerHTML = filas.map(([l,n,c]) =>
+    `<div class="fila"><span>${l}</span><span class="n" style="color:${c}">${n}</span></div>`
+  ).join('') + `<div class="fila"><span>Total presupuestado</span><span class="n">${plata(totalPresupuestado)}</span></div>`;
 }
 function pintarGanancias(){
   // ganancia = mano de obra (lo único que se presupuesta acá por ahora, ver
@@ -421,13 +433,13 @@ function pintarGanancias(){
   if(!finanzas){ $('stats-ganancia').innerHTML = ''; return; }
   const hoy = new Date();
   const claveMes = hoy.toISOString().slice(0,7), claveAnio = String(hoy.getFullYear());
-  const tiles = [
-    ['Ganancia este mes', finanzas.porMes[claveMes] || 0],
-    ['Ganancia este año', finanzas.porAnio[claveAnio] || 0],
+  const filas = [
+    ['Este mes', finanzas.porMes[claveMes] || 0],
+    ['Este año', finanzas.porAnio[claveAnio] || 0],
     ['Promedio por obra cobrada', finanzas.promedioPorObra || 0],
   ];
-  $('stats-ganancia').innerHTML = tiles.map(([l,n]) =>
-    `<div class="stat"><div class="n" style="color:var(--green)">${plata(n)}</div><div class="l">${l}</div></div>`
+  $('stats-ganancia').innerHTML = filas.map(([l,n]) =>
+    `<div class="fila"><span>${l}</span><span class="n" style="color:var(--green)">${plata(n)}</span></div>`
   ).join('');
 }
 function pintarActividad(){
