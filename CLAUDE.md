@@ -90,6 +90,25 @@ Claude Code utiliza Git de forma autónoma en este proyecto.
 * `git commit`
 * `git push`
 
+## Rama de trabajo
+
+Orden permanente del usuario (dada el 2026-09-04):
+
+> "quiero que cuando empecemos a trabajar en algo lo hagas en un branch aparte,
+> siempre en el mismo branch, y cuando conseguimos una version estable y
+> corregida te digo y lo mergeas a main"
+
+Por lo tanto:
+
+* el trabajo nuevo (features, correcciones, mejoras) se hace en una única rama de
+  desarrollo persistente, no directamente en `main`;
+* la rama es siempre la misma entre tareas -- no se crea una rama nueva por cada
+  pedido; si no existe todavía, se crea desde `main` una sola vez;
+* `main` sólo se actualiza (merge) cuando el usuario dice explícitamente que la
+  versión está estable y corregida y pide mergear -- nunca por iniciativa propia;
+* mientras tanto, cada tarea se sigue commiteando y pusheando automáticamente
+  (ver más abajo), pero a la rama de trabajo, no a `main`.
+
 ## Commit y push automáticos al terminar cada tarea
 
 Orden permanente del usuario (dada el 2026-09-01):
@@ -101,7 +120,7 @@ Por lo tanto, al terminar cada tarea:
 1. revisar `git status` y `git diff`;
 2. verificar que no haya credenciales ni debugging olvidado;
 3. hacer `git commit` con un mensaje corto y claro en inglés;
-4. hacer `git push` a la rama actual.
+4. hacer `git push` a la rama de trabajo vigente (ver "Rama de trabajo" arriba).
 
 No hace falta que el usuario lo pida cada vez: ya está pedido de forma permanente.
 
