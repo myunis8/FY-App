@@ -131,8 +131,12 @@ def actualizar_seguimiento(obra: dict, estado: str | None = None, pago_estado: s
 
 
 def total_presupuesto(obra: dict) -> float:
+    """Sólo "Trabajos" (items), igual que presupuesto.totales() antes de
+    sumar extras/descuento/ajuste -- una cifra estable para mostrar en las
+    tarjetas de obra, que no salta con cada extra que se agregue aparte."""
     items = (obra.get("presupuesto") or {}).get("items") or []
-    return sum((it.get("precio") or 0) * (it.get("cantidad") or 0) for it in items)
+    return sum((it.get("precioUnitario") or 0) * (it.get("cantidad") or 0)
+              for it in items if not it.get("opcional"))
 
 
 def progreso(obra: dict) -> dict:
