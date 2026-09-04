@@ -8,6 +8,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 
 :root{
+  color-scheme:dark;
   --navy:#16283f; --navy-deep:#0a121d;
   --paper:#10161e; --panel:#1a2330; --line:#2c3846;
   --ink:#dde3ea; --muted:#8896a8;
@@ -82,7 +83,7 @@ main{max-width:1360px;margin:0 auto;padding:26px 22px 60px;display:grid;
 /* ---------- grilla ---------- */
 .grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(330px,1fr))}
 .obra{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
-  padding:16px 17px;display:flex;flex-direction:column;gap:12px;text-align:left;
+  padding:16px 17px;display:flex;flex-direction:column;gap:12px;text-align:left;color:var(--ink);
   width:100%;transition:border-color .12s,transform .12s}
 .obra:hover{border-color:var(--copper);transform:translateY(-1px)}
 .obra .top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
