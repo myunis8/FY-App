@@ -33,7 +33,7 @@ LOGO_LADO = 46
 ORDEN_MODULOS = ["circuitos", "tableros", "routeo_plano", "routeo", "presupuesto", "materiales", "unifilar"]
 MODULOS = {
     "circuitos":    "Circuitos",
-    "tableros":     "Tablero(s) -- conexionado y guía de tapa",
+    "tableros":     "Tablero(s) -- guía de tapa",
     "routeo_plano": "Routeo -- plano general (todos los circuitos, 1 hoja)",
     "routeo":       "Routeo (resumen de materiales)",
     "presupuesto":  "Presupuesto",
@@ -212,8 +212,11 @@ def generar(obra: dict, modulos: list[str] | set[str], *, materiales_con_precio:
         _resumen_routeo(doc, obra)
 
     if "tableros" in modulos:
+        # sólo la guía de tapa (cómo va a quedar) -- el conexionado es
+        # detalle de instalación, no algo para mostrarle al cliente en el
+        # informe general
         for t in obra.get("tableros") or []:
-            sub = pymupdf.open(stream=pdf_tablero.generar(t, obra), filetype="pdf")
+            sub = pymupdf.open(stream=pdf_tablero.generar_tapa(t, obra), filetype="pdf")
             doc.insert_pdf(sub)
             sub.close()
 
