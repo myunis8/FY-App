@@ -37,6 +37,28 @@ def listar_resumenes() -> list[dict]:
     return out
 
 
+def listar_historial(limite: int = 500) -> list[dict]:
+    """Historial de todas las obras juntas, más reciente primero.
+
+    A diferencia de listar_resumenes(), acá hace falta leer obra.json
+    completo (el resumen liviano sólo guarda la última actividad, no la
+    lista entera) -- pero esto sólo se pide cuando alguien abre la pantalla
+    de historial general, no en cada carga del tablero."""
+    cfgmod.asegurar_carpetas()
+    todo = []
+    for d in cfgmod.DIR_OBRAS.iterdir() if cfgmod.DIR_OBRAS.exists() else []:
+        if not d.is_dir():
+            continue
+        obra = _leer_json(d / "obra.json")
+        if obra is None:
+            continue
+        nombre = (obra.get("obra") or {}).get("nombre") or d.name
+        for h in obra.get("historial") or []:
+            todo.append({**h, "obraId": d.name, "obraNombre": nombre})
+    todo.sort(key=lambda h: h.get("el") or 0, reverse=True)
+    return todo[:limite]
+
+
 def leer_obra(obra_id: str) -> dict | None:
     obra = _leer_json(_dir(obra_id) / "obra.json")
     return C.normalizar(obra) if obra else None

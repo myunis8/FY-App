@@ -62,6 +62,12 @@ main{max-width:1180px;margin:0 auto;padding:26px 22px 60px}
 .actividad .fila:first-of-type{border-top:none}
 .actividad .fila .quien{color:var(--muted)}
 .actividad .cuando{color:var(--muted);white-space:nowrap;font-size:.74rem}
+.hist-fila{display:flex;justify-content:space-between;gap:10px;font-size:.82rem;
+  padding:8px 4px;border-top:1px solid var(--line);cursor:pointer}
+.hist-fila:first-child{border-top:none}
+.hist-fila:hover{background:var(--slate-soft)}
+.hist-fila .obra{font-weight:600}
+.hist-fila .detalle{color:var(--muted)}
 
 /* ---------- filtros ---------- */
 .filtros{display:flex;gap:10px;align-items:center;margin-bottom:20px;flex-wrap:wrap}
@@ -165,6 +171,7 @@ main{max-width:1180px;margin:0 auto;padding:26px 22px 60px}
   <button class="btn ghost" id="b-sync">Sincronizar</button>
   <button class="btn ghost" onclick="location.href='/precios.html'">Valor de Mano de obra</button>
   <button class="btn ghost" onclick="location.href='/materiales_catalogo.html'">Materiales típicos</button>
+  <button class="btn ghost" id="b-historial">Historial</button>
   <button class="btn ghost" id="b-config">Configuración</button>
   <button class="btn primary" id="b-nueva">Nueva obra</button>
 </header>
@@ -277,6 +284,21 @@ main{max-width:1180px;margin:0 auto;padding:26px 22px 60px}
     <div class="acciones">
       <button class="btn" id="n-cerrar">Cancelar</button>
       <button class="btn primary" id="n-crear">Crear</button>
+    </div>
+  </div>
+</div>
+
+<!-- historial completo -->
+<div class="overlay" id="ov-historial">
+  <div class="caja" style="width:min(680px,100%);max-height:80vh;display:flex;flex-direction:column">
+    <h2>Historial</h2>
+    <p class="ayuda">Quién modificó qué y cuándo, en todas las obras.</p>
+    <input id="h-buscar" placeholder="Filtrar por obra, usuario o módulo"
+      style="width:100%;padding:8px 11px;border:1px solid var(--line);border-radius:var(--radius);
+        margin-bottom:12px;box-sizing:border-box">
+    <div id="h-lista" style="overflow:auto;flex:1"></div>
+    <div class="acciones">
+      <button class="btn" id="h-cerrar">Cerrar</button>
     </div>
   </div>
 </div>
@@ -526,6 +548,38 @@ $('n-crear').onclick = async () => {
                          sinPlano:$('n-sinplano').checked})});
   cerrar('ov-nueva'); await cargarObras(); toast('Obra creada');
 };
+
+/* ---------------- historial completo ---------------- */
+let historialCompleto = [];
+$('b-historial').onclick = async () => {
+  abrir('ov-historial');
+  $('h-buscar').value = '';
+  $('h-lista').innerHTML = 'Cargando…';
+  try{
+    historialCompleto = (await api('/api/historial')).historial;
+    pintarHistorialCompleto();
+  }catch(e){
+    $('h-lista').innerHTML = `<p class="ayuda">No se pudo traer el historial: ${esc(e.message)}</p>`;
+  }
+};
+function pintarHistorialCompleto(){
+  const q = $('h-buscar').value.trim().toLowerCase();
+  const filas = historialCompleto.filter(h => !q ||
+    [(h.obraNombre||''), (h.por||''), (h.modulo||'')].some(s => s.toLowerCase().includes(q)));
+  $('h-lista').innerHTML = filas.length ? filas.map(h => `<div class="hist-fila" data-obra="${h.obraId}">
+      <span>
+        <span class="obra">${esc(h.obraNombre||'')}</span> ·
+        <b>${esc(h.por||'alguien')}</b> ·
+        <span class="detalle">${esc(h.modulo||'')}${h.resumen?' — '+esc(h.resumen):''}</span>
+      </span>
+      <span class="cuando">${cuando(h.el)}</span>
+    </div>`).join('')
+    : '<p class="ayuda">No hay actividad registrada todavía.</p>';
+  $('h-lista').querySelectorAll('.hist-fila').forEach(el =>
+    el.addEventListener('click', () => location.href = '/obra.html?obra=' + el.dataset.obra));
+}
+$('h-buscar').addEventListener('input', pintarHistorialCompleto);
+$('h-cerrar').onclick = () => cerrar('ov-historial');
 
 /* ---------------- plomería de overlays ---------------- */
 function abrir(id){ $(id).classList.add('abierto'); }
