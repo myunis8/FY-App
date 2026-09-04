@@ -450,7 +450,7 @@ function pintarGanancias(){
   const filas = [
     ['Este mes', finanzas.porMes[claveMes] || 0],
     ['Este año', finanzas.porAnio[claveAnio] || 0],
-    ['Promedio por obra cobrada', finanzas.promedioPorObra || 0],
+    ['Promedio por obra pagada', finanzas.promedioPorObra || 0],
   ];
   $('stats-ganancia').innerHTML = filas.map(([l,n]) =>
     `<div class="fila"><span>${l}</span><span class="n" style="color:var(--green)">${plata(n)}</span></div>`
