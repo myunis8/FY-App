@@ -7,16 +7,19 @@
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 :root{
-  --navy:#16283f; --navy-deep:#0e1c2e; --paper:#f1f3f2; --panel:#fff; --line:#dde3e2;
-  --ink:#1c2733; --muted:#5b6b7a; --amber:#e2a33d; --amber-deep:#c07f1f;
-  --copper:#b5651d; --copper-soft:#f4e3d3; --slate-soft:#eef1f3;
-  --green:#2f7d5c; --green-soft:#dcefe4; --danger:#b3432f; --danger-soft:#f8ded7;
-  --blue:#2b6ca3; --blue-soft:#dce9f3; --radius:10px;
+  color-scheme:dark;
+  --navy:#16283f; --navy-deep:#0a121d; --paper:#10161e; --panel:#1a2330; --line:#2c3846;
+  --ink:#dde3ea; --muted:#8896a8; --amber:#e2a33d; --amber-deep:#c07f1f;
+  --copper:#c9793f; --copper-soft:rgba(201,121,63,.18); --slate-soft:#212c39;
+  --green:#4caf82; --green-soft:rgba(76,175,130,.16); --danger:#e0685a; --danger-soft:rgba(224,104,90,.16);
+  --blue:#5b9bd1; --blue-soft:rgba(91,155,209,.16); --radius:10px;
   font-family:'IBM Plex Sans',system-ui,sans-serif;
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--paper);color:var(--ink)}
-button{font:inherit;cursor:pointer} input,select{font:inherit}
+button{font:inherit;cursor:pointer} input,select{font:inherit;background:var(--panel);color:var(--ink);border:1px solid var(--line)}
+input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+input[type=number]{-moz-appearance:textfield}
 .mono{font-family:'IBM Plex Mono',Consolas,monospace}
 header{background:var(--navy);color:#fff;padding:11px 18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 header h1{font-family:'Space Grotesk',sans-serif;font-size:.98rem;margin:0;font-weight:600}
@@ -41,10 +44,11 @@ th{text-align:left;font-size:.67rem;text-transform:uppercase;letter-spacing:.05e
 td{padding:5px 10px;border-top:1px solid var(--line);font-size:.83rem}
 td input,td select{width:100%;border:1px solid transparent;background:transparent;
   padding:5px 6px;border-radius:6px}
-td input:focus{outline:none;border-color:var(--copper);background:#fff}
+td input:focus{outline:none;border-color:var(--copper);background:var(--panel)}
 td.num{text-align:right;font-family:'IBM Plex Mono',monospace}
-td.num input{text-align:right;font-family:'IBM Plex Mono',monospace}
-tr.opcional{opacity:.72;background:repeating-linear-gradient(45deg,transparent,transparent 8px,#fafbfb 8px,#fafbfb 16px)}
+td.num input{text-align:right;font-family:'IBM Plex Mono',monospace;
+  border:1px solid var(--line);background:var(--panel);border-radius:6px}
+tr.opcional{opacity:.72;background:repeating-linear-gradient(45deg,transparent,transparent 8px,rgba(255,255,255,.04) 8px,rgba(255,255,255,.04) 16px)}
 .acc{width:88px;text-align:right;white-space:nowrap}
 .acc button{border:none;background:transparent;padding:2px 5px;font-size:.9rem}
 .acc .op{color:var(--blue)} .acc .del{color:var(--danger)} .acc .mover{color:var(--muted)}
@@ -68,6 +72,14 @@ tr.opcional{opacity:.72;background:repeating-linear-gradient(45deg,transparent,t
 #toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--navy-deep);
   color:#fff;padding:10px 17px;border-radius:var(--radius);font-size:.82rem;display:none}
 @media(max-width:900px){main{grid-template-columns:1fr}aside{border-left:none;border-top:1px solid var(--line)}}
+.caja-pdf{background:var(--panel);border-radius:14px;width:min(920px,96vw);height:min(860px,92vh);
+  display:flex;flex-direction:column;overflow:hidden}
+.caja-pdf .cab-pdf{padding:10px 14px;border-bottom:1px solid var(--line);display:flex;
+  align-items:center;justify-content:space-between}
+.caja-pdf iframe{flex:1;border:0;width:100%;background:#525659}
+.overlay{position:fixed;inset:0;background:rgba(14,28,46,.55);display:none;
+  align-items:center;justify-content:center;padding:20px;z-index:40}
+.overlay.abierto{display:flex}
 </style>
 </head>
 <body>
@@ -75,6 +87,7 @@ tr.opcional{opacity:.72;background:repeating-linear-gradient(45deg,transparent,t
   <div><h1 id="h-nombre">Presupuesto</h1><div class="sub" id="h-sub">Cargando…</div></div>
   <div class="spacer"></div>
   <button class="btn ghost" id="b-recalcular">Recalcular del plano</button>
+  <button class="btn ghost" id="b-pdf">Vista previa PDF</button>
   <button class="btn primary" id="b-guardar">Guardar</button>
   <button class="btn ghost" id="b-volver">Volver</button>
 </header>
@@ -99,13 +112,30 @@ tr.opcional{opacity:.72;background:repeating-linear-gradient(45deg,transparent,t
     </tr></thead><tbody id="t-extras"></tbody></table>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <select id="sel-precio" style="flex:1;min-width:220px;max-width:380px;padding:6px 8px;
-        border:1px solid var(--line);border-radius:7px;background:#fff">
+        border:1px solid var(--line);border-radius:7px;background:var(--panel);color:var(--ink)">
         <option value="">+ Agregar de la lista de precios…</option>
       </select>
       <button class="btn sm" id="b-extra">+ Personalizado</button>
     </div>
     <span class="nota" style="margin-left:8px">El botón ◇ marca una línea como
       opcional: se muestra aparte y no suma al total.</span>
+
+    <h2>Diferencia</h2>
+    <p class="nota" style="margin:0 0 8px">Trabajo que el cliente pidió sumar después de un
+      checkpoint (ver al lado) -- queda aparte de "Trabajos" para que se entienda qué era el
+      alcance original y qué se agregó después, y sale así de discriminado en el PDF.</p>
+    <table><thead><tr>
+      <th style="width:40%">Ítem</th><th style="width:11%">Cant.</th>
+      <th style="width:8%">Un.</th><th style="width:17%">Unitario</th>
+      <th style="width:17%">Subtotal</th><th class="acc"></th>
+    </tr></thead><tbody id="t-diferencia"></tbody></table>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <select id="sel-precio-dif" style="flex:1;min-width:220px;max-width:380px;padding:6px 8px;
+        border:1px solid var(--line);border-radius:7px;background:var(--panel);color:var(--ink)">
+        <option value="">+ Agregar de la lista de precios…</option>
+      </select>
+      <button class="btn sm" id="b-diferencia">+ Personalizado</button>
+    </div>
   </div>
 
   <aside>
@@ -116,6 +146,13 @@ tr.opcional{opacity:.72;background:repeating-linear-gradient(45deg,transparent,t
     <div id="computo-auto"></div>
     <div class="nota" style="margin-top:4px">Esto es lo que detectó el plano. Si ajustás una
       cantidad a mano en la tabla, esta referencia no cambia.</div>
+
+    <h2>Checkpoint</h2>
+    <p class="nota" style="margin:0 0 6px">Guarda "hasta acá llegamos" con el total de hoy, de
+      referencia -- si más adelante el cliente pide algo más, cargalo en "Diferencia" y quede
+      claro qué se sumó después de cuál checkpoint.</p>
+    <div id="checkpoints" class="nota" style="margin-bottom:8px"></div>
+    <button class="btn sm" id="b-checkpoint" style="width:100%">Guardar checkpoint de hoy</button>
 
     <h2>Descuento</h2>
     <div class="fila2">
@@ -150,13 +187,24 @@ tr.opcional{opacity:.72;background:repeating-linear-gradient(45deg,transparent,t
   </aside>
 </main>
 
+<!-- vista previa de PDF -->
+<div class="overlay" id="ov-pdf">
+  <div class="caja-pdf">
+    <div class="cab-pdf"><b>Vista previa</b>
+      <div><button class="btn sm primary" id="pdfDescargar">Descargar…</button>
+      <button class="btn sm" id="pdfCerrar">Cerrar</button></div></div>
+    <iframe id="pdfFrame"></iframe>
+  </div>
+</div>
+
 <div id="toast"></div>
 <script src="/lock.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 const OBRA_ID = new URLSearchParams(location.search).get('obra');
 fyLock.iniciar(OBRA_ID);
-let obra = null, pres = null, totales = null, comparacion = [], cantidades = null, cantidadesExtra = null;
+let obra = null, pres = null, totales = null, comparacion = [], cantidades = null, cantidadesExtra = null,
+  checkpoints = [];
 
 const api = async (r,o={}) => {
   const res = await fetch(r,{headers:{'Content-Type':'application/json'},...o});
@@ -173,10 +221,19 @@ const plata = n => (n||0).toLocaleString('es-AR',{style:'currency',currency:'ARS
 async function cargar(){
   obra = await api('/api/obras/'+OBRA_ID);
   $('h-nombre').textContent = obra.obra.nombre;
+  checkpoints = obra.checkpoints || [];
   await sincronizar({});
   if(!(pres.items||[]).length) await sincronizar({recalcularCantidades:true});
   pintarControles();
+  pintarCheckpoints();
   cargarListaPrecios();
+}
+function pintarCheckpoints(){
+  $('checkpoints').innerHTML = checkpoints.length
+    ? checkpoints.slice(-5).reverse().map(c =>
+        `<div>${new Date(c.el).toLocaleDateString('es-AR')} · ${plata(c.total)}${c.por?' · '+esc(c.por):''}</div>`
+      ).join('')
+    : 'Todavía no guardaste ningún checkpoint.';
 }
 
 // combobox de "agregar de la lista de precios" en Extras: evita retipear un
@@ -199,30 +256,41 @@ async function cargarListaPrecios(){
     const d = await api('/api/precios');
     listaPrecios = d.items || [];
   }catch(err){ listaPrecios = []; }   // si falla, igual queda "+ Personalizado"
-  const sel = $('sel-precio');
   const porCategoria = {};
   for(const it of listaPrecios) (porCategoria[it.categoria || 'Otros'] ||= []).push(it);
   const extra = Object.keys(porCategoria).filter(c => !CATEGORIAS_ORDEN.includes(c)).sort();
   const cats = [...CATEGORIAS_ORDEN, ...extra].filter(c => porCategoria[c]);
-  sel.innerHTML = '<option value="">+ Agregar de la lista de precios…</option>' +
+  const opciones = '<option value="">+ Agregar de la lista de precios…</option>' +
     cats.map(cat => `<optgroup label="${esc(cat)}">${
       porCategoria[cat].map(it => `<option value="${it.id}">${esc(it.item)} — ${plata(it.precio)}</option>`).join('')
     }</optgroup>`).join('');
+  $('sel-precio').innerHTML = opciones;
+  $('sel-precio-dif').innerHTML = opciones;
+}
+function nuevoDeLista(it, prefijo){
+  return {id:prefijo+'_'+Date.now().toString(36), item:it.item,
+          unidad:it.unidad||'u', cantidad:1, precioUnitario:it.precio||0,
+          opcional:false, origen:'lista', categoria:it.categoria||''};
 }
 $('sel-precio').onchange = async () => {
   const sel = $('sel-precio');
   const it = listaPrecios.find(p => p.id === sel.value);
   sel.value = '';
   if(!it) return;
-  const nuevo = {id:'ex_'+Date.now().toString(36), item:it.item,
-                unidad:it.unidad||'u', cantidad:1, precioUnitario:it.precio||0,
-                opcional:false, origen:'lista', categoria:it.categoria||''};
   // "Trabajos adicionales" y "Automatizaciones" son las únicas categorías
   // realmente aparte del trabajo troncal (ver CATEGORIAS_APARTE); todo lo
   // demás agregado a mano -- tableros, PAT, etc. -- es trabajo de la
   // instalación tal cual, no un extra, aunque no se haya contado solo
   // desde el plano
-  (CATEGORIAS_APARTE.has(it.categoria) ? pres.extras : pres.items).push(nuevo);
+  (CATEGORIAS_APARTE.has(it.categoria) ? pres.extras : pres.items).push(nuevoDeLista(it, 'ex'));
+  await sincronizar({});
+};
+$('sel-precio-dif').onchange = async () => {
+  const sel = $('sel-precio-dif');
+  const it = listaPrecios.find(p => p.id === sel.value);
+  sel.value = '';
+  if(!it) return;
+  pres.diferencia.push(nuevoDeLista(it, 'df'));
   await sincronizar({});
 };
 async function sincronizar(op){
@@ -230,17 +298,19 @@ async function sincronizar(op){
     {method:'POST', body:JSON.stringify({presupuesto: pres, ...op})});
   pres = r.presupuesto; totales = r.totales;
   comparacion = r.comparacion; cantidades = r.cantidades; cantidadesExtra = r.cantidadesExtra;
-  pres.items = pres.items || []; pres.extras = pres.extras || [];
+  pres.items = pres.items || []; pres.extras = pres.extras || []; pres.diferencia = pres.diferencia || [];
   pintar();
 }
 
-function filaItems(arr, tbody, esExtra){
+function filaItems(arr, tbody, clave){
   $(tbody).innerHTML = arr.length ? arr.map((it,i)=>{
     const sub = (it.precioUnitario||0) * (it.cantidad||0);
     const cmp = comparacion.find(c=>c.id===it.id);
     const dif = cmp && cmp.variacion && it.congelado ? cmp.variacion : null;
-    const movible = it.origen !== 'computo';        // lo que viene del plano no se mueve a mano: se recalcula solo
-    return `<tr class="${it.opcional?'opcional':''}" data-i="${i}" data-e="${esExtra?1:0}">
+    // lo que viene del plano no se mueve a mano (se recalcula solo), y la
+    // diferencia no se mueve a Trabajos/Extras: es su propia categoría
+    const movible = clave !== 'diferencia' && it.origen !== 'computo';
+    return `<tr class="${it.opcional?'opcional':''}" data-i="${i}" data-e="${clave}">
       <td><input data-c="item" value="${esc(it.item||'')}">
         ${it.opcional?'<span class="tag">opcional</span>':''}
         ${it.origen==='computo_extra'?'<span class="tag" title="Se armó solo, a partir de elementos marcados como agregado fuera del presupuesto original en Circuitos">auto</span>':''}
@@ -251,13 +321,14 @@ function filaItems(arr, tbody, esExtra){
       <td class="num"><input data-c="precioUnitario" type="number" step="1" value="${it.precioUnitario||0}"></td>
       <td class="num">${plata(sub)}</td>
       <td class="acc">
-        ${movible?`<button class="mover" data-mover="${i}" data-e="${esExtra?1:0}"
-          title="${esExtra?'Mover a Trabajos: es trabajo de la instalación, no un extra':'Mover a Extras: es un adicional, no trabajo troncal'}">⇄</button>`:''}
-        <button class="op" data-op="${i}" data-e="${esExtra?1:0}" title="Marcar como opcional">◇</button>
-        <button class="del" data-del="${i}" data-e="${esExtra?1:0}" title="Quitar">×</button></td>
+        ${movible?`<button class="mover" data-mover="${i}" data-e="${clave}"
+          title="${clave==='extras'?'Mover a Trabajos: es trabajo de la instalación, no un extra':'Mover a Extras: es un adicional, no trabajo troncal'}">⇄</button>`:''}
+        <button class="op" data-op="${i}" data-e="${clave}" title="Marcar como opcional">◇</button>
+        <button class="del" data-del="${i}" data-e="${clave}" title="Quitar">×</button></td>
     </tr>`;}).join('')
     : `<tr><td colspan="6" style="color:var(--muted);padding:14px">${
-        esExtra ? 'Sin extras cargados.' : 'Sin ítems. Probá “Recalcular del plano”.'}</td></tr>`;
+        clave==='items' ? 'Sin ítems. Probá “Recalcular del plano”.'
+        : clave==='extras' ? 'Sin extras cargados.' : 'Sin diferencia cargada todavía.'}</td></tr>`;
 }
 // cómputo automático (Puntos, Artefactos, Tomas): lo que detectó el plano,
 // siempre visible aparte de la tabla -- así se puede tocar la cantidad a
@@ -280,11 +351,12 @@ function pintarComputo(){
       + 'agregado fuera del presupuesto original (van a Extras).</div>' : '');
 }
 function pintar(){
-  filaItems(pres.items, 't-items', false);
-  filaItems(pres.extras, 't-extras', true);
+  filaItems(pres.items, 't-items', 'items');
+  filaItems(pres.extras, 't-extras', 'extras');
+  filaItems(pres.diferencia, 't-diferencia', 'diferencia');
   document.querySelectorAll('[data-c]').forEach(n => n.onchange = async () => {
     const tr = n.closest('tr');
-    const arr = tr.dataset.e === '1' ? pres.extras : pres.items;
+    const arr = pres[tr.dataset.e];
     const it = arr[+tr.dataset.i];
     const c = n.dataset.c;
     it[c] = (c === 'item' || c === 'unidad') ? n.value : parseFloat(n.value||0);
@@ -292,23 +364,20 @@ function pintar(){
     await sincronizar({});
   });
   document.querySelectorAll('[data-op]').forEach(n => n.onclick = async () => {
-    const arr = n.dataset.e === '1' ? pres.extras : pres.items;
-    const it = arr[+n.dataset.op];
+    const it = pres[n.dataset.e][+n.dataset.op];
     it.opcional = !it.opcional;
     await sincronizar({});
   });
   document.querySelectorAll('[data-mover]').forEach(n => n.onclick = async () => {
-    const esExtra = n.dataset.e === '1';
-    const origen = esExtra ? pres.extras : pres.items;
+    const esExtra = n.dataset.e === 'extras';
+    const origen = pres[n.dataset.e];
     const destino = esExtra ? pres.items : pres.extras;
     const [it] = origen.splice(+n.dataset.mover, 1);
     destino.push(it);
     await sincronizar({});
   });
   document.querySelectorAll('[data-del]').forEach(n => n.onclick = async () => {
-    const esExtra = n.dataset.e === '1';
-    const arr = esExtra ? pres.extras : pres.items;
-    arr.splice(+n.dataset.del, 1);
+    pres[n.dataset.e].splice(+n.dataset.del, 1);
     await sincronizar({});
   });
 
@@ -316,6 +385,8 @@ function pintar(){
   $('totales').innerHTML = `
     <div class="total-fila"><span>Trabajos</span><span class="v">${plata(t.subtotal)}</span></div>
     ${t.extras?`<div class="total-fila"><span>Extras</span><span class="v">${plata(t.extras)}</span></div>`:''}
+    ${t.diferencia?`<div class="total-fila" style="color:var(--amber)">
+      <span>Diferencia</span><span class="v">${plata(t.diferencia)}</span></div>`:''}
     ${t.descuento?`<div class="total-fila" style="color:var(--green)">
       <span>Descuento</span><span class="v">−${plata(t.descuento)}</span></div>`:''}
     ${t.ajuste?`<div class="total-fila" style="color:var(--muted)">
@@ -347,7 +418,7 @@ function pintar(){
 
   const avisosPrecios = pres.avisosPrecios || [];
   $('aviso-faltantes').innerHTML = avisosPrecios.length
-    ? `<div class="aviso" style="border:1px solid #c0392b;background:#fdecea;color:#7a2018">
+    ? `<div class="aviso" style="border:1px solid var(--danger);background:var(--danger-soft);color:var(--danger)">
         <b>Falta ${avisosPrecios.length>1?'estos ítems':'este ítem'} en la lista de precios:</b>
         <ul style="margin:6px 0 0 18px;padding:0">
           ${avisosPrecios.map(a=>`<li>${esc(a)}</li>`).join('')}
@@ -381,6 +452,18 @@ $('b-extra').onclick = async () => {
                     unidad:'u', cantidad:1, precioUnitario:0, opcional:false, origen:'usuario'});
   await sincronizar({});
 };
+$('b-diferencia').onclick = async () => {
+  pres.diferencia.push({id:'df_'+Date.now().toString(36), item:'Trabajo adicional',
+                        unidad:'u', cantidad:1, precioUnitario:0, opcional:false, origen:'usuario'});
+  await sincronizar({});
+};
+$('b-checkpoint').onclick = async () => {
+  if(!confirm('Guarda el total de hoy ('+plata(totales?.total||0)+') como checkpoint. ¿Seguimos?')) return;
+  const r = await api('/api/obras/'+OBRA_ID+'/checkpoint', {method:'POST', body:'{}'});
+  checkpoints = r.checkpoints;
+  pintarCheckpoints();
+  toast('Checkpoint guardado');
+};
 $('b-recalcular').onclick = async () => {
   if(!confirm('Vuelve a contar del plano y rearma las líneas de trabajos. '
     + 'Los extras y los precios que tocaste a mano se conservan. ¿Seguimos?')) return;
@@ -399,6 +482,45 @@ $('b-volver').onclick = () => location.href = '/obra.html?obra=' + OBRA_ID;
 document.addEventListener('keydown', e => {
   if((e.ctrlKey||e.metaKey) && e.key==='s'){ e.preventDefault(); $('b-guardar').click(); }
 });
+
+// vista previa de PDF adentro del propio módulo -- para ver cómo queda sin
+// tener que volver a la pantalla de la obra
+$('b-pdf').onclick = () => mostrarVistaPreviaPdf('/api/obras/'+OBRA_ID+'/presupuesto.pdf',
+  (obra?.obra?.nombre || 'presupuesto').replace(/\s+/g,'_') + '.pdf');
+async function mostrarVistaPreviaPdf(url, nombreArchivo){
+  let blob;
+  try{
+    const res = await fetch(url);
+    if(!res.ok) throw new Error((await res.json().catch(()=>({}))).error || 'No se pudo generar el PDF.');
+    blob = await res.blob();
+  }catch(err){ toast(err.message || 'No se pudo generar el PDF.'); return; }
+  const objUrl = URL.createObjectURL(blob);
+  $('pdfFrame').src = objUrl;
+  $('ov-pdf').classList.add('abierto');
+  $('pdfDescargar').onclick = async () => {
+    if(window.showSaveFilePicker){
+      try{
+        const handle = await window.showSaveFilePicker({suggestedName: nombreArchivo,
+          types:[{description:'PDF', accept:{'application/pdf':['.pdf']}}]});
+        const writable = await handle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+        return;
+      }catch(err){ if(err.name === 'AbortError') return; }
+    }
+    const a = document.createElement('a');
+    a.href = objUrl; a.download = nombreArchivo; a.click();
+  };
+  $('pdfCerrar').onclick = () => {
+    $('ov-pdf').classList.remove('abierto');
+    $('pdfFrame').src = ''; URL.revokeObjectURL(objUrl);
+  };
+}
+document.addEventListener('keydown', e => {
+  if(e.key==='Escape') $('ov-pdf').classList.remove('abierto');
+});
+$('ov-pdf').addEventListener('click', e => { if(e.target===$('ov-pdf')) $('ov-pdf').classList.remove('abierto'); });
+
 cargar().catch(e => { $('h-sub').textContent = e.message; toast(e.message); });
 </script>
 </body>

@@ -7,16 +7,19 @@
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 :root{
-  --navy:#16283f; --navy-deep:#0e1c2e; --paper:#f1f3f2; --panel:#fff; --line:#dde3e2;
-  --ink:#1c2733; --muted:#5b6b7a; --amber:#e2a33d; --amber-deep:#c07f1f;
-  --copper:#b5651d; --copper-soft:#f4e3d3; --slate-soft:#eef1f3;
-  --green:#2f7d5c; --green-soft:#dcefe4; --danger:#b3432f; --danger-soft:#f8ded7;
-  --blue:#2b6ca3; --blue-soft:#dce9f3; --radius:10px;
+  color-scheme:dark;
+  --navy:#16283f; --navy-deep:#0a121d; --paper:#10161e; --panel:#1a2330; --line:#2c3846;
+  --ink:#dde3ea; --muted:#8896a8; --amber:#e2a33d; --amber-deep:#c07f1f;
+  --copper:#c9793f; --copper-soft:rgba(201,121,63,.18); --slate-soft:#212c39;
+  --green:#4caf82; --green-soft:rgba(76,175,130,.16); --danger:#e0685a; --danger-soft:rgba(224,104,90,.16);
+  --blue:#5b9bd1; --blue-soft:rgba(91,155,209,.16); --radius:10px;
   font-family:'IBM Plex Sans',system-ui,sans-serif;
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--paper);color:var(--ink)}
-button{font:inherit;cursor:pointer} input,select{font:inherit}
+button{font:inherit;cursor:pointer} input,select{font:inherit;background:var(--panel);color:var(--ink);border:1px solid var(--line)}
+input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+input[type=number]{-moz-appearance:textfield}
 .mono{font-family:'IBM Plex Mono',Consolas,monospace}
 header{background:var(--navy);color:#fff;padding:11px 18px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 header h1{font-family:'Space Grotesk',sans-serif;font-size:.98rem;margin:0;font-weight:600}
@@ -36,6 +39,7 @@ header select.sel-tab{background:#0e1c2e;color:#cfe0f0;border:1px solid #33506e;
 
 main{display:grid;grid-template-columns:1fr 320px;gap:0;align-items:start}
 .centro{padding:20px;overflow-x:auto}
+#gabinete-cont{display:flex;justify-content:center}
 aside{background:var(--panel);border-left:1px solid var(--line);padding:16px;
   min-height:calc(100vh - 52px);position:sticky;top:0}
 h2{font-family:'Space Grotesk',sans-serif;font-size:.82rem;margin:16px 0 8px;
@@ -54,7 +58,7 @@ h2:first-child{margin-top:0}
 .riel .etiqueta{position:absolute;left:6px;top:-19px;font-size:.68rem;color:var(--muted);font-weight:600}
 .celda-fantasma{position:absolute;top:0;bottom:0;border-right:1px dashed #c3cbc9}
 .herramientas-cableado{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;align-items:center}
-.sel-conpe{border:1px solid var(--line);border-radius:8px;padding:5px 7px;font-size:.78rem;background:#fff}
+.sel-conpe{border:1px solid var(--line);border-radius:8px;padding:5px 7px;font-size:.78rem;background:var(--panel);color:var(--ink)}
 .herramientas-cableado .btn.activa{background:var(--copper);border-color:#7a410c;color:#fff}
 .paso-actual{font-size:.76rem;color:var(--copper);font-weight:600}
 .franja-cano{position:absolute;background:#e3e7e5;border:1px dashed #a9b3b0;border-radius:6px}
@@ -149,7 +153,9 @@ body.modo-cable .nodo-lateral:hover{transform:translateY(-50%) scale(1.4)}
   <button class="btn ghost" id="b-rehacer" title="Ctrl+Y" disabled>↷ Rehacer</button>
   <button class="btn ghost" id="b-sincronizar">Sincronizar circuitos</button>
   <button class="btn ghost" id="b-pdf-tablero">Exportar PDF</button>
-  <button class="btn ghost" id="b-pdf-unifilar" title="Esquema unifilar -- todavía en beta">Unifilar (beta)</button>
+  <!-- unifilar: todavía no se va a implementar, oculto por ahora (ver
+       generar_unifilar en app/pdf_tablero.py, que sigue intacto) -->
+  <button class="btn ghost" id="b-pdf-unifilar" title="Esquema unifilar -- todavía en beta" style="display:none">Unifilar (beta)</button>
   <button class="btn ghost" id="b-volver">Volver</button>
 </header>
 

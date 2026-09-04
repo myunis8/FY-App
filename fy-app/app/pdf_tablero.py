@@ -1159,3 +1159,15 @@ def generar_unifilar(t: dict, obra: dict) -> bytes:
     doc.save(salida)
     doc.close()
     return salida.getvalue()
+
+
+def generar_tapa(t: dict, obra: dict) -> bytes:
+    """Sólo la guía de tapa (la vista de cómo va a quedar el tablero) --
+    sin la hoja de conexionado. Se usa en el Informe general: ahí sólo
+    interesa mostrar cómo va a quedar, no el detalle de cableado interno."""
+    doc = pymupdf.open()
+    _pagina_tapa(doc, t, obra)
+    salida = io.BytesIO()
+    doc.save(salida)
+    doc.close()
+    return salida.getvalue()

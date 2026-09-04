@@ -8,15 +8,16 @@
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 
 :root{
-  --navy:#16283f; --navy-deep:#0e1c2e;
-  --paper:#f1f3f2; --panel:#fff; --line:#dde3e2;
-  --ink:#1c2733; --muted:#5b6b7a;
+  color-scheme:dark;
+  --navy:#16283f; --navy-deep:#0a121d;
+  --paper:#10161e; --panel:#1a2330; --line:#2c3846;
+  --ink:#dde3ea; --muted:#8896a8;
   --amber:#e2a33d; --amber-deep:#c07f1f;
-  --copper:#b5651d; --copper-soft:#f4e3d3;
-  --slate-soft:#eef1f3;
-  --green:#2f7d5c; --green-soft:#dcefe4;
-  --danger:#b3432f; --danger-soft:#f8ded7;
-  --blue:#2b6ca3; --blue-soft:#dce9f3;
+  --copper:#c9793f; --copper-soft:rgba(201,121,63,.18);
+  --slate-soft:#212c39;
+  --green:#4caf82; --green-soft:rgba(76,175,130,.16);
+  --danger:#e0685a; --danger-soft:rgba(224,104,90,.16);
+  --blue:#5b9bd1; --blue-soft:rgba(91,155,209,.16);
   --radius:10px;
   font-family:'IBM Plex Sans',system-ui,sans-serif;
 }
@@ -25,7 +26,9 @@ body{margin:0;background:var(--paper);color:var(--ink)}
 .display{font-family:'Space Grotesk',system-ui,sans-serif;letter-spacing:-.01em}
 .mono{font-family:'IBM Plex Mono',Consolas,monospace}
 button{font:inherit;cursor:pointer}
-input,select{font:inherit}
+input,select{font:inherit;background:var(--panel);color:var(--ink);border:1px solid var(--line)}
+input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+input[type=number]{-moz-appearance:textfield}
 
 /* ---------- barra superior ---------- */
 header{background:var(--navy);color:#fff;padding:14px 22px;display:flex;
@@ -47,16 +50,28 @@ header .sub{font-size:.72rem;color:#9db2c7;margin-top:2px}
 .punto{width:8px;height:8px;border-radius:50%;background:#5b7fa5}
 .punto.ok{background:#57b183}.punto.mal{background:#d9705e}
 
-main{max-width:1180px;margin:0 auto;padding:26px 22px 60px}
+main{max-width:1360px;margin:0 auto;padding:26px 22px 60px;display:grid;
+  grid-template-columns:280px 1fr;gap:22px;align-items:start}
+.panel-lateral{display:flex;flex-direction:column;gap:14px;position:sticky;top:20px}
+@media(max-width:900px){main{grid-template-columns:1fr}.panel-lateral{position:static}}
 
-/* ---------- dashboard ---------- */
-.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(126px,1fr));gap:10px;margin-bottom:14px}
-.stat{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:12px 14px}
-.stat .n{font-family:'Space Grotesk',sans-serif;font-size:1.5rem;font-weight:700;line-height:1.1}
-.stat .l{font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:3px}
-.actividad{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
-  padding:12px 14px;margin-bottom:20px}
-.actividad h2{margin:0 0 8px;font-size:.78rem}
+/* ---------- dashboard (panel lateral) ---------- */
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:13px 15px}
+.panel h2{margin:0 0 6px;font-size:.78rem}
+.stat-lista{display:flex;flex-direction:column}
+.stat-lista .fila{display:flex;justify-content:space-between;align-items:baseline;gap:10px;
+  font-size:.82rem;padding:6px 0;border-top:1px solid var(--line)}
+.stat-lista .fila:first-child{border-top:none}
+.stat-lista .fila .n{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:.92rem;white-space:nowrap}
+.chart-barras{display:flex;align-items:flex-end;gap:5px;height:70px;margin:12px 0 3px;
+  border-top:1px solid var(--line);padding-top:10px}
+.chart-barras .col{flex:1;display:flex;flex-direction:column;align-items:center;
+  gap:5px;height:100%;justify-content:flex-end;min-width:0}
+.chart-barras .barra{width:100%;max-width:22px;border-radius:3px 3px 0 0;background:var(--green);
+  min-height:2px}
+.chart-barras .barra.actual{background:var(--green-soft);border:1px dashed var(--green)}
+.chart-barras .mes{font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.02em;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .actividad .fila{display:flex;justify-content:space-between;gap:10px;font-size:.8rem;
   padding:5px 0;border-top:1px solid var(--line)}
 .actividad .fila:first-of-type{border-top:none}
@@ -79,7 +94,7 @@ main{max-width:1180px;margin:0 auto;padding:26px 22px 60px}
 /* ---------- grilla ---------- */
 .grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(330px,1fr))}
 .obra{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
-  padding:16px 17px;display:flex;flex-direction:column;gap:12px;text-align:left;
+  padding:16px 17px;display:flex;flex-direction:column;gap:12px;text-align:left;color:var(--ink);
   width:100%;transition:border-color .12s,transform .12s}
 .obra:hover{border-color:var(--copper);transform:translateY(-1px)}
 .obra .top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
@@ -177,33 +192,44 @@ main{max-width:1180px;margin:0 auto;padding:26px 22px 60px}
 </header>
 
 <main>
-  <div class="stats" id="stats"></div>
-  <div class="stats" id="stats-ganancia" style="margin-top:-4px"></div>
-  <div class="actividad" id="actividad" style="display:none">
-    <h2>Actividad reciente</h2>
-    <div id="actividad-lista"></div>
-  </div>
+  <aside class="panel-lateral">
+    <div class="panel">
+      <h2>Resumen</h2>
+      <div class="stat-lista" id="stats"></div>
+    </div>
+    <div class="panel">
+      <h2>Ganancias</h2>
+      <div class="stat-lista" id="stats-ganancia"></div>
+      <div class="chart-barras" id="chart-ganancia"></div>
+    </div>
+    <div class="panel actividad" id="actividad" style="display:none">
+      <h2>Actividad reciente</h2>
+      <div id="actividad-lista"></div>
+    </div>
+  </aside>
 
-  <div class="filtros">
-    <input id="f-buscar" placeholder="Buscar por obra o cliente" aria-label="Buscar">
-    <select id="f-estado" aria-label="Filtrar por estado">
-      <option value="">Todos los estados</option>
-      <option value="preliminar">Preliminar</option>
-      <option value="aprobado">Aprobado</option>
-      <option value="en_curso">En curso</option>
-      <option value="realizado">Realizado</option>
-    </select>
-    <select id="f-etapa" aria-label="Filtrar por etapa pendiente">
-      <option value="">Cualquier etapa</option>
-      <option value="extraido">Falta extraer el plano</option>
-      <option value="circuitosAsignados">Faltan circuitos</option>
-      <option value="canalizado">Falta canalizar</option>
-      <option value="presupuestado">Falta presupuestar</option>
-    </select>
-    <div class="spacer"></div>
-    <span class="conteo" id="conteo"></span>
+  <div>
+    <div class="filtros">
+      <input id="f-buscar" placeholder="Buscar por obra o cliente" aria-label="Buscar">
+      <select id="f-estado" aria-label="Filtrar por estado">
+        <option value="">Todos los estados</option>
+        <option value="preliminar">Preliminar</option>
+        <option value="aprobado">Aprobado</option>
+        <option value="en_curso">En curso</option>
+        <option value="realizado">Realizado</option>
+      </select>
+      <select id="f-etapa" aria-label="Filtrar por etapa pendiente">
+        <option value="">Cualquier etapa</option>
+        <option value="extraido">Falta extraer el plano</option>
+        <option value="circuitosAsignados">Faltan circuitos</option>
+        <option value="canalizado">Falta canalizar</option>
+        <option value="presupuestado">Falta presupuestar</option>
+      </select>
+      <div class="spacer"></div>
+      <span class="conteo" id="conteo"></span>
+    </div>
+    <div id="lista"></div>
   </div>
-  <div id="lista"></div>
 </main>
 
 <!-- configuración -->
@@ -315,6 +341,7 @@ const ETAPAS = [
 const ESTADOS = {preliminar:'Preliminar', aprobado:'Aprobado',
                  en_curso:'En curso', realizado:'Realizado'};
 const PAGOS = {pendiente:'Pendiente', parcial:'Pago parcial', pagado:'Pagado'};
+const MESES_ABR = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 
 let estadoApp = null, obras = [], finanzas = null;
 
@@ -393,15 +420,28 @@ function filtrar(){
     return true;
   });
 }
+// "presupuestado" y "pendiente de cobrar" sólo cuentan obras ya aprobadas
+// (aprobado/en_curso/realizado) -- una preliminar todavía no es un compromiso
+// real, así que no tiene sentido sumarla a lo que se facturó ni a lo que falta cobrar
+const ESTADOS_COMPROMETIDOS = new Set(['aprobado', 'en_curso', 'realizado']);
+function pendienteDeCobro(o){
+  const pago = o.pago || {};
+  if(pago.estado === 'pagado') return 0;
+  if(pago.estado === 'parcial') return (o.total||0) * (100 - (pago.porcentaje||0)) / 100;
+  return o.total || 0;                    // pendiente (o sin dato): se debe todo
+}
 function pintarStats(){
   const porEstado = {preliminar:0, aprobado:0, en_curso:0, realizado:0};
-  let totalPresupuestado = 0, pagoPendiente = 0;
+  let totalPresupuestado = 0, porCobrar = 0, pagoPendiente = 0;
   for(const o of obras){
     porEstado[o.estado] = (porEstado[o.estado]||0) + 1;
-    totalPresupuestado += o.total || 0;
+    if(ESTADOS_COMPROMETIDOS.has(o.estado)){
+      totalPresupuestado += o.total || 0;
+      porCobrar += pendienteDeCobro(o);
+    }
     if((o.pago||{}).estado !== 'pagado') pagoPendiente++;
   }
-  const tiles = [
+  const filas = [
     ['Obras', obras.length, 'var(--ink)'],
     ['Preliminar', porEstado.preliminar, 'var(--muted)'],
     ['Aprobado', porEstado.aprobado, 'var(--blue)'],
@@ -409,26 +449,48 @@ function pintarStats(){
     ['Realizado', porEstado.realizado, 'var(--green)'],
     ['Con pago pendiente', pagoPendiente, 'var(--danger)'],
   ];
-  $('stats').innerHTML = tiles.map(([l,n,c]) =>
-    `<div class="stat"><div class="n" style="color:${c}">${n}</div><div class="l">${l}</div></div>`
-  ).join('') + `<div class="stat"><div class="n">${plata(totalPresupuestado)}</div>
-    <div class="l">Total presupuestado</div></div>`;
+  $('stats').innerHTML = filas.map(([l,n,c]) =>
+    `<div class="fila"><span>${l}</span><span class="n" style="color:${c}">${n}</span></div>`
+  ).join('')
+    + `<div class="fila"><span>Total presupuestado</span><span class="n">${plata(totalPresupuestado)}</span></div>`
+    + `<div class="fila"><span>Pendiente de cobrar</span><span class="n" style="color:var(--danger)">${plata(porCobrar)}</span></div>`;
 }
 function pintarGanancias(){
   // ganancia = mano de obra (lo único que se presupuesta acá por ahora, ver
   // presupuesto.eventos_ganancia); se reconoce cuando se fue cobrando, no
   // al presupuestar ni todo junto al final de la obra
-  if(!finanzas){ $('stats-ganancia').innerHTML = ''; return; }
+  if(!finanzas){ $('stats-ganancia').innerHTML = ''; $('chart-ganancia').innerHTML = ''; return; }
   const hoy = new Date();
   const claveMes = hoy.toISOString().slice(0,7), claveAnio = String(hoy.getFullYear());
-  const tiles = [
-    ['Ganancia este mes', finanzas.porMes[claveMes] || 0],
-    ['Ganancia este año', finanzas.porAnio[claveAnio] || 0],
-    ['Promedio por obra cobrada', finanzas.promedioPorObra || 0],
+  const filas = [
+    ['Este mes', finanzas.porMes[claveMes] || 0],
+    ['Este año', finanzas.porAnio[claveAnio] || 0],
+    ['Promedio por obra pagada', finanzas.promedioPorObra || 0],
   ];
-  $('stats-ganancia').innerHTML = tiles.map(([l,n]) =>
-    `<div class="stat"><div class="n" style="color:var(--green)">${plata(n)}</div><div class="l">${l}</div></div>`
+  $('stats-ganancia').innerHTML = filas.map(([l,n]) =>
+    `<div class="fila"><span>${l}</span><span class="n" style="color:var(--green)">${plata(n)}</span></div>`
   ).join('');
+  pintarChartGanancia(hoy);
+}
+// barras de ganancia del mes en curso y los últimos 6 -- un solo color (una
+// sola serie), la del mes en curso se distingue punteada porque todavía está
+// sumando, no es comparable a un mes ya cerrado
+function pintarChartGanancia(hoy){
+  const meses = [];
+  for(let i = 6; i >= 0; i--){
+    const d = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
+    const clave = d.toISOString().slice(0,7);
+    meses.push({label: MESES_ABR[d.getMonth()], monto: finanzas.porMes[clave] || 0, actual: i === 0});
+  }
+  const max = Math.max(...meses.map(m => m.monto), 1);
+  $('chart-ganancia').innerHTML = meses.map(m => {
+    const alturaPct = Math.max(3, Math.round(m.monto / max * 100));
+    return `<div class="col">
+      <div class="barra${m.actual?' actual':''}" style="height:${alturaPct}%"
+        title="${m.label}${m.actual?' (en curso)':''}: ${plata(m.monto)}"></div>
+      <div class="mes">${m.label}</div>
+    </div>`;
+  }).join('');
 }
 function pintarActividad(){
   const items = obras.map(o => o.ultimaActividad ? {...o.ultimaActividad, obraNombre:o.nombre} : null)

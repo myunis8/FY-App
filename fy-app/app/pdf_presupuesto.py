@@ -213,8 +213,9 @@ def generar(obra: dict) -> bytes:
     tot = pres_mod.totales(pres)
     items = [i for i in (pres.get("items") or []) + (pres.get("extras") or [])
             if not i.get("opcional")]
+    diferencia = [i for i in (pres.get("diferencia") or []) if not i.get("opcional")]
     opcionales = [i for i in (pres.get("items") or []) + (pres.get("extras") or [])
-                 if i.get("opcional")]
+                 + (pres.get("diferencia") or []) if i.get("opcional")]
 
     doc = pymupdf.open()
     pg = doc.new_page(width=ANCHO, height=ALTO)
@@ -228,6 +229,23 @@ def generar(obra: dict) -> bytes:
             _marca_de_agua(pg, cfg)
             y = MARGEN + 10
             y = _tabla_categoria(pg, y, cat, its)
+
+    # "Diferencia" -- trabajo que el cliente pidió sumar después de un
+    # checkpoint. Va aparte, con su propio encabezado por categoría, para
+    # que en el PDF quede clarísimo qué era el alcance original y qué se
+    # agregó después (y por qué el total subió).
+    if diferencia:
+        if y > ALTO - 200:
+            pg = doc.new_page(width=ANCHO, height=ALTO)
+            _marca_de_agua(pg, cfg)
+            y = MARGEN + 10
+        for cat, its in _items_por_categoria(diferencia):
+            y = _tabla_categoria(pg, y, f"Diferencia — {cat}", its)
+            if y < 0:
+                pg = doc.new_page(width=ANCHO, height=ALTO)
+                _marca_de_agua(pg, cfg)
+                y = MARGEN + 10
+                y = _tabla_categoria(pg, y, f"Diferencia — {cat}", its)
 
     if opcionales:
         if y > ALTO - 200:
@@ -245,6 +263,10 @@ def generar(obra: dict) -> bytes:
     pg.insert_text((MARGEN, y + 12), f"Subtotal instalación: {_plata(tot['subtotal'] + tot['extras'])}",
                    fontsize=12, fontname="hebo", color=NAVY)
     y += 12 + 26
+    if tot["diferencia"]:
+        pg.insert_text((MARGEN, y), f"Diferencia: {_plata(tot['diferencia'])}",
+                       fontsize=12, fontname="hebo", color=NAVY)
+        y += 26
     pg.insert_text((MARGEN, y), f"TOTAL GENERAL: {_plata(tot['total'])}",
                    fontsize=15, fontname="hebo", color=NAVY)
 

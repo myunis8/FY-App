@@ -65,12 +65,18 @@ def listar_finanzas() -> dict:
     """Ganancia reconocida de todas las obras, agrupada por mes y por año
     -- ver presupuesto.eventos_ganancia() para de dónde sale cada monto y
     en qué momento se reconoce (cuando se fue cobrando, no todo junto al
-    final ni al presupuestar)."""
+    final ni al presupuestar).
+
+    "promedioPorObra" es aparte: sólo promedia obras pagadas por completo.
+    Mezclar ahí obras aprobadas sin cobrar o con pago parcial no tiene
+    sentido para esa cuenta -- el total y el desglose por mes/año, en
+    cambio, sí reflejan cualquier cobro (parcial incluido), porque ahí sí
+    importa la plata real que entró."""
     cfgmod.asegurar_carpetas()
     por_mes: dict[str, float] = {}
     por_anio: dict[str, float] = {}
     total = 0.0
-    obras_con_cobro = 0
+    total_pagadas, n_pagadas = 0.0, 0
     for d in cfgmod.DIR_OBRAS.iterdir() if cfgmod.DIR_OBRAS.exists() else []:
         if not d.is_dir():
             continue
@@ -78,20 +84,23 @@ def listar_finanzas() -> dict:
         if obra is None:
             continue
         eventos = pres_mod.eventos_ganancia(obra)
-        if eventos:
-            obras_con_cobro += 1
+        suma_obra = 0.0
         for ev in eventos:
             dt = datetime.fromtimestamp((ev.get("el") or 0) / 1000)
             clave_mes, clave_anio = dt.strftime("%Y-%m"), dt.strftime("%Y")
             por_mes[clave_mes] = por_mes.get(clave_mes, 0) + ev["monto"]
             por_anio[clave_anio] = por_anio.get(clave_anio, 0) + ev["monto"]
             total += ev["monto"]
+            suma_obra += ev["monto"]
+        if ((obra.get("seguimiento") or {}).get("pago") or {}).get("estado") == "pagado":
+            n_pagadas += 1
+            total_pagadas += suma_obra
     return {
         "porMes": dict(sorted(por_mes.items())),
         "porAnio": dict(sorted(por_anio.items())),
         "total": round(total, 2),
-        "promedioPorObra": round(total / obras_con_cobro, 2) if obras_con_cobro else 0,
-        "obrasConCobro": obras_con_cobro,
+        "promedioPorObra": round(total_pagadas / n_pagadas, 2) if n_pagadas else 0,
+        "obrasPagadas": n_pagadas,
     }
 
 

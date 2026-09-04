@@ -106,7 +106,12 @@ def sugerir_items(obra: dict, extra: bool = False) -> tuple[list[dict], list[str
 
 
 def totales(pres: dict) -> dict:
-    """Subtotal, extras, descuento y ajuste final.
+    """Subtotal, extras, diferencia, descuento y ajuste final.
+
+    "diferencia" es trabajo adicional que pidió el cliente después de un
+    checkpoint -- items sueltos, igual que extras, pero se muestran y se
+    imprimen aparte para que quede claro qué es el alcance original y qué
+    se sumó después.
 
     Los opcionales se muestran aparte y no entran en el total: son un
     "si querés, sumamos esto".
@@ -117,12 +122,14 @@ def totales(pres: dict) -> dict:
 
     items = [i for i in (pres.get("items") or []) if not i.get("opcional")]
     extras = [i for i in (pres.get("extras") or []) if not i.get("opcional")]
+    diferencia = [i for i in (pres.get("diferencia") or []) if not i.get("opcional")]
     opcionales = [i for i in (pres.get("items") or []) + (pres.get("extras") or [])
-                  if i.get("opcional")]
+                  + (pres.get("diferencia") or []) if i.get("opcional")]
 
     sub = suma(items)
     ext = suma(extras)
-    bruto = sub + ext
+    dif = suma(diferencia)
+    bruto = sub + ext + dif
 
     desc = pres.get("descuento") or {}
     monto_desc = 0.0
@@ -143,6 +150,7 @@ def totales(pres: dict) -> dict:
     return {
         "subtotal": round(sub, 2),
         "extras": round(ext, 2),
+        "diferencia": round(dif, 2),
         "bruto": round(bruto, 2),
         "descuento": round(monto_desc, 2),
         "neto": round(neto, 2),
@@ -154,26 +162,37 @@ def totales(pres: dict) -> dict:
 
 
 def eventos_ganancia(obra: dict) -> list[dict]:
-    """Ganancia reconocida en cada cambio de "% pagado" del seguimiento,
-    proporcional a cuánto se cobró -- si una obra se cobra en partes, el
-    ingreso se reconoce a medida que entra, no todo junto al final.
+    """Ganancia reconocida en cada cambio de pago del seguimiento, en el
+    momento en que efectivamente se cobró -- no todo junto al final ni al
+    presupuestar. Usa contrato.monto_evento_pago() para cada entrada del
+    historial de pago -- la misma cuenta que usa actualizar_seguimiento()
+    para saber "cuánto ya se cobró", así que un "volver a pendiente" (o
+    cualquier otro cambio) siempre cancela bien lo reconocido antes, sin
+    que las dos funciones diverjan.
 
     Por ahora esta app sólo presupuesta mano de obra (todavía no se carga
-    costo de materiales), así que el total del presupuesto es ganancia
-    pura, sin nada que restar. El día que se sume costo de material con un
-    margen propio, esta es la única función que hay que tocar: acá es
-    donde se define qué es "ganancia" de una obra."""
+    costo de materiales), así que el total del presupuesto -- trabajos y
+    extras, que son plata real de la obra igual que los trabajos -- es
+    ganancia pura, sin nada que restar. El día que se sume costo de
+    material con un margen propio, esta es la única función que hay que
+    tocar: acá es donde se define qué es "ganancia" de una obra."""
+    seg = obra.get("seguimiento") or {}
     total = totales(obra.get("presupuesto") or {}).get("total") or 0
-    eventos = []
-    for h in (obra.get("seguimiento") or {}).get("historial") or []:
-        if h.get("campo") != "pago":
-            continue
-        antes = (h.get("de") or {}).get("porcentaje") or 0
-        despues = (h.get("a") or {}).get("porcentaje") or 0
-        delta = despues - antes
-        if delta > 0:
-            eventos.append({"el": h.get("el"), "monto": round(total * delta / 100, 2)})
-    return eventos
+    eventos = [{"el": h.get("el"), "monto": C.monto_evento_pago(h, total)}
+              for h in seg.get("historial") or [] if h.get("campo") == "pago"]
+
+    # La suma tiene que dar exactamente lo que dice el estado de pago actual
+    # -- ni un centavo más ni menos. Si una entrada vieja (de antes de que
+    # existiera "montoDelta") deja la cuenta sin cerrar, el ajuste se absorbe
+    # en el último evento, no se reparte a ciegas entre todos los meses --
+    # así un "volver a pendiente" siempre deja la ganancia reconocida en $0,
+    # aunque haya datos viejos de por medio.
+    verdad = total * ((seg.get("pago") or {}).get("porcentaje") or 0) / 100
+    suma = sum(e["monto"] for e in eventos)
+    if eventos and abs(suma - verdad) > 0.01:
+        eventos[-1]["monto"] += verdad - suma
+
+    return [{"el": e["el"], "monto": round(e["monto"], 2)} for e in eventos if round(e["monto"], 2)]
 
 
 def congelar(obra: dict, usuario: str = "") -> dict:

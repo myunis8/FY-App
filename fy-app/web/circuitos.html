@@ -7,18 +7,21 @@
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 :root{
-  --navy:#16283f; --navy-deep:#0e1c2e; --paper:#f1f3f2; --panel:#fff; --line:#dde3e2;
-  --ink:#1c2733; --muted:#5b6b7a; --amber:#e2a33d; --amber-deep:#c07f1f;
-  --copper:#b5651d; --copper-soft:#f4e3d3; --slate-soft:#eef1f3;
-  --green:#2f7d5c; --green-soft:#dcefe4; --danger:#b3432f; --danger-soft:#f8ded7;
-  --blue:#2b6ca3; --blue-soft:#dce9f3; --radius:10px;
+  color-scheme:dark;
+  --navy:#16283f; --navy-deep:#0a121d; --paper:#10161e; --panel:#1a2330; --line:#2c3846;
+  --ink:#dde3ea; --muted:#8896a8; --amber:#e2a33d; --amber-deep:#c07f1f;
+  --copper:#c9793f; --copper-soft:rgba(201,121,63,.18); --slate-soft:#212c39;
+  --green:#4caf82; --green-soft:rgba(76,175,130,.16); --danger:#e0685a; --danger-soft:rgba(224,104,90,.16);
+  --blue:#5b9bd1; --blue-soft:rgba(91,155,209,.16); --radius:10px;
   font-family:'IBM Plex Sans',system-ui,sans-serif;
 }
 *{box-sizing:border-box}
 html,body{height:100%}
 body{margin:0;background:var(--paper);color:var(--ink);display:flex;flex-direction:column}
 button{font:inherit;cursor:pointer}
-input,select{font:inherit}
+input,select{font:inherit;background:var(--panel);color:var(--ink);border:1px solid var(--line)}
+input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+input[type=number]{-moz-appearance:textfield}
 .mono{font-family:'IBM Plex Mono',Consolas,monospace}
 
 header{background:var(--navy);color:#fff;padding:11px 18px;display:flex;align-items:center;
@@ -84,7 +87,7 @@ aside h2{font-family:'Space Grotesk',sans-serif;font-size:.82rem;margin:0 0 9px;
 .rejilla{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
 .rejilla label{display:block;font-size:.64rem;color:var(--muted);font-weight:600;margin-bottom:2px}
 .rejilla select{width:100%;padding:4px 5px;border:1px solid var(--line);border-radius:6px;
-  font-size:.76rem;background:#fff}
+  font-size:.76rem;background:var(--panel);color:var(--ink)}
 .conteo{font-size:.72rem;color:var(--muted)}
 .tag{font-size:.64rem;padding:2px 7px;border-radius:99px;background:var(--slate-soft);
   color:var(--muted);font-weight:600;white-space:nowrap}

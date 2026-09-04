@@ -7,16 +7,19 @@
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 :root{
-  --navy:#16283f; --navy-deep:#0e1c2e; --paper:#f1f3f2; --panel:#fff; --line:#dde3e2;
-  --ink:#1c2733; --muted:#5b6b7a; --amber:#e2a33d; --amber-deep:#c07f1f;
-  --copper:#b5651d; --copper-soft:#f4e3d3; --slate-soft:#eef1f3;
-  --green:#2f7d5c; --green-soft:#dcefe4; --danger:#b3432f; --danger-soft:#f8ded7;
+  color-scheme:dark;
+  --navy:#16283f; --navy-deep:#0a121d; --paper:#10161e; --panel:#1a2330; --line:#2c3846;
+  --ink:#dde3ea; --muted:#8896a8; --amber:#e2a33d; --amber-deep:#c07f1f;
+  --copper:#c9793f; --copper-soft:rgba(201,121,63,.18); --slate-soft:#212c39;
+  --green:#4caf82; --green-soft:rgba(76,175,130,.16); --danger:#e0685a; --danger-soft:rgba(224,104,90,.16);
   --radius:10px; font-family:'IBM Plex Sans',system-ui,sans-serif;
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--paper);color:var(--ink)}
 .display{font-family:'Space Grotesk',system-ui,sans-serif;letter-spacing:-.01em}
-button{font:inherit;cursor:pointer} input,select{font:inherit}
+button{font:inherit;cursor:pointer} input,select{font:inherit;background:var(--panel);color:var(--ink);border:1px solid var(--line)}
+input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+input[type=number]{-moz-appearance:textfield}
 header{background:var(--navy);color:#fff;padding:14px 22px;display:flex;
   align-items:center;gap:16px;flex-wrap:wrap}
 header h1{font-size:1.05rem;margin:0;font-weight:600;font-family:'Space Grotesk',sans-serif}
@@ -48,13 +51,17 @@ h2:first-child{margin-top:0}
 .campo label{display:block;font-size:.68rem;text-transform:uppercase;letter-spacing:.04em;
   color:var(--muted);font-weight:600;margin-bottom:4px}
 .campo select,.campo input{width:100%;padding:7px 8px;border:1px solid var(--line);
-  border-radius:7px;font-size:.83rem;box-sizing:border-box;background:var(--panel)}
+  border-radius:7px;font-size:.83rem;box-sizing:border-box;background:var(--panel);color:var(--ink)}
 .plano-fila .nota{font-size:.74rem;color:var(--muted);margin-top:3px}
 .plano-fila.clicable{cursor:pointer;transition:border-color .15s,background .15s}
 .plano-fila.clicable:hover{border-color:var(--muted);background:var(--slate-soft)}
 .plano-fila .flecha{color:var(--muted);font-size:1.2rem;flex:0 0 auto;line-height:1}
 .chk{display:flex;align-items:center;gap:6px;font-size:.82rem;cursor:pointer}
 .chk input{margin:0}
+.chk-terminado{display:flex;align-items:center;gap:5px;font-size:.72rem;color:var(--muted);
+  cursor:pointer;white-space:nowrap;flex:0 0 auto}
+.chk-terminado input{margin:0}
+.chk-terminado.listo{color:var(--green);font-weight:600}
 .acciones{display:flex;gap:9px;justify-content:flex-end;margin-top:22px;flex-wrap:wrap}
 .caja-pdf{background:var(--panel);border-radius:14px;width:min(920px,96vw);height:min(860px,92vh);
   display:flex;flex-direction:column;overflow:hidden}
@@ -95,23 +102,30 @@ h2:first-child{margin-top:0}
   <div class="plano-fila clicable" id="fila-tablero">
     <div class="txt"><b>Tablero</b><span id="d-ntableros"></span>
       <div class="nota">Protecciones, distribución de bocas y armado gráfico.</div></div>
+    <label class="chk-terminado" onclick="event.stopPropagation()">
+      <input type="checkbox" class="chk-modulo" data-modulo="tablero"> Terminado</label>
     <button class="btn sm" id="d-pdf-tableros" style="display:none">Descargar todos (PDF)</button>
     <span class="flecha">›</span>
   </div>
   <div class="plano-fila clicable" id="fila-canalizacion">
     <div class="txt"><b>Routeo</b><span id="d-ncanalizacion"></span>
       <div class="nota">Cajas y caños entre ellas, con diámetro sugerido.</div></div>
+    <label class="chk-terminado" onclick="event.stopPropagation()">
+      <input type="checkbox" class="chk-modulo" data-modulo="routeo"> Terminado</label>
     <span class="flecha">›</span>
   </div>
   <div class="plano-fila clicable" id="fila-presupuesto">
     <div class="txt"><b>Presupuesto</b><span id="d-npresupuesto"></span>
       <div class="nota">Cantidades, extras, descuentos y precio final.</div></div>
-    <button class="btn sm" id="d-pdf">Descargar PDF</button>
+    <label class="chk-terminado" onclick="event.stopPropagation()">
+      <input type="checkbox" class="chk-modulo" data-modulo="presupuesto"> Terminado</label>
     <span class="flecha">›</span>
   </div>
   <div class="plano-fila clicable" id="fila-materiales">
     <div class="txt"><b>Lista de materiales</b>
       <div class="nota">Cajas, tablero con accesorios, PAT, productos extra y cable a comprar.</div></div>
+    <label class="chk-terminado" onclick="event.stopPropagation()">
+      <input type="checkbox" class="chk-modulo" data-modulo="materiales"> Terminado</label>
     <span class="flecha">›</span>
   </div>
   <div class="plano-fila clicable" id="fila-verificaciones">
@@ -132,9 +146,20 @@ h2:first-child{margin-top:0}
         <label for="sg-pago">Estado de pago</label>
         <select id="sg-pago"></select>
       </div>
-      <div class="campo" id="sg-pct-fila" style="flex:0 0 130px;margin-bottom:0;display:none">
+      <div class="campo" id="sg-pct-fila" style="flex:0 0 110px;margin-bottom:0;display:none">
+        <label for="sg-pago-tipo">Cobrado</label>
+        <select id="sg-pago-tipo">
+          <option value="porcentaje">Por %</option>
+          <option value="monto">Por monto</option>
+        </select>
+      </div>
+      <div class="campo" id="sg-pct-valor-fila" style="flex:0 0 110px;margin-bottom:0;display:none">
         <label for="sg-pct">% pagado</label>
         <input id="sg-pct" type="number" min="1" max="99" value="50">
+      </div>
+      <div class="campo" id="sg-monto-valor-fila" style="flex:0 0 160px;margin-bottom:0;display:none">
+        <label for="sg-monto">Monto cobrado</label>
+        <input id="sg-monto" type="number" min="0" step="1000" placeholder="Ej. 70000">
       </div>
     </div>
     <div style="display:flex;justify-content:flex-end">
@@ -153,8 +178,7 @@ h2:first-child{margin-top:0}
 
   <h2>Informe general</h2>
   <div class="plano-fila" style="flex-direction:column;align-items:stretch;gap:10px">
-    <div class="nota" style="margin:0">Un solo PDF con todo lo que elijas de esta obra. El esquema
-    unifilar está en beta, así que no viene marcado por defecto.</div>
+    <div class="nota" style="margin:0">Un solo PDF con todo lo que elijas de esta obra.</div>
     <div id="inf-checks" style="display:flex;flex-wrap:wrap;gap:8px 18px"></div>
     <label class="chk" id="inf-precio-fila" style="display:none;font-size:.78rem;color:var(--muted)">
       <input type="checkbox" id="inf-con-precio" checked> Incluir precios en la lista de materiales</label>
@@ -201,6 +225,7 @@ function mostrarAviso(id, clase, msg){
 }
 const esc = s => (s==null?'':String(s)).replace(/[&<>"]/g,
   c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const plata = n => (n||0).toLocaleString('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0});
 function cuando(ts){
   if(!ts) return 'sin guardar';
   const d=new Date(ts), hoy=new Date();
@@ -214,14 +239,16 @@ const ESTADOS = {preliminar:'Preliminar', aprobado:'Aprobado',
                  en_curso:'En curso', realizado:'Realizado'};
 const ESTADOS_PAGO = {pendiente:'Pendiente', parcial:'Pago parcial', pagado:'Pagado'};
 // debe reflejar app/pdf_informe.py: MODULOS / MODULOS_POR_DEFECTO
+// "unifilar" queda afuera a propósito -- todavía no se va a implementar,
+// ver app/pdf_informe.py y app/pdf_tablero.generar_unifilar(). El módulo y
+// la ruta del PDF siguen andando, sólo se le sacó el botón de acá.
 const INFORME_MODULOS = [
   {id:'circuitos',    label:'Circuitos',                                         defecto:true},
-  {id:'tableros',     label:'Tablero(s) -- conexionado y guía de tapa',          defecto:true},
+  {id:'tableros',     label:'Tablero(s) -- guía de tapa',                        defecto:true},
   {id:'routeo_plano', label:'Routeo -- plano general (todos los circuitos, 1 hoja)', defecto:true},
   {id:'routeo',       label:'Routeo -- resumen de materiales (todavía en ajuste)', defecto:false},
   {id:'presupuesto',  label:'Presupuesto',                                       defecto:true},
   {id:'materiales',   label:'Lista de materiales',                               defecto:false},
-  {id:'unifilar',     label:'Esquema unifilar (beta)',                           defecto:false},
 ];
 
 function pintarSeguimiento(obra){
@@ -233,6 +260,8 @@ function pintarSeguimiento(obra){
   $('sg-estado').value = seg.estado || 'preliminar';
   $('sg-pago').value = (seg.pago && seg.pago.estado) || 'pendiente';
   $('sg-pct').value = (seg.pago && seg.pago.porcentaje) || 50;
+  $('sg-pago-tipo').value = 'porcentaje';
+  $('sg-monto').value = '';
   actualizarVisibilidadPct();
   const hist = (seg.historial || []).slice(-6).reverse();
   $('sg-historial').textContent = hist.length ? hist.map(h => {
@@ -240,7 +269,8 @@ function pintarSeguimiento(obra){
     if(h.campo === 'estado') return `${quien} cambió el estado a "${ESTADOS[h.a]||h.a}" (${vez})`;
     if(h.campo === 'pago'){
       const et = ESTADOS_PAGO[h.a.estado] || h.a.estado;
-      return `${quien} marcó el pago como "${et}"${h.a.estado==='parcial' ? ' ('+h.a.porcentaje+'%)' : ''} (${vez})`;
+      const cobro = h.montoDelta ? ` -- cobró ${plata(h.montoDelta)}` : '';
+      return `${quien} marcó el pago como "${et}"${h.a.estado==='parcial' ? ' ('+h.a.porcentaje+'%)' : ''}${cobro} (${vez})`;
     }
     return '';
   }).join(' · ') : 'Todavía no hay cambios registrados.';
@@ -255,13 +285,21 @@ function pintarHistorial(obra){
     </div>`).join('') : 'Todavía no hay actividad registrada.';
 }
 function actualizarVisibilidadPct(){
-  $('sg-pct-fila').style.display = $('sg-pago').value === 'parcial' ? '' : 'none';
+  const esParcial = $('sg-pago').value === 'parcial';
+  $('sg-pct-fila').style.display = esParcial ? '' : 'none';
+  const porMonto = $('sg-pago-tipo').value === 'monto';
+  $('sg-pct-valor-fila').style.display = esParcial && !porMonto ? '' : 'none';
+  $('sg-monto-valor-fila').style.display = esParcial && porMonto ? '' : 'none';
 }
 $('sg-pago').addEventListener('change', actualizarVisibilidadPct);
+$('sg-pago-tipo').addEventListener('change', actualizarVisibilidadPct);
 $('sg-guardar').onclick = async () => {
   if(!obraAbierta) return;
   const body = {estado: $('sg-estado').value, pago: {estado: $('sg-pago').value}};
-  if($('sg-pago').value === 'parcial') body.pago.porcentaje = parseInt($('sg-pct').value, 10) || 50;
+  if($('sg-pago').value === 'parcial'){
+    if($('sg-pago-tipo').value === 'monto') body.pago.monto = parseFloat($('sg-monto').value) || 0;
+    else body.pago.porcentaje = parseInt($('sg-pct').value, 10) || 50;
+  }
   try{
     const r = await api('/api/obras/'+obraAbierta.obra.id+'/seguimiento',
       {method:'POST', body:JSON.stringify(body)});
@@ -351,12 +389,28 @@ function pintarBloques(obra){
   $('fila-presupuesto').onclick = () => location.href = '/presupuesto.html?obra=' + obra.obra.id;
   $('fila-materiales').onclick = () => location.href = '/materiales.html?obra=' + obra.obra.id;
   $('fila-verificaciones').onclick = () => location.href = '/verificaciones.html?obra=' + obra.obra.id;
-  $('d-pdf').onclick = (e) => { e.stopPropagation(); mostrarVistaPreviaPdf(
-    '/api/obras/' + obra.obra.id + '/presupuesto.pdf',
-    (obra.obra.nombre || 'presupuesto').replace(/\s+/g,'_') + '.pdf'); };
   $('d-bloques').innerHTML = filas.map(([k,v]) =>
     `<div class="bloque"><b>${k}</b>${v}</div>`).join('');
+  pintarChecklist(obra);
 }
+function pintarChecklist(obra){
+  const checklist = obra.checklist || {};
+  document.querySelectorAll('.chk-modulo').forEach(chk => {
+    const listo = !!checklist[chk.dataset.modulo];
+    chk.checked = listo;
+    chk.closest('.chk-terminado').classList.toggle('listo', listo);
+  });
+}
+document.querySelectorAll('.chk-modulo').forEach(chk => chk.addEventListener('change', async () => {
+  if(!obraAbierta) return;
+  const modulo = chk.dataset.modulo, listo = chk.checked;
+  try{
+    const r = await api('/api/obras/'+obraAbierta.obra.id+'/checklist',
+      {method:'POST', body:JSON.stringify({modulo, listo})});
+    obraAbierta.checklist = r.checklist;
+    pintarChecklist(obraAbierta);
+  }catch(e){ chk.checked = !listo; toast(e.message); }
+}));
 function pintarPlano(obra){
   const p = obra.plano, cont = $('d-plano');
   if(!p && obra.obra.sinPlano){

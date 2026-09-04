@@ -3,6 +3,140 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 0.36.0 — Routeo con PDF de servidor, historial y bloqueo entre usuarios, dashboard de ganancias, tema oscuro, y checkpoints de presupuesto
+
+- **Routeo: el PDF ahora se genera del lado del servidor**, igual que el
+  resto de los módulos, en vez de armarse con jsPDF en el navegador
+  (`app/canaliza_geom.py`, puerto a Python de la geometría que antes sólo
+  vivía en `canaliza.html`; `app/pdf_routeo.py`, con el mismo sistema
+  visual que presupuesto/materiales). El botón "Exportar PDF" se dividió
+  en dos: uno para los planos y otro para el resumen de materiales, con
+  una vista previa más grande. Los tramos y cajas con error de DRC se
+  siguen marcando en rojo en el plano. De paso se corrigieron varios bugs
+  reales encontrados al portar y probar esto: el recorrido vertical "por
+  cielorraso" contaba el desnivel dos veces en cadenas de cajas al mismo
+  nivel (corregido en `canaliza_geom` y `materiales.py` por igual); las
+  líneas de color de los conductores se transformaban dos veces y
+  colapsaban cerca del origen de la página; el tamaño del overlay
+  dependía del recorte del plano en vez del área de la hoja, quedando
+  desproporcionado en planos apaisados; el zoom se asumía siempre 3.0 en
+  vez de derivarlo de la obra (afectaba obras viejas con `ZOOM_PLANO=2`);
+  y las etiquetas de nodo por punto tapaban el dibujo, así que se
+  sacaron (el circuito ya está en el título de la hoja y en la tabla de
+  tramos). También se corrigió que el modal de vista previa quedara
+  angosto por el `max-width` del modal base.
+- **Barra superior unificada entre módulos**: "Volver" pasa a texto plano
+  al final de la barra en todos lados, "Guardar" (cuando existe) queda
+  inmediatamente a su izquierda con el mismo estilo ámbar, y Routeo/
+  Circuitos/Tablero quedan con la misma disposición de acciones.
+- **Presupuesto: panel de "Cómputo automático"**, siempre visible, que
+  muestra lo que detectó el plano (puntos simples/combinados, artefactos,
+  tomas comunes y especiales) independiente de ediciones manuales a la
+  cantidad de cada renglón. El informe general suma un módulo de "Lista
+  de materiales" (con opción de imprimir con o sin precio), y las filas
+  de módulo en la pantalla de obra pasan a ser tarjetas clickeables
+  enteras en vez de bloque de texto + botón "Abrir".
+- **Sincronización: borrar una obra ahora puede borrarla también del
+  repositorio de GitHub**, no sólo en este equipo (`github.borrar_archivo/
+  borrar_carpeta`, `sync.borrar_obra_remota`). El borrado local siempre
+  se hace primero; si falla el borrado remoto no bloquea salir de la
+  pantalla, sólo avisa.
+- **Historial de actividad y bloqueo blando entre usuarios ("semáforo").**
+  Guardados deliberados (Guardar explícito, extracción, sincronizar
+  circuitos, crear tablero, cambios de seguimiento) quedan anotados en
+  `obra.historial` (quién, qué módulo, qué resumen; tope 200 entradas) y
+  viajan con el resto de `obra.json`. La pantalla de obra muestra las
+  últimas 15; un botón "Historial" en el home junta el historial completo
+  de todas las obras (`GET /api/historial`), filtrable por obra/usuario/
+  módulo. Como no hay servidor central -- cada usuario corre la app en su
+  propia máquina y sólo coordinan a través del repositorio de GitHub --
+  el bloqueo es blando: abrir un módulo de edición toma un `lock.json` en
+  la carpeta de la obra en el repo, y otro usuario ve un overlay con quién
+  lo tiene y desde cuándo, con opción de "Forzar apertura"; expira solo a
+  los 20 minutos sin señal de vida, y falla abierto ante cualquier error
+  de red o de GitHub (el chequeo de conflicto por SHA al subir sigue
+  siendo el respaldo real).
+- **Dashboard de estadísticas en el home**: cantidad de obras por estado,
+  obras con pago pendiente, total presupuestado, y un feed de actividad
+  reciente entre todas las obras -- todo calculado en el cliente a partir
+  de los datos que ya se traían para la grilla. Resumen/Ganancias/
+  Actividad reciente se mudaron a una barra lateral fija, dejando la
+  lista filtrable de obras como contenido principal.
+- **Ganancias**: `presupuesto.eventos_ganancia()` reconoce el ingreso a
+  medida que se cobra de verdad (recorriendo los cambios de "pago" en el
+  historial de seguimiento), no todo de una vez al marcar "pagado" -- así
+  un trabajo cobrado en cuotas cuenta bien por cuota. El home muestra este
+  mes, este año, y promedio por obra (sólo obras totalmente pagadas,
+  corregido después de notar que promediaba también parciales y
+  aprobadas sin cobrar) más un gráfico de barras de los últimos 7 meses.
+  Los pagos parciales ahora se pueden cargar como monto directo además de
+  porcentaje, congelando un "montoDelta" exacto en cada evento del
+  historial para que el reconocimiento de ingreso no dependa de estimarlo
+  después.
+  - **Fix crítico**: `contrato.total_presupuesto()` leía `item["precio"]`
+    en vez de `"precioUnitario"`, así que el total de cada tarjeta de obra
+    venía mostrando "—" desde que existe el campo. También sumaba mal
+    porque no incluía `extras` ni `diferencia`.
+  - **Fix crítico**: después de revertir un pago, la ganancia mostrada no
+    volvía a $0. Dos causas compuestas: el cálculo de "ya cobrado" sólo
+    sumaba entradas con `montoDelta` explícito, ignorando entradas viejas
+    del historial anteriores a ese campo; y datos reales ya guardados en
+    este equipo tenían esa inconsistencia congelada en el historial.
+    Se unificó el cálculo en una sola función (`monto_evento_pago`) usada
+    en los dos lugares, y `eventos_ganancia()` ahora reconcilia: la suma
+    de eventos de una obra siempre coincide con su `pago.porcentaje`
+    actual, absorbiendo cualquier desvío en el evento más reciente.
+    Verificado contra las dos obras reales de este equipo que lo sufrían.
+- **Tema oscuro en toda la app.** Cada módulo ya dibujaba su interfaz a
+  partir de variables CSS propias, así que fue sobre todo un cambio de
+  paleta en cada `:root` -- grises y azules apagados, sin selectores
+  nuevos para la mayor parte. Quedan intencionalmente claras las
+  superficies que muestran el plano fotografiado con su propio fondo
+  blanco (canvas de Circuitos/Revisor/Routeo, miniaturas del selector de
+  página del PDF) y la maqueta de gabinete/riel de Tablero, que representa
+  un tablero físico de color claro. Corregidos varios puntos con color
+  claro fijo por fuera de las variables (fondos de tabla/select, franja
+  de fila "opcional" y cartel de error en Presupuesto, flechas de orden
+  sin clase en Precios/Materiales cayendo al estilo nativo de botón), el
+  texto negro en las tarjetas de obra del home (Chromium usa el color de
+  botón claro por defecto si la página no declara `color-scheme: dark`,
+  sin importar la paleta propia), y el gráfico de Tablero quedaba pegado
+  a la izquierda en vez de centrado. Ajustes menores después: se sacaron
+  las flechas nativas de incrementar/decrementar en los campos numéricos
+  (impracticables, a pedido), se sacó la columna de reordenar en Precios
+  (el orden se maneja a mano), los campos de cantidad/precio unitario de
+  Presupuesto pasaron a tener borde visible, y el fondo del canvas de
+  Routeo se oscureció (la hoja del plano se mantiene blanca).
+- **Presupuesto: checklist de módulos, checkpoints y sección Diferencia.**
+  Un checkbox "Terminado" en Tablero/Routeo/Presupuesto/Lista de
+  materiales, independiente de los indicadores automáticos de progreso --
+  es una marca manual de que esa etapa está realmente cerrada. Un botón
+  "Guardar checkpoint de hoy" congela `{fecha, quién, total}` en
+  `obra.checkpoints`, como referencia fechada de cuánto valía el trabajo
+  en ese momento. "Diferencia" es una tercera sección de ítems en
+  Presupuesto, con la misma estructura que Trabajos/Extras (tabla propia,
+  agregar de la lista de precios o personalizado, opcional) pero separada
+  y marcada como su propio bloque en el PDF -- para lo que el cliente
+  pide agregar después de un checkpoint, mostrando claro qué era el
+  alcance original y qué se cobró aparte. `total_presupuesto()` y
+  `presupuesto.totales()` ya suman Diferencia al total general.
+- **Estadísticas del home ajustadas**: "Total presupuestado" ahora sólo
+  cuenta obras aprobadas, en curso o realizadas (no preliminares), y se
+  agregó "Pendiente de cobrar" sobre esas mismas obras, descontando lo ya
+  cobrado en pagos parciales.
+- **La vista previa del PDF de Presupuesto se movió adentro del propio
+  módulo** (antes sólo estaba en la tarjeta de la obra), para no tener
+  que salir a revisar el resultado.
+- **Informe general: Tablero ahora imprime sólo la guía de tapa** (cómo
+  va a quedar), sin la hoja de conexionado -- ese es detalle de
+  instalación, no algo para mostrarle al cliente (`pdf_tablero.
+  generar_tapa()`; la descarga individual del PDF de Tablero sigue
+  trayendo las dos hojas). El esquema unifilar no se va a implementar por
+  ahora: su botón queda oculto en Tablero y su casillero desaparece del
+  checklist del informe general, pero el código de fondo
+  (`generar_unifilar`, la ruta, el manejo en `pdf_informe.py`) sigue
+  intacto.
+
 ## 0.35.1 — Caída de tensión: capar "I máx" a la ampacidad real del conductor
 
 - **Fix**: "I máx" despejaba la corriente que produce el ΔV % límite pero no la

@@ -44,6 +44,13 @@ def obra_vacia(nombre: str = "", cliente: str = "", usuario: str = "") -> dict:
                         "historial": []},
         "validacion": {"corridaEl": 0, "errores": [], "advertencias": []},
         "historial": [],
+        # qué etapas del trabajo están terminadas -- a mano, el usuario lo
+        # tilda cuando corresponde, no se infiere de si hay datos cargados
+        "checklist": {"presupuesto": False, "routeo": False, "tablero": False, "materiales": False},
+        # puntos guardados de "hasta acá llegamos" -- referencia para saber
+        # cuánto valía el trabajo en ese momento, si después el cliente pide
+        # algo más (ver presupuesto.diferencia)
+        "checkpoints": [],
     }
 
 
@@ -85,17 +92,47 @@ def _consolidar_descripcion_dispositivos(obra: dict) -> None:
             d["descripcion"] = None
 
 
+def monto_evento_pago(h: dict, total: float) -> float:
+    """Cuánto reconoce de ganancia una entrada del historial de pago.
+
+    Si tiene "montoDelta" (todo lo grabado desde que existe ese campo), se
+    usa tal cual -- es el monto exacto que se congeló en su momento. Una
+    entrada vieja, de antes de que existiera montoDelta, se estima con el
+    % de aquel momento contra el total de ahora, como aproximación.
+
+    Esta es la ÚNICA función que debe usarse para eso -- presupuesto.py
+    (para mostrar la ganancia reconocida) y esta misma actualizar_seguimiento
+    (para saber cuánto ya se cobró antes de un cambio nuevo) tienen que
+    coincidir siempre, o un "volver a pendiente" no cancela bien lo que
+    una entrada vieja sin montoDelta venía sumando."""
+    if "montoDelta" in h:
+        return h["montoDelta"]
+    antes = (h.get("de") or {}).get("porcentaje") or 0
+    despues = (h.get("a") or {}).get("porcentaje") or 0
+    return total * (despues - antes) / 100
+
+
 def actualizar_seguimiento(obra: dict, estado: str | None = None, pago_estado: str | None = None,
-                            pago_porcentaje=None, usuario: str = "") -> dict:
+                            pago_porcentaje=None, pago_monto=None, usuario: str = "") -> dict:
     """Cambia estado y/o pago de la obra y deja un registro en el
     historial de quién y cuándo lo cambió (el campo ya estaba en el
     esquema desde el principio, pero nada lo llenaba todavía). Si un campo
     no viene, queda como estaba -- no hay valores por adivinar.
 
     El porcentaje de pago sigue al estado: "pendiente" siempre es 0%,
-    "pagado" siempre es 100%, y sólo "parcial" admite un número propio (si
-    no llega ninguno, sigue con el que ya había, o 50% la primera vez).
-    """
+    "pagado" siempre es 100%, y sólo "parcial" admite un valor propio --
+    por porcentaje o directamente por un monto en pesos (no siempre se
+    sabe qué % representa lo que se cobró). Si no llega ninguno de los
+    dos, sigue con lo que ya había, o 50% la primera vez.
+
+    Cada cambio de pago queda con "montoDelta": lo que se reconoce de
+    ganancia en ESE momento, calculado contra el total del presupuesto
+    de ahora y descontando lo ya reconocido en cambios anteriores. Así,
+    si después se agrega un extra o se toca el descuento, lo que ya se
+    había cobrado no se recalcula para atrás -- y cuando finalmente se
+    marca "pagado", lo que falta para llegar al total de ese momento se
+    reconoce de una, así que el total siempre cierra bien aunque el
+    presupuesto haya cambiado en el medio."""
     seg = obra.setdefault("seguimiento", {})
     seg.setdefault("estado", "preliminar")
     seg.setdefault("pago", {"estado": "pendiente", "porcentaje": 0})
@@ -107,36 +144,66 @@ def actualizar_seguimiento(obra: dict, estado: str | None = None, pago_estado: s
                                  "de": seg["estado"], "a": estado})
         seg["estado"] = estado
 
-    if pago_estado is not None and pago_estado in ESTADOS_PAGO:
-        if pago_estado == "pendiente":
-            pct = 0
-        elif pago_estado == "pagado":
-            pct = 100
+    pago_estado_valido = pago_estado is not None and pago_estado in ESTADOS_PAGO
+    toca_parcial = ((pago_porcentaje is not None or pago_monto is not None)
+                    and seg["pago"].get("estado") == "parcial")
+    if pago_estado_valido or toca_parcial:
+        total = total_presupuesto(obra)
+        ya_cobrado = sum(monto_evento_pago(h, total) for h in seg["historial"] if h.get("campo") == "pago")
+        estado_nuevo = pago_estado if pago_estado_valido else seg["pago"]["estado"]
+
+        if estado_nuevo == "pendiente":
+            monto = 0.0
+        elif estado_nuevo == "pagado":
+            monto = total
+        elif pago_monto is not None:
+            monto = max(0.0, min(float(pago_monto), total))
+        elif pago_porcentaje is not None:
+            monto = total * max(0, min(100, int(pago_porcentaje))) / 100
         else:
-            pct = pago_porcentaje if pago_porcentaje is not None else (seg["pago"].get("porcentaje") or 50)
-        pct = max(0, min(100, int(pct)))
-        anterior, nuevo = dict(seg["pago"]), {"estado": pago_estado, "porcentaje": pct}
+            monto = ya_cobrado or total * 0.5
+
+        pct = round(monto / total * 100) if total else 0
+        if estado_nuevo == "parcial":
+            pct = max(1, min(99, pct))
+
+        anterior, nuevo = dict(seg["pago"]), {"estado": estado_nuevo, "porcentaje": pct}
         if nuevo != anterior:
             seg["historial"].append({"el": t, "por": usuario or "", "campo": "pago",
-                                     "de": anterior, "a": nuevo})
+                                     "de": anterior, "a": nuevo,
+                                     "montoDelta": round(monto - ya_cobrado, 2)})
             seg["pago"] = nuevo
-    elif pago_porcentaje is not None and seg["pago"].get("estado") == "parcial":
-        pct = max(1, min(99, int(pago_porcentaje)))
-        if pct != seg["pago"].get("porcentaje"):
-            anterior = dict(seg["pago"])
-            seg["pago"]["porcentaje"] = pct
-            seg["historial"].append({"el": t, "por": usuario or "", "campo": "pago",
-                                     "de": anterior, "a": dict(seg["pago"])})
     return seg
 
 
 def total_presupuesto(obra: dict) -> float:
-    """Sólo "Trabajos" (items), igual que presupuesto.totales() antes de
-    sumar extras/descuento/ajuste -- una cifra estable para mostrar en las
-    tarjetas de obra, que no salta con cada extra que se agregue aparte."""
-    items = (obra.get("presupuesto") or {}).get("items") or []
-    return sum((it.get("precioUnitario") or 0) * (it.get("cantidad") or 0)
-              for it in items if not it.get("opcional"))
+    """Monto final del presupuesto: trabajos + extras + diferencia, menos
+    descuento, con el ajuste final si está activo -- los extras y la
+    diferencia son plata real de la obra tanto como los trabajos. Misma
+    fórmula que presupuesto.totales()["total"] (no se puede importar ese
+    módulo acá: presupuesto.py ya importa a este, sería circular) -- si se
+    retoca una, retocar la otra."""
+    pres = obra.get("presupuesto") or {}
+
+    def suma(items):
+        return sum((it.get("precioUnitario") or 0) * (it.get("cantidad") or 0)
+                  for it in items if not it.get("opcional"))
+
+    bruto = (suma(pres.get("items") or []) + suma(pres.get("extras") or [])
+            + suma(pres.get("diferencia") or []))
+    desc = pres.get("descuento") or {}
+    monto_desc = 0.0
+    if desc.get("tipo") == "porcentaje":
+        monto_desc = bruto * float(desc.get("valor") or 0) / 100
+    elif desc.get("tipo") == "monto":
+        monto_desc = float(desc.get("valor") or 0)
+    monto_desc = min(monto_desc, bruto)
+    neto = bruto - monto_desc
+
+    ajuste = pres.get("ajusteFinal") or {}
+    if ajuste.get("activo") and ajuste.get("valor") not in (None, ""):
+        return float(ajuste["valor"])
+    return neto
 
 
 def progreso(obra: dict) -> dict:
