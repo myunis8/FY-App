@@ -7,15 +7,15 @@
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 :root{
-  --navy:#16283f; --navy-deep:#0e1c2e; --paper:#f1f3f2; --panel:#fff; --line:#dde3e2;
-  --ink:#1c2733; --muted:#5b6b7a; --amber:#e2a33d; --amber-deep:#c07f1f;
-  --copper:#b5651d; --copper-soft:#f4e3d3; --slate-soft:#eef1f3;
-  --green:#2f7d5c; --green-soft:#dcefe4; --danger:#b3432f; --danger-soft:#f8ded7;
+  --navy:#16283f; --navy-deep:#0a121d; --paper:#10161e; --panel:#1a2330; --line:#2c3846;
+  --ink:#dde3ea; --muted:#8896a8; --amber:#e2a33d; --amber-deep:#c07f1f;
+  --copper:#c9793f; --copper-soft:rgba(201,121,63,.18); --slate-soft:#212c39;
+  --green:#4caf82; --green-soft:rgba(76,175,130,.16); --danger:#e0685a; --danger-soft:rgba(224,104,90,.16);
   --radius:10px; font-family:'IBM Plex Sans',system-ui,sans-serif;
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--paper);color:var(--ink)}
-button{font:inherit;cursor:pointer} input,select{font:inherit}
+button{font:inherit;cursor:pointer} input,select{font:inherit;background:var(--panel);color:var(--ink);border:1px solid var(--line)}
 .mono{font-family:'IBM Plex Mono',Consolas,monospace}
 header{background:var(--navy);color:#fff;padding:11px 18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 header h1{font-family:'Space Grotesk',sans-serif;font-size:.98rem;margin:0;font-weight:600}
@@ -29,7 +29,7 @@ header .sub{font-size:.72rem;color:#9db2c7}
 .btn.sm{padding:4px 9px;font-size:.75rem}
 main{max-width:940px;margin:0 auto;padding:22px 18px 60px}
 .barra{display:flex;gap:9px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
-.barra input,.barra select{padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:#fff}
+.barra input,.barra select{padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink)}
 tabla,table{width:100%;border-collapse:collapse;background:var(--panel);
   border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
 th{text-align:left;font-size:.68rem;text-transform:uppercase;letter-spacing:.05em;
@@ -37,18 +37,21 @@ th{text-align:left;font-size:.68rem;text-transform:uppercase;letter-spacing:.05e
 td{padding:6px 11px;border-top:1px solid var(--line);font-size:.84rem}
 td input,td select{width:100%;border:1px solid transparent;background:transparent;
   padding:5px 6px;border-radius:6px}
-td input:focus,td select:focus{outline:none;border-color:var(--copper);background:#fff}
+td input:focus,td select:focus{outline:none;border-color:var(--copper);background:var(--panel)}
 td.precio input{text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:600}
 .grupo td{background:var(--slate-soft);font-weight:600;font-size:.74rem;
   text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
 .tag-aparte{display:inline-block;font-size:.62rem;padding:1px 7px;margin-left:7px;
-  border-radius:99px;background:#e2e7ea;color:var(--muted);font-weight:700;
+  border-radius:99px;background:var(--slate-soft);color:var(--muted);font-weight:700;
   letter-spacing:.03em;vertical-align:middle}
 .tag-warn{display:inline-block;font-size:.62rem;padding:1px 7px;margin-left:7px;
   border-radius:99px;background:var(--danger-soft);color:var(--danger);font-weight:700;
   letter-spacing:.03em;vertical-align:middle}
 .acc{width:34px;text-align:center}
 .acc button{border:none;background:transparent;color:var(--danger);font-size:1rem;padding:2px 6px}
+.ord button{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:5px;
+  padding:2px 6px;font-size:.72rem;line-height:1.4}
+.ord button:disabled{opacity:.3;cursor:not-allowed}
 #toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--navy-deep);
   color:#fff;padding:10px 17px;border-radius:var(--radius);font-size:.82rem;display:none}
 .ayuda{color:var(--muted);font-size:.8rem;line-height:1.5;margin:0 0 16px}

@@ -12,11 +12,11 @@
    paleta navy/ámbar/cobre, títulos en Space Grotesk. Se conservan los nombres
    de variable de este módulo y sólo cambian los valores, para no tocar cada regla. */
 :root{
-  --bg:#f1f3f2; --panel:#fff; --panel-2:#eef1f3; --line:#dde3e2; --line-2:#e7ebea;
-  --ink:#1c2733; --ink-2:#5b6b7a; --ink-3:#8b98a5; --navy:#16283f; --navy-deep:#0e1c2e;
-  --accent:#b5651d; --accent-bg:#f6ece3;
+  --bg:#10161e; --panel:#1a2330; --panel-2:#212c39; --line:#2c3846; --line-2:#26303c;
+  --ink:#dde3ea; --ink-2:#8896a8; --ink-3:#69788c; --navy:#16283f; --navy-deep:#0a121d;
+  --accent:#c9793f; --accent-bg:rgba(201,121,63,.18);
   --amber:#e2a33d; --amber-deep:#c07f1f;
-  --err:#b3432f; --err-bg:#f8ded7; --warn:#a06a12; --warn-bg:#f6e8cf; --ok:#2f7d5c;
+  --err:#e0685a; --err-bg:rgba(224,104,90,.16); --warn:#d1a542; --warn-bg:rgba(209,165,66,.16); --ok:#4caf82;
   --r:7px;
   --fs:"IBM Plex Sans",system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
   --fm:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
@@ -42,8 +42,8 @@ button{cursor:pointer}
 .sep{width:1px;height:22px;background:var(--line);margin:0 4px}
 #top .sep{background:#33506e}
 .btn{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:6px 10px;color:var(--ink);white-space:nowrap}
-.btn:hover{background:var(--panel-2);border-color:#c3c9cf}
-.btn:active{background:#eceff1}
+.btn:hover{background:var(--panel-2);border-color:var(--ink-3)}
+.btn:active{background:var(--line)}
 .btn.primary{background:var(--amber);border-color:var(--amber-deep);color:#2a1e07;font-weight:600}
 .btn.primary:hover{background:#d7962f}
 .btn.sm{padding:4px 8px;font-size:12px}
@@ -55,7 +55,7 @@ button{cursor:pointer}
 #top .btn.primary:hover{background:#d7962f}
 #scaleChip{margin-left:auto;display:flex;align-items:center;gap:8px;font-family:var(--fm);font-size:12px;color:#cfe0f0;
   background:rgba(255,255,255,.08);border:1px solid #33506e;border-radius:var(--r);padding:5px 9px}
-#scaleChip.unset{background:var(--warn-bg);border-color:#e8d49a;color:var(--warn)}
+#scaleChip.unset{background:var(--warn-bg);border-color:var(--warn);color:var(--warn)}
 .dot{width:7px;height:7px;border-radius:50%;background:var(--ok);flex:none}
 #scaleChip.unset .dot{background:var(--warn)}
 
@@ -72,9 +72,9 @@ aside{background:var(--panel);display:flex;flex-direction:column;min-height:0;ov
 /* tools */
 .tool{display:flex;align-items:center;gap:9px;width:100%;text-align:left;background:none;border:1px solid transparent;border-radius:var(--r);padding:7px 8px;line-height:1.2}
 .tool:hover{background:var(--panel-2)}
-.tool.on{background:var(--accent-bg);border-color:#e5cdbc;color:var(--accent);font-weight:500}
+.tool.on{background:var(--accent-bg);border-color:var(--accent);color:var(--accent);font-weight:500}
 .tool kbd{margin-left:auto;font-family:var(--fm);font-size:10px;color:var(--ink-3);border:1px solid var(--line);border-radius:3px;padding:1px 4px;background:var(--panel-2)}
-.tool.on kbd{color:var(--accent);border-color:#e5cdbc;background:#fff}
+.tool.on kbd{color:var(--accent);border-color:var(--accent);background:var(--panel)}
 .gl{width:18px;flex:none;display:grid;place-items:center}
 
 /* circuits */
@@ -92,7 +92,7 @@ aside{background:var(--panel);display:flex;flex-direction:column;min-height:0;ov
 .grp .ci-h{cursor:pointer}
 .wires{display:flex;flex-direction:column;gap:4px}
 .wr{display:flex;align-items:center;gap:6px;padding:4px 6px;border:1px solid var(--line);border-radius:5px;background:var(--panel-2);font-size:11px}
-.wr.on{border-color:#0e7490;background:#e7f4f7}
+.wr.on{border-color:#3aa0b8;background:rgba(58,160,184,.16)}
 .wr-c{flex:none;font-weight:600;min-width:36px}
 .wr-l{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink-2)}
 .wr-n{flex:none;color:var(--ink-3);font-family:var(--fm)}
@@ -149,14 +149,14 @@ table.t td.n{font-family:var(--fm);text-align:right}
 table.t input{width:100%;border:1px solid transparent;background:none;border-radius:3px;padding:2px 4px;
   font-family:var(--fm);font-size:12px;text-align:right}
 table.t input:hover{border-color:var(--line)}
-table.t input:focus{outline:none;border-color:var(--accent);background:#fff}
+table.t input:focus{outline:none;border-color:var(--accent);background:var(--panel)}
 
 /* modal */
 .mask{position:fixed;inset:0;background:rgba(21,24,27,.45);display:none;place-items:center;z-index:50;padding:20px}
 .mask.on{display:grid}
 .modal{background:var(--panel);border-radius:9px;padding:18px;width:100%;max-width:480px;max-height:86vh;overflow:auto;
   box-shadow:0 16px 48px rgba(0,0,0,.25)}
-.modal h2{margin:0 0 4px;font-family:var(--fh);font-size:15px;font-weight:600;color:var(--navy)}
+.modal h2{margin:0 0 4px;font-family:var(--fh);font-size:15px;font-weight:600;color:var(--ink)}
 .modal p.sub{margin:0 0 14px;color:var(--ink-2);font-size:12px;line-height:1.5}
 .modal .acts{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
 .pgs{display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:8px;max-height:340px;overflow:auto}
@@ -166,7 +166,7 @@ table.t input:focus{outline:none;border-color:var(--accent);background:#fff}
 .pg span{font-family:var(--fm);font-size:11px;color:var(--ink-2);display:block;margin-top:4px}
 .chk{display:flex;gap:8px;align-items:flex-start;padding:5px 0;font-size:12px;line-height:1.4}
 .chk input{margin:2px 0 0}
-#busy{position:fixed;inset:0;background:rgba(238,240,242,.82);display:none;place-items:center;z-index:60;
+#busy{position:fixed;inset:0;background:rgba(16,22,30,.82);display:none;place-items:center;z-index:60;
   font-size:13px;color:var(--ink-2)}
 #busy.on{display:grid}
 </style>
