@@ -420,12 +420,25 @@ function filtrar(){
     return true;
   });
 }
+// "presupuestado" y "pendiente de cobrar" sólo cuentan obras ya aprobadas
+// (aprobado/en_curso/realizado) -- una preliminar todavía no es un compromiso
+// real, así que no tiene sentido sumarla a lo que se facturó ni a lo que falta cobrar
+const ESTADOS_COMPROMETIDOS = new Set(['aprobado', 'en_curso', 'realizado']);
+function pendienteDeCobro(o){
+  const pago = o.pago || {};
+  if(pago.estado === 'pagado') return 0;
+  if(pago.estado === 'parcial') return (o.total||0) * (100 - (pago.porcentaje||0)) / 100;
+  return o.total || 0;                    // pendiente (o sin dato): se debe todo
+}
 function pintarStats(){
   const porEstado = {preliminar:0, aprobado:0, en_curso:0, realizado:0};
-  let totalPresupuestado = 0, pagoPendiente = 0;
+  let totalPresupuestado = 0, porCobrar = 0, pagoPendiente = 0;
   for(const o of obras){
     porEstado[o.estado] = (porEstado[o.estado]||0) + 1;
-    totalPresupuestado += o.total || 0;
+    if(ESTADOS_COMPROMETIDOS.has(o.estado)){
+      totalPresupuestado += o.total || 0;
+      porCobrar += pendienteDeCobro(o);
+    }
     if((o.pago||{}).estado !== 'pagado') pagoPendiente++;
   }
   const filas = [
@@ -438,7 +451,9 @@ function pintarStats(){
   ];
   $('stats').innerHTML = filas.map(([l,n,c]) =>
     `<div class="fila"><span>${l}</span><span class="n" style="color:${c}">${n}</span></div>`
-  ).join('') + `<div class="fila"><span>Total presupuestado</span><span class="n">${plata(totalPresupuestado)}</span></div>`;
+  ).join('')
+    + `<div class="fila"><span>Total presupuestado</span><span class="n">${plata(totalPresupuestado)}</span></div>`
+    + `<div class="fila"><span>Pendiente de cobrar</span><span class="n" style="color:var(--danger)">${plata(porCobrar)}</span></div>`;
 }
 function pintarGanancias(){
   // ganancia = mano de obra (lo único que se presupuesta acá por ahora, ver
