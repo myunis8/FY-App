@@ -182,7 +182,7 @@ table.t input:focus{outline:none;border-color:var(--accent);background:#fff}
   <button class="btn" id="bSave">Guardar proyecto</button>
   <button class="btn" id="bLoad">Abrir proyecto</button>
   <input type="file" id="fProj" accept=".json,application/json" hidden>
-  <button class="btn primary" id="bGuardarObra" title="Guarda este proyecto en la obra, en el servidor">💾 Guardar en la obra</button>
+  <button class="btn primary" id="bGuardarObra" title="Guarda este proyecto en la obra, en el servidor">Guardar en la obra</button>
   <span id="tagObra" class="msg" style="padding:0 4px;white-space:nowrap"></span>
   <span id="autosaveTag" class="msg" style="padding:0 4px;white-space:nowrap"></span>
   <button class="btn sm" id="bNewProj" title="Borra el guardado automático de este navegador y arranca de cero">Nuevo proyecto</button>
@@ -483,15 +483,10 @@ window.fyGuardarAuto = async (datos) => {
 };
 
 if(OBRA_ID){
-  // "Volver" a la obra
-  const brand = document.getElementById('brand');
-  const bVolver = document.createElement('button');
-  bVolver.className = 'btn'; bVolver.id = 'bVolver'; bVolver.textContent = '← Volver';
-  bVolver.onclick = () => location.href = '/obra.html?obra=' + OBRA_ID;
-  brand?.after(bVolver);
+  const top = document.getElementById('top');
+  const bGuardarObra = document.getElementById('bGuardarObra');
 
   // "Reiniciar": borra caños y cableado, las cajas y circuitos quedan igual
-  const bGuardarObra = document.getElementById('bGuardarObra');
   const bReiniciar = document.createElement('button');
   bReiniciar.className = 'btn sm'; bReiniciar.id = 'bReiniciar';
   bReiniciar.title = 'Borra todos los caños y el cableado ya trazados. Las cajas y los circuitos quedan.';
@@ -502,8 +497,17 @@ if(OBRA_ID){
   };
   bGuardarObra?.after(bReiniciar);
 
-  // "Guardar en la obra" pasa a llamarse simplemente "Guardar"
-  if(bGuardarObra) bGuardarObra.textContent = '💾 Guardar';
+  // "Guardar en la obra" pasa a llamarse simplemente "Guardar", y junto con
+  // "Volver" se corren al final de la barra -- Guardar inmediatamente a la
+  // izquierda de Volver, igual que en el resto de los módulos.
+  if(bGuardarObra){
+    bGuardarObra.textContent = 'Guardar';
+    top?.appendChild(bGuardarObra);
+  }
+  const bVolver = document.createElement('button');
+  bVolver.className = 'btn'; bVolver.id = 'bVolver'; bVolver.textContent = 'Volver';
+  bVolver.onclick = () => location.href = '/obra.html?obra=' + OBRA_ID;
+  top?.appendChild(bVolver);
 
   // botones que ya no tienen sentido estando integrado a la obra: el plano,
   // la escala y los circuitos/cajas los maneja el resto de la app
