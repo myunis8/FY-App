@@ -110,6 +110,23 @@ tr.opcional{opacity:.72;background:repeating-linear-gradient(45deg,transparent,t
     </div>
     <span class="nota" style="margin-left:8px">El botón ◇ marca una línea como
       opcional: se muestra aparte y no suma al total.</span>
+
+    <h2>Diferencia</h2>
+    <p class="nota" style="margin:0 0 8px">Trabajo que el cliente pidió sumar después de un
+      checkpoint (ver al lado) -- queda aparte de "Trabajos" para que se entienda qué era el
+      alcance original y qué se agregó después, y sale así de discriminado en el PDF.</p>
+    <table><thead><tr>
+      <th style="width:40%">Ítem</th><th style="width:11%">Cant.</th>
+      <th style="width:8%">Un.</th><th style="width:17%">Unitario</th>
+      <th style="width:17%">Subtotal</th><th class="acc"></th>
+    </tr></thead><tbody id="t-diferencia"></tbody></table>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <select id="sel-precio-dif" style="flex:1;min-width:220px;max-width:380px;padding:6px 8px;
+        border:1px solid var(--line);border-radius:7px;background:var(--panel);color:var(--ink)">
+        <option value="">+ Agregar de la lista de precios…</option>
+      </select>
+      <button class="btn sm" id="b-diferencia">+ Personalizado</button>
+    </div>
   </div>
 
   <aside>
@@ -120,6 +137,13 @@ tr.opcional{opacity:.72;background:repeating-linear-gradient(45deg,transparent,t
     <div id="computo-auto"></div>
     <div class="nota" style="margin-top:4px">Esto es lo que detectó el plano. Si ajustás una
       cantidad a mano en la tabla, esta referencia no cambia.</div>
+
+    <h2>Checkpoint</h2>
+    <p class="nota" style="margin:0 0 6px">Guarda "hasta acá llegamos" con el total de hoy, de
+      referencia -- si más adelante el cliente pide algo más, cargalo en "Diferencia" y quede
+      claro qué se sumó después de cuál checkpoint.</p>
+    <div id="checkpoints" class="nota" style="margin-bottom:8px"></div>
+    <button class="btn sm" id="b-checkpoint" style="width:100%">Guardar checkpoint de hoy</button>
 
     <h2>Descuento</h2>
     <div class="fila2">
@@ -160,7 +184,8 @@ tr.opcional{opacity:.72;background:repeating-linear-gradient(45deg,transparent,t
 const $ = id => document.getElementById(id);
 const OBRA_ID = new URLSearchParams(location.search).get('obra');
 fyLock.iniciar(OBRA_ID);
-let obra = null, pres = null, totales = null, comparacion = [], cantidades = null, cantidadesExtra = null;
+let obra = null, pres = null, totales = null, comparacion = [], cantidades = null, cantidadesExtra = null,
+  checkpoints = [];
 
 const api = async (r,o={}) => {
   const res = await fetch(r,{headers:{'Content-Type':'application/json'},...o});
@@ -177,10 +202,19 @@ const plata = n => (n||0).toLocaleString('es-AR',{style:'currency',currency:'ARS
 async function cargar(){
   obra = await api('/api/obras/'+OBRA_ID);
   $('h-nombre').textContent = obra.obra.nombre;
+  checkpoints = obra.checkpoints || [];
   await sincronizar({});
   if(!(pres.items||[]).length) await sincronizar({recalcularCantidades:true});
   pintarControles();
+  pintarCheckpoints();
   cargarListaPrecios();
+}
+function pintarCheckpoints(){
+  $('checkpoints').innerHTML = checkpoints.length
+    ? checkpoints.slice(-5).reverse().map(c =>
+        `<div>${new Date(c.el).toLocaleDateString('es-AR')} · ${plata(c.total)}${c.por?' · '+esc(c.por):''}</div>`
+      ).join('')
+    : 'Todavía no guardaste ningún checkpoint.';
 }
 
 // combobox de "agregar de la lista de precios" en Extras: evita retipear un
@@ -203,30 +237,41 @@ async function cargarListaPrecios(){
     const d = await api('/api/precios');
     listaPrecios = d.items || [];
   }catch(err){ listaPrecios = []; }   // si falla, igual queda "+ Personalizado"
-  const sel = $('sel-precio');
   const porCategoria = {};
   for(const it of listaPrecios) (porCategoria[it.categoria || 'Otros'] ||= []).push(it);
   const extra = Object.keys(porCategoria).filter(c => !CATEGORIAS_ORDEN.includes(c)).sort();
   const cats = [...CATEGORIAS_ORDEN, ...extra].filter(c => porCategoria[c]);
-  sel.innerHTML = '<option value="">+ Agregar de la lista de precios…</option>' +
+  const opciones = '<option value="">+ Agregar de la lista de precios…</option>' +
     cats.map(cat => `<optgroup label="${esc(cat)}">${
       porCategoria[cat].map(it => `<option value="${it.id}">${esc(it.item)} — ${plata(it.precio)}</option>`).join('')
     }</optgroup>`).join('');
+  $('sel-precio').innerHTML = opciones;
+  $('sel-precio-dif').innerHTML = opciones;
+}
+function nuevoDeLista(it, prefijo){
+  return {id:prefijo+'_'+Date.now().toString(36), item:it.item,
+          unidad:it.unidad||'u', cantidad:1, precioUnitario:it.precio||0,
+          opcional:false, origen:'lista', categoria:it.categoria||''};
 }
 $('sel-precio').onchange = async () => {
   const sel = $('sel-precio');
   const it = listaPrecios.find(p => p.id === sel.value);
   sel.value = '';
   if(!it) return;
-  const nuevo = {id:'ex_'+Date.now().toString(36), item:it.item,
-                unidad:it.unidad||'u', cantidad:1, precioUnitario:it.precio||0,
-                opcional:false, origen:'lista', categoria:it.categoria||''};
   // "Trabajos adicionales" y "Automatizaciones" son las únicas categorías
   // realmente aparte del trabajo troncal (ver CATEGORIAS_APARTE); todo lo
   // demás agregado a mano -- tableros, PAT, etc. -- es trabajo de la
   // instalación tal cual, no un extra, aunque no se haya contado solo
   // desde el plano
-  (CATEGORIAS_APARTE.has(it.categoria) ? pres.extras : pres.items).push(nuevo);
+  (CATEGORIAS_APARTE.has(it.categoria) ? pres.extras : pres.items).push(nuevoDeLista(it, 'ex'));
+  await sincronizar({});
+};
+$('sel-precio-dif').onchange = async () => {
+  const sel = $('sel-precio-dif');
+  const it = listaPrecios.find(p => p.id === sel.value);
+  sel.value = '';
+  if(!it) return;
+  pres.diferencia.push(nuevoDeLista(it, 'df'));
   await sincronizar({});
 };
 async function sincronizar(op){
@@ -234,17 +279,19 @@ async function sincronizar(op){
     {method:'POST', body:JSON.stringify({presupuesto: pres, ...op})});
   pres = r.presupuesto; totales = r.totales;
   comparacion = r.comparacion; cantidades = r.cantidades; cantidadesExtra = r.cantidadesExtra;
-  pres.items = pres.items || []; pres.extras = pres.extras || [];
+  pres.items = pres.items || []; pres.extras = pres.extras || []; pres.diferencia = pres.diferencia || [];
   pintar();
 }
 
-function filaItems(arr, tbody, esExtra){
+function filaItems(arr, tbody, clave){
   $(tbody).innerHTML = arr.length ? arr.map((it,i)=>{
     const sub = (it.precioUnitario||0) * (it.cantidad||0);
     const cmp = comparacion.find(c=>c.id===it.id);
     const dif = cmp && cmp.variacion && it.congelado ? cmp.variacion : null;
-    const movible = it.origen !== 'computo';        // lo que viene del plano no se mueve a mano: se recalcula solo
-    return `<tr class="${it.opcional?'opcional':''}" data-i="${i}" data-e="${esExtra?1:0}">
+    // lo que viene del plano no se mueve a mano (se recalcula solo), y la
+    // diferencia no se mueve a Trabajos/Extras: es su propia categoría
+    const movible = clave !== 'diferencia' && it.origen !== 'computo';
+    return `<tr class="${it.opcional?'opcional':''}" data-i="${i}" data-e="${clave}">
       <td><input data-c="item" value="${esc(it.item||'')}">
         ${it.opcional?'<span class="tag">opcional</span>':''}
         ${it.origen==='computo_extra'?'<span class="tag" title="Se armó solo, a partir de elementos marcados como agregado fuera del presupuesto original en Circuitos">auto</span>':''}
@@ -255,13 +302,14 @@ function filaItems(arr, tbody, esExtra){
       <td class="num"><input data-c="precioUnitario" type="number" step="1" value="${it.precioUnitario||0}"></td>
       <td class="num">${plata(sub)}</td>
       <td class="acc">
-        ${movible?`<button class="mover" data-mover="${i}" data-e="${esExtra?1:0}"
-          title="${esExtra?'Mover a Trabajos: es trabajo de la instalación, no un extra':'Mover a Extras: es un adicional, no trabajo troncal'}">⇄</button>`:''}
-        <button class="op" data-op="${i}" data-e="${esExtra?1:0}" title="Marcar como opcional">◇</button>
-        <button class="del" data-del="${i}" data-e="${esExtra?1:0}" title="Quitar">×</button></td>
+        ${movible?`<button class="mover" data-mover="${i}" data-e="${clave}"
+          title="${clave==='extras'?'Mover a Trabajos: es trabajo de la instalación, no un extra':'Mover a Extras: es un adicional, no trabajo troncal'}">⇄</button>`:''}
+        <button class="op" data-op="${i}" data-e="${clave}" title="Marcar como opcional">◇</button>
+        <button class="del" data-del="${i}" data-e="${clave}" title="Quitar">×</button></td>
     </tr>`;}).join('')
     : `<tr><td colspan="6" style="color:var(--muted);padding:14px">${
-        esExtra ? 'Sin extras cargados.' : 'Sin ítems. Probá “Recalcular del plano”.'}</td></tr>`;
+        clave==='items' ? 'Sin ítems. Probá “Recalcular del plano”.'
+        : clave==='extras' ? 'Sin extras cargados.' : 'Sin diferencia cargada todavía.'}</td></tr>`;
 }
 // cómputo automático (Puntos, Artefactos, Tomas): lo que detectó el plano,
 // siempre visible aparte de la tabla -- así se puede tocar la cantidad a
@@ -284,11 +332,12 @@ function pintarComputo(){
       + 'agregado fuera del presupuesto original (van a Extras).</div>' : '');
 }
 function pintar(){
-  filaItems(pres.items, 't-items', false);
-  filaItems(pres.extras, 't-extras', true);
+  filaItems(pres.items, 't-items', 'items');
+  filaItems(pres.extras, 't-extras', 'extras');
+  filaItems(pres.diferencia, 't-diferencia', 'diferencia');
   document.querySelectorAll('[data-c]').forEach(n => n.onchange = async () => {
     const tr = n.closest('tr');
-    const arr = tr.dataset.e === '1' ? pres.extras : pres.items;
+    const arr = pres[tr.dataset.e];
     const it = arr[+tr.dataset.i];
     const c = n.dataset.c;
     it[c] = (c === 'item' || c === 'unidad') ? n.value : parseFloat(n.value||0);
@@ -296,23 +345,20 @@ function pintar(){
     await sincronizar({});
   });
   document.querySelectorAll('[data-op]').forEach(n => n.onclick = async () => {
-    const arr = n.dataset.e === '1' ? pres.extras : pres.items;
-    const it = arr[+n.dataset.op];
+    const it = pres[n.dataset.e][+n.dataset.op];
     it.opcional = !it.opcional;
     await sincronizar({});
   });
   document.querySelectorAll('[data-mover]').forEach(n => n.onclick = async () => {
-    const esExtra = n.dataset.e === '1';
-    const origen = esExtra ? pres.extras : pres.items;
+    const esExtra = n.dataset.e === 'extras';
+    const origen = pres[n.dataset.e];
     const destino = esExtra ? pres.items : pres.extras;
     const [it] = origen.splice(+n.dataset.mover, 1);
     destino.push(it);
     await sincronizar({});
   });
   document.querySelectorAll('[data-del]').forEach(n => n.onclick = async () => {
-    const esExtra = n.dataset.e === '1';
-    const arr = esExtra ? pres.extras : pres.items;
-    arr.splice(+n.dataset.del, 1);
+    pres[n.dataset.e].splice(+n.dataset.del, 1);
     await sincronizar({});
   });
 
@@ -320,6 +366,8 @@ function pintar(){
   $('totales').innerHTML = `
     <div class="total-fila"><span>Trabajos</span><span class="v">${plata(t.subtotal)}</span></div>
     ${t.extras?`<div class="total-fila"><span>Extras</span><span class="v">${plata(t.extras)}</span></div>`:''}
+    ${t.diferencia?`<div class="total-fila" style="color:var(--amber)">
+      <span>Diferencia</span><span class="v">${plata(t.diferencia)}</span></div>`:''}
     ${t.descuento?`<div class="total-fila" style="color:var(--green)">
       <span>Descuento</span><span class="v">−${plata(t.descuento)}</span></div>`:''}
     ${t.ajuste?`<div class="total-fila" style="color:var(--muted)">
@@ -384,6 +432,18 @@ $('b-extra').onclick = async () => {
   pres.extras.push({id:'ex_'+Date.now().toString(36), item:'Trabajo extra',
                     unidad:'u', cantidad:1, precioUnitario:0, opcional:false, origen:'usuario'});
   await sincronizar({});
+};
+$('b-diferencia').onclick = async () => {
+  pres.diferencia.push({id:'df_'+Date.now().toString(36), item:'Trabajo adicional',
+                        unidad:'u', cantidad:1, precioUnitario:0, opcional:false, origen:'usuario'});
+  await sincronizar({});
+};
+$('b-checkpoint').onclick = async () => {
+  if(!confirm('Guarda el total de hoy ('+plata(totales?.total||0)+') como checkpoint. ¿Seguimos?')) return;
+  const r = await api('/api/obras/'+OBRA_ID+'/checkpoint', {method:'POST', body:'{}'});
+  checkpoints = r.checkpoints;
+  pintarCheckpoints();
+  toast('Checkpoint guardado');
 };
 $('b-recalcular').onclick = async () => {
   if(!confirm('Vuelve a contar del plano y rearma las líneas de trabajos. '

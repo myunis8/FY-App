@@ -58,6 +58,10 @@ h2:first-child{margin-top:0}
 .plano-fila .flecha{color:var(--muted);font-size:1.2rem;flex:0 0 auto;line-height:1}
 .chk{display:flex;align-items:center;gap:6px;font-size:.82rem;cursor:pointer}
 .chk input{margin:0}
+.chk-terminado{display:flex;align-items:center;gap:5px;font-size:.72rem;color:var(--muted);
+  cursor:pointer;white-space:nowrap;flex:0 0 auto}
+.chk-terminado input{margin:0}
+.chk-terminado.listo{color:var(--green);font-weight:600}
 .acciones{display:flex;gap:9px;justify-content:flex-end;margin-top:22px;flex-wrap:wrap}
 .caja-pdf{background:var(--panel);border-radius:14px;width:min(920px,96vw);height:min(860px,92vh);
   display:flex;flex-direction:column;overflow:hidden}
@@ -98,23 +102,31 @@ h2:first-child{margin-top:0}
   <div class="plano-fila clicable" id="fila-tablero">
     <div class="txt"><b>Tablero</b><span id="d-ntableros"></span>
       <div class="nota">Protecciones, distribución de bocas y armado gráfico.</div></div>
+    <label class="chk-terminado" onclick="event.stopPropagation()">
+      <input type="checkbox" class="chk-modulo" data-modulo="tablero"> Terminado</label>
     <button class="btn sm" id="d-pdf-tableros" style="display:none">Descargar todos (PDF)</button>
     <span class="flecha">›</span>
   </div>
   <div class="plano-fila clicable" id="fila-canalizacion">
     <div class="txt"><b>Routeo</b><span id="d-ncanalizacion"></span>
       <div class="nota">Cajas y caños entre ellas, con diámetro sugerido.</div></div>
+    <label class="chk-terminado" onclick="event.stopPropagation()">
+      <input type="checkbox" class="chk-modulo" data-modulo="routeo"> Terminado</label>
     <span class="flecha">›</span>
   </div>
   <div class="plano-fila clicable" id="fila-presupuesto">
     <div class="txt"><b>Presupuesto</b><span id="d-npresupuesto"></span>
       <div class="nota">Cantidades, extras, descuentos y precio final.</div></div>
+    <label class="chk-terminado" onclick="event.stopPropagation()">
+      <input type="checkbox" class="chk-modulo" data-modulo="presupuesto"> Terminado</label>
     <button class="btn sm" id="d-pdf">Descargar PDF</button>
     <span class="flecha">›</span>
   </div>
   <div class="plano-fila clicable" id="fila-materiales">
     <div class="txt"><b>Lista de materiales</b>
       <div class="nota">Cajas, tablero con accesorios, PAT, productos extra y cable a comprar.</div></div>
+    <label class="chk-terminado" onclick="event.stopPropagation()">
+      <input type="checkbox" class="chk-modulo" data-modulo="materiales"> Terminado</label>
     <span class="flecha">›</span>
   </div>
   <div class="plano-fila clicable" id="fila-verificaciones">
@@ -382,7 +394,26 @@ function pintarBloques(obra){
     (obra.obra.nombre || 'presupuesto').replace(/\s+/g,'_') + '.pdf'); };
   $('d-bloques').innerHTML = filas.map(([k,v]) =>
     `<div class="bloque"><b>${k}</b>${v}</div>`).join('');
+  pintarChecklist(obra);
 }
+function pintarChecklist(obra){
+  const checklist = obra.checklist || {};
+  document.querySelectorAll('.chk-modulo').forEach(chk => {
+    const listo = !!checklist[chk.dataset.modulo];
+    chk.checked = listo;
+    chk.closest('.chk-terminado').classList.toggle('listo', listo);
+  });
+}
+document.querySelectorAll('.chk-modulo').forEach(chk => chk.addEventListener('change', async () => {
+  if(!obraAbierta) return;
+  const modulo = chk.dataset.modulo, listo = chk.checked;
+  try{
+    const r = await api('/api/obras/'+obraAbierta.obra.id+'/checklist',
+      {method:'POST', body:JSON.stringify({modulo, listo})});
+    obraAbierta.checklist = r.checklist;
+    pintarChecklist(obraAbierta);
+  }catch(e){ chk.checked = !listo; toast(e.message); }
+}));
 function pintarPlano(obra){
   const p = obra.plano, cont = $('d-plano');
   if(!p && obra.obra.sinPlano){

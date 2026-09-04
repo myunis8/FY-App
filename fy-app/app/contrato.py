@@ -44,6 +44,13 @@ def obra_vacia(nombre: str = "", cliente: str = "", usuario: str = "") -> dict:
                         "historial": []},
         "validacion": {"corridaEl": 0, "errores": [], "advertencias": []},
         "historial": [],
+        # qué etapas del trabajo están terminadas -- a mano, el usuario lo
+        # tilda cuando corresponde, no se infiere de si hay datos cargados
+        "checklist": {"presupuesto": False, "routeo": False, "tablero": False, "materiales": False},
+        # puntos guardados de "hasta acá llegamos" -- referencia para saber
+        # cuánto valía el trabajo en ese momento, si después el cliente pide
+        # algo más (ver presupuesto.diferencia)
+        "checkpoints": [],
     }
 
 
@@ -170,18 +177,20 @@ def actualizar_seguimiento(obra: dict, estado: str | None = None, pago_estado: s
 
 
 def total_presupuesto(obra: dict) -> float:
-    """Monto final del presupuesto: trabajos + extras, menos descuento, con
-    el ajuste final si está activo -- los extras son plata real de la obra
-    tanto como los trabajos. Misma fórmula que presupuesto.totales()["total"]
-    (no se puede importar ese módulo acá: presupuesto.py ya importa a este,
-    sería circular) -- si se retoca una, retocar la otra."""
+    """Monto final del presupuesto: trabajos + extras + diferencia, menos
+    descuento, con el ajuste final si está activo -- los extras y la
+    diferencia son plata real de la obra tanto como los trabajos. Misma
+    fórmula que presupuesto.totales()["total"] (no se puede importar ese
+    módulo acá: presupuesto.py ya importa a este, sería circular) -- si se
+    retoca una, retocar la otra."""
     pres = obra.get("presupuesto") or {}
 
     def suma(items):
         return sum((it.get("precioUnitario") or 0) * (it.get("cantidad") or 0)
                   for it in items if not it.get("opcional"))
 
-    bruto = suma(pres.get("items") or []) + suma(pres.get("extras") or [])
+    bruto = (suma(pres.get("items") or []) + suma(pres.get("extras") or [])
+            + suma(pres.get("diferencia") or []))
     desc = pres.get("descuento") or {}
     monto_desc = 0.0
     if desc.get("tipo") == "porcentaje":

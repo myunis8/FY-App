@@ -106,7 +106,12 @@ def sugerir_items(obra: dict, extra: bool = False) -> tuple[list[dict], list[str
 
 
 def totales(pres: dict) -> dict:
-    """Subtotal, extras, descuento y ajuste final.
+    """Subtotal, extras, diferencia, descuento y ajuste final.
+
+    "diferencia" es trabajo adicional que pidió el cliente después de un
+    checkpoint -- items sueltos, igual que extras, pero se muestran y se
+    imprimen aparte para que quede claro qué es el alcance original y qué
+    se sumó después.
 
     Los opcionales se muestran aparte y no entran en el total: son un
     "si querés, sumamos esto".
@@ -117,12 +122,14 @@ def totales(pres: dict) -> dict:
 
     items = [i for i in (pres.get("items") or []) if not i.get("opcional")]
     extras = [i for i in (pres.get("extras") or []) if not i.get("opcional")]
+    diferencia = [i for i in (pres.get("diferencia") or []) if not i.get("opcional")]
     opcionales = [i for i in (pres.get("items") or []) + (pres.get("extras") or [])
-                  if i.get("opcional")]
+                  + (pres.get("diferencia") or []) if i.get("opcional")]
 
     sub = suma(items)
     ext = suma(extras)
-    bruto = sub + ext
+    dif = suma(diferencia)
+    bruto = sub + ext + dif
 
     desc = pres.get("descuento") or {}
     monto_desc = 0.0
@@ -143,6 +150,7 @@ def totales(pres: dict) -> dict:
     return {
         "subtotal": round(sub, 2),
         "extras": round(ext, 2),
+        "diferencia": round(dif, 2),
         "bruto": round(bruto, 2),
         "descuento": round(monto_desc, 2),
         "neto": round(neto, 2),

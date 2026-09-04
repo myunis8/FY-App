@@ -77,6 +77,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self._revalidar(partes[2])
             if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "seguimiento":
                 return self._actualizar_seguimiento(partes[2])
+            if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "checklist":
+                return self._actualizar_checklist(partes[2])
+            if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "checkpoint":
+                return self._guardar_checkpoint(partes[2])
             if len(partes) == 4 and partes[:3] == ["api", "config", "imagen"]:
                 return self._subir_imagen(partes[3])
             if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "tableros":
@@ -516,6 +520,40 @@ class Handler(BaseHTTPRequestHandler):
             cobro = f' -- cobró ${delta:,.0f}'.replace(",", ".") if delta else ""
             return f'Marcó el pago como "{et}"{pct}{cobro}'
         return "Actualizó el seguimiento"
+
+    _CHECKLIST_ETIQUETAS = {"presupuesto": "Presupuesto", "routeo": "Routeo",
+                            "tablero": "Tablero", "materiales": "Lista de materiales"}
+
+    def _actualizar_checklist(self, obra_id):
+        obra = almacen.leer_obra(obra_id)
+        if obra is None:
+            return self._error("Esa obra no está en este equipo.", 404)
+        cuerpo = self._cuerpo() or {}
+        modulo = cuerpo.get("modulo")
+        if modulo not in self._CHECKLIST_ETIQUETAS:
+            return self._error("Módulo desconocido.")
+        listo = bool(cuerpo.get("listo"))
+        checklist = obra.setdefault("checklist", {})
+        if checklist.get(modulo) == listo:
+            return self._json({"ok": True, "checklist": checklist})
+        checklist[modulo] = listo
+        etiqueta = self._CHECKLIST_ETIQUETAS[modulo]
+        resumen = f'Marcó "{etiqueta}" como {"terminado" if listo else "no terminado"}'
+        almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""),
+                             modulo="Checklist", resumen=resumen)
+        return self._json({"ok": True, "checklist": checklist})
+
+    def _guardar_checkpoint(self, obra_id):
+        obra = almacen.leer_obra(obra_id)
+        if obra is None:
+            return self._error("Esa obra no está en este equipo.", 404)
+        usuario = cfgmod.leer_config().get("usuario", "")
+        total = C.total_presupuesto(obra)
+        checkpoint = {"el": C.ahora(), "por": usuario, "total": round(total, 2)}
+        obra.setdefault("checkpoints", []).append(checkpoint)
+        almacen.guardar_obra(obra, usuario, modulo="Checkpoint",
+                             resumen=f'Guardó un checkpoint del presupuesto: ${total:,.0f}'.replace(",", "."))
+        return self._json({"ok": True, "checkpoint": checkpoint, "checkpoints": obra["checkpoints"]})
 
     def _guardar_canalizacion(self, obra_id):
         obra = almacen.leer_obra(obra_id)
