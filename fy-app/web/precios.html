@@ -50,9 +50,6 @@ td.precio input{text-align:right;font-family:'IBM Plex Mono',monospace;font-weig
   letter-spacing:.03em;vertical-align:middle}
 .acc{width:34px;text-align:center}
 .acc button{border:none;background:transparent;color:var(--danger);font-size:1rem;padding:2px 6px}
-.ord button{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:5px;
-  padding:2px 6px;font-size:.72rem;line-height:1.4}
-.ord button:disabled{opacity:.3;cursor:not-allowed}
 #toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--navy-deep);
   color:#fff;padding:10px 17px;border-radius:var(--radius);font-size:.82rem;display:none}
 .ayuda{color:var(--muted);font-size:.8rem;line-height:1.5;margin:0 0 16px}
@@ -79,9 +76,8 @@ td.precio input{text-align:right;font-family:'IBM Plex Mono',monospace;font-weig
       <button class="btn sm" id="b-ajustar">Aplicar</button></label>
   </div>
   <table><thead><tr>
-    <th style="width:36%">Ítem</th><th style="width:17%">Categoría</th>
-    <th style="width:10%">Unidad</th><th style="width:19%">Precio</th>
-    <th style="width:10%;text-align:center">Orden</th><th class="acc"></th>
+    <th style="width:40%">Ítem</th><th style="width:20%">Categoría</th>
+    <th style="width:12%">Unidad</th><th style="width:22%">Precio</th><th class="acc"></th>
   </tr></thead><tbody id="cuerpo"></tbody></table>
 </main>
 <div id="toast"></div>
@@ -142,10 +138,10 @@ function pintar(){
     const arr = itemsDeCategoria(cat).filter(i => visibles().includes(i));
     const esAparte = APARTE.has(cat);
     const esDesconocida = !CATEGORIAS.includes(cat);
-    return `<tr class="grupo${esAparte?' aparte':''}"><td colspan="6">${esc(cat)} · ${arr.length}
+    return `<tr class="grupo${esAparte?' aparte':''}"><td colspan="5">${esc(cat)} · ${arr.length}
         ${esAparte?'<span class="tag-aparte">APARTE</span>':''}
         ${esDesconocida?'<span class="tag-warn" title="No es una categoría de la lista fija -- reasigná cada ítem a una válida">SIN CATALOGAR</span>':''}</td></tr>` +
-      arr.map((i, idx) => {
+      arr.map((i) => {
         const dup = conteoNombres[(i.item||'').trim().toLowerCase()] > 1;
         const opciones = esDesconocida ? [cat, ...CATEGORIAS] : CATEGORIAS;
         return `<tr data-id="${i.id}">
@@ -155,13 +151,9 @@ function pintar(){
           `<option ${c===cat?'selected':''}>${esc(c)}</option>`).join('')}</select></td>
         <td><input data-c="unidad" value="${esc(i.unidad||'u')}"></td>
         <td class="precio"><input data-c="precio" type="number" step="1" value="${i.precio||0}"></td>
-        <td class="ord">
-          <button data-subir="${i.id}" ${idx===0?'disabled':''} title="Subir">▲</button>
-          <button data-bajar="${i.id}" ${idx===arr.length-1?'disabled':''} title="Bajar">▼</button>
-        </td>
         <td class="acc"><button data-borrar="${i.id}" title="Borrar">×</button></td>
       </tr>`;}).join('');
-  }).join('') || '<tr><td colspan="6" style="color:var(--muted);padding:18px">Nada coincide.</td></tr>';
+  }).join('') || '<tr><td colspan="5" style="color:var(--muted);padding:18px">Nada coincide.</td></tr>';
 
   $('cuerpo').querySelectorAll('[data-c]').forEach(n => n.onchange = () => {
     const id = n.closest('tr').dataset.id;
@@ -175,16 +167,6 @@ function pintar(){
   });
   $('cuerpo').querySelectorAll('[data-borrar]').forEach(n => n.onclick = () => {
     lista.items = lista.items.filter(x=>x.id!==n.dataset.borrar);
-    pintar();
-  });
-  $('cuerpo').querySelectorAll('[data-subir],[data-bajar]').forEach(n => n.onclick = () => {
-    const id = n.dataset.subir || n.dataset.bajar;
-    const it = lista.items.find(x=>x.id===id);
-    const hermanos = itemsDeCategoria(it.categoria);
-    const pos = hermanos.indexOf(it);
-    const vecino = hermanos[n.dataset.subir ? pos-1 : pos+1];
-    if(!vecino) return;
-    [it.orden, vecino.orden] = [vecino.orden ?? 0, it.orden ?? 0];
     pintar();
   });
   actualizarTotalizador();

@@ -106,10 +106,10 @@ input[type=color].f{padding:2px;height:29px}
 .f3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
 
 /* canvas */
-#stage{position:relative;background:#e2e5e8;min-width:0;overflow:hidden}
+#stage{position:relative;background:var(--bg);min-width:0;overflow:hidden}
 #cv{position:absolute;inset:0;width:100%;height:100%;display:block}
 #empty{position:absolute;inset:0;display:grid;place-content:center;justify-items:center;gap:12px;text-align:center;color:var(--ink-2);padding:24px;pointer-events:none}
-#empty h2{margin:0;font-family:var(--fh);font-size:15px;font-weight:600;color:var(--navy)}
+#empty h2{margin:0;font-family:var(--fh);font-size:15px;font-weight:600;color:var(--ink)}
 #empty p{margin:0;max-width:330px;line-height:1.55}
 #empty .pe{pointer-events:auto}
 #hint{position:absolute;left:12px;bottom:12px;background:rgba(21,24,27,.9);color:#fff;font-size:12px;
@@ -1427,7 +1427,7 @@ function drawCrossingMark(g, cr, z){
 function render(){
   const r = $("#stage").getBoundingClientRect();
   ctx.save();
-  ctx.fillStyle="#e2e5e8"; ctx.fillRect(0,0,r.width,r.height);
+  ctx.fillStyle="#10161e"; ctx.fillRect(0,0,r.width,r.height);
   ctx.restore();
   if(!S.base){ $("#empty").style.display="grid"; return; }
   $("#empty").style.display="none";
