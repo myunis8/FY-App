@@ -496,6 +496,7 @@ class Handler(BaseHTTPRequestHandler):
         seg = C.actualizar_seguimiento(obra, estado=cuerpo.get("estado"),
                                        pago_estado=pago.get("estado"),
                                        pago_porcentaje=pago.get("porcentaje"),
+                                       pago_monto=pago.get("monto"),
                                        usuario=cfgmod.leer_config().get("usuario", ""))
         nuevos = (seg.get("historial") or [])[antes:]
         resumen = " · ".join(self._texto_cambio_seguimiento(h) for h in nuevos)
@@ -511,7 +512,9 @@ class Handler(BaseHTTPRequestHandler):
             a = h.get("a") or {}
             et = C.ESTADOS_PAGO.get(a.get("estado"), a.get("estado"))
             pct = f' ({a["porcentaje"]}%)' if a.get("estado") == "parcial" else ""
-            return f'Marcó el pago como "{et}"{pct}'
+            delta = h.get("montoDelta")
+            cobro = f' -- cobró ${delta:,.0f}'.replace(",", ".") if delta else ""
+            return f'Marcó el pago como "{et}"{pct}{cobro}'
         return "Actualizó el seguimiento"
 
     def _guardar_canalizacion(self, obra_id):

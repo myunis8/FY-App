@@ -132,9 +132,20 @@ h2:first-child{margin-top:0}
         <label for="sg-pago">Estado de pago</label>
         <select id="sg-pago"></select>
       </div>
-      <div class="campo" id="sg-pct-fila" style="flex:0 0 130px;margin-bottom:0;display:none">
+      <div class="campo" id="sg-pct-fila" style="flex:0 0 110px;margin-bottom:0;display:none">
+        <label for="sg-pago-tipo">Cobrado</label>
+        <select id="sg-pago-tipo">
+          <option value="porcentaje">Por %</option>
+          <option value="monto">Por monto</option>
+        </select>
+      </div>
+      <div class="campo" id="sg-pct-valor-fila" style="flex:0 0 110px;margin-bottom:0;display:none">
         <label for="sg-pct">% pagado</label>
         <input id="sg-pct" type="number" min="1" max="99" value="50">
+      </div>
+      <div class="campo" id="sg-monto-valor-fila" style="flex:0 0 160px;margin-bottom:0;display:none">
+        <label for="sg-monto">Monto cobrado</label>
+        <input id="sg-monto" type="number" min="0" step="1000" placeholder="Ej. 70000">
       </div>
     </div>
     <div style="display:flex;justify-content:flex-end">
@@ -201,6 +212,7 @@ function mostrarAviso(id, clase, msg){
 }
 const esc = s => (s==null?'':String(s)).replace(/[&<>"]/g,
   c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const plata = n => (n||0).toLocaleString('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0});
 function cuando(ts){
   if(!ts) return 'sin guardar';
   const d=new Date(ts), hoy=new Date();
@@ -233,6 +245,8 @@ function pintarSeguimiento(obra){
   $('sg-estado').value = seg.estado || 'preliminar';
   $('sg-pago').value = (seg.pago && seg.pago.estado) || 'pendiente';
   $('sg-pct').value = (seg.pago && seg.pago.porcentaje) || 50;
+  $('sg-pago-tipo').value = 'porcentaje';
+  $('sg-monto').value = '';
   actualizarVisibilidadPct();
   const hist = (seg.historial || []).slice(-6).reverse();
   $('sg-historial').textContent = hist.length ? hist.map(h => {
@@ -240,7 +254,8 @@ function pintarSeguimiento(obra){
     if(h.campo === 'estado') return `${quien} cambió el estado a "${ESTADOS[h.a]||h.a}" (${vez})`;
     if(h.campo === 'pago'){
       const et = ESTADOS_PAGO[h.a.estado] || h.a.estado;
-      return `${quien} marcó el pago como "${et}"${h.a.estado==='parcial' ? ' ('+h.a.porcentaje+'%)' : ''} (${vez})`;
+      const cobro = h.montoDelta ? ` -- cobró ${plata(h.montoDelta)}` : '';
+      return `${quien} marcó el pago como "${et}"${h.a.estado==='parcial' ? ' ('+h.a.porcentaje+'%)' : ''}${cobro} (${vez})`;
     }
     return '';
   }).join(' · ') : 'Todavía no hay cambios registrados.';
@@ -255,13 +270,21 @@ function pintarHistorial(obra){
     </div>`).join('') : 'Todavía no hay actividad registrada.';
 }
 function actualizarVisibilidadPct(){
-  $('sg-pct-fila').style.display = $('sg-pago').value === 'parcial' ? '' : 'none';
+  const esParcial = $('sg-pago').value === 'parcial';
+  $('sg-pct-fila').style.display = esParcial ? '' : 'none';
+  const porMonto = $('sg-pago-tipo').value === 'monto';
+  $('sg-pct-valor-fila').style.display = esParcial && !porMonto ? '' : 'none';
+  $('sg-monto-valor-fila').style.display = esParcial && porMonto ? '' : 'none';
 }
 $('sg-pago').addEventListener('change', actualizarVisibilidadPct);
+$('sg-pago-tipo').addEventListener('change', actualizarVisibilidadPct);
 $('sg-guardar').onclick = async () => {
   if(!obraAbierta) return;
   const body = {estado: $('sg-estado').value, pago: {estado: $('sg-pago').value}};
-  if($('sg-pago').value === 'parcial') body.pago.porcentaje = parseInt($('sg-pct').value, 10) || 50;
+  if($('sg-pago').value === 'parcial'){
+    if($('sg-pago-tipo').value === 'monto') body.pago.monto = parseFloat($('sg-monto').value) || 0;
+    else body.pago.porcentaje = parseInt($('sg-pct').value, 10) || 50;
+  }
   try{
     const r = await api('/api/obras/'+obraAbierta.obra.id+'/seguimiento',
       {method:'POST', body:JSON.stringify(body)});

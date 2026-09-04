@@ -154,25 +154,33 @@ def totales(pres: dict) -> dict:
 
 
 def eventos_ganancia(obra: dict) -> list[dict]:
-    """Ganancia reconocida en cada cambio de "% pagado" del seguimiento,
-    proporcional a cuánto se cobró -- si una obra se cobra en partes, el
-    ingreso se reconoce a medida que entra, no todo junto al final.
+    """Ganancia reconocida en cada cambio de pago del seguimiento, en el
+    momento en que efectivamente se cobró -- no todo junto al final ni al
+    presupuestar. Usa "montoDelta", que ya viene calculado y congelado en
+    cada entrada del historial de pago (ver contrato.actualizar_seguimiento,
+    que además de porcentaje ahora acepta un monto directo). Una entrada
+    vieja de antes de ese campo se estima con el % de aquel momento contra
+    el total de ahora, como aproximación.
 
     Por ahora esta app sólo presupuesta mano de obra (todavía no se carga
-    costo de materiales), así que el total del presupuesto es ganancia
-    pura, sin nada que restar. El día que se sume costo de material con un
-    margen propio, esta es la única función que hay que tocar: acá es
-    donde se define qué es "ganancia" de una obra."""
+    costo de materiales), así que el total del presupuesto -- trabajos y
+    extras, que son plata real de la obra igual que los trabajos -- es
+    ganancia pura, sin nada que restar. El día que se sume costo de
+    material con un margen propio, esta es la única función que hay que
+    tocar: acá es donde se define qué es "ganancia" de una obra."""
     total = totales(obra.get("presupuesto") or {}).get("total") or 0
     eventos = []
     for h in (obra.get("seguimiento") or {}).get("historial") or []:
         if h.get("campo") != "pago":
             continue
-        antes = (h.get("de") or {}).get("porcentaje") or 0
-        despues = (h.get("a") or {}).get("porcentaje") or 0
-        delta = despues - antes
-        if delta > 0:
-            eventos.append({"el": h.get("el"), "monto": round(total * delta / 100, 2)})
+        if "montoDelta" in h:
+            monto = h["montoDelta"]
+        else:
+            antes = (h.get("de") or {}).get("porcentaje") or 0
+            despues = (h.get("a") or {}).get("porcentaje") or 0
+            monto = total * (despues - antes) / 100
+        if monto:
+            eventos.append({"el": h.get("el"), "monto": round(monto, 2)})
     return eventos
 
 
