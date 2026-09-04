@@ -72,6 +72,14 @@ tr.opcional{opacity:.72;background:repeating-linear-gradient(45deg,transparent,t
 #toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--navy-deep);
   color:#fff;padding:10px 17px;border-radius:var(--radius);font-size:.82rem;display:none}
 @media(max-width:900px){main{grid-template-columns:1fr}aside{border-left:none;border-top:1px solid var(--line)}}
+.caja-pdf{background:var(--panel);border-radius:14px;width:min(920px,96vw);height:min(860px,92vh);
+  display:flex;flex-direction:column;overflow:hidden}
+.caja-pdf .cab-pdf{padding:10px 14px;border-bottom:1px solid var(--line);display:flex;
+  align-items:center;justify-content:space-between}
+.caja-pdf iframe{flex:1;border:0;width:100%;background:#525659}
+.overlay{position:fixed;inset:0;background:rgba(14,28,46,.55);display:none;
+  align-items:center;justify-content:center;padding:20px;z-index:40}
+.overlay.abierto{display:flex}
 </style>
 </head>
 <body>
@@ -79,6 +87,7 @@ tr.opcional{opacity:.72;background:repeating-linear-gradient(45deg,transparent,t
   <div><h1 id="h-nombre">Presupuesto</h1><div class="sub" id="h-sub">Cargando…</div></div>
   <div class="spacer"></div>
   <button class="btn ghost" id="b-recalcular">Recalcular del plano</button>
+  <button class="btn ghost" id="b-pdf">Vista previa PDF</button>
   <button class="btn primary" id="b-guardar">Guardar</button>
   <button class="btn ghost" id="b-volver">Volver</button>
 </header>
@@ -177,6 +186,16 @@ tr.opcional{opacity:.72;background:repeating-linear-gradient(45deg,transparent,t
       moverse cuando actualices la lista.</div>
   </aside>
 </main>
+
+<!-- vista previa de PDF -->
+<div class="overlay" id="ov-pdf">
+  <div class="caja-pdf">
+    <div class="cab-pdf"><b>Vista previa</b>
+      <div><button class="btn sm primary" id="pdfDescargar">Descargar…</button>
+      <button class="btn sm" id="pdfCerrar">Cerrar</button></div></div>
+    <iframe id="pdfFrame"></iframe>
+  </div>
+</div>
 
 <div id="toast"></div>
 <script src="/lock.js"></script>
@@ -463,6 +482,45 @@ $('b-volver').onclick = () => location.href = '/obra.html?obra=' + OBRA_ID;
 document.addEventListener('keydown', e => {
   if((e.ctrlKey||e.metaKey) && e.key==='s'){ e.preventDefault(); $('b-guardar').click(); }
 });
+
+// vista previa de PDF adentro del propio módulo -- para ver cómo queda sin
+// tener que volver a la pantalla de la obra
+$('b-pdf').onclick = () => mostrarVistaPreviaPdf('/api/obras/'+OBRA_ID+'/presupuesto.pdf',
+  (obra?.obra?.nombre || 'presupuesto').replace(/\s+/g,'_') + '.pdf');
+async function mostrarVistaPreviaPdf(url, nombreArchivo){
+  let blob;
+  try{
+    const res = await fetch(url);
+    if(!res.ok) throw new Error((await res.json().catch(()=>({}))).error || 'No se pudo generar el PDF.');
+    blob = await res.blob();
+  }catch(err){ toast(err.message || 'No se pudo generar el PDF.'); return; }
+  const objUrl = URL.createObjectURL(blob);
+  $('pdfFrame').src = objUrl;
+  $('ov-pdf').classList.add('abierto');
+  $('pdfDescargar').onclick = async () => {
+    if(window.showSaveFilePicker){
+      try{
+        const handle = await window.showSaveFilePicker({suggestedName: nombreArchivo,
+          types:[{description:'PDF', accept:{'application/pdf':['.pdf']}}]});
+        const writable = await handle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+        return;
+      }catch(err){ if(err.name === 'AbortError') return; }
+    }
+    const a = document.createElement('a');
+    a.href = objUrl; a.download = nombreArchivo; a.click();
+  };
+  $('pdfCerrar').onclick = () => {
+    $('ov-pdf').classList.remove('abierto');
+    $('pdfFrame').src = ''; URL.revokeObjectURL(objUrl);
+  };
+}
+document.addEventListener('keydown', e => {
+  if(e.key==='Escape') $('ov-pdf').classList.remove('abierto');
+});
+$('ov-pdf').addEventListener('click', e => { if(e.target===$('ov-pdf')) $('ov-pdf').classList.remove('abierto'); });
+
 cargar().catch(e => { $('h-sub').textContent = e.message; toast(e.message); });
 </script>
 </body>

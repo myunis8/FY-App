@@ -119,7 +119,6 @@ h2:first-child{margin-top:0}
       <div class="nota">Cantidades, extras, descuentos y precio final.</div></div>
     <label class="chk-terminado" onclick="event.stopPropagation()">
       <input type="checkbox" class="chk-modulo" data-modulo="presupuesto"> Terminado</label>
-    <button class="btn sm" id="d-pdf">Descargar PDF</button>
     <span class="flecha">›</span>
   </div>
   <div class="plano-fila clicable" id="fila-materiales">
@@ -179,8 +178,7 @@ h2:first-child{margin-top:0}
 
   <h2>Informe general</h2>
   <div class="plano-fila" style="flex-direction:column;align-items:stretch;gap:10px">
-    <div class="nota" style="margin:0">Un solo PDF con todo lo que elijas de esta obra. El esquema
-    unifilar está en beta, así que no viene marcado por defecto.</div>
+    <div class="nota" style="margin:0">Un solo PDF con todo lo que elijas de esta obra.</div>
     <div id="inf-checks" style="display:flex;flex-wrap:wrap;gap:8px 18px"></div>
     <label class="chk" id="inf-precio-fila" style="display:none;font-size:.78rem;color:var(--muted)">
       <input type="checkbox" id="inf-con-precio" checked> Incluir precios en la lista de materiales</label>
@@ -241,14 +239,16 @@ const ESTADOS = {preliminar:'Preliminar', aprobado:'Aprobado',
                  en_curso:'En curso', realizado:'Realizado'};
 const ESTADOS_PAGO = {pendiente:'Pendiente', parcial:'Pago parcial', pagado:'Pagado'};
 // debe reflejar app/pdf_informe.py: MODULOS / MODULOS_POR_DEFECTO
+// "unifilar" queda afuera a propósito -- todavía no se va a implementar,
+// ver app/pdf_informe.py y app/pdf_tablero.generar_unifilar(). El módulo y
+// la ruta del PDF siguen andando, sólo se le sacó el botón de acá.
 const INFORME_MODULOS = [
   {id:'circuitos',    label:'Circuitos',                                         defecto:true},
-  {id:'tableros',     label:'Tablero(s) -- conexionado y guía de tapa',          defecto:true},
+  {id:'tableros',     label:'Tablero(s) -- guía de tapa',                        defecto:true},
   {id:'routeo_plano', label:'Routeo -- plano general (todos los circuitos, 1 hoja)', defecto:true},
   {id:'routeo',       label:'Routeo -- resumen de materiales (todavía en ajuste)', defecto:false},
   {id:'presupuesto',  label:'Presupuesto',                                       defecto:true},
   {id:'materiales',   label:'Lista de materiales',                               defecto:false},
-  {id:'unifilar',     label:'Esquema unifilar (beta)',                           defecto:false},
 ];
 
 function pintarSeguimiento(obra){
@@ -389,9 +389,6 @@ function pintarBloques(obra){
   $('fila-presupuesto').onclick = () => location.href = '/presupuesto.html?obra=' + obra.obra.id;
   $('fila-materiales').onclick = () => location.href = '/materiales.html?obra=' + obra.obra.id;
   $('fila-verificaciones').onclick = () => location.href = '/verificaciones.html?obra=' + obra.obra.id;
-  $('d-pdf').onclick = (e) => { e.stopPropagation(); mostrarVistaPreviaPdf(
-    '/api/obras/' + obra.obra.id + '/presupuesto.pdf',
-    (obra.obra.nombre || 'presupuesto').replace(/\s+/g,'_') + '.pdf'); };
   $('d-bloques').innerHTML = filas.map(([k,v]) =>
     `<div class="bloque"><b>${k}</b>${v}</div>`).join('');
   pintarChecklist(obra);
