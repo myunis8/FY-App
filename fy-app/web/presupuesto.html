@@ -112,6 +112,11 @@ tr.opcional{opacity:.72;background:repeating-linear-gradient(45deg,transparent,t
     <h2>Totales</h2>
     <div id="totales"></div>
 
+    <h2>Cómputo automático</h2>
+    <div id="computo-auto"></div>
+    <div class="nota" style="margin-top:4px">Esto es lo que detectó el plano. Si ajustás una
+      cantidad a mano en la tabla, esta referencia no cambia.</div>
+
     <h2>Descuento</h2>
     <div class="fila2">
       <div class="campo"><label for="d-tipo">Tipo</label>
@@ -149,7 +154,7 @@ tr.opcional{opacity:.72;background:repeating-linear-gradient(45deg,transparent,t
 <script>
 const $ = id => document.getElementById(id);
 const OBRA_ID = new URLSearchParams(location.search).get('obra');
-let obra = null, pres = null, totales = null, comparacion = [], cantidades = null;
+let obra = null, pres = null, totales = null, comparacion = [], cantidades = null, cantidadesExtra = null;
 
 const api = async (r,o={}) => {
   const res = await fetch(r,{headers:{'Content-Type':'application/json'},...o});
@@ -222,7 +227,7 @@ async function sincronizar(op){
   const r = await api('/api/obras/'+OBRA_ID+'/presupuesto',
     {method:'POST', body:JSON.stringify({presupuesto: pres, ...op})});
   pres = r.presupuesto; totales = r.totales;
-  comparacion = r.comparacion; cantidades = r.cantidades;
+  comparacion = r.comparacion; cantidades = r.cantidades; cantidadesExtra = r.cantidadesExtra;
   pres.items = pres.items || []; pres.extras = pres.extras || [];
   pintar();
 }
@@ -251,6 +256,26 @@ function filaItems(arr, tbody, esExtra){
     </tr>`;}).join('')
     : `<tr><td colspan="6" style="color:var(--muted);padding:14px">${
         esExtra ? 'Sin extras cargados.' : 'Sin ítems. Probá “Recalcular del plano”.'}</td></tr>`;
+}
+// cómputo automático (Puntos, Artefactos, Tomas): lo que detectó el plano,
+// siempre visible aparte de la tabla -- así se puede tocar la cantidad a
+// mano en un ítem sin perder de vista cuánto había contado el plano.
+function filaComputo(label, ...claves){
+  const base = claves.reduce((s,k) => s + (cantidades?.[k] || 0), 0);
+  const extra = claves.reduce((s,k) => s + (cantidadesExtra?.[k] || 0), 0);
+  return `<div class="total-fila"><span>${label}</span><span class="v">${base}${
+    extra ? ` <span style="color:var(--blue)">+${extra}</span>` : ''}</span></div>`;
+}
+function pintarComputo(){
+  $('computo-auto').innerHTML = !cantidades ? '' : [
+    filaComputo('Puntos simples', 'punto_simple'),
+    filaComputo('Puntos combinados', 'punto_combinado'),
+    filaComputo('Artefactos', 'artefacto'),
+    filaComputo('Tomas comunes', 'toma_comun'),
+    filaComputo('Tomas especiales', 'toma_aa', 'toma_cocina', 'toma_termo'),
+  ].join('') + (cantidadesExtra && Object.values(cantidadesExtra).some(n=>n)
+    ? '<div class="nota" style="margin-top:4px">El "+N" en azul son elementos marcados como '
+      + 'agregado fuera del presupuesto original (van a Extras).</div>' : '');
 }
 function pintar(){
   filaItems(pres.items, 't-items', false);
@@ -296,6 +321,8 @@ function pintar(){
     <div class="total-fila grande"><span>Total</span><span>${plata(t.total)}</span></div>
     ${t.nOpcionales?`<div class="total-fila" style="color:var(--blue);margin-top:8px">
       <span>${t.nOpcionales} opcionales</span><span class="v">${plata(t.opcionales)}</span></div>`:''}`;
+
+  pintarComputo();
 
   $('h-sub').textContent = cantidades
     ? `${cantidades.punto_simple} puntos · ${cantidades.punto_combinado} combinados · `

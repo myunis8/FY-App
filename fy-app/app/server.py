@@ -721,8 +721,9 @@ class Handler(BaseHTTPRequestHandler):
             modulos = [m for m in pedido.split(",") if m in pdf_informe.MODULOS]
         else:
             modulos = pdf_informe.MODULOS_POR_DEFECTO
+        materiales_con_precio = (qs.get("precio") or ["1"])[0] != "0"
         try:
-            datos = pdf_informe.generar(obra, modulos)
+            datos = pdf_informe.generar(obra, modulos, materiales_con_precio=materiales_con_precio)
         except Exception as e:
             return self._error(f"No pude generar el informe: {e}", 500)
         nombre = (obra["obra"].get("nombre") or "informe").replace(" ", "_")

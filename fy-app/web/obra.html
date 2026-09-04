@@ -50,6 +50,9 @@ h2:first-child{margin-top:0}
 .campo select,.campo input{width:100%;padding:7px 8px;border:1px solid var(--line);
   border-radius:7px;font-size:.83rem;box-sizing:border-box;background:var(--panel)}
 .plano-fila .nota{font-size:.74rem;color:var(--muted);margin-top:3px}
+.plano-fila.clicable{cursor:pointer;transition:border-color .15s,background .15s}
+.plano-fila.clicable:hover{border-color:var(--muted);background:var(--slate-soft)}
+.plano-fila .flecha{color:var(--muted);font-size:1.2rem;flex:0 0 auto;line-height:1}
 .chk{display:flex;align-items:center;gap:6px;font-size:.82rem;cursor:pointer}
 .chk input{margin:0}
 .acciones{display:flex;gap:9px;justify-content:flex-end;margin-top:22px;flex-wrap:wrap}
@@ -83,39 +86,39 @@ h2:first-child{margin-top:0}
   <input type="file" id="d-archivo" accept="application/pdf,.pdf" hidden>
 
   <h2>Módulos</h2>
-  <div class="plano-fila">
+  <div class="plano-fila clicable" id="fila-circuitos">
     <div class="txt"><b>Circuitos</b><span id="d-ncircuitos"></span>
       <div class="nota">Agrupá los elementos en IUG, TUG, TUE y elegí secciones
       y protecciones.</div></div>
-    <button class="btn primary sm" id="d-circuitos">Abrir</button>
+    <span class="flecha">›</span>
   </div>
-  <div class="plano-fila">
+  <div class="plano-fila clicable" id="fila-tablero">
     <div class="txt"><b>Tablero</b><span id="d-ntableros"></span>
       <div class="nota">Protecciones, distribución de bocas y armado gráfico.</div></div>
-    <button class="btn primary sm" id="d-tablero">Abrir</button>
     <button class="btn sm" id="d-pdf-tableros" style="display:none">Descargar todos (PDF)</button>
+    <span class="flecha">›</span>
   </div>
-  <div class="plano-fila">
+  <div class="plano-fila clicable" id="fila-canalizacion">
     <div class="txt"><b>Routeo</b><span id="d-ncanalizacion"></span>
       <div class="nota">Cajas y caños entre ellas, con diámetro sugerido.</div></div>
-    <button class="btn primary sm" id="d-canalizacion">Abrir</button>
+    <span class="flecha">›</span>
   </div>
-  <div class="plano-fila">
+  <div class="plano-fila clicable" id="fila-presupuesto">
     <div class="txt"><b>Presupuesto</b><span id="d-npresupuesto"></span>
       <div class="nota">Cantidades, extras, descuentos y precio final.</div></div>
-    <button class="btn primary sm" id="d-presupuesto">Abrir</button>
     <button class="btn sm" id="d-pdf">Descargar PDF</button>
+    <span class="flecha">›</span>
   </div>
-  <div class="plano-fila">
+  <div class="plano-fila clicable" id="fila-materiales">
     <div class="txt"><b>Lista de materiales</b>
       <div class="nota">Cajas, tablero con accesorios, PAT, productos extra y cable a comprar.</div></div>
-    <button class="btn primary sm" id="d-materiales">Abrir</button>
+    <span class="flecha">›</span>
   </div>
-  <div class="plano-fila">
+  <div class="plano-fila clicable" id="fila-verificaciones">
     <div class="txt"><b>Verificaciones técnicas</b>
       <div class="nota">Distancia de cada circuito al tablero, con su sección y protección --
       base para caída de tensión y límites de consumo.</div></div>
-    <button class="btn primary sm" id="d-verificaciones">Abrir</button>
+    <span class="flecha">›</span>
   </div>
 
   <h2>Seguimiento</h2>
@@ -145,6 +148,8 @@ h2:first-child{margin-top:0}
     <div class="nota" style="margin:0">Un solo PDF con todo lo que elijas de esta obra. El esquema
     unifilar está en beta, así que no viene marcado por defecto.</div>
     <div id="inf-checks" style="display:flex;flex-wrap:wrap;gap:8px 18px"></div>
+    <label class="chk" id="inf-precio-fila" style="display:none;font-size:.78rem;color:var(--muted)">
+      <input type="checkbox" id="inf-con-precio" checked> Incluir precios en la lista de materiales</label>
     <div style="display:flex;justify-content:flex-end">
       <button class="btn primary sm" id="inf-generar">Generar informe</button>
     </div>
@@ -207,6 +212,7 @@ const INFORME_MODULOS = [
   {id:'routeo_plano', label:'Routeo -- plano general (todos los circuitos, 1 hoja)', defecto:true},
   {id:'routeo',       label:'Routeo -- resumen de materiales (todavía en ajuste)', defecto:false},
   {id:'presupuesto',  label:'Presupuesto',                                       defecto:true},
+  {id:'materiales',   label:'Lista de materiales',                               defecto:false},
   {id:'unifilar',     label:'Esquema unifilar (beta)',                           defecto:false},
 ];
 
@@ -254,14 +260,21 @@ function armarChecksInforme(){
   $('inf-checks').innerHTML = INFORME_MODULOS.map(m =>
     `<label class="chk"><input type="checkbox" class="inf-mod" value="${m.id}" ${m.defecto?'checked':''}> ${esc(m.label)}</label>`
   ).join('');
+  actualizarVisibilidadPrecioInforme();
+  document.querySelectorAll('.inf-mod').forEach(el => el.addEventListener('change', actualizarVisibilidadPrecioInforme));
+}
+function actualizarVisibilidadPrecioInforme(){
+  const materiales = document.querySelector('.inf-mod[value="materiales"]');
+  $('inf-precio-fila').style.display = materiales && materiales.checked ? 'flex' : 'none';
 }
 $('inf-generar').onclick = async () => {
   if(!obraAbierta) return;
   const elegidos = Array.from(document.querySelectorAll('.inf-mod:checked')).map(el => el.value);
   if(!elegidos.length){ toast('Elegí al menos un módulo.'); return; }
+  const precio = $('inf-con-precio').checked ? '1' : '0';
   const nombreArchivo = (obraAbierta.obra.nombre || 'informe').replace(/\s+/g,'_') + '_informe.pdf';
   // todo lo arma el servidor (el plano de Routeo también, vía pdf_routeo.py)
-  mostrarVistaPreviaPdf(`/api/obras/${obraAbierta.obra.id}/informe.pdf?modulos=${elegidos.join(',')}`,
+  mostrarVistaPreviaPdf(`/api/obras/${obraAbierta.obra.id}/informe.pdf?modulos=${elegidos.join(',')}&precio=${precio}`,
     nombreArchivo);
 };
 
@@ -300,27 +313,27 @@ function pintarBloques(obra){
   ];
   $('d-ncircuitos').textContent = (obra.circuitos||[]).length
     ? `${obra.circuitos.length} armados` : 'Todavía ninguno';
-  $('d-circuitos').onclick = () => location.href = '/circuitos.html?obra=' + obra.obra.id;
+  $('fila-circuitos').onclick = () => location.href = '/circuitos.html?obra=' + obra.obra.id;
   $('d-ntableros').textContent = (obra.tableros||[]).length
     ? `${obra.tableros.length} armado(s)` : 'Todavía ninguno';
-  $('d-tablero').onclick = () => location.href = '/tablero.html?obra=' + obra.obra.id;
+  $('fila-tablero').onclick = () => location.href = '/tablero.html?obra=' + obra.obra.id;
   const nTab = (obra.tableros||[]).length;
   $('d-pdf-tableros').style.display = nTab >= 2 ? '' : 'none';
-  $('d-pdf-tableros').onclick = () => mostrarVistaPreviaPdf(
+  $('d-pdf-tableros').onclick = (e) => { e.stopPropagation(); mostrarVistaPreviaPdf(
     '/api/obras/' + obra.obra.id + '/tableros.pdf',
-    (obra.obra.nombre || 'obra').replace(/\s+/g,'_') + '_tableros.pdf');
+    (obra.obra.nombre || 'obra').replace(/\s+/g,'_') + '_tableros.pdf'); };
   $('d-ncanalizacion').textContent = (obra.canalizacion?.runs||[]).length
     ? `${obra.canalizacion.runs.length} tramo(s)` : 'Todavía ninguno';
-  $('d-canalizacion').onclick = () => location.href = '/canaliza.html?obra=' + obra.obra.id;
+  $('fila-canalizacion').onclick = () => location.href = '/canaliza.html?obra=' + obra.obra.id;
   const nit = (obra.presupuesto?.items||[]).length + (obra.presupuesto?.extras||[]).length;
   $('d-npresupuesto').textContent = nit ? `${nit} ítems` +
     (obra.presupuesto?.congeladoEl ? ' · congelado' : ' · sin congelar') : 'Todavía ninguno';
-  $('d-presupuesto').onclick = () => location.href = '/presupuesto.html?obra=' + obra.obra.id;
-  $('d-materiales').onclick = () => location.href = '/materiales.html?obra=' + obra.obra.id;
-  $('d-verificaciones').onclick = () => location.href = '/verificaciones.html?obra=' + obra.obra.id;
-  $('d-pdf').onclick = () => mostrarVistaPreviaPdf(
+  $('fila-presupuesto').onclick = () => location.href = '/presupuesto.html?obra=' + obra.obra.id;
+  $('fila-materiales').onclick = () => location.href = '/materiales.html?obra=' + obra.obra.id;
+  $('fila-verificaciones').onclick = () => location.href = '/verificaciones.html?obra=' + obra.obra.id;
+  $('d-pdf').onclick = (e) => { e.stopPropagation(); mostrarVistaPreviaPdf(
     '/api/obras/' + obra.obra.id + '/presupuesto.pdf',
-    (obra.obra.nombre || 'presupuesto').replace(/\s+/g,'_') + '.pdf');
+    (obra.obra.nombre || 'presupuesto').replace(/\s+/g,'_') + '.pdf'); };
   $('d-bloques').innerHTML = filas.map(([k,v]) =>
     `<div class="bloque"><b>${k}</b>${v}</div>`).join('');
 }

@@ -17,7 +17,7 @@ from __future__ import annotations
 import io, math
 from datetime import datetime
 import pymupdf
-from . import config as cfgmod, pdf_tablero, pdf_presupuesto, pdf_routeo
+from . import config as cfgmod, pdf_tablero, pdf_presupuesto, pdf_routeo, pdf_materiales
 
 ANCHO, ALTO = 595.28, 841.89           # A4 en puntos, igual que el resto de los PDFs
 MARGEN = 44
@@ -30,13 +30,14 @@ LOGO_LADO = 46
 
 # orden fijo en el que aparecen los módulos si están elegidos -- no depende
 # del orden en que vengan en el pedido del cliente
-ORDEN_MODULOS = ["circuitos", "tableros", "routeo_plano", "routeo", "presupuesto", "unifilar"]
+ORDEN_MODULOS = ["circuitos", "tableros", "routeo_plano", "routeo", "presupuesto", "materiales", "unifilar"]
 MODULOS = {
     "circuitos":    "Circuitos",
     "tableros":     "Tablero(s) -- conexionado y guía de tapa",
     "routeo_plano": "Routeo -- plano general (todos los circuitos, 1 hoja)",
     "routeo":       "Routeo (resumen de materiales)",
     "presupuesto":  "Presupuesto",
+    "materiales":   "Lista de materiales",
     "unifilar":     "Esquema unifilar (beta)",
 }
 # todos marcados por defecto salvo el unifilar (beta) y el resumen de
@@ -189,7 +190,7 @@ def _resumen_routeo(doc, obra: dict):
                       fontsize=8.3, color=GRIS, lineheight=1.4)
 
 
-def generar(obra: dict, modulos: list[str] | set[str]) -> bytes:
+def generar(obra: dict, modulos: list[str] | set[str], *, materiales_con_precio: bool = True) -> bytes:
     modulos = set(modulos)
     cfg = cfgmod.leer_config()
     doc = pymupdf.open()
@@ -224,6 +225,11 @@ def generar(obra: dict, modulos: list[str] | set[str]) -> bytes:
 
     if "presupuesto" in modulos:
         sub = pymupdf.open(stream=pdf_presupuesto.generar(obra), filetype="pdf")
+        doc.insert_pdf(sub)
+        sub.close()
+
+    if "materiales" in modulos:
+        sub = pymupdf.open(stream=pdf_materiales.generar(obra, mostrar_precio=materiales_con_precio), filetype="pdf")
         doc.insert_pdf(sub)
         sub.close()
 
