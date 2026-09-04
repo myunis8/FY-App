@@ -85,6 +85,26 @@ def _consolidar_descripcion_dispositivos(obra: dict) -> None:
             d["descripcion"] = None
 
 
+def monto_evento_pago(h: dict, total: float) -> float:
+    """Cuánto reconoce de ganancia una entrada del historial de pago.
+
+    Si tiene "montoDelta" (todo lo grabado desde que existe ese campo), se
+    usa tal cual -- es el monto exacto que se congeló en su momento. Una
+    entrada vieja, de antes de que existiera montoDelta, se estima con el
+    % de aquel momento contra el total de ahora, como aproximación.
+
+    Esta es la ÚNICA función que debe usarse para eso -- presupuesto.py
+    (para mostrar la ganancia reconocida) y esta misma actualizar_seguimiento
+    (para saber cuánto ya se cobró antes de un cambio nuevo) tienen que
+    coincidir siempre, o un "volver a pendiente" no cancela bien lo que
+    una entrada vieja sin montoDelta venía sumando."""
+    if "montoDelta" in h:
+        return h["montoDelta"]
+    antes = (h.get("de") or {}).get("porcentaje") or 0
+    despues = (h.get("a") or {}).get("porcentaje") or 0
+    return total * (despues - antes) / 100
+
+
 def actualizar_seguimiento(obra: dict, estado: str | None = None, pago_estado: str | None = None,
                             pago_porcentaje=None, pago_monto=None, usuario: str = "") -> dict:
     """Cambia estado y/o pago de la obra y deja un registro en el
@@ -122,7 +142,7 @@ def actualizar_seguimiento(obra: dict, estado: str | None = None, pago_estado: s
                     and seg["pago"].get("estado") == "parcial")
     if pago_estado_valido or toca_parcial:
         total = total_presupuesto(obra)
-        ya_cobrado = sum(h.get("montoDelta") or 0 for h in seg["historial"] if h.get("campo") == "pago")
+        ya_cobrado = sum(monto_evento_pago(h, total) for h in seg["historial"] if h.get("campo") == "pago")
         estado_nuevo = pago_estado if pago_estado_valido else seg["pago"]["estado"]
 
         if estado_nuevo == "pendiente":

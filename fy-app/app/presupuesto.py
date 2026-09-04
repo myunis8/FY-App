@@ -156,11 +156,11 @@ def totales(pres: dict) -> dict:
 def eventos_ganancia(obra: dict) -> list[dict]:
     """Ganancia reconocida en cada cambio de pago del seguimiento, en el
     momento en que efectivamente se cobró -- no todo junto al final ni al
-    presupuestar. Usa "montoDelta", que ya viene calculado y congelado en
-    cada entrada del historial de pago (ver contrato.actualizar_seguimiento,
-    que además de porcentaje ahora acepta un monto directo). Una entrada
-    vieja de antes de ese campo se estima con el % de aquel momento contra
-    el total de ahora, como aproximación.
+    presupuestar. Usa contrato.monto_evento_pago() para cada entrada del
+    historial de pago -- la misma cuenta que usa actualizar_seguimiento()
+    para saber "cuánto ya se cobró", así que un "volver a pendiente" (o
+    cualquier otro cambio) siempre cancela bien lo reconocido antes, sin
+    que las dos funciones diverjan.
 
     Por ahora esta app sólo presupuesta mano de obra (todavía no se carga
     costo de materiales), así que el total del presupuesto -- trabajos y
@@ -168,20 +168,23 @@ def eventos_ganancia(obra: dict) -> list[dict]:
     ganancia pura, sin nada que restar. El día que se sume costo de
     material con un margen propio, esta es la única función que hay que
     tocar: acá es donde se define qué es "ganancia" de una obra."""
+    seg = obra.get("seguimiento") or {}
     total = totales(obra.get("presupuesto") or {}).get("total") or 0
-    eventos = []
-    for h in (obra.get("seguimiento") or {}).get("historial") or []:
-        if h.get("campo") != "pago":
-            continue
-        if "montoDelta" in h:
-            monto = h["montoDelta"]
-        else:
-            antes = (h.get("de") or {}).get("porcentaje") or 0
-            despues = (h.get("a") or {}).get("porcentaje") or 0
-            monto = total * (despues - antes) / 100
-        if monto:
-            eventos.append({"el": h.get("el"), "monto": round(monto, 2)})
-    return eventos
+    eventos = [{"el": h.get("el"), "monto": C.monto_evento_pago(h, total)}
+              for h in seg.get("historial") or [] if h.get("campo") == "pago"]
+
+    # La suma tiene que dar exactamente lo que dice el estado de pago actual
+    # -- ni un centavo más ni menos. Si una entrada vieja (de antes de que
+    # existiera "montoDelta") deja la cuenta sin cerrar, el ajuste se absorbe
+    # en el último evento, no se reparte a ciegas entre todos los meses --
+    # así un "volver a pendiente" siempre deja la ganancia reconocida en $0,
+    # aunque haya datos viejos de por medio.
+    verdad = total * ((seg.get("pago") or {}).get("porcentaje") or 0) / 100
+    suma = sum(e["monto"] for e in eventos)
+    if eventos and abs(suma - verdad) > 0.01:
+        eventos[-1]["monto"] += verdad - suma
+
+    return [{"el": e["el"], "monto": round(e["monto"], 2)} for e in eventos if round(e["monto"], 2)]
 
 
 def congelar(obra: dict, usuario: str = "") -> dict:
