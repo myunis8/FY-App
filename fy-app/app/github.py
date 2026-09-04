@@ -155,3 +155,29 @@ def sha_de(cfg: dict, ruta: str) -> str | None:
             return None
         raise
     return r.get("sha")
+
+
+def borrar_archivo(cfg: dict, ruta: str, sha: str, mensaje: str) -> None:
+    _pedir(cfg, f"/repos/{cfg['repo']}/contents/{ruta}", "DELETE",
+          {"message": mensaje, "sha": sha, "branch": cfg.get("rama", "main")})
+
+
+def borrar_carpeta(cfg: dict, ruta: str, mensaje: str) -> int:
+    """Borra recursivamente todos los archivos bajo `ruta`. La API de
+    Contents no tiene "borrar carpeta": una carpeta deja de existir en git
+    cuando se borra su último archivo, así que hay que borrar uno por uno.
+    Devuelve cuántos archivos borró (0 si la carpeta no existía)."""
+    try:
+        items = _contenido(cfg, ruta)
+    except ErrorSync as e:
+        if e.codigo == 404:
+            return 0
+        raise
+    borrados = 0
+    for it in items:
+        if it.get("type") == "dir":
+            borrados += borrar_carpeta(cfg, it["path"], mensaje)
+        elif it.get("type") == "file":
+            borrar_archivo(cfg, it["path"], it["sha"], mensaje)
+            borrados += 1
+    return borrados

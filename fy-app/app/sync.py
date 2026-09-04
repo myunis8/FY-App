@@ -88,3 +88,11 @@ def subir_obra(cfg: dict, obra_id: str, forzar: bool = False) -> dict:
 
     almacen.guardar_sync(obra_id, {"shaObra": sha_nuevo, "subidaEl": C.ahora()})
     return {"ok": True, "sha": sha_nuevo}
+
+
+def borrar_obra_remota(cfg: dict, obra_id: str) -> dict:
+    """Borra del repositorio todo lo que se subió de esta obra (obra.json,
+    resumen.json y lo que haya adentro de su carpeta). No toca nada local
+    -- de eso se encarga almacen.borrar_obra() aparte."""
+    borrados = gh.borrar_carpeta(cfg, f"obras/{obra_id}", f"Borra la obra {obra_id} del repositorio")
+    return {"ok": True, "borrados": borrados}

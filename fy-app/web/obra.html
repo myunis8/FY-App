@@ -408,9 +408,22 @@ $('d-bajar').onclick = () => {
 };
 $('d-borrar').onclick = async () => {
   if(!obraAbierta) return;
-  if(!confirm('¿Borrar esta obra de este equipo? Lo que esté en el repositorio no se toca.')) return;
+  if(!confirm('¿Borrar esta obra de este equipo? No se puede deshacer.')) return;
+  const tambienRepo = confirm('¿Borrar también del repositorio?\n\n'
+    + 'Si aceptás, se borran obra.json y resumen.json de GitHub -- ya no la va a ver nadie más ahí.\n'
+    + 'Si cancelás, se borra sólo de este equipo y lo que esté subido queda como está.');
   await api('/api/obras/'+obraAbierta.obra.id, {method:'DELETE'});
-  toast('Obra borrada de este equipo');
+  if(!tambienRepo){
+    toast('Obra borrada de este equipo');
+    location.href = '/';
+    return;
+  }
+  try{
+    await api('/api/sync/borrar/'+obraAbierta.obra.id, {method:'POST', body:'{}'});
+    toast('Obra borrada de este equipo y del repositorio');
+  }catch(e){
+    toast('Se borró de este equipo, pero no del repositorio: ' + e.message);
+  }
   location.href = '/';
 };
 $('b-volver').onclick = () => location.href = '/';

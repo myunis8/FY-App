@@ -382,6 +382,9 @@ class Handler(BaseHTTPRequestHandler):
         if len(partes) == 4 and partes[:3] == ["api", "sync", "subir"]:
             return self._json(sync.subir_obra(cfg, partes[3], bool(cuerpo.get("forzar"))))
 
+        if len(partes) == 4 and partes[:3] == ["api", "sync", "borrar"]:
+            return self._json(sync.borrar_obra_remota(cfg, partes[3]))
+
         return self._error("Ruta desconocida", 404)
 
     def _subir_plano(self, obra_id):
