@@ -43,6 +43,7 @@ def obra_vacia(nombre: str = "", cliente: str = "", usuario: str = "") -> dict:
                         "pago": {"estado": "pendiente", "porcentaje": 0},
                         "historial": []},
         "validacion": {"corridaEl": 0, "errores": [], "advertencias": []},
+        "historial": [],
     }
 
 
@@ -154,6 +155,7 @@ def resumen(obra: dict) -> dict:
     seg = obra.get("seguimiento") or {}
     val = obra.get("validacion") or {}
     plano = obra.get("plano") or {}
+    hist = obra.get("historial") or []
     return {
         "id": o.get("id"),
         "nombre": o.get("nombre") or "Obra sin nombre",
@@ -167,4 +169,5 @@ def resumen(obra: dict) -> dict:
         "progreso": progreso(obra),
         "pendientes": len(val.get("errores") or []) + len(val.get("advertencias") or []),
         "planoRevision": plano.get("revision") if plano else None,
+        "ultimaActividad": hist[-1] if hist else None,
     }

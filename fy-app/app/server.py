@@ -1,6 +1,6 @@
 """Servidor local. Sirve la interfaz y expone la API sobre el almacen."""
 from __future__ import annotations
-import json, mimetypes, sys
+import json, mimetypes, platform, sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
@@ -42,6 +42,19 @@ class Handler(BaseHTTPRequestHandler):
 
     def log_message(self, *a):
         pass                                    # sin ruido en la consola
+
+    _MODULOS_POR_PAGINA = {
+        "circuitos.html": "Circuitos", "revisor.html": "Revisor", "tablero.html": "Tablero",
+        "canaliza.html": "Routeo", "presupuesto.html": "Presupuesto", "materiales.html": "Materiales",
+    }
+
+    def _modulo_origen(self) -> str:
+        """De qué página vino el pedido (para historial), a partir del
+        Referer -- así una ruta que comparten dos módulos (como el PUT de
+        guardado completo de la obra) igual queda etiquetada bien."""
+        ref = self.headers.get("Referer") or ""
+        nombre = ref.rsplit("/", 1)[-1].split("?", 1)[0]
+        return self._MODULOS_POR_PAGINA.get(nombre, "Obra")
 
     # --------------------------------------------------------------- rutas
     def do_GET(self):
@@ -101,7 +114,8 @@ class Handler(BaseHTTPRequestHandler):
             if not obra:
                 return self._error("No llegó ninguna obra para guardar.")
             obra.setdefault("obra", {})["id"] = partes[2]
-            guardada = almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
+            guardada = almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""),
+                                            modulo=self._modulo_origen(), resumen="Guardó cambios")
             return self._json({"ok": True, "resumen": C.resumen(guardada)})
         return self._error("Ruta desconocida", 404)
 
@@ -236,6 +250,8 @@ class Handler(BaseHTTPRequestHandler):
             if obra is None:
                 return self._error("Esa obra no está en este equipo.", 404)
             return self._json(obra)
+        if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "lock":
+            return self._json(sync.estado_lock(cfgmod.leer_config(), partes[2]))
         if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "plano.png":
             return self._render_plano(partes[2], urlparse(self.path).query)
         if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "presupuesto.pdf":
@@ -325,7 +341,8 @@ class Handler(BaseHTTPRequestHandler):
                 for it in obra["presupuesto"].get("items") or []:
                     it["congelado"] = True
             if cuerpo.get("guardar"):
-                almacen.guardar_obra(obra, cfg.get("usuario", ""))
+                almacen.guardar_obra(obra, cfg.get("usuario", ""), modulo="Presupuesto",
+                                     resumen="Congeló precios" if cuerpo.get("congelar") else "Guardó cambios")
             return self._json({
                 "ok": True,
                 "presupuesto": obra.get("presupuesto") or {},
@@ -346,7 +363,9 @@ class Handler(BaseHTTPRequestHandler):
             if cuerpo.get("recalcularComputo"):
                 obra["materiales"] = mat_mod.actualizar_computo_obra(obra, obra.get("materiales") or {})
             if cuerpo.get("guardar"):
-                almacen.guardar_obra(obra, cfg.get("usuario", ""))
+                almacen.guardar_obra(obra, cfg.get("usuario", ""), modulo="Materiales",
+                                     resumen="Actualizó el cómputo automático" if cuerpo.get("recalcularComputo")
+                                     else "Guardó cambios")
             return self._json({
                 "ok": True,
                 "materiales": obra.get("materiales") or {"extras": [], "cables": []},
@@ -360,6 +379,16 @@ class Handler(BaseHTTPRequestHandler):
 
         if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "routeo.pdf":
             return self._pdf_routeo(partes[2], cuerpo)
+
+        if len(partes) == 5 and partes[:2] == ["api", "obras"] and partes[3] == "lock":
+            usuario = cfg.get("usuario", "")
+            if partes[4] == "tomar":
+                return self._json(sync.tomar_lock(cfg, partes[2], usuario, platform.node(),
+                                                  bool(cuerpo.get("forzar"))))
+            if partes[4] == "latido":
+                return self._json(sync.latido_lock(cfg, partes[2], usuario))
+            if partes[4] == "liberar":
+                return self._json(sync.liberar_lock(cfg, partes[2], usuario))
 
         if ruta == "/api/config/verificar":
             datos = gh.verificar({**cfg, **{k: v for k, v in cuerpo.items() if v}},
@@ -418,7 +447,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._error("Falta instalar PyMuPDF y OpenCV para leer planos.", 500)
         except Exception as e:
             return self._error(f"No pude leer el plano: {e}", 500)
-        almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
+        almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""),
+                             modulo="Revisor", resumen="Extrajo elementos del plano")
         return self._json({"ok": True, "obra": obra, **info})
 
     def _subir_imagen(self, clave):
@@ -458,12 +488,27 @@ class Handler(BaseHTTPRequestHandler):
             return self._error("Esa obra no está en este equipo.", 404)
         cuerpo = self._cuerpo() or {}
         pago = cuerpo.get("pago") or {}
+        antes = len((obra.get("seguimiento") or {}).get("historial") or [])
         seg = C.actualizar_seguimiento(obra, estado=cuerpo.get("estado"),
                                        pago_estado=pago.get("estado"),
                                        pago_porcentaje=pago.get("porcentaje"),
                                        usuario=cfgmod.leer_config().get("usuario", ""))
-        almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
+        nuevos = (seg.get("historial") or [])[antes:]
+        resumen = " · ".join(self._texto_cambio_seguimiento(h) for h in nuevos)
+        almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""),
+                             modulo="Seguimiento" if resumen else None, resumen=resumen)
         return self._json({"ok": True, "seguimiento": seg})
+
+    @staticmethod
+    def _texto_cambio_seguimiento(h: dict) -> str:
+        if h.get("campo") == "estado":
+            return f'Cambió el estado a "{C.ESTADOS.get(h["a"], h["a"])}"'
+        if h.get("campo") == "pago":
+            a = h.get("a") or {}
+            et = C.ESTADOS_PAGO.get(a.get("estado"), a.get("estado"))
+            pct = f' ({a["porcentaje"]}%)' if a.get("estado") == "parcial" else ""
+            return f'Marcó el pago como "{et}"{pct}'
+        return "Actualizó el seguimiento"
 
     def _guardar_canalizacion(self, obra_id):
         obra = almacen.leer_obra(obra_id)
@@ -479,7 +524,8 @@ class Handler(BaseHTTPRequestHandler):
         canal_mod.guardar_proyecto(obra, proyecto)
         if canal_mod.aplicar_reasignaciones(obra, reasignaciones):
             obra["validacion"] = vinculos.recalcular(obra)
-        almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
+        almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""),
+                             modulo="Routeo", resumen="Guardó cambios de canalización")
         return self._json({"ok": True})
 
     def _nuevo_tablero(self, obra_id):
@@ -494,7 +540,8 @@ class Handler(BaseHTTPRequestHandler):
             t["bocas"] = int(cuerpo["bocas"]); t["pisos"] = int(cuerpo["pisos"])
             t["bocasPorPiso"] = tablero_mod.bocas_por_piso(t["bocas"], t["pisos"])
         obra.setdefault("tableros", []).append(t)
-        almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
+        almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""),
+                             modulo="Tablero", resumen=f'Creó el tablero "{t.get("nombre") or t["id"]}"')
         return self._json({"ok": True, "tablero": t, "obra": obra})
 
     def _sincronizar_tablero(self, obra_id, tablero_id):
@@ -511,7 +558,8 @@ class Handler(BaseHTTPRequestHandler):
         tablero_mod.sincronizar_circuitos(t, obra.get("circuitos") or [], t.get("fases", 1),
                                           reclamar_sueltos=reclamar)
         avisos = tablero_mod.validar(t, obra.get("circuitos") or [])
-        almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
+        almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""),
+                             modulo="Tablero", resumen=f'Sincronizó circuitos en "{t.get("nombre") or t["id"]}"')
         return self._json({"ok": True, "tablero": t, "avisos": avisos})
 
     def _agregar_dispositivo(self, obra_id, tablero_id):

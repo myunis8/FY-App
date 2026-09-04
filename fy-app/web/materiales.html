@@ -134,10 +134,12 @@ td.acc{width:76px;text-align:center;white-space:nowrap}
 </div>
 
 <div id="toast"></div>
+<script src="/lock.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 const params = new URLSearchParams(location.search);
 const OBRA_ID = params.get('obra');
+fyLock.iniciar(OBRA_ID);
 const SECCIONES = [1, 1.5, 2.5, 4, 6, 10, 16, 25];
 const COLORES_CABLE = ['Rojo (fase)', 'Negro (fase)', 'Celeste (neutro)', 'Verde-amarillo (tierra)', 'Marrón', 'Blanco', 'Otro'];
 

@@ -150,6 +150,7 @@ aside h2{font-family:'Space Grotesk',sans-serif;font-size:.85rem;margin:0 0 9px;
 
 <div id="toast"></div>
 
+<script src="/lock.js"></script>
 <script>
 const SUBTIPOS_TOMA = ['toma_doble','toma_simple','toma_tv','toma_datos','toma_exterior',
   'preinstalacion_aa','toma_heladera','toma_horno','toma_microondas','toma_anafe',
@@ -165,6 +166,7 @@ const ZOOM = 2;
 const $ = id => document.getElementById(id);
 const params = new URLSearchParams(location.search);
 const OBRA_ID = params.get('obra');
+fyLock.iniciar(OBRA_ID);
 let obra = null, sel = null, visibles = new Set(TIPOS.map(t=>t[0]));
 let modo = null;            // null | 'colocar' | 'calibrar'
 let pendiente = null;       // caja a colocar, o primer punto de la calibración

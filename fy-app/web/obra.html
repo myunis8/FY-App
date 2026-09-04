@@ -143,6 +143,14 @@ h2:first-child{margin-top:0}
     <div id="sg-historial" class="nota" style="margin:0"></div>
   </div>
 
+  <h2>Historial</h2>
+  <div class="plano-fila" style="flex-direction:column;align-items:stretch;gap:6px">
+    <div class="nota" style="margin:0">Quién modificó qué y cuándo, en esta obra. Se sincroniza
+      con el resto (últimas 200 acciones); las ediciones muy chicas y frecuentes de Tablero
+      no quedan una por una para no inundar esta lista.</div>
+    <div id="hist-lista" class="nota" style="margin:4px 0 0"></div>
+  </div>
+
   <h2>Informe general</h2>
   <div class="plano-fila" style="flex-direction:column;align-items:stretch;gap:10px">
     <div class="nota" style="margin:0">Un solo PDF con todo lo que elijas de esta obra. El esquema
@@ -237,6 +245,15 @@ function pintarSeguimiento(obra){
     return '';
   }).join(' · ') : 'Todavía no hay cambios registrados.';
 }
+function pintarHistorial(obra){
+  const hist = (obra.historial || []).slice(-15).reverse();
+  $('hist-lista').innerHTML = hist.length ? hist.map(h =>
+    `<div style="padding:4px 0;border-top:1px solid var(--line)">
+      <b style="color:var(--ink)">${esc(h.por || 'alguien')}</b> · ${esc(h.modulo || '')}
+      ${h.resumen ? '— ' + esc(h.resumen) : ''}
+      <span style="color:var(--muted)">(${cuando(h.el)})</span>
+    </div>`).join('') : 'Todavía no hay actividad registrada.';
+}
 function actualizarVisibilidadPct(){
   $('sg-pct-fila').style.display = $('sg-pago').value === 'parcial' ? '' : 'none';
 }
@@ -249,7 +266,9 @@ $('sg-guardar').onclick = async () => {
     const r = await api('/api/obras/'+obraAbierta.obra.id+'/seguimiento',
       {method:'POST', body:JSON.stringify(body)});
     obraAbierta.seguimiento = r.seguimiento;
+    obraAbierta = await api('/api/obras/'+obraAbierta.obra.id);   // trae el historial recién agregado
     pintarSeguimiento(obraAbierta);
+    pintarHistorial(obraAbierta);
     $('h-sub').textContent = (obraAbierta.obra.cliente ? obraAbierta.obra.cliente+' · ' : '') +
       (ESTADOS[obraAbierta.seguimiento.estado]||'') + ' · última edición ' + cuando(obraAbierta.obra.actualizadoEl);
     toast('Seguimiento guardado');
@@ -297,6 +316,7 @@ async function cargar(){
   pintarBloques(obraAbierta);
   pintarPlano(obraAbierta);
   pintarSeguimiento(obraAbierta);
+  pintarHistorial(obraAbierta);
   armarChecksInforme();
 }
 function pintarBloques(obra){

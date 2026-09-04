@@ -42,11 +42,28 @@ def leer_obra(obra_id: str) -> dict | None:
     return C.normalizar(obra) if obra else None
 
 
-def guardar_obra(obra: dict, usuario: str = "") -> dict:
+HISTORIAL_MAX = 200
+
+
+def guardar_obra(obra: dict, usuario: str = "", *, modulo: str | None = None,
+                 resumen: str = "") -> dict:
+    """Guarda obra.json + resumen.json.
+
+    `modulo` es opcional a propósito: la mayoría de los guardados son
+    ediciones chiquitas y frecuentes (mover un dispositivo de tablero, por
+    ejemplo) que no vale la pena dejar registradas una por una -- inundarían
+    el historial. Sólo se pasa `modulo` en las acciones que un usuario
+    reconocería como "hice tal cosa" (guardar, extraer, sincronizar, etc.)."""
     obra = C.normalizar(obra)
     obra["obra"]["actualizadoEl"] = C.ahora()
     if usuario:
         obra["obra"]["actualizadoPor"] = usuario
+    if modulo:
+        hist = obra.setdefault("historial", [])
+        hist.append({"el": obra["obra"]["actualizadoEl"], "por": usuario or "—",
+                    "modulo": modulo, "resumen": resumen})
+        if len(hist) > HISTORIAL_MAX:
+            del hist[:len(hist) - HISTORIAL_MAX]
     d = _dir(obra["obra"]["id"])
     d.mkdir(parents=True, exist_ok=True)
     (d / "obra.json").write_text(json.dumps(obra, ensure_ascii=False, indent=2),

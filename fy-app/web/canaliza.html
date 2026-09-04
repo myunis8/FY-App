@@ -360,6 +360,7 @@ table.t input:focus{outline:none;border-color:var(--accent);background:#fff}
 <div id="busy"><div>Procesando…</div></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="/lock.js"></script>
 <script>
 /* ---------------------------------------------------------------------
    Integración con FY Manager. No toca nada de la lógica de Canaliza: sólo usa
@@ -368,6 +369,7 @@ table.t input:focus{outline:none;border-color:var(--accent);background:#fff}
 --------------------------------------------------------------------- */
 window.CANALIZA_SIN_AUTOSAVE = true;
 const OBRA_ID = new URLSearchParams(location.search).get('obra');
+fyLock.iniciar(OBRA_ID);
 
 // agrega al proyecto los circuitos ya armados en el módulo de Circuitos que
 // todavía no estén (por id) -- nunca pisa uno que ya exista, para no perder

@@ -243,9 +243,11 @@ body.modo-cable .nodo-lateral:hover{transform:translateY(-50%) scale(1.4)}
 </div>
 
 <div id="toast"></div>
+<script src="/lock.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 const OBRA_ID = new URLSearchParams(location.search).get('obra');
+fyLock.iniciar(OBRA_ID);
 const CELDA = 64;              // ancho de una boca, en px
 const ALTO_DISP = 150;         // alto de la fila de dispositivos
 const BANDA = 78;              // alto de cada banda de cableado, arriba y abajo del riel

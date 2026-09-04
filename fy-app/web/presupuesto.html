@@ -151,9 +151,11 @@ tr.opcional{opacity:.72;background:repeating-linear-gradient(45deg,transparent,t
 </main>
 
 <div id="toast"></div>
+<script src="/lock.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 const OBRA_ID = new URLSearchParams(location.search).get('obra');
+fyLock.iniciar(OBRA_ID);
 let obra = null, pres = null, totales = null, comparacion = [], cantidades = null, cantidadesExtra = null;
 
 const api = async (r,o={}) => {

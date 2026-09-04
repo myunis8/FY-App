@@ -212,6 +212,7 @@ aside h2{font-family:'Space Grotesk',sans-serif;font-size:.82rem;margin:0 0 9px;
 
 <div id="toast"></div>
 
+<script src="/lock.js"></script>
 <script>
 const TIPOS = {
   IUG:{n:'Iluminación de uso general', fam:'luz',   sec:1.5, prot:10, max:15},
@@ -272,6 +273,7 @@ const SUBTIPO_LABEL = {
 
 const $ = id => document.getElementById(id);
 const OBRA_ID = new URLSearchParams(location.search).get('obra');
+fyLock.iniciar(OBRA_ID);
 let obra = null, marcados = new Set(), selCir = null, zona = null, conPlano = false;
 let modo = 'zona';           // 'zona' | 'individual'
 let historial = [], indiceHistorial = -1;   // undo/redo sobre obra.circuitos
