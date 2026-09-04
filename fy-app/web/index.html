@@ -27,6 +27,8 @@ body{margin:0;background:var(--paper);color:var(--ink)}
 .mono{font-family:'IBM Plex Mono',Consolas,monospace}
 button{font:inherit;cursor:pointer}
 input,select{font:inherit;background:var(--panel);color:var(--ink);border:1px solid var(--line)}
+input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+input[type=number]{-moz-appearance:textfield}
 
 /* ---------- barra superior ---------- */
 header{background:var(--navy);color:#fff;padding:14px 22px;display:flex;
@@ -61,6 +63,15 @@ main{max-width:1360px;margin:0 auto;padding:26px 22px 60px;display:grid;
   font-size:.82rem;padding:6px 0;border-top:1px solid var(--line)}
 .stat-lista .fila:first-child{border-top:none}
 .stat-lista .fila .n{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:.92rem;white-space:nowrap}
+.chart-barras{display:flex;align-items:flex-end;gap:5px;height:70px;margin:12px 0 3px;
+  border-top:1px solid var(--line);padding-top:10px}
+.chart-barras .col{flex:1;display:flex;flex-direction:column;align-items:center;
+  gap:5px;height:100%;justify-content:flex-end;min-width:0}
+.chart-barras .barra{width:100%;max-width:22px;border-radius:3px 3px 0 0;background:var(--green);
+  min-height:2px}
+.chart-barras .barra.actual{background:var(--green-soft);border:1px dashed var(--green)}
+.chart-barras .mes{font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.02em;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .actividad .fila{display:flex;justify-content:space-between;gap:10px;font-size:.8rem;
   padding:5px 0;border-top:1px solid var(--line)}
 .actividad .fila:first-of-type{border-top:none}
@@ -189,6 +200,7 @@ main{max-width:1360px;margin:0 auto;padding:26px 22px 60px;display:grid;
     <div class="panel">
       <h2>Ganancias</h2>
       <div class="stat-lista" id="stats-ganancia"></div>
+      <div class="chart-barras" id="chart-ganancia"></div>
     </div>
     <div class="panel actividad" id="actividad" style="display:none">
       <h2>Actividad reciente</h2>
@@ -329,6 +341,7 @@ const ETAPAS = [
 const ESTADOS = {preliminar:'Preliminar', aprobado:'Aprobado',
                  en_curso:'En curso', realizado:'Realizado'};
 const PAGOS = {pendiente:'Pendiente', parcial:'Pago parcial', pagado:'Pagado'};
+const MESES_ABR = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 
 let estadoApp = null, obras = [], finanzas = null;
 
@@ -431,7 +444,7 @@ function pintarGanancias(){
   // ganancia = mano de obra (lo único que se presupuesta acá por ahora, ver
   // presupuesto.eventos_ganancia); se reconoce cuando se fue cobrando, no
   // al presupuestar ni todo junto al final de la obra
-  if(!finanzas){ $('stats-ganancia').innerHTML = ''; return; }
+  if(!finanzas){ $('stats-ganancia').innerHTML = ''; $('chart-ganancia').innerHTML = ''; return; }
   const hoy = new Date();
   const claveMes = hoy.toISOString().slice(0,7), claveAnio = String(hoy.getFullYear());
   const filas = [
@@ -442,6 +455,27 @@ function pintarGanancias(){
   $('stats-ganancia').innerHTML = filas.map(([l,n]) =>
     `<div class="fila"><span>${l}</span><span class="n" style="color:var(--green)">${plata(n)}</span></div>`
   ).join('');
+  pintarChartGanancia(hoy);
+}
+// barras de ganancia del mes en curso y los últimos 6 -- un solo color (una
+// sola serie), la del mes en curso se distingue punteada porque todavía está
+// sumando, no es comparable a un mes ya cerrado
+function pintarChartGanancia(hoy){
+  const meses = [];
+  for(let i = 6; i >= 0; i--){
+    const d = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
+    const clave = d.toISOString().slice(0,7);
+    meses.push({label: MESES_ABR[d.getMonth()], monto: finanzas.porMes[clave] || 0, actual: i === 0});
+  }
+  const max = Math.max(...meses.map(m => m.monto), 1);
+  $('chart-ganancia').innerHTML = meses.map(m => {
+    const alturaPct = Math.max(3, Math.round(m.monto / max * 100));
+    return `<div class="col">
+      <div class="barra${m.actual?' actual':''}" style="height:${alturaPct}%"
+        title="${m.label}${m.actual?' (en curso)':''}: ${plata(m.monto)}"></div>
+      <div class="mes">${m.label}</div>
+    </div>`;
+  }).join('');
 }
 function pintarActividad(){
   const items = obras.map(o => o.ultimaActividad ? {...o.ultimaActividad, obraNombre:o.nombre} : null)
