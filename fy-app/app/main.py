@@ -13,7 +13,7 @@ def main():
     print(f"  Interfaz: {url}")
     print(f"  Datos:    {cfgmod.DIR_OBRAS}")
     print("  Cerrá esta ventana para salir.")
-    threading.Timer(0.6, lambda: webbrowser.open(url)).start()
+    threading.Timer(0.6, lambda: webbrowser.open(url, new=1)).start()
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
