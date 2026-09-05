@@ -321,9 +321,10 @@ table.t input:focus{outline:none;border-color:var(--accent);background:var(--pan
     <div><label class="f" for="rRec">Caños máx. por caja rectangular</label><input class="f mono" id="rRec" type="number" min="1" value="3"></div>
     <div><label class="f" for="rLen">Aviso de tramo largo (m)</label><input class="f mono" id="rLen" type="number" min="1" value="25"></div>
   </div>
-  <div style="margin-top:6px" class="f2">
+  <div style="margin-top:6px" class="f3">
     <div><label class="f" for="rWaste">Desperdicio de cable (%)</label><input class="f mono" id="rWaste" type="number" min="0" value="10"></div>
     <div><label class="f" for="rSpare">Reserva por boca/caja (cm)</label><input class="f mono" id="rSpare" type="number" min="0" value="15"></div>
+    <div><label class="f" for="rBox">Aviso de tramo sin caja intermedia (m)</label><input class="f mono" id="rBox" type="number" min="1" value="5"></div>
   </div>
   <div class="acts"><button class="btn" id="rulesReset">Restaurar valores</button><button class="btn primary" data-close>Listo</button></div>
 </div></div>
@@ -719,7 +720,7 @@ const S = {
   tool:"select",
   view:{x:0,y:0,z:1},
   draft:null, calib:null,
-  rules:{cap:JSON.parse(JSON.stringify(CAP0)), maxOct:4, maxRect:3, longRun:25, waste:10, spare:15},
+  rules:{cap:JSON.parse(JSON.stringify(CAP0)), maxOct:4, maxRect:3, longRun:25, boxRun:5, waste:10, spare:15},
   z:Object.assign({}, Z0),
   show:{labels:true, lens:true, z:false},
   hiddenCircuits:new Set(),                  // ids de circuitos ocultos en el plano
@@ -2229,6 +2230,8 @@ function drcRun(){
     const L = runLenM(r);
     if(S.pxPerM && L>S.rules.longRun)
       push("w", `Tramo de ${esc(c.name)} de ${fmt(L,1)} m supera los ${S.rules.longRun} m. Verificá caída de tensión.`, r.id);
+    if(S.pxPerM && L>S.rules.boxRun)
+      push("w", `Tramo de ${esc(c.name)} de ${fmt(L,1)} m sin caja intermedia (supera los ${S.rules.boxRun} m). Considerá agregar una caja de paso en el medio para facilitar el tendido del cable.`, r.id);
     const bends = runBends(r);
     if(bends > 1)
       push("w", `Tramo de ${esc(c.name)} con ${bends} codos de 90°. Con más de un codo conviene partirlo en tramos o insertar una caja de paso en el quiebre.`, r.id);
@@ -2574,6 +2577,7 @@ function buildCapTable(){
   });
   $("#rOct").value=S.rules.maxOct; $("#rRec").value=S.rules.maxRect;
   $("#rLen").value=S.rules.longRun; $("#rWaste").value=S.rules.waste; $("#rSpare").value=S.rules.spare;
+  $("#rBox").value=S.rules.boxRun;
   $("#zCie").value=S.z.ceiling; $("#zTab").value=S.z.tablero; $("#zTom").value=S.z.toma;
   $("#zInt").value=S.z.interruptor; $("#zEsp").value=S.z.especial; $("#zLum").value=S.z.luminaria;
 }
@@ -2588,15 +2592,15 @@ Object.keys(ZMAP).forEach(id=>{
     refreshAll();
   };
 });
-["rOct","rRec","rLen","rWaste","rSpare"].forEach(id=>{
+["rOct","rRec","rLen","rWaste","rSpare","rBox"].forEach(id=>{
   $("#"+id).oninput=()=>{
-    const map={rOct:"maxOct",rRec:"maxRect",rLen:"longRun",rWaste:"waste",rSpare:"spare"};
+    const map={rOct:"maxOct",rRec:"maxRect",rLen:"longRun",rWaste:"waste",rSpare:"spare",rBox:"boxRun"};
     S.rules[map[id]] = parseFloat($("#"+id).value)||0; refreshAll();
   };
 });
 $("#rulesReset").onclick=()=>{
   S.rules.cap=JSON.parse(JSON.stringify(CAP0));
-  S.rules.maxOct=4; S.rules.maxRect=3; S.rules.longRun=25; S.rules.waste=10; S.rules.spare=15;
+  S.rules.maxOct=4; S.rules.maxRect=3; S.rules.longRun=25; S.rules.boxRun=5; S.rules.waste=10; S.rules.spare=15;
   S.z=Object.assign({}, Z0);
   S.nodes.forEach(n=>{ if(n.zAuto) n.z = defaultZ(n.kind, n.device); });
   buildCapTable(); refreshAll();
