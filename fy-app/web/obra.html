@@ -32,8 +32,8 @@ header .sub{font-size:.72rem;color:#9db2c7;margin-top:2px}
 .btn.ghost{background:transparent;border-color:#33506e;color:#cfe0f0}
 .btn.ghost:hover{border-color:#5b7fa5}
 .btn.sm{padding:5px 10px;font-size:.76rem}
-.layout{max-width:1180px;margin:0 auto;padding:26px 22px 60px;display:grid;
-  grid-template-columns:1fr 300px;gap:22px;align-items:start}
+.layout{max-width:1380px;margin:0 auto;padding:26px 22px 60px;display:grid;
+  grid-template-columns:240px 1fr 300px;gap:22px;align-items:start}
 .panel-lateral{display:flex;flex-direction:column;gap:16px;position:sticky;top:22px}
 .panel{border:1px solid var(--line);border-radius:8px;padding:14px 15px;background:var(--panel)}
 .campo-fijo{font-size:.8rem;padding:5px 0;border-bottom:1px dotted var(--line)}
@@ -94,15 +94,21 @@ h2:first-child{margin-top:0}
 <header>
   <div><h1 id="h-nombre">Obra</h1><div class="sub" id="h-sub">Cargando…</div></div>
   <div class="spacer"></div>
+  <button class="btn ghost" id="d-bajar">Descargar obra.json</button>
+  <button class="btn primary" id="d-subir">Subir al repositorio</button>
   <button class="btn ghost" id="b-volver">‹ Todas las obras</button>
 </header>
 
 <main class="layout">
+<aside class="panel-lateral">
+  <div class="panel">
+    <h2 style="margin-top:0">Resumen</h2>
+    <div class="bloques" id="d-bloques"><div class="bloque">Cargando…</div></div>
+  </div>
+</aside>
+
 <div class="contenido">
   <div class="aviso" id="d-aviso"></div>
-
-  <h2>Resumen</h2>
-  <div class="bloques" id="d-bloques"><div class="bloque">Cargando…</div></div>
 
   <h2>Plano</h2>
   <div class="plano-fila" id="d-plano"></div>
@@ -111,33 +117,33 @@ h2:first-child{margin-top:0}
   <h2>Módulos</h2>
   <div class="modulos-grid">
     <div class="modulo-btn" id="fila-circuitos">
-      <span class="ic"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="3" r="1.5"/><circle cx="3" cy="13" r="1.5"/><circle cx="13" cy="13" r="1.5"/><path d="M8 4.5 4.3 11.6M8 4.5 11.7 11.6"/></svg></span>
+      <span class="ic"><svg width="28" height="28" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="3" r="1.5"/><circle cx="3" cy="13" r="1.5"/><circle cx="13" cy="13" r="1.5"/><path d="M8 4.5 4.3 11.6M8 4.5 11.7 11.6"/></svg></span>
       <div><b>Circuitos</b><div class="nota" id="d-ncircuitos"></div></div>
       <span class="led" data-modulo="circuitos" title="Marcar como terminado / no terminado"></span>
     </div>
     <div class="modulo-btn" id="fila-tablero">
-      <span class="ic"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="12" height="12" rx="1.5"/><path d="M5.3 5v4M8 5v4M10.7 5v4"/></svg></span>
+      <span class="ic"><svg width="28" height="28" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="12" height="12" rx="1.5"/><path d="M5.3 5v4M8 5v4M10.7 5v4"/></svg></span>
       <div><b>Tablero</b><div class="nota" id="d-ntableros"></div>
         <button class="btn sm" id="d-pdf-tableros" style="display:none;margin-top:4px" onclick="event.stopPropagation()">Descargar todos (PDF)</button></div>
       <span class="led" data-modulo="tablero" title="Marcar como terminado / no terminado"></span>
     </div>
     <div class="modulo-btn" id="fila-canalizacion">
-      <span class="ic"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="3" cy="12.5" r="1.3" fill="currentColor" stroke="none"/><circle cx="13" cy="3.5" r="1.3" fill="currentColor" stroke="none"/><path d="M4.2 11.4 11.8 4.6" stroke-dasharray="2 1.6"/></svg></span>
+      <span class="ic"><svg width="28" height="28" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="3" cy="12.5" r="1.3" fill="currentColor" stroke="none"/><circle cx="13" cy="3.5" r="1.3" fill="currentColor" stroke="none"/><path d="M4.2 11.4 11.8 4.6" stroke-dasharray="2 1.6"/></svg></span>
       <div><b>Routeo</b><div class="nota" id="d-ncanalizacion"></div></div>
       <span class="led" data-modulo="routeo" title="Marcar como terminado / no terminado"></span>
     </div>
     <div class="modulo-btn" id="fila-presupuesto">
-      <span class="ic"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="1.8" width="10" height="12.4" rx="1"/><path d="M5.3 5.4h5.4M5.3 7.8h5.4M5.3 10.2h3.4"/></svg></span>
+      <span class="ic"><svg width="28" height="28" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="1.8" width="10" height="12.4" rx="1"/><path d="M5.3 5.4h5.4M5.3 7.8h5.4M5.3 10.2h3.4"/></svg></span>
       <div><b>Presupuesto</b><div class="nota" id="d-npresupuesto"></div></div>
       <span class="led" data-modulo="presupuesto" title="Marcar como terminado / no terminado"></span>
     </div>
     <div class="modulo-btn" id="fila-materiales">
-      <span class="ic"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2 13.5 5v6L8 14 2.5 11V5z"/><path d="M8 2v6M2.5 5 8 8M13.5 5 8 8"/></svg></span>
+      <span class="ic"><svg width="28" height="28" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2 13.5 5v6L8 14 2.5 11V5z"/><path d="M8 2v6M2.5 5 8 8M13.5 5 8 8"/></svg></span>
       <div><b>Lista de materiales</b><div class="nota">Cajas, accesorios y cable a comprar</div></div>
       <span class="led" data-modulo="materiales" title="Marcar como terminado / no terminado"></span>
     </div>
     <div class="modulo-btn" id="fila-verificaciones">
-      <span class="ic"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="6.7" cy="6.7" r="4"/><path d="M9.7 9.7 13.3 13.3"/></svg></span>
+      <span class="ic"><svg width="28" height="28" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="6.7" cy="6.7" r="4"/><path d="M9.7 9.7 13.3 13.3"/></svg></span>
       <div><b>Verificaciones técnicas</b><div class="nota">Caída de tensión y límites de consumo</div></div>
       <span class="led" data-modulo="verificaciones" title="Marcar como terminado / no terminado"></span>
     </div>
@@ -163,9 +169,7 @@ h2:first-child{margin-top:0}
   </div>
 
   <div class="acciones">
-    <button class="btn" id="d-borrar" style="margin-right:auto;color:var(--danger)">Borrar</button>
-    <button class="btn" id="d-bajar">Descargar obra.json</button>
-    <button class="btn primary" id="d-subir">Subir al repositorio</button>
+    <button class="btn" id="d-borrar" style="color:var(--danger)">Borrar</button>
   </div>
 </div>
 
