@@ -61,6 +61,9 @@ input[type=number]{-moz-appearance:textfield}
 #scaleChip.unset{background:var(--warn-bg);border-color:var(--warn);color:var(--warn)}
 .dot{width:7px;height:7px;border-radius:50%;background:var(--ok);flex:none}
 #scaleChip.unset .dot{background:var(--warn)}
+#drcCounter{display:none;align-items:center;gap:10px;font-family:var(--fm);font-size:12px;cursor:pointer;margin-left:auto;padding:0 2px}
+#drcCounter.on{display:flex}
+#drcCounter b{font-weight:600}
 
 /* ---------- layout ---------- */
 #main{display:grid;grid-template-columns:216px 1fr 292px;min-height:0}
@@ -143,6 +146,8 @@ input[type=color].f{padding:2px;height:29px}
   padding:0 5px;font-size:11px;color:inherit;line-height:18px}
 .drc .go:hover{opacity:1}
 #drcOk{display:flex;align-items:center;gap:7px;color:var(--ok);font-size:12px;font-weight:500}
+.drcCat{margin:16px 0 6px;font-family:var(--fh);font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3)}
+.drcCat:first-child{margin-top:0}
 
 /* table */
 table.t{width:100%;border-collapse:collapse;font-size:12px}
@@ -329,6 +334,13 @@ table.t input:focus{outline:none;border-color:var(--accent);background:var(--pan
     <div><label class="f" for="rBox">Aviso de tramo sin caja intermedia (m)</label><input class="f mono" id="rBox" type="number" min="1" value="5"></div>
   </div>
   <div class="acts"><button class="btn" id="rulesReset">Restaurar valores</button><button class="btn primary" data-close>Listo</button></div>
+</div></div>
+
+<div class="mask" id="mDrc"><div class="modal" style="max-width:560px">
+  <h2>Observaciones de diseño</h2>
+  <p class="sub" id="drcSummary"></p>
+  <div id="drcGroups"></div>
+  <div class="acts"><button class="btn" data-close>Cerrar</button></div>
 </div></div>
 
 <div class="mask" id="mPdf"><div class="modal">
@@ -2275,7 +2287,7 @@ function evaluarCaidaTension(c, L){
 
 function drcRun(){
   const out=[];
-  const push=(lvl,txt,target)=> out.push({lvl,txt,target});
+  const push=(lvl,txt,target,cat)=> out.push({lvl,txt,target,cat});
   const groups = conduitGroups();
 
   // llenado del caño: se evalua por caño fisico, no por circuito
@@ -2284,26 +2296,26 @@ function drcRun(){
     const a=nodeById(g.a), b=nodeById(g.b);
     const where = (a&&b) ? a.label+" → "+b.label : "tramo suelto";
     if(!isFinite(g.fill)){
-      push("e", `Caño ${where} (${names}): un ${diaLbl(g.dia)} no admite alguna de las secciones que pasan por él.`, g.runs[0].id);
+      push("e", `Caño ${where} (${names}): un ${diaLbl(g.dia)} no admite alguna de las secciones que pasan por él.`, g.runs[0].id, "canos");
     } else if(g.fill>1){
-      push("e", `Caño ${where}: ${g.cables} conductores de ${names} ocupan el ${Math.round(g.fill*100)}% de un ${diaLbl(g.dia)}. Pasá a ${diaLbl(suggestDiaFor(g.runs))}.`, g.runs[0].id);
+      push("e", `Caño ${where}: ${g.cables} conductores de ${names} ocupan el ${Math.round(g.fill*100)}% de un ${diaLbl(g.dia)}. Pasá a ${diaLbl(suggestDiaFor(g.runs))}.`, g.runs[0].id, "canos");
     } else if(g.fill>0.85){
-      push("w", `Caño ${where} al ${Math.round(g.fill*100)}% de ocupación. Queda poco margen para agregar cables.`, g.runs[0].id);
+      push("w", `Caño ${where} al ${Math.round(g.fill*100)}% de ocupación. Queda poco margen para agregar cables.`, g.runs[0].id, "canos");
     }
   }
 
   for(const r of S.runs){
     const c = ciById(r.circuit); if(!c) continue;
     if(!r.a || !r.b)
-      push("w", `Tramo de ${esc(c.name)} sin cerrar en ${!r.a&&!r.b?"ninguno de los dos extremos":"un extremo"}. Enganchalo a una caja.`, r.id);
+      push("w", `Tramo de ${esc(c.name)} sin cerrar en ${!r.a&&!r.b?"ninguno de los dos extremos":"un extremo"}. Enganchalo a una caja.`, r.id, "tramos");
     const L = runLenM(r);
     if(S.pxPerM && L>S.rules.longRun)
-      push("w", `Tramo de ${esc(c.name)} de ${fmt(L,1)} m supera los ${S.rules.longRun} m. Verificá caída de tensión.`, r.id);
+      push("w", `Tramo de ${esc(c.name)} de ${fmt(L,1)} m supera los ${S.rules.longRun} m. Verificá caída de tensión.`, r.id, "caida");
     if(S.pxPerM && L>S.rules.boxRun)
-      push("w", `Tramo de ${esc(c.name)} de ${fmt(L,1)} m sin caja intermedia (supera los ${S.rules.boxRun} m). Considerá agregar una caja de paso en el medio para facilitar el tendido del cable.`, r.id);
+      push("w", `Tramo de ${esc(c.name)} de ${fmt(L,1)} m sin caja intermedia (supera los ${S.rules.boxRun} m). Considerá agregar una caja de paso en el medio para facilitar el tendido del cable.`, r.id, "tramos");
     const bends = runBends(r);
     if(bends > 1)
-      push("w", `Tramo de ${esc(c.name)} con ${bends} codos de 90°. Con más de un codo conviene partirlo en tramos o insertar una caja de paso en el quiebre.`, r.id);
+      push("w", `Tramo de ${esc(c.name)} con ${bends} codos de 90°. Con más de un codo conviene partirlo en tramos o insertar una caja de paso en el quiebre.`, r.id, "tramos");
   }
 
   // cajas: se cuentan caños fisicos, no circuitos
@@ -2311,22 +2323,22 @@ function drcRun(){
     const gs = new Set(runsAtNode(n.id).map(groupKey));
     const max = nodeMaxConduits(n);
     if(max!==null && gs.size>max)
-      push("e", `${n.label}: ${gs.size} caños en una ${KINDS[n.kind].n.toLowerCase()} (máx. ${max}).`, n.id);
+      push("e", `${n.label}: ${gs.size} caños en una ${KINDS[n.kind].n.toLowerCase()} (máx. ${max}).`, n.id, "cajas");
     if(gs.size===0)
-      push("w", `${n.label} no tiene ningún caño conectado.`, n.id);
+      push("w", `${n.label} no tiene ningún caño conectado.`, n.id, "cajas");
     if(resolveZ(n) > S.z.ceiling + 0.001)
-      push("w", `${n.label} está a ${fmt(resolveZ(n),2)} m, por encima del cielorraso (${fmt(S.z.ceiling,2)} m).`, n.id);
+      push("w", `${n.label} está a ${fmt(resolveZ(n),2)} m, por encima del cielorraso (${fmt(S.z.ceiling,2)} m).`, n.id, "cajas");
   }
 
   for(const c of S.circuits){
     const max = MAXPROT[c.section];
     if(max && c.prot>max)
-      push("e", `${esc(c.name)}: protección de ${c.prot} A para ${c.section} mm² (máx. ${max} A).`, null);
+      push("e", `${esc(c.name)}: protección de ${c.prot} A para ${c.section} mm² (máx. ${max} A).`, null, "circuitos");
   }
 
   const tabs = S.nodes.filter(n=>n.kind==="tablero").map(n=>n.id);
   if(tabs.length===0 && S.runs.length)
-    push("w","No hay ningún tablero en el plano. Agregá uno como origen de los circuitos.",null);
+    push("w","No hay ningún tablero en el plano. Agregá uno como origen de los circuitos.",null,"circuitos");
   else if(tabs.length){
     for(const c of S.circuits){
       const rs = S.runs.filter(r=>r.circuit===c.id);
@@ -2342,7 +2354,7 @@ function drcRun(){
       }
       const orphan = rs.filter(r=> !(r.a&&seen.has(r.a)) && !(r.b&&seen.has(r.b)));
       if(orphan.length)
-        push("w", `${esc(c.name)}: ${orphan.length} tramo(s) no llegan al tablero por ningún camino.`, orphan[0].id);
+        push("w", `${esc(c.name)}: ${orphan.length} tramo(s) no llegan al tablero por ningún camino.`, orphan[0].id, "circuitos");
 
       // caída de tensión al punto más lejano del circuito -- PAT/tierra no
       // lleva esta cuenta (ver caida_tension.py)
@@ -2350,14 +2362,14 @@ function drcRun(){
         const camino = caidaMasLarga(rs.filter(r=>r.a&&r.b), tabs);
         if(camino){
           const txt = evaluarCaidaTension(c, camino.L);
-          if(txt) push("w", txt, camino.run.id);
+          if(txt) push("w", txt, camino.run.id, "caida");
         }
       }
     }
   }
 
   if(!S.pxPerM && (S.runs.length||S.nodes.length))
-    push("w","El plano no está calibrado: no se pueden calcular longitudes ni cómputo de cable.",null);
+    push("w","El plano no está calibrado: no se pueden calcular longitudes ni cómputo de cable.",null,"calibracion");
 
   // cruces entre caños distintos que no se resuelven en una caja
   const seenPairs = new Set();
@@ -2367,9 +2379,9 @@ function drcRun(){
     const namesA = Array.from(new Set(cr.a.runs.map(r=>ciById(r.circuit)).filter(Boolean).map(c=>c.name))).join("+");
     const namesB = Array.from(new Set(cr.b.runs.map(r=>ciById(r.circuit)).filter(Boolean).map(c=>c.name))).join("+");
     if(cr.safe){
-      push("w", `Los caños de ${namesA} y ${namesB} se cruzan pero quedan resueltos en altura (≈${Math.round(cr.diff*100)} cm de diferencia, marcado con ⚠ en el plano). Verificá que sea suficiente margen.`, cr.a.runs[0].id);
+      push("w", `Los caños de ${namesA} y ${namesB} se cruzan pero quedan resueltos en altura (≈${Math.round(cr.diff*100)} cm de diferencia, marcado con ⚠ en el plano). Verificá que sea suficiente margen.`, cr.a.runs[0].id, "cruces");
     } else {
-      push("w", `Los caños de ${namesA} y ${namesB} se cruzan a la misma altura sin compartir una caja (marcado con × en el plano). Agregá una caja de paso en el cruce, desviá uno de los trazados, o poné una de las cajas a otra altura y pasá ese tramo a recorrido "Directo entre cajas".`, cr.a.runs[0].id);
+      push("w", `Los caños de ${namesA} y ${namesB} se cruzan a la misma altura sin compartir una caja (marcado con × en el plano). Agregá una caja de paso en el cruce, desviá uno de los trazados, o poné una de las cajas a otra altura y pasá ese tramo a recorrido "Directo entre cajas".`, cr.a.runs[0].id, "cruces");
     }
   }
 
@@ -2386,19 +2398,62 @@ function drcCached(){
 function drcInvalidate(){ _drcCache=null; }
 function drcTargets(){ drcCached(); return _drcT; }
 
+// categorías del DRC, en el orden en que aparecen en el modal -- agrupan
+// los mismos push() de drcRun() por tema (ver comentario ahí junto a cada
+// push para el "cat"); "otros" es un cajón de sastre por si algún push se
+// queda sin categoría
+const DRC_CATS = [
+  {id:"canos",       label:"Caños y capacidad"},
+  {id:"tramos",      label:"Tramos y tendido"},
+  {id:"cruces",      label:"Cruces de caños"},
+  {id:"caida",       label:"Caída de tensión"},
+  {id:"cajas",       label:"Cajas"},
+  {id:"circuitos",   label:"Circuitos y tablero"},
+  {id:"calibracion", label:"Calibración"},
+  {id:"otros",       label:"Otros"},
+];
+
+function filaDrc(d, i){
+  return `<div class="drc ${d.lvl}${d.target?" clickable":""}" data-i="${i}"><span class="ic">${d.lvl==="e"?"!":"?"}</span><span>${d.txt}</span>${
+    d.target?`<button class="go" data-i="${i}">ir</button>`:""}</div>`;
+}
+
 function paintDrc(){
-  const list = drcCached(), el=$("#drc");
+  const list = drcCached();
+  const es=list.filter(d=>d.lvl==="e").length, ws=list.length-es;
+  pintarContadorDrc(es, ws);
+  const el=$("#drc");
   if(!list.length){
     el.innerHTML = `<div id="drcOk"><svg width="14" height="14" viewBox="0 0 16 16"><path d="M3 8.5l3.2 3.2L13 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Sin observaciones.</div>`;
     return;
   }
-  const es=list.filter(d=>d.lvl==="e").length, ws=list.length-es;
-  el.innerHTML = `<p class="msg" style="margin:0 0 7px">${es} error${es===1?"":"es"} · ${ws} aviso${ws===1?"":"s"}</p>` +
-    list.map((d,i)=>`<div class="drc ${d.lvl}${d.target?" clickable":""}" data-i="${i}"><span class="ic">${d.lvl==="e"?"!":"?"}</span><span>${d.txt}</span>${
-      d.target?`<button class="go" data-i="${i}">ir</button>`:""}</div>`).join("");
-  $$("#drc .drc.clickable").forEach(row=> row.onclick=()=> irADrc(list[+row.dataset.i]));
-  $$("#drc .go").forEach(b=> b.onclick=(e)=>{ e.stopPropagation(); irADrc(list[+b.dataset.i]); });
+  el.innerHTML = `<p class="msg" style="margin:0 0 8px">${es} error${es===1?"":"es"} · ${ws} aviso${ws===1?"":"s"}</p>` +
+    `<button class="btn sm" id="bDrcDetalle" style="width:100%">Ver detalle</button>`;
+  $("#bDrcDetalle").onclick = abrirModalDrc;
 }
+
+function pintarContadorDrc(es, ws){
+  const el = $("#drcCounter");
+  if(!es && !ws){ el.classList.remove("on"); el.innerHTML=""; return; }
+  el.innerHTML = (es?`<span style="color:var(--err)">✕ <b>${es}</b></span>`:"") +
+    (ws?`<span style="color:var(--warn)">⚠ <b>${ws}</b></span>`:"");
+  el.classList.add("on");
+}
+
+function abrirModalDrc(){
+  const list = drcCached();
+  const es=list.filter(d=>d.lvl==="e").length, ws=list.length-es;
+  $("#drcSummary").textContent = `${es} error${es===1?"":"es"} · ${ws} aviso${ws===1?"":"s"}`;
+  const porCat = new Map();
+  list.forEach((d,i)=>{ const k=d.cat||"otros"; if(!porCat.has(k)) porCat.set(k,[]); porCat.get(k).push({...d,i}); });
+  $("#drcGroups").innerHTML = DRC_CATS.filter(c=>porCat.has(c.id)).map(c=>
+    `<h3 class="drcCat">${c.label}</h3>` + porCat.get(c.id).map(d=>filaDrc(d,d.i)).join("")
+  ).join("");
+  $$("#drcGroups .drc.clickable").forEach(row=> row.onclick=()=>{ irADrc(list[+row.dataset.i]); close$("#mDrc"); });
+  $$("#drcGroups .go").forEach(b=> b.onclick=(e)=>{ e.stopPropagation(); irADrc(list[+b.dataset.i]); close$("#mDrc"); });
+  open$("#mDrc");
+}
+$("#drcCounter").onclick = abrirModalDrc;
 
 // lleva la vista al tramo o caja que señala un aviso del DRC, lo selecciona,
 // y lo resalta un momento con un pulso para que sea fácil de ubicar
