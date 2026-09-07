@@ -61,9 +61,6 @@ input[type=number]{-moz-appearance:textfield}
 #scaleChip.unset{background:var(--warn-bg);border-color:var(--warn);color:var(--warn)}
 .dot{width:7px;height:7px;border-radius:50%;background:var(--ok);flex:none}
 #scaleChip.unset .dot{background:var(--warn)}
-#drcCounter{display:none;align-items:center;gap:10px;font-family:var(--fm);font-size:12px;cursor:pointer;margin-left:auto;padding:0 2px}
-#drcCounter.on{display:flex}
-#drcCounter b{font-weight:600}
 
 /* ---------- layout ---------- */
 #main{display:grid;grid-template-columns:216px 1fr 292px;min-height:0}
@@ -125,6 +122,15 @@ input[type=color].f{padding:2px;height:29px}
   border:1px solid var(--line);border-radius:var(--r);padding:3px}
 #zoomc button{border:none;background:none;padding:4px 8px;border-radius:4px;font-family:var(--fm);font-size:12px}
 #zoomc button:hover{background:var(--panel-2)}
+/* mismo lenguaje de "pastilla" que #scaleChip (fondo + borde + punto de
+   color), pero con los colores del panel/canvas -- acá abajo, no en la
+   barra navy -- para que se note clickeable sin ser un cartel */
+#drcCounter{position:absolute;right:12px;bottom:54px;display:none;align-items:center;gap:8px;
+  font-family:var(--fm);font-size:12px;color:var(--ink-2);background:var(--panel);
+  border:1px solid var(--line);border-radius:var(--r);padding:5px 9px;cursor:pointer}
+#drcCounter.on{display:flex}
+#drcCounter:hover{border-color:var(--ink-3)}
+#drcCounter b{font-weight:600}
 
 /* readout */
 .kv{display:flex;justify-content:space-between;gap:10px;padding:4px 0;font-size:12px;border-bottom:1px dotted var(--line-2)}
@@ -146,8 +152,9 @@ input[type=color].f{padding:2px;height:29px}
   padding:0 5px;font-size:11px;color:inherit;line-height:18px}
 .drc .go:hover{opacity:1}
 #drcOk{display:flex;align-items:center;gap:7px;color:var(--ok);font-size:12px;font-weight:500}
-.drcCat{margin:16px 0 6px;font-family:var(--fh);font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3)}
-.drcCat:first-child{margin-top:0}
+.drcLvl{margin:18px 0 2px;font-family:var(--fh);font-size:13px;font-weight:600;color:var(--ink)}
+.drcLvl:first-child{margin-top:0}
+.drcCat{margin:12px 0 6px;font-family:var(--fh);font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3)}
 
 /* table */
 table.t{width:100%;border-collapse:collapse;font-size:12px}
@@ -202,7 +209,6 @@ table.t input:focus{outline:none;border-color:var(--accent);background:var(--pan
   <button class="btn primary" id="bPdfBom">📋 PDF de materiales</button>
   <div class="sep"></div>
   <button class="btn" id="bRules">Configurar reglas y capacidades</button>
-  <div id="drcCounter" title="Ver observaciones de diseño"></div>
   <div id="scaleChip" class="unset"><span class="dot"></span><span id="scaleTxt">Sin escala</span>
     <button class="btn sm" id="bCal">Calibrar</button></div>
 </div>
@@ -262,6 +268,7 @@ table.t input:focus{outline:none;border-color:var(--accent);background:var(--pan
       <button class="btn primary pe" id="bOpen2">Abrir plano</button>
     </div>
     <div id="hint"></div>
+    <div id="drcCounter" title="Ver observaciones de diseño"></div>
     <div id="zoomc">
       <button id="zOut">−</button><button id="zFit">Ajustar</button><button id="zIn">+</button>
     </div>
@@ -2427,28 +2434,38 @@ function paintDrc(){
     el.innerHTML = `<div id="drcOk"><svg width="14" height="14" viewBox="0 0 16 16"><path d="M3 8.5l3.2 3.2L13 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Sin observaciones.</div>`;
     return;
   }
-  el.innerHTML = `<p class="msg" style="margin:0 0 8px">${es} error${es===1?"":"es"} · ${ws} aviso${ws===1?"":"s"}</p>` +
-    `<button class="btn sm" id="bDrcDetalle" style="width:100%">Ver detalle</button>`;
+  // el conteo ya se ve en el contador flotante junto al zoom -- acá sólo
+  // el acceso al detalle, para no repetir el mismo número dos veces
+  el.innerHTML = `<button class="btn sm" id="bDrcDetalle" style="width:100%">Ver detalle</button>`;
   $("#bDrcDetalle").onclick = abrirModalDrc;
 }
 
 function pintarContadorDrc(es, ws){
   const el = $("#drcCounter");
   if(!es && !ws){ el.classList.remove("on"); el.innerHTML=""; return; }
-  el.innerHTML = (es?`<span style="color:var(--err)">✕ <b>${es}</b></span>`:"") +
+  el.innerHTML = `<span class="dot" style="background:${es?"var(--err)":"var(--warn)"}"></span>` +
+    (es?`<span style="color:var(--err)">✕ <b>${es}</b></span>`:"") +
     (ws?`<span style="color:var(--warn)">⚠ <b>${ws}</b></span>`:"");
   el.classList.add("on");
 }
 
+// errores primero, avisos después; dentro de cada nivel, agrupados por la
+// misma categoría que ya se usa para los headers (ver DRC_CATS) -- no
+// cambia qué es error/warning, sólo el orden en que se listan
 function abrirModalDrc(){
   const list = drcCached();
   const es=list.filter(d=>d.lvl==="e").length, ws=list.length-es;
   $("#drcSummary").textContent = `${es} error${es===1?"":"es"} · ${ws} aviso${ws===1?"":"s"}`;
-  const porCat = new Map();
-  list.forEach((d,i)=>{ const k=d.cat||"otros"; if(!porCat.has(k)) porCat.set(k,[]); porCat.get(k).push({...d,i}); });
-  $("#drcGroups").innerHTML = DRC_CATS.filter(c=>porCat.has(c.id)).map(c=>
-    `<h3 class="drcCat">${c.label}</h3>` + porCat.get(c.id).map(d=>filaDrc(d,d.i)).join("")
-  ).join("");
+  const NIVELES = [{lvl:"e", label:"Errores"}, {lvl:"w", label:"Avisos"}];
+  $("#drcGroups").innerHTML = NIVELES.map(niv=>{
+    const items = list.map((d,i)=>({...d,i})).filter(d=>d.lvl===niv.lvl);
+    if(!items.length) return "";
+    const porCat = new Map();
+    items.forEach(d=>{ const k=d.cat||"otros"; if(!porCat.has(k)) porCat.set(k,[]); porCat.get(k).push(d); });
+    return `<h2 class="drcLvl">${niv.label}</h2>` + DRC_CATS.filter(c=>porCat.has(c.id)).map(c=>
+      `<h3 class="drcCat">${c.label}</h3>` + porCat.get(c.id).map(d=>filaDrc(d,d.i)).join("")
+    ).join("");
+  }).join("");
   $$("#drcGroups .drc.clickable").forEach(row=> row.onclick=()=>{ irADrc(list[+row.dataset.i]); close$("#mDrc"); });
   $$("#drcGroups .go").forEach(b=> b.onclick=(e)=>{ e.stopPropagation(); irADrc(list[+b.dataset.i]); close$("#mDrc"); });
   open$("#mDrc");
