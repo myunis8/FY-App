@@ -109,6 +109,11 @@ class Handler(BaseHTTPRequestHandler):
         except gh.ErrorSync as e:
             return self._error(e.mensaje, 409 if e.conflicto else 502,
                                {"conflicto": e.conflicto})
+        except Exception as e:
+            # red de contención: sin esto, un error inesperado acá dejaba el
+            # hilo del pedido sin responder nada y el navegador lo veía como
+            # "NetworkError" -- sin pista de qué pasó en realidad.
+            return self._error(f"Error inesperado: {e}", 500)
 
     def do_PUT(self):
         ruta = urlparse(self.path).path
