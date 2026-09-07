@@ -109,6 +109,11 @@ class Handler(BaseHTTPRequestHandler):
         except gh.ErrorSync as e:
             return self._error(e.mensaje, 409 if e.conflicto else 502,
                                {"conflicto": e.conflicto})
+        except Exception as e:
+            # red de contención: sin esto, un error inesperado acá dejaba el
+            # hilo del pedido sin responder nada y el navegador lo veía como
+            # "NetworkError" -- sin pista de qué pasó en realidad.
+            return self._error(f"Error inesperado: {e}", 500)
 
     def do_PUT(self):
         ruta = urlparse(self.path).path
@@ -258,6 +263,12 @@ class Handler(BaseHTTPRequestHandler):
             obra = almacen.leer_obra(partes[2])
             if obra is None:
                 return self._error("Esa obra no está en este equipo.", 404)
+            # obras que ya estaban bajadas antes de que la sincronización
+            # supiera traer el PDF del plano nunca vuelven a pasar por
+            # traer_obra() sólo por abrirse -- esto las pone al día sin
+            # tocar el resto de obra.json (best-effort, no interrumpe la
+            # vista de la obra si falla)
+            sync.asegurar_plano(cfgmod.leer_config(), partes[2], obra)
             return self._json(obra)
         if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "lock":
             return self._json(sync.estado_lock(cfgmod.leer_config(), partes[2]))

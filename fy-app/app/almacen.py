@@ -177,6 +177,15 @@ def ruta_plano(obra_id: str, nombre: str) -> Path | None:
     return p if p.is_file() else None
 
 
+def escribir_plano_bytes(obra_id: str, nombre: str, datos: bytes) -> None:
+    """Guarda un PDF de plano ya bajado del repo -- a diferencia de
+    guardar_plano(), no arma el bloque `plano` del contrato (ya viene del
+    obra.json bajado), sólo deja el archivo en disco."""
+    d = _dir(obra_id)
+    d.mkdir(parents=True, exist_ok=True)
+    (d / nombre).write_bytes(datos)
+
+
 # --- estado de sincronizacion por obra ---------------------------------
 def leer_sync(obra_id: str) -> dict:
     return _leer_json(_dir(obra_id) / ".sync.json") or {}
@@ -198,4 +207,8 @@ def escribir_desde_repo(obra_id: str, obra: dict, sha_obra: str, resumen: dict |
     res = resumen or C.resumen(C.normalizar(obra))
     (d / "resumen.json").write_text(json.dumps(res, ensure_ascii=False, indent=2),
                                     encoding="utf-8")
-    guardar_sync(obra_id, {"shaObra": sha_obra, "bajadaEl": C.ahora()})
+    # mergea con el estado de sync que ya hubiera (p.ej. planoBajadoHash) en
+    # vez de pisarlo entero -- si no, cada bajada se olvida de lo que ya se
+    # había sincronizado antes y lo repite de nuevo
+    est = leer_sync(obra_id)
+    guardar_sync(obra_id, {**est, "shaObra": sha_obra, "bajadaEl": C.ahora()})

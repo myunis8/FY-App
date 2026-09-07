@@ -4,6 +4,40 @@ import json
 from . import almacen, contrato as C, github as gh
 
 
+def asegurar_plano(cfg: dict, obra_id: str, obra: dict) -> bool:
+    """Si la obra referencia un plano pero el PDF no está en este equipo,
+    lo trae del repositorio -- sin tocar el resto de obra.json (no hay que
+    arriesgar pisar cambios locales todavía no subidos sólo por mirar la
+    obra). Pasa esto, por ejemplo, con una obra que ya se había bajado a
+    este equipo *antes* de que la sincronización supiera subir/bajar el
+    PDF: su obra.json local nunca vuelve a pasar por traer_obra() sólo
+    por abrirse, así que el plano quedaba pendiente para siempre.
+
+    Best-effort: sin repo/token configurado, sin conexión, o cualquier
+    otro problema, se ignora en silencio -- la obra igual se puede ver
+    sin el plano, como pasaba antes."""
+    if not cfg.get("repo") or not cfg.get("token"):
+        return False
+    plano = obra.get("plano") or {}
+    archivo = plano.get("archivo")
+    if not archivo:
+        return False
+    est = almacen.leer_sync(obra_id)
+    falta_local = almacen.ruta_plano(obra_id, archivo) is None
+    if not falta_local and plano.get("hash") == est.get("planoBajadoHash"):
+        return False                       # ya está, y es el mismo archivo
+    try:
+        datos, _ = gh.bajar_archivo_bin(cfg, f"obras/{obra_id}/{archivo}")
+    except gh.ErrorSync:
+        return False
+    if not datos:
+        return False
+    almacen.escribir_plano_bytes(obra_id, archivo, datos)
+    est["planoBajadoHash"] = plano.get("hash")
+    almacen.guardar_sync(obra_id, est)
+    return True
+
+
 def bajar_todo(cfg: dict) -> dict:
     """Trae los resumenes de todas las obras del repo.
 
@@ -40,7 +74,11 @@ def bajar_todo(cfg: dict) -> dict:
 
 
 def traer_obra(cfg: dict, obra_id: str) -> dict:
-    """Baja el obra.json completo y lo deja en el cache local."""
+    """Baja el obra.json completo y lo deja en el cache local. Si la obra
+    tiene plano, también baja el PDF (no estaba pasando: sólo se bajaban
+    obra.json/resumen.json) -- se salta si ya está el mismo archivo
+    (mismo hash que la última vez que se bajó), para no repetir una
+    transferencia pesada en cada sincronización."""
     obra, sha = gh.bajar_archivo(cfg, f"obras/{obra_id}/obra.json")
     if obra is None:
         raise gh.ErrorSync("Esa obra no está en el repositorio.", 404)
@@ -48,11 +86,15 @@ def traer_obra(cfg: dict, obra_id: str) -> dict:
     est = almacen.leer_sync(obra_id)
     est["soloResumen"] = False
     almacen.guardar_sync(obra_id, est)
+
+    asegurar_plano(cfg, obra_id, obra)
     return almacen.leer_obra(obra_id)
 
 
 def subir_obra(cfg: dict, obra_id: str, forzar: bool = False) -> dict:
-    """Sube obra.json + resumen.json.
+    """Sube obra.json + resumen.json + el PDF del plano (si hay y cambió
+    desde la última subida, comparando por hash -- no tiene sentido resubir
+    el mismo archivo pesado en cada sincronización).
 
     Verifica el sha guardado al bajar/subir por ultima vez. Si en el repo hay
     otro sha, alguien (o vos desde otra maquina) escribio en el medio: no se
@@ -86,7 +128,19 @@ def subir_obra(cfg: dict, obra_id: str, forzar: bool = False) -> dict:
                      json.dumps(res, ensure_ascii=False, indent=2).encode("utf-8"),
                      f"Actualiza resumen de {nombre}", gh.sha_de(cfg, ruta_res))
 
-    almacen.guardar_sync(obra_id, {"shaObra": sha_nuevo, "subidaEl": C.ahora()})
+    plano = obra.get("plano") or {}
+    archivo_plano = plano.get("archivo")
+    plano_hash_subido = est.get("planoSubidoHash")
+    if archivo_plano and plano.get("hash") != plano_hash_subido:
+        ruta_local = almacen.ruta_plano(obra_id, archivo_plano)
+        if ruta_local:
+            ruta_plano_repo = f"obras/{obra_id}/{archivo_plano}"
+            gh.subir_archivo(cfg, ruta_plano_repo, ruta_local.read_bytes(),
+                             f"Sube el plano de {nombre}", gh.sha_de(cfg, ruta_plano_repo))
+            plano_hash_subido = plano.get("hash")
+
+    almacen.guardar_sync(obra_id, {**est, "shaObra": sha_nuevo, "subidaEl": C.ahora(),
+                                   "planoSubidoHash": plano_hash_subido})
     return {"ok": True, "sha": sha_nuevo}
 
 

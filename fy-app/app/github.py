@@ -9,9 +9,17 @@ No hay ningun archivo compartido entre obras: por eso dos personas trabajando
 en obras distintas nunca chocan.
 """
 from __future__ import annotations
-import base64, json, urllib.error, urllib.request
+import base64, json, urllib.error, urllib.parse, urllib.request
 
 API = "https://api.github.com"
+
+
+def _url_ruta(ruta: str) -> str:
+    """Codifica cada tramo de una ruta de repo para la URL de la API (los
+    nombres de archivo pueden tener espacios u otros caracteres -- un
+    plano.pdf con espacios en el nombre, por ejemplo -- que rompen el
+    pedido HTTP si van literales)."""
+    return "/".join(urllib.parse.quote(seg, safe="") for seg in ruta.split("/"))
 
 
 class ErrorSync(Exception):
@@ -36,7 +44,7 @@ def _pedir(cfg: dict, ruta: str, metodo="GET", cuerpo=None):
     if datos:
         req.add_header("Content-Type", "application/json")
     try:
-        with urllib.request.urlopen(req, timeout=25) as r:
+        with urllib.request.urlopen(req, timeout=40) as r:
             crudo = r.read()
             return json.loads(crudo) if crudo else {}
     except urllib.error.HTTPError as e:
@@ -62,7 +70,11 @@ def _pedir(cfg: dict, ruta: str, metodo="GET", cuerpo=None):
             raise ErrorSync("La obra cambió en el repositorio desde que la abriste.",
                             409, conflicto=True)
         raise ErrorSync(f"GitHub respondió {e.code}. {detalle}".strip(), e.code)
-    except urllib.error.URLError:
+    except (urllib.error.URLError, OSError):
+        # OSError además de URLError: un timeout de lectura (socket.timeout)
+        # puede llegar sin envolver en URLError, y sin este catch quedaba
+        # sin atrapar -- el hilo del pedido moría en seco y en el navegador
+        # se veía como "NetworkError", sin ningún mensaje útil.
         raise ErrorSync("Sin conexión con GitHub.")
 
 
@@ -109,7 +121,7 @@ def verificar(cfg: dict, probar_escritura: bool = True) -> dict:
 
 
 def _contenido(cfg: dict, ruta: str):
-    return _pedir(cfg, f"/repos/{cfg['repo']}/contents/{ruta}?ref={cfg.get('rama','main')}")
+    return _pedir(cfg, f"/repos/{cfg['repo']}/contents/{_url_ruta(ruta)}?ref={cfg.get('rama','main')}")
 
 
 def listar_obras(cfg: dict) -> tuple[list[str], bool]:
@@ -136,6 +148,18 @@ def bajar_archivo(cfg: dict, ruta: str) -> tuple[dict | None, str | None]:
     return json.loads(crudo), r.get("sha")
 
 
+def bajar_archivo_bin(cfg: dict, ruta: str) -> tuple[bytes | None, str | None]:
+    """Igual que bajar_archivo(), pero para contenido binario (el plano
+    PDF) -- sin decodificar como UTF-8 ni parsear como JSON."""
+    try:
+        r = _contenido(cfg, ruta)
+    except ErrorSync as e:
+        if e.codigo == 404:
+            return None, None
+        raise
+    return base64.b64decode(r.get("content", "")), r.get("sha")
+
+
 def subir_archivo(cfg: dict, ruta: str, contenido: bytes, mensaje: str,
                   sha: str | None = None) -> str:
     cuerpo = {"message": mensaje,
@@ -143,7 +167,7 @@ def subir_archivo(cfg: dict, ruta: str, contenido: bytes, mensaje: str,
               "branch": cfg.get("rama", "main")}
     if sha:
         cuerpo["sha"] = sha
-    r = _pedir(cfg, f"/repos/{cfg['repo']}/contents/{ruta}", "PUT", cuerpo)
+    r = _pedir(cfg, f"/repos/{cfg['repo']}/contents/{_url_ruta(ruta)}", "PUT", cuerpo)
     return (r.get("content") or {}).get("sha", "")
 
 
@@ -158,7 +182,7 @@ def sha_de(cfg: dict, ruta: str) -> str | None:
 
 
 def borrar_archivo(cfg: dict, ruta: str, sha: str, mensaje: str) -> None:
-    _pedir(cfg, f"/repos/{cfg['repo']}/contents/{ruta}", "DELETE",
+    _pedir(cfg, f"/repos/{cfg['repo']}/contents/{_url_ruta(ruta)}", "DELETE",
           {"message": mensaje, "sha": sha, "branch": cfg.get("rama", "main")})
 
 
