@@ -349,10 +349,12 @@ def _dijkstra(adj: dict, inicio: str) -> dict:
     return dist
 
 
-def _sistema_de_circuito(obra: dict, circuito_id) -> str:
+def sistema_de_circuito(obra: dict, circuito_id) -> str:
     """monofásico salvo que el circuito tenga en algún tablero una seccional
     de 3 o más polos (trifásica). Es el default residencial; si en el futuro
-    Routeo guarda el sistema por circuito, se lee de ahí."""
+    Routeo guarda el sistema por circuito, se lee de ahí. Pública: también la
+    usa canalizacion.circuitos_para_canaliza() para exponerle el dato al DRC
+    de Routeo."""
     for t in obra.get("tableros") or []:
         for d in t.get("dispositivos") or []:
             if d.get("circuitoId") == circuito_id:
@@ -396,7 +398,7 @@ def _analisis_conductor(obra: dict, c: dict, d_max, ctx: dict):
         return None
     tramo = {
         "id": c.get("id"), "L": d_max, "S": c.get("section"), "material": "cobre",
-        "sistema": _sistema_de_circuito(obra, c.get("id")),
+        "sistema": sistema_de_circuito(obra, c.get("id")),
         "categoria": c.get("ctype") or c.get("kind") or "otros",
         "tipo_conductor": tipo,
     }

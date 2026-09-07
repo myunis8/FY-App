@@ -12,6 +12,8 @@ autoguardado del navegador cuando corre integrado). El resto del archivo
 """
 from __future__ import annotations
 
+from . import caida_tension as ct_mod, materiales as mat_mod
+
 # tipo de circuito de esta app -> "kind" que espera Canaliza, y sus defaults
 # (ver CIRCUIT_TYPES / WIRE_COLOR_MAP en canaliza.html)
 KIND_DE_TIPO = {
@@ -62,8 +64,15 @@ def circuitos_para_canaliza(obra: dict) -> list[dict]:
             "cables": 2 if kind == "iluminacion" else 3,
             "prot": c.get("proteccionA") or 10,
             "dash": False, "detail": "", "ctype": c.get("tipo") or "OTRO",
+            "sistema": mat_mod.sistema_de_circuito(obra, c["id"]),
         })
     return salida
+
+
+def caida_tension_para_canaliza() -> dict:
+    """Los datos de caida_tension.py que necesita el chequeo de ΔV% del DRC
+    de Routeo, que corre en el cliente (ver config_publica())."""
+    return ct_mod.config_publica()
 
 
 def _circuito_de(obra: dict, elemento_id: str) -> dict | None:

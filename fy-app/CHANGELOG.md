@@ -3,6 +3,43 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 1.0.0 — Primera versión estable: el ciclo completo funciona de punta a punta
+
+Plano → extracción → revisión → circuitos → routeo → tablero → materiales →
+presupuesto → seguimiento de pago, con una obra real, sin pasos rotos. A
+partir de acá rige semver como corresponde (ver `VERSIONING.md`): `MAJOR`
+para cambios que rompen el contrato de `obra.json`, `MINOR` para
+funcionalidad nueva compatible, `PATCH` para arreglos.
+
+- **Routeo: nuevo aviso de DRC de caída de tensión real por circuito**,
+  usando la misma tabla de ampacidad y los mismos límites (3% iluminación,
+  5% el resto) que ya usaba Verificaciones técnicas -- expuestos una vez
+  al abrir el módulo (`caida_tension.config_publica()`), sin duplicar la
+  lógica en el cliente ni pegarle al servidor en cada recálculo. Calcula
+  la distancia real tablero → punto más lejano de cada circuito (Dijkstra
+  sobre sus propios tramos, igual que hace Verificaciones técnicas del
+  lado del servidor) y avisa con el % calculado, el límite, y la próxima
+  sección normalizada que lo resuelve.
+- **Routeo: nuevo aviso configurable de "tramo sin caja intermedia"**
+  (5 m por defecto, editable en Reglas de diseño), independiente del
+  aviso de tramo largo existente -- sugiere agregar una caja de paso para
+  facilitar el tendido del cable.
+- **Routeo: reorganización de avisos del DRC.** El botón "Configurar
+  reglas y capacidades" se movió a la barra superior (antes había que
+  scrollear el panel derecho hasta el final). La lista de avisos, antes
+  siempre expandida y mezclada con la selección activa y el cómputo de
+  materiales, ahora es un resumen compacto + botón "Ver detalle" que abre
+  un modal con todos los avisos agrupados por tipo (Caños y capacidad,
+  Tramos y tendido, Cruces de caños, Caída de tensión, Cajas, Circuitos y
+  tablero, Calibración) y ordenados con los errores siempre primero. Un
+  contador chico junto a los controles de zoom (✕ errores, ⚠ avisos,
+  oculto si no hay nada) da acceso rápido al mismo modal sin tener que
+  mirar el panel lateral.
+- **README actualizado** para reflejar qué módulos están realmente hechos
+  (Validador, Canalización y Cómputo ya lo estaban, el README no lo
+  decía) y se vació el backlog de un ítem que ya se había resuelto
+  (informe general consolidado).
+
 ## 0.36.0 — Routeo con PDF de servidor, historial y bloqueo entre usuarios, dashboard de ganancias, tema oscuro, y checkpoints de presupuesto
 
 - **Routeo: el PDF ahora se genera del lado del servidor**, igual que el

@@ -429,3 +429,23 @@ def analizar(tramos, *, limites=None, norma=NORMA_DEFAULT,
              largo_ref_m=LARGO_MAX_REFERENCIA_M) -> list:
     return [analizar_tramo(t, limites=limites, norma=norma, largo_ref_m=largo_ref_m)
             for t in (tramos or [])]
+
+
+# ------------------------------------------------------- config para el cliente
+def config_publica(norma=NORMA_DEFAULT) -> dict:
+    """Los NÚMEROS (no la lógica) que necesita un chequeo de caída de tensión
+    corriendo del lado del cliente -- hoy el DRC de Routeo (web/canaliza.html),
+    que corre en el navegador sin pegarle al servidor mientras se edita. Sale
+    una vez al abrir el módulo, junto con el resto de lo que ya trae
+    /api/obras/<id>/canalizacion (ver canalizacion.caida_tension_para_canaliza).
+    La fórmula se repite en JS -- es aritmética de tres líneas -- pero la
+    tabla de ampacidad y los límites tienen acá su única fuente."""
+    return {
+        "ampacidad": dict(AMPACIDAD[norma]["cobre"]),
+        "limites": {"iluminacion": LIMITE_CAIDA_DEFAULT["iluminacion"],
+                    "otros": LIMITE_CAIDA_DEFAULT["otros"]},
+        "resistividadCobre": RESISTIVIDAD["cobre"],
+        "kMono": K_SISTEMA["monofasico"], "kTri": K_SISTEMA["trifasico"],
+        "tensionMono": TENSION_NOMINAL["monofasico"], "tensionTri": TENSION_NOMINAL["trifasico"],
+        "seccionesNormalizadas": list(SECCIONES_NORMALIZADAS),
+    }
