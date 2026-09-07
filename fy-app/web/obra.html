@@ -77,7 +77,6 @@ h2:first-child{margin-top:0}
   background:var(--danger);box-shadow:0 0 0 3px var(--danger-soft);cursor:pointer}
 .led.on{background:var(--green);box-shadow:0 0 0 3px var(--green-soft)}
 .led.desacople{box-shadow:0 0 0 3px var(--amber)}
-.acciones{display:flex;gap:9px;justify-content:flex-end;margin-top:22px;flex-wrap:wrap}
 .caja-pdf{background:var(--panel);border-radius:14px;width:min(920px,96vw);height:min(860px,92vh);
   display:flex;flex-direction:column;overflow:hidden}
 .caja-pdf .cab-pdf{padding:10px 14px;border-bottom:1px solid var(--line);display:flex;
@@ -94,6 +93,7 @@ h2:first-child{margin-top:0}
 <header>
   <div><h1 id="h-nombre">Obra</h1><div class="sub" id="h-sub">Cargando…</div></div>
   <div class="spacer"></div>
+  <button class="btn ghost" id="d-borrar" style="color:var(--danger)">Borrar</button>
   <button class="btn ghost" id="d-bajar">Descargar obra.json</button>
   <button class="btn primary" id="d-subir">Subir al repositorio</button>
   <button class="btn ghost" id="b-volver">‹ Todas las obras</button>
@@ -154,6 +154,9 @@ h2:first-child{margin-top:0}
     <div class="nota" style="margin:0">Quién modificó qué y cuándo, en esta obra. Se sincroniza
       con el resto (últimas 200 acciones); las ediciones muy chicas y frecuentes de Tablero
       no quedan una por una para no inundar esta lista.</div>
+    <input id="hist-buscar" placeholder="Filtrar por usuario, módulo o texto"
+      style="width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:7px;
+      font-size:.8rem;box-sizing:border-box;background:var(--panel);color:var(--ink);margin:4px 0 0">
     <div id="hist-lista" class="nota" style="margin:4px 0 0"></div>
   </div>
 
@@ -166,10 +169,6 @@ h2:first-child{margin-top:0}
     <div style="display:flex;justify-content:flex-end">
       <button class="btn primary sm" id="inf-generar">Generar informe</button>
     </div>
-  </div>
-
-  <div class="acciones">
-    <button class="btn" id="d-borrar" style="color:var(--danger)">Borrar</button>
   </div>
 </div>
 
@@ -210,7 +209,6 @@ h2:first-child{margin-top:0}
     <div style="display:flex;justify-content:flex-end">
       <button class="btn primary sm" id="sg-guardar">Guardar seguimiento</button>
     </div>
-    <div id="sg-historial" class="nota" style="margin-top:8px"></div>
   </div>
 </aside>
 </main>
@@ -284,27 +282,24 @@ function pintarSeguimiento(obra){
   $('sg-pago-tipo').value = 'porcentaje';
   $('sg-monto').value = '';
   actualizarVisibilidadPct();
-  const hist = (seg.historial || []).slice(-6).reverse();
-  $('sg-historial').textContent = hist.length ? hist.map(h => {
-    const quien = h.por || 'alguien', vez = cuando(h.el);
-    if(h.campo === 'estado') return `${quien} cambió el estado a "${ESTADOS[h.a]||h.a}" (${vez})`;
-    if(h.campo === 'pago'){
-      const et = ESTADOS_PAGO[h.a.estado] || h.a.estado;
-      const cobro = h.montoDelta ? ` -- cobró ${plata(h.montoDelta)}` : '';
-      return `${quien} marcó el pago como "${et}"${h.a.estado==='parcial' ? ' ('+h.a.porcentaje+'%)' : ''}${cobro} (${vez})`;
-    }
-    return '';
-  }).join(' · ') : 'Todavía no hay cambios registrados.';
+  // los cambios de estado/pago ya quedan en el Historial general de la
+  // obra (mismo evento, ver _actualizar_seguimiento en server.py) -- no
+  // hace falta repetirlos acá aparte
 }
 function pintarHistorial(obra){
-  const hist = (obra.historial || []).slice(-15).reverse();
+  const q = ($('hist-buscar').value || '').trim().toLowerCase();
+  let hist = (obra.historial || []).slice().reverse();
+  hist = q
+    ? hist.filter(h => [h.por, h.modulo, h.resumen].some(s => (s||'').toLowerCase().includes(q)))
+    : hist.slice(0, 6);   // sin filtro, sólo lo último -- para ver más, se busca
   $('hist-lista').innerHTML = hist.length ? hist.map(h =>
     `<div style="padding:4px 0;border-top:1px solid var(--line)">
       <b style="color:var(--ink)">${esc(h.por || 'alguien')}</b> · ${esc(h.modulo || '')}
       ${h.resumen ? '— ' + esc(h.resumen) : ''}
       <span style="color:var(--muted)">(${cuando(h.el)})</span>
-    </div>`).join('') : 'Todavía no hay actividad registrada.';
+    </div>`).join('') : (q ? 'No hay resultados para esa búsqueda.' : 'Todavía no hay actividad registrada.');
 }
+$('hist-buscar').addEventListener('input', () => { if(obraAbierta) pintarHistorial(obraAbierta); });
 function actualizarVisibilidadPct(){
   const esParcial = $('sg-pago').value === 'parcial';
   $('sg-pct-fila').style.display = esParcial ? '' : 'none';
