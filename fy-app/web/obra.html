@@ -32,7 +32,14 @@ header .sub{font-size:.72rem;color:#9db2c7;margin-top:2px}
 .btn.ghost{background:transparent;border-color:#33506e;color:#cfe0f0}
 .btn.ghost:hover{border-color:#5b7fa5}
 .btn.sm{padding:5px 10px;font-size:.76rem}
-main{max-width:820px;margin:0 auto;padding:26px 22px 60px}
+.layout{max-width:1180px;margin:0 auto;padding:26px 22px 60px;display:grid;
+  grid-template-columns:1fr 300px;gap:22px;align-items:start}
+.panel-lateral{display:flex;flex-direction:column;gap:16px;position:sticky;top:22px}
+.panel{border:1px solid var(--line);border-radius:8px;padding:14px 15px;background:var(--panel)}
+.campo-fijo{font-size:.8rem;padding:5px 0;border-bottom:1px dotted var(--line)}
+.campo-fijo:last-child{border-bottom:none}
+.campo-fijo b{display:block;font-size:.66rem;text-transform:uppercase;letter-spacing:.04em;
+  color:var(--muted);font-weight:600;margin-bottom:2px}
 h2{font-family:'Space Grotesk',sans-serif;font-size:.82rem;margin:22px 0 8px;
   text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
 h2:first-child{margin-top:0}
@@ -58,10 +65,18 @@ h2:first-child{margin-top:0}
 .plano-fila .flecha{color:var(--muted);font-size:1.2rem;flex:0 0 auto;line-height:1}
 .chk{display:flex;align-items:center;gap:6px;font-size:.82rem;cursor:pointer}
 .chk input{margin:0}
-.chk-terminado{display:flex;align-items:center;gap:5px;font-size:.72rem;color:var(--muted);
-  cursor:pointer;white-space:nowrap;flex:0 0 auto}
-.chk-terminado input{margin:0}
-.chk-terminado.listo{color:var(--green);font-weight:600}
+.modulos-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin:6px 0 4px}
+.modulo-btn{position:relative;border:1px solid var(--line);border-radius:8px;padding:12px 13px 11px;
+  background:var(--panel);text-align:left;color:var(--ink);cursor:pointer;
+  transition:border-color .15s,background .15s;display:flex;flex-direction:column;gap:6px}
+.modulo-btn:hover{border-color:var(--muted);background:var(--slate-soft)}
+.modulo-btn .ic{color:var(--muted)}
+.modulo-btn b{font-size:.82rem;font-weight:600}
+.modulo-btn .nota{font-size:.72rem;color:var(--muted)}
+.led{position:absolute;top:10px;right:10px;width:10px;height:10px;border-radius:50%;
+  background:var(--danger);box-shadow:0 0 0 3px var(--danger-soft);cursor:pointer}
+.led.on{background:var(--green);box-shadow:0 0 0 3px var(--green-soft)}
+.led.desacople{box-shadow:0 0 0 3px var(--amber)}
 .acciones{display:flex;gap:9px;justify-content:flex-end;margin-top:22px;flex-wrap:wrap}
 .caja-pdf{background:var(--panel);border-radius:14px;width:min(920px,96vw);height:min(860px,92vh);
   display:flex;flex-direction:column;overflow:hidden}
@@ -82,7 +97,8 @@ h2:first-child{margin-top:0}
   <button class="btn ghost" id="b-volver">‹ Todas las obras</button>
 </header>
 
-<main>
+<main class="layout">
+<div class="contenido">
   <div class="aviso" id="d-aviso"></div>
 
   <h2>Resumen</h2>
@@ -93,79 +109,38 @@ h2:first-child{margin-top:0}
   <input type="file" id="d-archivo" accept="application/pdf,.pdf" hidden>
 
   <h2>Módulos</h2>
-  <div class="plano-fila clicable" id="fila-circuitos">
-    <div class="txt"><b>Circuitos</b><span id="d-ncircuitos"></span>
-      <div class="nota">Agrupá los elementos en IUG, TUG, TUE y elegí secciones
-      y protecciones.</div></div>
-    <span class="flecha">›</span>
-  </div>
-  <div class="plano-fila clicable" id="fila-tablero">
-    <div class="txt"><b>Tablero</b><span id="d-ntableros"></span>
-      <div class="nota">Protecciones, distribución de bocas y armado gráfico.</div></div>
-    <label class="chk-terminado" onclick="event.stopPropagation()">
-      <input type="checkbox" class="chk-modulo" data-modulo="tablero"> Terminado</label>
-    <button class="btn sm" id="d-pdf-tableros" style="display:none">Descargar todos (PDF)</button>
-    <span class="flecha">›</span>
-  </div>
-  <div class="plano-fila clicable" id="fila-canalizacion">
-    <div class="txt"><b>Routeo</b><span id="d-ncanalizacion"></span>
-      <div class="nota">Cajas y caños entre ellas, con diámetro sugerido.</div></div>
-    <label class="chk-terminado" onclick="event.stopPropagation()">
-      <input type="checkbox" class="chk-modulo" data-modulo="routeo"> Terminado</label>
-    <span class="flecha">›</span>
-  </div>
-  <div class="plano-fila clicable" id="fila-presupuesto">
-    <div class="txt"><b>Presupuesto</b><span id="d-npresupuesto"></span>
-      <div class="nota">Cantidades, extras, descuentos y precio final.</div></div>
-    <label class="chk-terminado" onclick="event.stopPropagation()">
-      <input type="checkbox" class="chk-modulo" data-modulo="presupuesto"> Terminado</label>
-    <span class="flecha">›</span>
-  </div>
-  <div class="plano-fila clicable" id="fila-materiales">
-    <div class="txt"><b>Lista de materiales</b>
-      <div class="nota">Cajas, tablero con accesorios, PAT, productos extra y cable a comprar.</div></div>
-    <label class="chk-terminado" onclick="event.stopPropagation()">
-      <input type="checkbox" class="chk-modulo" data-modulo="materiales"> Terminado</label>
-    <span class="flecha">›</span>
-  </div>
-  <div class="plano-fila clicable" id="fila-verificaciones">
-    <div class="txt"><b>Verificaciones técnicas</b>
-      <div class="nota">Distancia de cada circuito al tablero, con su sección y protección --
-      base para caída de tensión y límites de consumo.</div></div>
-    <span class="flecha">›</span>
-  </div>
-
-  <h2>Seguimiento</h2>
-  <div class="plano-fila" style="flex-direction:column;align-items:stretch;gap:12px">
-    <div style="display:flex;gap:16px;flex-wrap:wrap">
-      <div class="campo" style="flex:1;min-width:190px;margin-bottom:0">
-        <label for="sg-estado">Estado de la obra</label>
-        <select id="sg-estado"></select>
-      </div>
-      <div class="campo" style="flex:1;min-width:170px;margin-bottom:0">
-        <label for="sg-pago">Estado de pago</label>
-        <select id="sg-pago"></select>
-      </div>
-      <div class="campo" id="sg-pct-fila" style="flex:0 0 110px;margin-bottom:0;display:none">
-        <label for="sg-pago-tipo">Cobrado</label>
-        <select id="sg-pago-tipo">
-          <option value="porcentaje">Por %</option>
-          <option value="monto">Por monto</option>
-        </select>
-      </div>
-      <div class="campo" id="sg-pct-valor-fila" style="flex:0 0 110px;margin-bottom:0;display:none">
-        <label for="sg-pct">% pagado</label>
-        <input id="sg-pct" type="number" min="1" max="99" value="50">
-      </div>
-      <div class="campo" id="sg-monto-valor-fila" style="flex:0 0 160px;margin-bottom:0;display:none">
-        <label for="sg-monto">Monto cobrado</label>
-        <input id="sg-monto" type="number" min="0" step="1000" placeholder="Ej. 70000">
-      </div>
+  <div class="modulos-grid">
+    <div class="modulo-btn" id="fila-circuitos">
+      <span class="ic"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="3" r="1.5"/><circle cx="3" cy="13" r="1.5"/><circle cx="13" cy="13" r="1.5"/><path d="M8 4.5 4.3 11.6M8 4.5 11.7 11.6"/></svg></span>
+      <div><b>Circuitos</b><div class="nota" id="d-ncircuitos"></div></div>
+      <span class="led" data-modulo="circuitos" title="Marcar como terminado / no terminado"></span>
     </div>
-    <div style="display:flex;justify-content:flex-end">
-      <button class="btn primary sm" id="sg-guardar">Guardar seguimiento</button>
+    <div class="modulo-btn" id="fila-tablero">
+      <span class="ic"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="12" height="12" rx="1.5"/><path d="M5.3 5v4M8 5v4M10.7 5v4"/></svg></span>
+      <div><b>Tablero</b><div class="nota" id="d-ntableros"></div>
+        <button class="btn sm" id="d-pdf-tableros" style="display:none;margin-top:4px" onclick="event.stopPropagation()">Descargar todos (PDF)</button></div>
+      <span class="led" data-modulo="tablero" title="Marcar como terminado / no terminado"></span>
     </div>
-    <div id="sg-historial" class="nota" style="margin:0"></div>
+    <div class="modulo-btn" id="fila-canalizacion">
+      <span class="ic"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="3" cy="12.5" r="1.3" fill="currentColor" stroke="none"/><circle cx="13" cy="3.5" r="1.3" fill="currentColor" stroke="none"/><path d="M4.2 11.4 11.8 4.6" stroke-dasharray="2 1.6"/></svg></span>
+      <div><b>Routeo</b><div class="nota" id="d-ncanalizacion"></div></div>
+      <span class="led" data-modulo="routeo" title="Marcar como terminado / no terminado"></span>
+    </div>
+    <div class="modulo-btn" id="fila-presupuesto">
+      <span class="ic"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="1.8" width="10" height="12.4" rx="1"/><path d="M5.3 5.4h5.4M5.3 7.8h5.4M5.3 10.2h3.4"/></svg></span>
+      <div><b>Presupuesto</b><div class="nota" id="d-npresupuesto"></div></div>
+      <span class="led" data-modulo="presupuesto" title="Marcar como terminado / no terminado"></span>
+    </div>
+    <div class="modulo-btn" id="fila-materiales">
+      <span class="ic"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2 13.5 5v6L8 14 2.5 11V5z"/><path d="M8 2v6M2.5 5 8 8M13.5 5 8 8"/></svg></span>
+      <div><b>Lista de materiales</b><div class="nota">Cajas, accesorios y cable a comprar</div></div>
+      <span class="led" data-modulo="materiales" title="Marcar como terminado / no terminado"></span>
+    </div>
+    <div class="modulo-btn" id="fila-verificaciones">
+      <span class="ic"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="6.7" cy="6.7" r="4"/><path d="M9.7 9.7 13.3 13.3"/></svg></span>
+      <div><b>Verificaciones técnicas</b><div class="nota">Caída de tensión y límites de consumo</div></div>
+      <span class="led" data-modulo="verificaciones" title="Marcar como terminado / no terminado"></span>
+    </div>
   </div>
 
   <h2>Historial</h2>
@@ -192,6 +167,48 @@ h2:first-child{margin-top:0}
     <button class="btn" id="d-bajar">Descargar obra.json</button>
     <button class="btn primary" id="d-subir">Subir al repositorio</button>
   </div>
+</div>
+
+<aside class="panel-lateral">
+  <div class="panel">
+    <h2 style="margin-top:0">Datos del proyecto</h2>
+    <div class="campo-fijo"><b>Cliente</b><span id="pl-cliente">—</span></div>
+    <div class="campo-fijo"><b>Dirección</b><span id="pl-direccion">—</span></div>
+    <div class="campo-fijo"><b>Tipo de instalación</b><span id="pl-tipo">—</span></div>
+    <div class="campo-fijo"><b>Creada</b><span id="pl-creada">—</span></div>
+    <div class="campo-fijo"><b>Última actualización</b><span id="pl-actualizada">—</span></div>
+  </div>
+  <div class="panel">
+    <h2 style="margin-top:0">Seguimiento</h2>
+    <div class="campo" style="margin-bottom:10px">
+      <label for="sg-estado">Estado de la obra</label>
+      <select id="sg-estado"></select>
+    </div>
+    <div class="campo" style="margin-bottom:10px">
+      <label for="sg-pago">Estado de pago</label>
+      <select id="sg-pago"></select>
+    </div>
+    <div class="campo" id="sg-pct-fila" style="margin-bottom:10px;display:none">
+      <label for="sg-pago-tipo">Cobrado</label>
+      <select id="sg-pago-tipo">
+        <option value="porcentaje">Por %</option>
+        <option value="monto">Por monto</option>
+      </select>
+    </div>
+    <div class="campo" id="sg-pct-valor-fila" style="margin-bottom:10px;display:none">
+      <label for="sg-pct">% pagado</label>
+      <input id="sg-pct" type="number" min="1" max="99" value="50">
+    </div>
+    <div class="campo" id="sg-monto-valor-fila" style="margin-bottom:10px;display:none">
+      <label for="sg-monto">Monto cobrado</label>
+      <input id="sg-monto" type="number" min="0" step="1000" placeholder="Ej. 70000">
+    </div>
+    <div style="display:flex;justify-content:flex-end">
+      <button class="btn primary sm" id="sg-guardar">Guardar seguimiento</button>
+    </div>
+    <div id="sg-historial" class="nota" style="margin-top:8px"></div>
+  </div>
+</aside>
 </main>
 
 <!-- vista previa de PDF -->
@@ -351,11 +368,20 @@ async function cargar(){
   document.title = o.nombre || 'Obra';
   $('h-sub').textContent = (o.cliente ? o.cliente+' · ' : '') +
     (ESTADOS[obraAbierta.seguimiento?.estado]||'') + ' · última edición ' + cuando(o.actualizadoEl);
+  pintarDatosProyecto(obraAbierta);
   pintarBloques(obraAbierta);
   pintarPlano(obraAbierta);
   pintarSeguimiento(obraAbierta);
   pintarHistorial(obraAbierta);
   armarChecksInforme();
+}
+function pintarDatosProyecto(obra){
+  const o = obra.obra;
+  $('pl-cliente').textContent = o.cliente || '—';
+  $('pl-direccion').textContent = o.direccion || '—';
+  $('pl-tipo').textContent = o.tipoInstalacion || '—';
+  $('pl-creada').textContent = cuando(o.creadoEl);
+  $('pl-actualizada').textContent = cuando(o.actualizadoEl);
 }
 function pintarBloques(obra){
   const canal = obra.canalizacion||{};
@@ -391,26 +417,39 @@ function pintarBloques(obra){
   $('fila-verificaciones').onclick = () => location.href = '/verificaciones.html?obra=' + obra.obra.id;
   $('d-bloques').innerHTML = filas.map(([k,v]) =>
     `<div class="bloque"><b>${k}</b>${v}</div>`).join('');
-  pintarChecklist(obra);
+  pintarModulos(obra);
 }
-function pintarChecklist(obra){
-  const checklist = obra.checklist || {};
-  document.querySelectorAll('.chk-modulo').forEach(chk => {
-    const listo = !!checklist[chk.dataset.modulo];
-    chk.checked = listo;
-    chk.closest('.chk-terminado').classList.toggle('listo', listo);
+// LED de cada módulo: arranca en el valor sugerido calculado en el
+// servidor (ver contrato.estado_modulos) y se pisa a mano con el click;
+// "desacople" marca cuando alguien lo dejó en verde a mano pero los
+// datos reales de la obra ya no lo respaldan (no se revierte solo).
+async function pintarModulos(obra){
+  try{
+    const r = await api('/api/obras/'+obra.obra.id+'/modulos');
+    pintarModulosDesde(r.modulos);
+  }catch(e){ /* sin bloquear el resto de la pantalla si esto falla */ }
+}
+function pintarModulosDesde(modulos){
+  document.querySelectorAll('.led').forEach(led => {
+    const m = modulos[led.dataset.modulo]; if(!m) return;
+    led.classList.toggle('on', m.finalizado);
+    const desacople = m.manual && m.finalizado && !m.sugerido;
+    led.classList.toggle('desacople', desacople);
+    led.title = desacople
+      ? 'Marcado a mano como terminado, pero los datos de la obra ya no lo respaldan.'
+      : 'Marcar como terminado / no terminado' + (m.cambiadoPor ? ` · marcado por ${esc(m.cambiadoPor)}` : '');
   });
 }
-document.querySelectorAll('.chk-modulo').forEach(chk => chk.addEventListener('change', async () => {
+document.querySelectorAll('.led').forEach(led => led.onclick = async (e) => {
+  e.stopPropagation();
   if(!obraAbierta) return;
-  const modulo = chk.dataset.modulo, listo = chk.checked;
+  const modulo = led.dataset.modulo, finalizado = !led.classList.contains('on');
   try{
-    const r = await api('/api/obras/'+obraAbierta.obra.id+'/checklist',
-      {method:'POST', body:JSON.stringify({modulo, listo})});
-    obraAbierta.checklist = r.checklist;
-    pintarChecklist(obraAbierta);
-  }catch(e){ chk.checked = !listo; toast(e.message); }
-}));
+    const r = await api('/api/obras/'+obraAbierta.obra.id+'/modulos',
+      {method:'POST', body:JSON.stringify({modulo, finalizado})});
+    pintarModulosDesde(r.modulos);
+  }catch(err){ toast(err.message); }
+});
 function pintarPlano(obra){
   const p = obra.plano, cont = $('d-plano');
   if(!p && obra.obra.sinPlano){
