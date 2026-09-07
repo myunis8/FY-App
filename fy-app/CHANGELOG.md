@@ -3,6 +3,30 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 1.0.1 — La sincronización ahora sí trae el plano PDF
+
+- **Fix**: sincronizar una obra subía el plano al repositorio pero nunca lo
+  bajaba -- `sync.py` sólo manejaba `obra.json`/`resumen.json`. Ahora
+  `subir_obra()`/`traer_obra()` también suben/bajan el PDF, comparando por
+  el hash sha256 que ya se guardaba en `plano.hash` para no repetir la
+  transferencia si no cambió.
+- **Fix**: una obra que ya estaba bajada a un equipo *antes* de este
+  arreglo nunca volvía a pasar por el código que trae el plano, por más
+  veces que se sincronizara (abrir una obra ya presente localmente no
+  pasa por `traer_obra()`). Nueva `sync.asegurar_plano()`, enganchada en
+  la lectura normal de la obra, completa el PDF que falte sin tocar el
+  resto de `obra.json` -- no arriesga pisar cambios locales sin subir.
+- **Fix**: la URL de la API de GitHub se armaba sin codificar la ruta, así
+  que un nombre de plano con espacios (algo común: "PLANOS SARMIENTO-
+  PLANTA ELECTRICIDAD.pdf") rompía el pedido HTTP antes de llegar a
+  GitHub. Ese error en particular no quedaba atrapado, y el hilo del
+  pedido moría sin responder nada -- en el navegador se veía como
+  "NetworkError when attempting to fetch resource", sin ninguna pista.
+  Ahora la ruta se codifica bien, `_pedir()` atrapa también timeouts
+  crudos de lectura, y el servidor tiene una red de contención general
+  para que cualquier error inesperado devuelva un mensaje legible en vez
+  de cortar la conexión en seco.
+
 ## 1.0.0 — Primera versión estable: el ciclo completo funciona de punta a punta
 
 Plano → extracción → revisión → circuitos → routeo → tablero → materiales →
