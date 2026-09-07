@@ -409,6 +409,7 @@ window.addEventListener('canaliza-listo', async () => {
     const res = await fetch(`/api/obras/${OBRA_ID}/canalizacion`);
     const d = await res.json();
     if(!res.ok) throw new Error(d.error || 'No se pudo leer la obra.');
+    window.canalizaSetCaidaTension(d.caidaTension);
     if(d.proyecto){
       // ya había un proyecto guardado: se carga tal cual, pero cada vez que
       // se abre se completa lo que falte respecto de lo que ya sabe el
@@ -422,6 +423,11 @@ window.addEventListener('canaliza-listo', async () => {
       if(!proyecto.pxPerM && d.pxPerM){ proyecto.pxPerM = d.pxPerM; arreglos.push('la escala'); }
       const nCirc = mergeCircuitosExtraidos(proyecto, d.circuitos);
       if(nCirc) arreglos.push(nCirc + ' circuito(s)');
+      // "sistema" (mono/trifásico) es un dato calculado en Tablero, no algo
+      // que se edite en Routeo -- conviene mantenerlo al día en los
+      // circuitos ya guardados, no sólo en los que se agregan recién ahora
+      const sistemaPorId = new Map((d.circuitos||[]).map(c=>[c.id, c.sistema]));
+      for(const c of proyecto.circuits||[]) if(sistemaPorId.has(c.id)) c.sistema = sistemaPorId.get(c.id);
       const nNuevas = mergeCajasExtraidas(proyecto, d.nodos);
       if(nNuevas) arreglos.push(nNuevas + ' caja(s) nueva(s)');
       await window.canalizaImportar(proyecto);
@@ -715,6 +721,7 @@ const uid = (p)=> p + Math.random().toString(36).slice(2,9);
 const S = {
   base:null, baseName:"", baseSrc:null,      // Image + dataURL
   pxPerM:null,
+  ct:null,                                   // tabla de ampacidad/límites, ver canalizaSetCaidaTension
   circuits:[], nodes:[], runs:[],
   activeCircuit:null, sel:null,              // sel = {t:'node'|'run', id}
   tool:"select",
@@ -2204,6 +2211,66 @@ function paintProp(){
 
 /* ============================ DRC ============================ */
 
+// distancia (m) tablero -> punto más lejano de un circuito, siguiendo sus
+// propios tramos cerrados -- mismo criterio que
+// materiales.computar_verificaciones() del lado servidor (Dijkstra desde
+// los tableros). Devuelve el tramo por el que se llega a ese punto más
+// lejano, para poder centrar/pulsar el aviso igual que a cualquier otro.
+function caidaMasLarga(rs, tabs){
+  const dist={}, viaRun={}, adj={};
+  tabs.forEach(t=> dist[t]=0);
+  for(const r of rs){
+    const L = runLenM(r);
+    (adj[r.a]=adj[r.a]||[]).push({to:r.b, w:L, run:r});
+    (adj[r.b]=adj[r.b]||[]).push({to:r.a, w:L, run:r});
+  }
+  let changed=true, guard=0;
+  while(changed && guard++<60){
+    changed=false;
+    for(const u of Object.keys(dist)){
+      for(const e of (adj[u]||[])){
+        const nd = dist[u]+e.w;
+        if(dist[e.to]===undefined || nd<dist[e.to]-1e-9){ dist[e.to]=nd; viaRun[e.to]=e.run; changed=true; }
+      }
+    }
+  }
+  let farNode=null, farDist=-1;
+  for(const n in dist) if(dist[n]>farDist){ farDist=dist[n]; farNode=n; }
+  if(farNode===null || !viaRun[farNode]) return null;
+  return {L:farDist, run:viaRun[farNode]};
+}
+
+// ΔV% al peor caso (ampacidad) y a la corriente de protección, misma cuenta
+// que caida_tension.py::_analizar_caida (S.ct trae la tabla/límites, ver
+// canalizaSetCaidaTension). Sólo circuitos con conductor de fase: PAT/tierra
+// no lleva caída de tensión, se filtra antes de llamar a esto.
+function evaluarCaidaTension(c, L){
+  if(!S.ct || !L || !c.section) return null;
+  const iz = S.ct.ampacidad[String(c.section)] || null;
+  const iProt = c.prot || null;
+  const sistema = c.sistema==="trifasico" ? "trifasico" : "monofasico";
+  const k = sistema==="trifasico" ? S.ct.kTri : S.ct.kMono;
+  const V = sistema==="trifasico" ? S.ct.tensionTri : S.ct.tensionMono;
+  const rho = S.ct.resistividadCobre;
+  const dv = (Smm2, I) => (I && Smm2 && V) ? 100*k*L*I*rho/(Smm2*V) : null;
+  const dvPeor = dv(c.section, iz), dvProt = dv(c.section, iProt);
+  const limite = c.kind==="iluminacion" ? S.ct.limites.iluminacion : S.ct.limites.otros;
+  const excedeProt = dvProt!==null && dvProt>limite;
+  if(!excedeProt && !(dvPeor!==null && dvPeor>limite)) return null;
+  const dvMostrar = excedeProt ? dvProt : dvPeor;
+  let sug=null, s=c.section;
+  while(iz){
+    let sig=null;
+    for(const x of S.ct.seccionesNormalizadas) if(x>s+1e-9){ sig=x; break; }
+    if(sig===null) break;
+    s=sig;
+    const d2 = dv(s, iz);
+    if(d2!==null && d2<=limite){ sug=s; break; }
+  }
+  const suf = sug ? ` Próxima sección que lo resuelve: ${sug} mm².` : "";
+  return `Circuito ${esc(c.name)}: caída de tensión de ${dvMostrar.toFixed(1)}% a ${fmt(L,1)} m del tablero (límite ${limite}%).${suf}`;
+}
+
 function drcRun(){
   const out=[];
   const push=(lvl,txt,target)=> out.push({lvl,txt,target});
@@ -2274,6 +2341,16 @@ function drcRun(){
       const orphan = rs.filter(r=> !(r.a&&seen.has(r.a)) && !(r.b&&seen.has(r.b)));
       if(orphan.length)
         push("w", `${esc(c.name)}: ${orphan.length} tramo(s) no llegan al tablero por ningún camino.`, orphan[0].id);
+
+      // caída de tensión al punto más lejano del circuito -- PAT/tierra no
+      // lleva esta cuenta (ver caida_tension.py)
+      if(S.pxPerM && S.ct && c.kind!=="tierra"){
+        const camino = caidaMasLarga(rs.filter(r=>r.a&&r.b), tabs);
+        if(camino){
+          const txt = evaluarCaidaTension(c, camino.L);
+          if(txt) push("w", txt, camino.run.id);
+        }
+      }
     }
   }
 
@@ -2917,6 +2994,10 @@ window.canalizaDebug = {S, activeCi, ciById, nodeById, findNode, wireHex, condui
 
 window.canalizaExportar = buildProjectData;
 window.canalizaImportar = applyProjectData;
+// tabla de ampacidad / límites de caída de tensión (caida_tension.py, ver
+// canalizacion.caida_tension_para_canaliza) -- no es parte del proyecto
+// guardado, se refresca en cada apertura del módulo
+window.canalizaSetCaidaTension = ct => { S.ct = ct || null; };
 
 })();
 

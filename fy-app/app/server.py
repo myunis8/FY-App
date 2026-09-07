@@ -218,6 +218,7 @@ class Handler(BaseHTTPRequestHandler):
                 "pxPerM": canal_mod.pxpermetro_para_canaliza(obra),
                 "planoUrl": (f"/api/obras/{partes[2]}/plano.png?zoom={canal_mod.ZOOM_PLANO}"
                             if (obra.get("plano") or {}).get("referencia") else None),
+                "caidaTension": canal_mod.caida_tension_para_canaliza(),
             })
         if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "materiales":
             obra = almacen.leer_obra(partes[2])
