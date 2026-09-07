@@ -107,23 +107,20 @@ del contrato consume y cuáles produce:
    opcionales, descuentos y PDF con logo y marca de agua. *(hecho)*
 4. **Tablero** — presets de gabinete, distribución automática y arrastre
    gráfico de térmicas por riel. *(hecho, falta el dibujo del conexionado)*
-3. **Validador** — función pura `validar(obra)`, llena `validacion`.
-4. **Canalización** — `canaliza.html` adaptado al contrato.
-5. **Cómputo** — deriva `computo` desde `canalizacion` y `circuitos`.
-6. **Presupuesto** — `presupuestos-app.html` adaptado al contrato.
+5. **Validador** — vínculos artefacto/tecla y avisos derivados, llena
+   `validacion` (`app/vinculos.py`, `recalcular()`). *(hecho)*
+6. **Canalización** — `canaliza.html` integrado al contrato
+   (`app/canalizacion.py`). *(hecho)*
+7. **Cómputo** — deriva materiales desde `canalizacion` y `circuitos`
+   (`app/materiales.py`). *(hecho)*
 
 Regla de oro: ningún módulo borra claves que no entiende, para que una versión
 vieja no destruya datos de una nueva.
 
 ## Backlog / a futuro
 
-- **PDF consolidado de entrega**: un solo PDF que junte routeo (canalización),
-  tablero (conexionado + guía de tapa) y presupuesto (materiales), pensado
-  para entregarle una sola pieza al cliente en vez de varios archivos
-  sueltos. Debería armarse de forma que sea fácil sumarle más secciones
-  cuando aparezcan módulos nuevos (por ejemplo, automatizaciones) sin tener
-  que rehacer el armado cada vez — cada módulo aporta su(s) página(s) ya
-  generadas y esto sólo las concatena con una portada/índice.
+Sin ítems pendientes anotados por ahora. Lo que se va agregando se registra
+en `CHANGELOG.md` a medida que se hace, no acá de antemano.
 
 <!-- push test: 2026-09-01 -->
 
