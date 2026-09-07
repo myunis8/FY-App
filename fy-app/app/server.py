@@ -77,8 +77,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._revalidar(partes[2])
             if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "seguimiento":
                 return self._actualizar_seguimiento(partes[2])
-            if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "checklist":
-                return self._actualizar_checklist(partes[2])
+            if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "modulos":
+                return self._marcar_modulo(partes[2])
             if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "checkpoint":
                 return self._guardar_checkpoint(partes[2])
             if len(partes) == 4 and partes[:3] == ["api", "config", "imagen"]:
@@ -270,6 +270,11 @@ class Handler(BaseHTTPRequestHandler):
             # vista de la obra si falla)
             sync.asegurar_plano(cfgmod.leer_config(), partes[2], obra)
             return self._json(obra)
+        if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "modulos":
+            obra = almacen.leer_obra(partes[2])
+            if obra is None:
+                return self._error("Esa obra no está en este equipo.", 404)
+            return self._json({"modulos": C.estado_modulos(obra)})
         if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "lock":
             return self._json(sync.estado_lock(cfgmod.leer_config(), partes[2]))
         if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "plano.png":
@@ -533,27 +538,25 @@ class Handler(BaseHTTPRequestHandler):
             return f'Marcó el pago como "{et}"{pct}{cobro}'
         return "Actualizó el seguimiento"
 
-    _CHECKLIST_ETIQUETAS = {"presupuesto": "Presupuesto", "routeo": "Routeo",
-                            "tablero": "Tablero", "materiales": "Lista de materiales"}
+    _MODULO_ETIQUETAS = {"circuitos": "Circuitos", "tablero": "Tablero", "routeo": "Routeo",
+                         "presupuesto": "Presupuesto", "materiales": "Lista de materiales",
+                         "verificaciones": "Verificaciones técnicas"}
 
-    def _actualizar_checklist(self, obra_id):
+    def _marcar_modulo(self, obra_id):
         obra = almacen.leer_obra(obra_id)
         if obra is None:
             return self._error("Esa obra no está en este equipo.", 404)
         cuerpo = self._cuerpo() or {}
         modulo = cuerpo.get("modulo")
-        if modulo not in self._CHECKLIST_ETIQUETAS:
+        if modulo not in C.MODULOS:
             return self._error("Módulo desconocido.")
-        listo = bool(cuerpo.get("listo"))
-        checklist = obra.setdefault("checklist", {})
-        if checklist.get(modulo) == listo:
-            return self._json({"ok": True, "checklist": checklist})
-        checklist[modulo] = listo
-        etiqueta = self._CHECKLIST_ETIQUETAS[modulo]
-        resumen = f'Marcó "{etiqueta}" como {"terminado" if listo else "no terminado"}'
+        finalizado = bool(cuerpo.get("finalizado"))
+        etiqueta = self._MODULO_ETIQUETAS[modulo]
+        resumen = f'Marcó "{etiqueta}" como {"terminado" if finalizado else "no terminado"}'
+        modulos = C.marcar_modulo(obra, modulo, finalizado, cfgmod.leer_config().get("usuario", ""))
         almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""),
-                             modulo="Checklist", resumen=resumen)
-        return self._json({"ok": True, "checklist": checklist})
+                             modulo="Módulos", resumen=resumen)
+        return self._json({"ok": True, "modulos": modulos})
 
     def _guardar_checkpoint(self, obra_id):
         obra = almacen.leer_obra(obra_id)
