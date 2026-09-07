@@ -136,6 +136,18 @@ def bajar_archivo(cfg: dict, ruta: str) -> tuple[dict | None, str | None]:
     return json.loads(crudo), r.get("sha")
 
 
+def bajar_archivo_bin(cfg: dict, ruta: str) -> tuple[bytes | None, str | None]:
+    """Igual que bajar_archivo(), pero para contenido binario (el plano
+    PDF) -- sin decodificar como UTF-8 ni parsear como JSON."""
+    try:
+        r = _contenido(cfg, ruta)
+    except ErrorSync as e:
+        if e.codigo == 404:
+            return None, None
+        raise
+    return base64.b64decode(r.get("content", "")), r.get("sha")
+
+
 def subir_archivo(cfg: dict, ruta: str, contenido: bytes, mensaje: str,
                   sha: str | None = None) -> str:
     cuerpo = {"message": mensaje,

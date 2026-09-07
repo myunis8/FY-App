@@ -40,19 +40,34 @@ def bajar_todo(cfg: dict) -> dict:
 
 
 def traer_obra(cfg: dict, obra_id: str) -> dict:
-    """Baja el obra.json completo y lo deja en el cache local."""
+    """Baja el obra.json completo y lo deja en el cache local. Si la obra
+    tiene plano, también baja el PDF (no estaba pasando: sólo se bajaban
+    obra.json/resumen.json) -- se salta si ya está el mismo archivo
+    (mismo hash que la última vez que se bajó), para no repetir una
+    transferencia pesada en cada sincronización."""
     obra, sha = gh.bajar_archivo(cfg, f"obras/{obra_id}/obra.json")
     if obra is None:
         raise gh.ErrorSync("Esa obra no está en el repositorio.", 404)
     almacen.escribir_desde_repo(obra_id, obra, sha)
     est = almacen.leer_sync(obra_id)
     est["soloResumen"] = False
+
+    plano = obra.get("plano") or {}
+    archivo_plano = plano.get("archivo")
+    if archivo_plano and plano.get("hash") != est.get("planoBajadoHash"):
+        datos, _ = gh.bajar_archivo_bin(cfg, f"obras/{obra_id}/{archivo_plano}")
+        if datos:
+            almacen.escribir_plano_bytes(obra_id, archivo_plano, datos)
+            est["planoBajadoHash"] = plano.get("hash")
+
     almacen.guardar_sync(obra_id, est)
     return almacen.leer_obra(obra_id)
 
 
 def subir_obra(cfg: dict, obra_id: str, forzar: bool = False) -> dict:
-    """Sube obra.json + resumen.json.
+    """Sube obra.json + resumen.json + el PDF del plano (si hay y cambió
+    desde la última subida, comparando por hash -- no tiene sentido resubir
+    el mismo archivo pesado en cada sincronización).
 
     Verifica el sha guardado al bajar/subir por ultima vez. Si en el repo hay
     otro sha, alguien (o vos desde otra maquina) escribio en el medio: no se
@@ -86,7 +101,19 @@ def subir_obra(cfg: dict, obra_id: str, forzar: bool = False) -> dict:
                      json.dumps(res, ensure_ascii=False, indent=2).encode("utf-8"),
                      f"Actualiza resumen de {nombre}", gh.sha_de(cfg, ruta_res))
 
-    almacen.guardar_sync(obra_id, {"shaObra": sha_nuevo, "subidaEl": C.ahora()})
+    plano = obra.get("plano") or {}
+    archivo_plano = plano.get("archivo")
+    plano_hash_subido = est.get("planoSubidoHash")
+    if archivo_plano and plano.get("hash") != plano_hash_subido:
+        ruta_local = almacen.ruta_plano(obra_id, archivo_plano)
+        if ruta_local:
+            ruta_plano_repo = f"obras/{obra_id}/{archivo_plano}"
+            gh.subir_archivo(cfg, ruta_plano_repo, ruta_local.read_bytes(),
+                             f"Sube el plano de {nombre}", gh.sha_de(cfg, ruta_plano_repo))
+            plano_hash_subido = plano.get("hash")
+
+    almacen.guardar_sync(obra_id, {**est, "shaObra": sha_nuevo, "subidaEl": C.ahora(),
+                                   "planoSubidoHash": plano_hash_subido})
     return {"ok": True, "sha": sha_nuevo}
 
 
