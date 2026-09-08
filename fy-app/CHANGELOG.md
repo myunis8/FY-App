@@ -3,6 +3,34 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 1.1.0 — Estado de módulos semi-automático, pantalla de obra rediseñada
+
+- **Nuevo: estado de cada módulo (Circuitos, Tablero, Routeo, Presupuesto,
+  Lista de materiales, Verificaciones técnicas), semi-automático.**
+  Reemplaza al checklist manual viejo (4 módulos, sin quién/cuándo).
+  `contrato.estado_modulos()` sugiere un valor a partir de datos reales de
+  la obra (hay circuitos sin errores de validación, una térmica realmente
+  asignada a un circuito, al menos un tramo trazado, el presupuesto
+  congelado, etc.), pero cualquier click manual sobre el LED de un módulo
+  lo pisa y queda registrado con quién y cuándo
+  (`GET/POST /api/obras/<id>/modulos`). Si después los datos reales dejan
+  de respaldar una decisión manual (por ejemplo, se borra el único
+  tablero después de marcarlo terminado a mano), el LED lo avisa con un
+  anillo ámbar en vez de mentir en verde -- no se revierte solo. El
+  checklist viejo se conserva en el contrato y se usa como semilla para
+  no perder decisiones ya tomadas.
+- **Pantalla de obra rediseñada**, en tres columnas: a la izquierda,
+  Resumen (ahora en filas compactas, no tarjetas) e Informe general justo
+  debajo; en el medio, Plano, Módulos (ahora una grilla de tarjetas con
+  ícono y LED en vez de una lista con checkbox) e Historial; a la
+  derecha, los datos fijos del proyecto y Seguimiento. Historial ahora
+  tiene filtros por usuario/módulo/texto, por rango de fecha y por
+  orden, además de mostrar sólo lo último por defecto (antes mostraba
+  las 15 entradas más recientes siempre). "Borrar", "Descargar obra.json"
+  y "Subir al repositorio" se movieron a la barra superior.
+- **Home**: "Actividad reciente" pasó a su propio panel a la derecha, en
+  vez de apilado debajo de Ganancias a la izquierda.
+
 ## 1.0.1 — La sincronización ahora sí trae el plano PDF
 
 - **Fix**: sincronizar una obra subía el plano al repositorio pero nunca lo
