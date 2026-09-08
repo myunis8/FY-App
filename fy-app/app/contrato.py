@@ -41,7 +41,11 @@ def obra_vacia(nombre: str = "", cliente: str = "", usuario: str = "") -> dict:
                         "fechaEmision": None},
         "seguimiento": {"estado": "preliminar",
                         "pago": {"estado": "pendiente", "porcentaje": 0},
-                        "historial": []},
+                        "historial": [],
+                        # overrides manuales del LED de cada módulo (ver
+                        # estado_modulos/marcar_modulo) -- un módulo ausente
+                        # acá sigue el valor sugerido, no uno "apagado" a mano
+                        "modulos": {}},
         "validacion": {"corridaEl": 0, "errores": [], "advertencias": []},
         "historial": [],
         # qué etapas del trabajo están terminadas -- a mano, el usuario lo
@@ -174,6 +178,83 @@ def actualizar_seguimiento(obra: dict, estado: str | None = None, pago_estado: s
                                      "montoDelta": round(monto - ya_cobrado, 2)})
             seg["pago"] = nuevo
     return seg
+
+
+# ------------------------------------------------------- estado de módulos
+MODULOS = ("circuitos", "tablero", "routeo", "presupuesto", "materiales", "verificaciones")
+
+# los 4 que ya vivían en el checklist viejo (sin quién/cuándo) -- se usan
+# como semilla si el módulo todavía no tiene una decisión manual nueva,
+# para no perder lo que el usuario ya había tildado
+_CHECKLIST_A_MODULO = {"presupuesto", "routeo", "tablero", "materiales"}
+
+
+def _sugerido_modulo(obra: dict, modulo: str) -> bool:
+    """Valor de partida del LED de cada módulo, calculado de datos reales
+    de la obra (no un flag que arranca siempre en False). Es una
+    sugerencia: el usuario la puede pisar a mano (ver marcar_modulo)."""
+    if modulo == "circuitos":
+        val = obra.get("validacion") or {}
+        return bool(obra.get("circuitos")) and not (val.get("errores") or [])
+    if modulo == "tablero":
+        return any(d.get("tipo") == "termica" and d.get("rol") != "general" and d.get("circuitoId")
+                  for t in obra.get("tableros") or [] for d in t.get("dispositivos") or [])
+    if modulo == "routeo":
+        return bool((obra.get("canalizacion") or {}).get("runs"))
+    if modulo == "presupuesto":
+        return bool((obra.get("presupuesto") or {}).get("congeladoEl"))
+    if modulo == "materiales":
+        # mismo criterio que presupuesto -- la lista de materiales sigue el
+        # mismo alcance ya congelado. El más débil de los seis criterios.
+        return bool((obra.get("presupuesto") or {}).get("congeladoEl"))
+    if modulo == "verificaciones":
+        # puramente informativo (no tiene contenido propio que "avance");
+        # usa el mismo prerrequisito que routeo, de donde sale su cálculo.
+        # También débil -- el usuario lo puede pisar a mano sin problema.
+        return bool((obra.get("canalizacion") or {}).get("runs"))
+    return False
+
+
+def estado_modulos(obra: dict) -> dict:
+    """Estado efectivo del LED de cada módulo: el override manual nuevo si
+    existe (seguimiento.modulos), si no el del checklist viejo (semilla,
+    sin quién/cuándo), si no el sugerido calculado de los datos reales.
+    Se recalcula siempre, nunca se guarda -- así una decisión manual vieja
+    puede quedar "desactualizada" respecto de los datos sin que nadie la
+    pise en silencio (comparar "sugerido" acá contra "finalizado")."""
+    seg = obra.get("seguimiento") or {}
+    manuales = seg.get("modulos") or {}
+    checklist = obra.get("checklist") or {}
+    salida = {}
+    for m in MODULOS:
+        sugerido = _sugerido_modulo(obra, m)
+        override = manuales.get(m)
+        if override is not None:
+            salida[m] = {"finalizado": bool(override.get("finalizado")), "manual": True,
+                        "sugerido": sugerido, "cambiadoEl": override.get("cambiadoEl"),
+                        "cambiadoPor": override.get("cambiadoPor")}
+        elif m in _CHECKLIST_A_MODULO and checklist.get(m) is True:
+            # el checklist viejo arranca en False por defecto en toda obra
+            # nueva -- eso no es una decisión real, así que sólo se toma
+            # como semilla cuando es True (inequívoco: alguien lo tildó)
+            salida[m] = {"finalizado": bool(checklist.get(m)), "manual": True,
+                        "sugerido": sugerido, "cambiadoEl": None, "cambiadoPor": None}
+        else:
+            salida[m] = {"finalizado": sugerido, "manual": False,
+                        "sugerido": sugerido, "cambiadoEl": None, "cambiadoPor": None}
+    return salida
+
+
+def marcar_modulo(obra: dict, modulo: str, finalizado: bool, usuario: str = "") -> dict:
+    """Guarda una decisión manual sobre el LED de un módulo, con quién y
+    cuándo (mismo patrón que actualizar_seguimiento). Cualquier click
+    explícito queda como override manual, coincida o no con lo sugerido
+    en ese momento -- así no hay ambigüedad sobre si "sigue" la sugerencia
+    o no. `modulo` ya validado contra MODULOS por el llamador."""
+    seg = obra.setdefault("seguimiento", {})
+    modulos = seg.setdefault("modulos", {})
+    modulos[modulo] = {"finalizado": bool(finalizado), "cambiadoEl": ahora(), "cambiadoPor": usuario or ""}
+    return estado_modulos(obra)
 
 
 def total_presupuesto(obra: dict) -> float:
