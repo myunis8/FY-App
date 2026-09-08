@@ -51,7 +51,7 @@ header .sub{font-size:.72rem;color:#9db2c7;margin-top:2px}
 .punto.ok{background:#57b183}.punto.mal{background:#d9705e}
 
 main{max-width:1360px;margin:0 auto;padding:26px 22px 60px;display:grid;
-  grid-template-columns:280px 1fr;gap:22px;align-items:start}
+  grid-template-columns:280px 1fr 280px;gap:22px;align-items:start}
 .panel-lateral{display:flex;flex-direction:column;gap:14px;position:sticky;top:20px}
 @media(max-width:900px){main{grid-template-columns:1fr}.panel-lateral{position:static}}
 
@@ -202,10 +202,6 @@ main{max-width:1360px;margin:0 auto;padding:26px 22px 60px;display:grid;
       <div class="stat-lista" id="stats-ganancia"></div>
       <div class="chart-barras" id="chart-ganancia"></div>
     </div>
-    <div class="panel actividad" id="actividad" style="display:none">
-      <h2>Actividad reciente</h2>
-      <div id="actividad-lista"></div>
-    </div>
   </aside>
 
   <div>
@@ -230,6 +226,13 @@ main{max-width:1360px;margin:0 auto;padding:26px 22px 60px;display:grid;
     </div>
     <div id="lista"></div>
   </div>
+
+  <aside class="panel-lateral">
+    <div class="panel actividad" id="actividad" style="display:none">
+      <h2>Actividad reciente</h2>
+      <div id="actividad-lista"></div>
+    </div>
+  </aside>
 </main>
 
 <!-- configuración -->
