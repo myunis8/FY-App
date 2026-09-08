@@ -32,7 +32,7 @@ header .sub{font-size:.72rem;color:#9db2c7;margin-top:2px}
 .btn.ghost{background:transparent;border-color:#33506e;color:#cfe0f0}
 .btn.ghost:hover{border-color:#5b7fa5}
 .btn.sm{padding:5px 10px;font-size:.76rem}
-.layout{max-width:1380px;margin:0 auto;padding:26px 22px 60px;display:grid;
+.layout{max-width:1380px;margin:0 auto;padding:18px 22px 22px;display:grid;
   grid-template-columns:240px 1fr 300px;gap:22px;align-items:start}
 .panel-lateral{display:flex;flex-direction:column;gap:16px;position:sticky;top:22px}
 .panel{border:1px solid var(--line);border-radius:8px;padding:14px 15px;background:var(--panel)}
@@ -40,16 +40,17 @@ header .sub{font-size:.72rem;color:#9db2c7;margin-top:2px}
 .campo-fijo:last-child{border-bottom:none}
 .campo-fijo b{display:block;font-size:.66rem;text-transform:uppercase;letter-spacing:.04em;
   color:var(--muted);font-weight:600;margin-bottom:2px}
-h2{font-family:'Space Grotesk',sans-serif;font-size:.82rem;margin:22px 0 8px;
+h2{font-family:'Space Grotesk',sans-serif;font-size:.82rem;margin:14px 0 7px;
   text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
 h2:first-child{margin-top:0}
 .aviso{padding:10px 12px;border-radius:8px;font-size:.8rem;margin-bottom:14px;display:none;line-height:1.45}
 .aviso.ok{background:var(--green-soft);color:var(--green);display:block}
 .aviso.mal{background:var(--danger-soft);color:var(--danger);display:block}
-.bloques{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin:6px 0 4px}
-.bloque{border:1px solid var(--line);border-radius:8px;padding:9px 11px;font-size:.78rem;background:var(--panel)}
-.bloque b{display:block;font-size:.68rem;text-transform:uppercase;letter-spacing:.04em;
-  color:var(--muted);font-weight:600;margin-bottom:3px}
+.resumen-fila{display:flex;justify-content:space-between;align-items:baseline;gap:8px;
+  font-size:.78rem;padding:4px 0;border-bottom:1px dotted var(--line)}
+.resumen-fila:last-child{border-bottom:none}
+.resumen-fila span:first-child{color:var(--muted)}
+.resumen-fila b{font-family:'IBM Plex Mono',monospace;font-weight:600;white-space:nowrap}
 .plano-fila{border:1px solid var(--line);border-radius:8px;padding:12px 13px;background:var(--panel);
   margin-top:10px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .plano-fila .txt{flex:1;min-width:170px;font-size:.82rem}
@@ -103,7 +104,17 @@ h2:first-child{margin-top:0}
 <aside class="panel-lateral">
   <div class="panel">
     <h2 style="margin-top:0">Resumen</h2>
-    <div class="bloques" id="d-bloques"><div class="bloque">Cargando…</div></div>
+    <div id="d-bloques">Cargando…</div>
+  </div>
+  <div class="panel">
+    <h2 style="margin-top:0">Informe general</h2>
+    <div class="nota" style="margin:0">Un solo PDF con todo lo que elijas de esta obra.</div>
+    <div id="inf-checks" style="display:flex;flex-direction:column;gap:6px;margin:8px 0"></div>
+    <label class="chk" id="inf-precio-fila" style="display:none;font-size:.78rem;color:var(--muted);margin-bottom:8px">
+      <input type="checkbox" id="inf-con-precio" checked> Incluir precios en la lista de materiales</label>
+    <div style="display:flex;justify-content:flex-end">
+      <button class="btn primary sm" id="inf-generar">Generar informe</button>
+    </div>
   </div>
 </aside>
 
@@ -180,17 +191,6 @@ h2:first-child{margin-top:0}
       </div>
     </div>
     <div id="hist-lista" class="nota" style="margin:4px 0 0"></div>
-  </div>
-
-  <h2>Informe general</h2>
-  <div class="plano-fila" style="flex-direction:column;align-items:stretch;gap:10px">
-    <div class="nota" style="margin:0">Un solo PDF con todo lo que elijas de esta obra.</div>
-    <div id="inf-checks" style="display:flex;flex-wrap:wrap;gap:8px 18px"></div>
-    <label class="chk" id="inf-precio-fila" style="display:none;font-size:.78rem;color:var(--muted)">
-      <input type="checkbox" id="inf-con-precio" checked> Incluir precios en la lista de materiales</label>
-    <div style="display:flex;justify-content:flex-end">
-      <button class="btn primary sm" id="inf-generar">Generar informe</button>
-    </div>
   </div>
 </div>
 
@@ -401,8 +401,8 @@ async function cargar(){
   try{
     obraAbierta = await api('/api/obras/'+OBRA_ID);
   }catch(e){
-    $('d-bloques').innerHTML =
-      `<div class="bloque"><b>Sólo en el repositorio</b>Todavía no la bajaste a este equipo.</div>`;
+    $('d-bloques').innerHTML = `<p class="nota" style="margin:0">Sólo en el repositorio --
+      todavía no la bajaste a este equipo.</p>`;
     try{
       obraAbierta = (await api('/api/sync/traer/'+OBRA_ID, {method:'POST', body:'{}'})).obra;
     }catch(e2){ mostrarAviso('d-aviso','mal', e2.message); return; }
@@ -460,7 +460,7 @@ function pintarBloques(obra){
   $('fila-materiales').onclick = () => location.href = '/materiales.html?obra=' + obra.obra.id;
   $('fila-verificaciones').onclick = () => location.href = '/verificaciones.html?obra=' + obra.obra.id;
   $('d-bloques').innerHTML = filas.map(([k,v]) =>
-    `<div class="bloque"><b>${k}</b>${v}</div>`).join('');
+    `<div class="resumen-fila"><span>${k}</span><b>${v}</b></div>`).join('');
   pintarModulos(obra);
 }
 // LED de cada módulo: arranca en el valor sugerido calculado en el
