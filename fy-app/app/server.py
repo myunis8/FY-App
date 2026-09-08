@@ -1,6 +1,6 @@
 """Servidor local. Sirve la interfaz y expone la API sobre el almacen."""
 from __future__ import annotations
-import json, mimetypes, platform, sys
+import json, mimetypes, platform, sys, time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
@@ -13,6 +13,21 @@ if getattr(sys, "frozen", False):
     DIR_WEB = Path(sys._MEIPASS) / "web"        # bundle de PyInstaller
 else:
     DIR_WEB = Path(__file__).resolve().parent.parent / "web"
+
+# latido: cada pestaña de la app manda un "sigo abierta" cada pocos segundos
+# (ver web/latido.js). main.py vigila esto para cerrar el servidor solo
+# cuando hace rato que no llega ninguno -- así no hace falta la consola
+# para salir, alcanza con cerrar el navegador.
+_ultimo_latido = time.time()
+
+
+def registrar_latido() -> None:
+    global _ultimo_latido
+    _ultimo_latido = time.time()
+
+
+def segundos_sin_latido() -> float:
+    return time.time() - _ultimo_latido
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -309,6 +324,10 @@ class Handler(BaseHTTPRequestHandler):
         return self._error("Ruta desconocida", 404)
 
     def _api_post(self, ruta):
+        if ruta == "/api/latido":
+            registrar_latido()
+            return self._json({"ok": True})
+
         cuerpo = self._cuerpo()
         cfg = cfgmod.leer_config()
         partes = [p for p in ruta.split("/") if p]

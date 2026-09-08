@@ -3,6 +3,17 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 1.2.0 — La app se cierra sola al cerrar el navegador, sin ventana de consola
+
+- **La ventana negra de consola ya no se ve.** Antes era la única forma de
+  cerrar la app (cerrándola, o con Ctrl+C), así que se dejaba a propósito.
+  Ahora cada página manda un "latido" al servidor cada 5 segundos
+  (`web/latido.js`, mismo patrón que ya usaba `lock.js` para el bloqueo de
+  edición, pero en las 11 páginas, no sólo las que editan una obra). Si
+  deja de llegar cualquier latido por 40 segundos -- es decir, cerraste el
+  navegador -- el servidor se cierra solo. Con esa forma de salir ya
+  garantizada, la consola se oculta del todo en vez de dejarla de fondo.
+
 ## 1.1.0 — Estado de módulos semi-automático, pantalla de obra rediseñada
 
 - **Nuevo: estado de cada módulo (Circuitos, Tablero, Routeo, Presupuesto,
