@@ -17,7 +17,7 @@ from . import config as cfgmod
 ARCHIVO = "precios.json"
 
 CATEGORIAS = ["Puntos", "Tomas", "Iluminación", "Tableros", "Puesta a tierra",
-              "Canalización", "Trabajos adicionales", "Automatizaciones", "Otros"]
+              "Canalización", "Red y datos", "Trabajos adicionales", "Automatizaciones", "Otros"]
 
 # categorías que no se calculan solas: siempre se agregan a mano
 CATEGORIAS_APARTE = {"Trabajos adicionales", "Automatizaciones"}
@@ -42,6 +42,22 @@ SEMILLA = [
     ("Tableros", "Tablero principal monofásico", "u", 320310),
     ("Tableros", "Tablero principal trifásico", "u", 433760),
     ("Puesta a tierra", "Jabalina + cable + conexión (PAT)", "u", 162585),
+    ("Red y datos", "Router", "u", 0),
+    ("Red y datos", "Switch", "u", 0),
+    ("Red y datos", "Switch PoE", "u", 0),
+    ("Red y datos", "Access point", "u", 0),
+    ("Red y datos", "Nodo de red mesh", "u", 0),
+    ("Red y datos", "Cámara IP", "u", 0),
+    ("Red y datos", "NVR", "u", 0),
+    ("Red y datos", "NAS", "u", 0),
+    ("Red y datos", "UPS", "u", 0),
+    ("Red y datos", "Rack / gabinete de red", "u", 0),
+    ("Red y datos", "Patchera", "u", 0),
+    ("Red y datos", "Toma RJ45 (boca de datos)", "u", 0),
+    ("Red y datos", "Tendido de cable UTP", "m", 0),
+    ("Red y datos", "Sensor inteligente", "u", 0),
+    ("Red y datos", "Hub / controlador domótico", "u", 0),
+    ("Red y datos", "Mano de obra de configuración", "u", 0),
     ("Trabajos adicionales", "Conexión al medidor (trabajo en tensión)", "u", 200000),
     ("Automatizaciones", "Flotante a 220V", "u", 100000),
     ("Automatizaciones", "Flotante a 24V", "u", 0),

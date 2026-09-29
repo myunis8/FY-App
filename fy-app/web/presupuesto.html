@@ -263,7 +263,11 @@ async function cargarListaPrecios(){
     listaPrecios = d.items || [];
   }catch(err){ listaPrecios = []; }   // si falla, igual queda "+ Personalizado"
   const porCategoria = {};
-  for(const it of listaPrecios) (porCategoria[it.categoria || 'Otros'] ||= []).push(it);
+  // "Red y datos" no entra acá: sólo se agrega al presupuesto aceptando un
+  // renglón de la Oferta del módulo Red, para que no haya dos caminos
+  // distintos para el mismo producto (ver sección "Instalación de red")
+  for(const it of listaPrecios) if(it.categoria !== 'Red y datos')
+    (porCategoria[it.categoria || 'Otros'] ||= []).push(it);
   const extra = Object.keys(porCategoria).filter(c => !CATEGORIAS_ORDEN.includes(c)).sort();
   const cats = [...CATEGORIAS_ORDEN, ...extra].filter(c => porCategoria[c]);
   const opciones = '<option value="">+ Agregar de la lista de precios…</option>' +
