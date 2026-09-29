@@ -18,7 +18,7 @@ mismos nombres en vez de ir acumulando variantes parecidas.
 from __future__ import annotations
 import json, math, heapq
 from pathlib import Path
-from . import config as cfgmod, caida_tension as ct
+from . import config as cfgmod, caida_tension as ct, canaliza_geom as cg
 
 ARCHIVO = "materiales.json"
 
@@ -310,7 +310,7 @@ def computar_canalizacion(obra: dict) -> dict:
     px_por_m = canal.get("pxPerM")
     if not runs or not px_por_m:
         return {"disponible": False, "cablePorSeccion": {}, "canoPorDiametro": {},
-                "totalCableM": 0.0, "totalCanoM": 0.0}
+                "cableColor": {}, "totalCableM": 0.0, "totalCanoM": 0.0}
     nodos_por_id = {n["id"]: n for n in canal.get("nodes") or []}
     circuitos_por_id = {c["id"]: c for c in canal.get("circuits") or []}
     z_cfg = canal.get("z") or {}
@@ -370,10 +370,19 @@ def computar_canalizacion(obra: dict) -> dict:
         cano_por_diametro[dia] = cano_por_diametro.get(dia, 0.0) + largo
         total_cano += largo
 
+    # desglose de esos mismos metros por color de conductor (para saber cuántos
+    # rollos de cada color/sección comprar) -- se toma del cómputo detallado
+    # de Routeo (Proyecto.compute_bom(), el que sabe de retornos/troncales de
+    # tierra reales), no del estimado propio de arriba; por eso el total de
+    # cada sección puede no coincidir del todo con cablePorSeccion.
+    cable_color = {k: {c: round(m, 1) for c, m in v.items()}
+                   for k, v in (cg.Proyecto(canal).compute_bom()["cableColor"]).items()}
+
     return {
         "disponible": True,
         "cablePorSeccion": {k: round(v, 1) for k, v in cable_por_seccion.items()},
         "canoPorDiametro": {k: round(v, 1) for k, v in cano_por_diametro.items()},
+        "cableColor": cable_color,
         "totalCableM": round(total_cable, 1),
         "totalCanoM": round(total_cano, 1),
     }

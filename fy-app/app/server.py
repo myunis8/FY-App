@@ -295,7 +295,7 @@ class Handler(BaseHTTPRequestHandler):
         if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "plano.png":
             return self._render_plano(partes[2], urlparse(self.path).query)
         if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "presupuesto.pdf":
-            return self._pdf_presupuesto(partes[2])
+            return self._pdf_presupuesto(partes[2], urlparse(self.path).query)
         if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "informe.pdf":
             return self._pdf_informe(partes[2], urlparse(self.path).query)
         if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "materiales.pdf":
@@ -825,15 +825,21 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(datos)
 
-    def _pdf_presupuesto(self, obra_id):
+    def _pdf_presupuesto(self, obra_id, query):
         obra = almacen.leer_obra(obra_id)
         if obra is None:
             return self._error("Esa obra no está en este equipo.", 404)
+        qs = parse_qs(query)
+        modo = (qs.get("modo") or ["con"])[0]
+        if modo not in ("con", "sin", "solo"):
+            modo = "con"
         try:
-            datos = pdf_presupuesto.generar(obra)
+            datos = pdf_presupuesto.generar(obra, modo=modo)
         except Exception as e:
             return self._error(f"No pude generar el PDF: {e}", 500)
         nombre = (obra["obra"].get("nombre") or "presupuesto").replace(" ", "_")
+        if modo != "con":
+            nombre += "_" + modo
         self.send_response(200)
         self.send_header("Content-Type", "application/pdf")
         self.send_header("Content-Length", str(len(datos)))

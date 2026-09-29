@@ -3,6 +3,36 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 1.6.0 — Filtros de avisos, fix de teclas superpuestas, cable por color, Adicional
+
+- **Routeo: el código de conductores del PDF ya no lleva fondo blanco** (tapaba
+  el plano cuando había varios caños cerca) y la letra es más chica.
+- **Routeo: "Editar etiquetas de código" ahora sólo muestra las etiquetas de
+  los caños visibles** (según qué circuitos estén tildados), para poder ir
+  acomodándolas de a partes en vez de todas juntas.
+- **Nuevo: filtros en "Observaciones de diseño" (Routeo).** Cada tipo de
+  aviso (codos de 90°, ocupación de cable, cruces a la misma altura, tramo
+  largo sin caja intermedia, etc.) se puede apagar con su propio checkbox --
+  útil para los que ya se resolvieron a propósito y no hace falta seguir
+  viendo. La elección queda guardada en el navegador (no en la obra), y un
+  tipo apagado tampoco resalta en rojo el plano.
+- **Fix: cajas con más de un interruptor (varias teclas en el mismo eje)
+  quedaban con las teclas de más superpuestas e imposibles de clickear** en
+  Circuitos -- por eso parecían "sin asignar" para siempre por más que se
+  las intentara vincular. Ahora se abren en un pequeño abanico para que cada
+  tecla se pueda clickear por separado.
+- **Lista de materiales: nuevo desglose "Cable por color"** dentro de Cable y
+  caño (Routeo) -- antes sólo se veían los metros totales por sección,
+  mezclando fase/neutro/tierra/retornos; ahora se ve cuánto de cada color
+  hay en cada sección, para saber cuántos rollos de cada uno comprar.
+- **Presupuesto: "Diferencia" se renombra a "Adicional"** en toda la pantalla
+  y el PDF. En el PDF, el adicional ya no repite "Diferencia — Categoría"
+  por cada categoría de sus ítems: ahora es un solo bloque "Adicional" con
+  la lista completa sin categorizar, más simple. Nuevo selector en la
+  cabecera para elegir qué PDF generar: con el adicional (como antes), sin
+  el adicional, o sólo el adicional (un documento aparte para entregarlo
+  solo).
+
 ## 1.5.1 — Etiquetas de código movibles y rotables, botones de PDF más cortos
 
 - **Nuevo: "Editar etiquetas de código" en Vista.** El código de conductores

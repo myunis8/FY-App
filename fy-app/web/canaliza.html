@@ -356,6 +356,7 @@ table.t input:focus{outline:none;border-color:var(--accent);background:var(--pan
 <div class="mask" id="mDrc"><div class="modal" style="max-width:560px">
   <h2>Observaciones de diseño</h2>
   <p class="sub" id="drcSummary"></p>
+  <div id="drcFilters" style="margin-bottom:10px"></div>
   <div id="drcGroups"></div>
   <div class="acts"><button class="btn" data-close>Cerrar</button></div>
 </div></div>
@@ -1575,6 +1576,10 @@ function drawScene(g, opt){
   S._codeLabelBoxes = [];
   if(S.editingCodeLabels && S.pxPerM){
     for(const grp of groups.values()){
+      // sólo los caños visibles en este momento (según qué circuitos estén
+      // tildados/ocultos) -- así se puede ir editando de a partes
+      const relevant = only ? grp.runs.some(r=>r.circuit===only) : grp.runs.some(r=>isCiVisible(r.circuit));
+      if(!relevant) continue;
       if(grp.runs[0].pts.length<2) continue;
       const txt = conduitCode(grp);
       if(!txt) continue;
@@ -2669,7 +2674,7 @@ function evaluarCaidaTension(c, L){
 
 function drcRun(){
   const out=[];
-  const push=(lvl,txt,target,cat)=> out.push({lvl,txt,target,cat});
+  const push=(lvl,txt,target,cat,tipo)=> out.push({lvl,txt,target,cat,tipo});
   const groups = conduitGroups();
 
   // llenado del caño: se evalua por caño fisico, no por circuito
@@ -2678,14 +2683,14 @@ function drcRun(){
     const a=nodeById(g.a), b=nodeById(g.b);
     const where = (a&&b) ? a.label+" → "+b.label : "tramo suelto";
     if(!isFinite(g.fill)){
-      push("e", `Caño ${where} (${names}): un ${diaLbl(g.dia)} no admite alguna de las secciones que pasan por él.`, g.runs[0].id, "canos");
+      push("e", `Caño ${where} (${names}): un ${diaLbl(g.dia)} no admite alguna de las secciones que pasan por él.`, g.runs[0].id, "canos", "seccion-incompatible");
     } else if(g.fill>1){
       const sug = g.runs.length>1
         ? "Dividí este caño en dos caños en paralelo."
         : "Repartí los conductores de este circuito en dos caños en paralelo.";
-      push("e", `Caño ${where}: ${g.cables} conductores de ${names} ocupan el ${Math.round(g.fill*100)}% de un ${diaLbl(g.dia)}. ${sug}`, g.runs[0].id, "canos");
+      push("e", `Caño ${where}: ${g.cables} conductores de ${names} ocupan el ${Math.round(g.fill*100)}% de un ${diaLbl(g.dia)}. ${sug}`, g.runs[0].id, "canos", "ocupacion");
     } else if(g.fill>0.85){
-      push("w", `Caño ${where} al ${Math.round(g.fill*100)}% de ocupación. Queda poco margen para agregar cables.`, g.runs[0].id, "canos");
+      push("w", `Caño ${where} al ${Math.round(g.fill*100)}% de ocupación. Queda poco margen para agregar cables.`, g.runs[0].id, "canos", "ocupacion");
     }
   }
 
@@ -2696,21 +2701,21 @@ function drcRun(){
     if(!gr.runIds.length) continue;
     const sec = groundSectionFor(gr);
     const auto = gr.sectionOverride==null;
-    push("w", `Tierra compartida "${esc(gr.note||"troncal")}": ${gr.runIds.length} tramo(s), conductor de ${sec} mm²${auto?" (automático: mayor sección de fase entre los circuitos que la usan)":" (fijada a mano)"}.`, gr.runIds[0], "tierra");
+    push("w", `Tierra compartida "${esc(gr.note||"troncal")}": ${gr.runIds.length} tramo(s), conductor de ${sec} mm²${auto?" (automático: mayor sección de fase entre los circuitos que la usan)":" (fijada a mano)"}.`, gr.runIds[0], "tierra", "tierra");
   }
 
   for(const r of S.runs){
     const c = ciById(r.circuit); if(!c) continue;
     if(!r.a || !r.b)
-      push("w", `Tramo de ${esc(c.name)} sin cerrar en ${!r.a&&!r.b?"ninguno de los dos extremos":"un extremo"}. Enganchalo a una caja.`, r.id, "tramos");
+      push("w", `Tramo de ${esc(c.name)} sin cerrar en ${!r.a&&!r.b?"ninguno de los dos extremos":"un extremo"}. Enganchalo a una caja.`, r.id, "tramos", "tramo-abierto");
     const L = runLenM(r);
     if(S.pxPerM && L>S.rules.longRun)
-      push("w", `Tramo de ${esc(c.name)} de ${fmt(L,1)} m supera los ${S.rules.longRun} m. Verificá caída de tensión.`, r.id, "caida");
+      push("w", `Tramo de ${esc(c.name)} de ${fmt(L,1)} m supera los ${S.rules.longRun} m. Verificá caída de tensión.`, r.id, "caida", "caida");
     if(S.pxPerM && L>S.rules.boxRun)
-      push("w", `Tramo de ${esc(c.name)} de ${fmt(L,1)} m sin caja intermedia (supera los ${S.rules.boxRun} m). Considerá agregar una caja de paso en el medio para facilitar el tendido del cable.`, r.id, "tramos");
+      push("w", `Tramo de ${esc(c.name)} de ${fmt(L,1)} m sin caja intermedia (supera los ${S.rules.boxRun} m). Considerá agregar una caja de paso en el medio para facilitar el tendido del cable.`, r.id, "tramos", "tramo-sin-caja");
     const bends = runBends(r);
     if(bends > 1)
-      push("w", `Tramo de ${esc(c.name)} con ${bends} codos de 90°. Con más de un codo conviene partirlo en tramos o insertar una caja de paso en el quiebre.`, r.id, "tramos");
+      push("w", `Tramo de ${esc(c.name)} con ${bends} codos de 90°. Con más de un codo conviene partirlo en tramos o insertar una caja de paso en el quiebre.`, r.id, "tramos", "codos");
   }
 
   // cajas: se cuentan caños fisicos, no circuitos
@@ -2718,22 +2723,22 @@ function drcRun(){
     const gs = new Set(runsAtNode(n.id).map(groupKey));
     const max = nodeMaxConduits(n);
     if(max!==null && gs.size>max)
-      push("e", `${n.label}: ${gs.size} caños en una ${KINDS[n.kind].n.toLowerCase()} (máx. ${max}).`, n.id, "cajas");
+      push("e", `${n.label}: ${gs.size} caños en una ${KINDS[n.kind].n.toLowerCase()} (máx. ${max}).`, n.id, "cajas", "caja-max");
     if(gs.size===0)
-      push("w", `${n.label} no tiene ningún caño conectado.`, n.id, "cajas");
+      push("w", `${n.label} no tiene ningún caño conectado.`, n.id, "cajas", "caja-sin-cano");
     if(resolveZ(n) > S.z.ceiling + 0.001)
-      push("w", `${n.label} está a ${fmt(resolveZ(n),2)} m, por encima del cielorraso (${fmt(S.z.ceiling,2)} m).`, n.id, "cajas");
+      push("w", `${n.label} está a ${fmt(resolveZ(n),2)} m, por encima del cielorraso (${fmt(S.z.ceiling,2)} m).`, n.id, "cajas", "caja-altura");
   }
 
   for(const c of S.circuits){
     const max = MAXPROT[c.section];
     if(max && c.prot>max)
-      push("e", `${esc(c.name)}: protección de ${c.prot} A para ${c.section} mm² (máx. ${max} A).`, null, "circuitos");
+      push("e", `${esc(c.name)}: protección de ${c.prot} A para ${c.section} mm² (máx. ${max} A).`, null, "circuitos", "proteccion");
   }
 
   const tabs = S.nodes.filter(n=>n.kind==="tablero").map(n=>n.id);
   if(tabs.length===0 && S.runs.length)
-    push("w","No hay ningún tablero en el plano. Agregá uno como origen de los circuitos.",null,"circuitos");
+    push("w","No hay ningún tablero en el plano. Agregá uno como origen de los circuitos.",null,"circuitos","sin-tablero");
   else if(tabs.length){
     for(const c of S.circuits){
       const rs = S.runs.filter(r=>r.circuit===c.id);
@@ -2749,7 +2754,7 @@ function drcRun(){
       }
       const orphan = rs.filter(r=> !(r.a&&seen.has(r.a)) && !(r.b&&seen.has(r.b)));
       if(orphan.length)
-        push("w", `${esc(c.name)}: ${orphan.length} tramo(s) no llegan al tablero por ningún camino.`, orphan[0].id, "circuitos");
+        push("w", `${esc(c.name)}: ${orphan.length} tramo(s) no llegan al tablero por ningún camino.`, orphan[0].id, "circuitos", "circuito-huerfano");
 
       // caída de tensión al punto más lejano del circuito -- PAT/tierra no
       // lleva esta cuenta (ver caida_tension.py)
@@ -2757,14 +2762,14 @@ function drcRun(){
         const camino = caidaMasLarga(rs.filter(r=>r.a&&r.b), tabs);
         if(camino){
           const txt = evaluarCaidaTension(c, camino.L);
-          if(txt) push("w", txt, camino.run.id, "caida");
+          if(txt) push("w", txt, camino.run.id, "caida", "caida");
         }
       }
     }
   }
 
   if(!S.pxPerM && (S.runs.length||S.nodes.length))
-    push("w","El plano no está calibrado: no se pueden calcular longitudes ni cómputo de cable.",null,"calibracion");
+    push("w","El plano no está calibrado: no se pueden calcular longitudes ni cómputo de cable.",null,"calibracion","calibracion");
 
   // cruces entre caños distintos que no se resuelven en una caja
   const seenPairs = new Set();
@@ -2774,23 +2779,62 @@ function drcRun(){
     const namesA = Array.from(new Set(cr.a.runs.map(r=>ciById(r.circuit)).filter(Boolean).map(c=>c.name))).join("+");
     const namesB = Array.from(new Set(cr.b.runs.map(r=>ciById(r.circuit)).filter(Boolean).map(c=>c.name))).join("+");
     if(cr.safe){
-      push("w", `Los caños de ${namesA} y ${namesB} se cruzan pero quedan resueltos en altura (≈${Math.round(cr.diff*100)} cm de diferencia, marcado con ⚠ en el plano). Verificá que sea suficiente margen.`, cr.a.runs[0].id, "cruces");
+      push("w", `Los caños de ${namesA} y ${namesB} se cruzan pero quedan resueltos en altura (≈${Math.round(cr.diff*100)} cm de diferencia, marcado con ⚠ en el plano). Verificá que sea suficiente margen.`, cr.a.runs[0].id, "cruces", "cruce-seguro");
     } else {
-      push("w", `Los caños de ${namesA} y ${namesB} se cruzan a la misma altura sin compartir una caja (marcado con × en el plano). Agregá una caja de paso en el cruce, desviá uno de los trazados, o poné una de las cajas a otra altura y pasá ese tramo a recorrido "Directo entre cajas".`, cr.a.runs[0].id, "cruces");
+      push("w", `Los caños de ${namesA} y ${namesB} se cruzan a la misma altura sin compartir una caja (marcado con × en el plano). Agregá una caja de paso en el cruce, desviá uno de los trazados, o poné una de las cajas a otra altura y pasá ese tramo a recorrido "Directo entre cajas".`, cr.a.runs[0].id, "cruces", "cruce-inseguro");
     }
   }
 
   return out;
 }
 
+// etiquetas legibles de cada "tipo" (más fino que la categoría "cat", que sólo
+// agrupa visualmente en el modal) -- usadas para armar los checkboxes de
+// "qué avisos mostrar" y para que un tipo oculto no siga contando ni
+// resaltando en rojo el plano (ver hiddenDrcTipos más abajo)
+const DRC_TIPOS = {
+  "seccion-incompatible": "Sección incompatible con el caño",
+  "ocupacion":            "Ocupación de cable",
+  "tierra":               "Tierra compartida",
+  "tramo-abierto":        "Tramo sin cerrar en una caja",
+  "caida":                "Caída de tensión",
+  "tramo-sin-caja":       "Tramo largo sin caja intermedia",
+  "codos":                "Codos de 90°",
+  "caja-max":             "Demasiados caños en una caja",
+  "caja-sin-cano":        "Caja sin ningún caño conectado",
+  "caja-altura":          "Caja por encima del cielorraso",
+  "proteccion":           "Protección fuera de rango",
+  "sin-tablero":          "Sin tablero en el plano",
+  "circuito-huerfano":    "Circuito que no llega al tablero",
+  "calibracion":          "Plano sin calibrar",
+  "cruce-seguro":         "Cruce resuelto en altura",
+  "cruce-inseguro":       "Cruce a la misma altura",
+};
+// qué tipos de aviso el usuario decidió no ver más -- por navegador, no por
+// obra, así que sigue vigente aunque abras otro proyecto (localStorage)
+const DRC_HIDDEN_KEY = "canaliza_drc_hidden_tipos";
+let hiddenDrcTipos = new Set();
+try{ hiddenDrcTipos = new Set(JSON.parse(localStorage.getItem(DRC_HIDDEN_KEY)||"[]")); }catch(err){}
+function saveHiddenDrcTipos(){
+  try{ localStorage.setItem(DRC_HIDDEN_KEY, JSON.stringify(Array.from(hiddenDrcTipos))); }catch(err){}
+}
+
 let _drcCache=null, _drcT=new Set();
+let _drcRaw=null;
 function drcCached(){
   if(_drcCache) return _drcCache;
-  _drcCache = drcRun(); _drcT = new Set();
+  _drcRaw = drcRun();
+  // los tipos que el usuario apagó no cuentan, no resaltan en rojo el plano
+  // y no aparecen en el modal -- como si el aviso no existiera
+  _drcCache = _drcRaw.filter(d=> !hiddenDrcTipos.has(d.tipo));
+  _drcT = new Set();
   for(const d of _drcCache) if(d.lvl==="e" && d.target) _drcT.add(d.target);
   return _drcCache;
 }
-function drcInvalidate(){ _drcCache=null; }
+// versión sin filtrar -- la usa el modal para poder seguir mostrando el
+// checkbox de un tipo aunque esté apagado (y así poder volver a prenderlo)
+function drcRawCached(){ drcCached(); return _drcRaw; }
+function drcInvalidate(){ _drcCache=null; _drcRaw=null; }
 function drcTargets(){ drcCached(); return _drcT; }
 
 // categorías del DRC, en el orden en que aparecen en el modal -- agrupan
@@ -2816,16 +2860,22 @@ function filaDrc(d, i){
 
 function paintDrc(){
   const list = drcCached();
+  const raw = drcRawCached();
   const es=list.filter(d=>d.lvl==="e").length, ws=list.length-es;
   pintarContadorDrc(es, ws);
   const el=$("#drc");
+  const ocultos = raw.length - list.length;
   if(!list.length){
-    el.innerHTML = `<div id="drcOk"><svg width="14" height="14" viewBox="0 0 16 16"><path d="M3 8.5l3.2 3.2L13 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Sin observaciones.</div>`;
+    // aunque no haya nada para mostrar, si hay avisos ocultos por un filtro
+    // dejamos un botón para poder volver a abrir el modal y desactivarlo
+    el.innerHTML = `<div id="drcOk"><svg width="14" height="14" viewBox="0 0 16 16"><path d="M3 8.5l3.2 3.2L13 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Sin observaciones.</div>` +
+      (ocultos?`<button class="btn sm" id="bDrcDetalle" style="width:100%;margin-top:6px">${ocultos} oculto${ocultos===1?"":"s"} por filtro -- ver</button>`:"");
+    if(ocultos) $("#bDrcDetalle").onclick = abrirModalDrc;
     return;
   }
   // el conteo ya se ve en el contador flotante junto al zoom -- acá sólo
   // el acceso al detalle, para no repetir el mismo número dos veces
-  el.innerHTML = `<button class="btn sm" id="bDrcDetalle" style="width:100%">Ver detalle</button>`;
+  el.innerHTML = `<button class="btn sm" id="bDrcDetalle" style="width:100%">Ver detalle${ocultos?` (+${ocultos} oculto${ocultos===1?"":"s"})`:""}</button>`;
   $("#bDrcDetalle").onclick = abrirModalDrc;
 }
 
@@ -2842,9 +2892,31 @@ function pintarContadorDrc(es, ws){
 // misma categoría que ya se usa para los headers (ver DRC_CATS) -- no
 // cambia qué es error/warning, sólo el orden en que se listan
 function abrirModalDrc(){
+  const raw = drcRawCached();
   const list = drcCached();
   const es=list.filter(d=>d.lvl==="e").length, ws=list.length-es;
   $("#drcSummary").textContent = `${es} error${es===1?"":"es"} · ${ws} aviso${ws===1?"":"s"}`;
+
+  // un checkbox por tipo de aviso presente en este proyecto (aunque esté
+  // oculto ahora) -- para poder apagar "ya lo resolví, no me lo muestres más"
+  // sin tener que volver a resolverlo cada vez que se recalcula el DRC
+  const porTipo = new Map();
+  raw.forEach(d=>{ const t=d.tipo||"otros"; porTipo.set(t, (porTipo.get(t)||0)+1); });
+  const ordenTipos = Object.keys(DRC_TIPOS);
+  const tipos = Array.from(porTipo.keys()).sort((a,b)=> ordenTipos.indexOf(a)-ordenTipos.indexOf(b));
+  $("#drcFilters").innerHTML = tipos.length ? `<label class="f" style="margin-bottom:4px">Mostrar</label>
+    <div style="display:flex;flex-wrap:wrap;gap:4px 10px">${tipos.map(t=>
+      `<label class="chk" style="font-size:11.5px"><input type="checkbox" data-tipo="${t}"${hiddenDrcTipos.has(t)?"":" checked"}>
+        ${esc(DRC_TIPOS[t]||t)} (${porTipo.get(t)})</label>`).join("")}
+    </div>` : "";
+  $$("#drcFilters [data-tipo]").forEach(cb=> cb.onchange = ()=>{
+    if(cb.checked) hiddenDrcTipos.delete(cb.dataset.tipo); else hiddenDrcTipos.add(cb.dataset.tipo);
+    saveHiddenDrcTipos();
+    drcInvalidate();
+    paintDrc();
+    abrirModalDrc();
+  });
+
   const NIVELES = [{lvl:"e", label:"Errores"}, {lvl:"w", label:"Avisos"}];
   $("#drcGroups").innerHTML = NIVELES.map(niv=>{
     const items = list.map((d,i)=>({...d,i})).filter(d=>d.lvl===niv.lvl);

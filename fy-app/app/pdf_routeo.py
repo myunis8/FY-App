@@ -275,17 +275,18 @@ def _draw_crossing(pg, T, cr):
     return
 
 
-def _label(pg, T, x, y, text, fs, *, rot=False):
+def _label(pg, T, x, y, text, fs, *, rot=False, bg=True):
     fs = max(4.6, fs)
-    w = pymupdf.get_text_length(text, fontname="helv", fontsize=fs)
-    if rot:
-        # insert_text con rotate=90 arranca en (x,y) y el texto sube hacia
-        # -Y (comprobado a mano) -- el recuadro de fondo se adapta a eso
-        pg.draw_rect(pymupdf.Rect(x - 3, y - w - 2, x + fs + 2, y + 3), color=None,
-                     fill=(1, 1, 1), fill_opacity=0.9)
-    else:
-        pg.draw_rect(pymupdf.Rect(x - 1.5, y - fs, x + w + 1.5, y + 2), color=None,
-                     fill=(1, 1, 1), fill_opacity=0.9)
+    if bg:
+        w = pymupdf.get_text_length(text, fontname="helv", fontsize=fs)
+        if rot:
+            # insert_text con rotate=90 arranca en (x,y) y el texto sube hacia
+            # -Y (comprobado a mano) -- el recuadro de fondo se adapta a eso
+            pg.draw_rect(pymupdf.Rect(x - 3, y - w - 2, x + fs + 2, y + 3), color=None,
+                         fill=(1, 1, 1), fill_opacity=0.9)
+        else:
+            pg.draw_rect(pymupdf.Rect(x - 1.5, y - fs, x + w + 1.5, y + 2), color=None,
+                         fill=(1, 1, 1), fill_opacity=0.9)
     pg.insert_text((x, y), text, fontsize=fs, fontname="helv", color=(15 / 255, 18 / 255, 20 / 255),
                     rotate=90 if rot else 0)
 
@@ -351,7 +352,9 @@ def _draw_scene(pg, T, P, *, only=None, detailed=False, labels=True, lens=True, 
             rot = bool(ov.get("rot")) if ov else False
             mid = P.run_mid_point(grp["runs"][0])
             m = T.p({"x": mid["x"] + dx, "y": mid["y"] + dy})
-            _label(pg, T, m.x, m.y, txt, 10.5 * T.u, rot=rot)
+            # sin fondo blanco -- tapaba el plano de fondo cuando había varios
+            # caños con código cerca; más chico para no ocupar tanto lugar
+            _label(pg, T, m.x, m.y, txt, 7.5 * T.u, rot=rot, bg=False)
 
     for n in P.nodes:
         if not P.node_visible(n, only):

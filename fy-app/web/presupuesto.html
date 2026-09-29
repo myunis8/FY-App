@@ -87,6 +87,11 @@ tr.opcional{opacity:.72;background:repeating-linear-gradient(45deg,transparent,t
   <div><h1 id="h-nombre">Presupuesto</h1><div class="sub" id="h-sub">Cargando…</div></div>
   <div class="spacer"></div>
   <button class="btn ghost" id="b-recalcular">Recalcular del plano</button>
+  <select id="b-pdf-modo" title="Qué incluir en el PDF" style="border-radius:7px;padding:6px 8px">
+    <option value="con">PDF: con adicional</option>
+    <option value="sin">PDF: sin adicional</option>
+    <option value="solo">PDF: sólo el adicional</option>
+  </select>
   <button class="btn ghost" id="b-pdf">Vista previa PDF</button>
   <button class="btn primary" id="b-guardar">Guardar</button>
   <button class="btn ghost" id="b-volver">Volver</button>
@@ -120,7 +125,7 @@ tr.opcional{opacity:.72;background:repeating-linear-gradient(45deg,transparent,t
     <span class="nota" style="margin-left:8px">El botón ◇ marca una línea como
       opcional: se muestra aparte y no suma al total.</span>
 
-    <h2>Diferencia</h2>
+    <h2>Adicional</h2>
     <p class="nota" style="margin:0 0 8px">Trabajo que el cliente pidió sumar después de un
       checkpoint (ver al lado) -- queda aparte de "Trabajos" para que se entienda qué era el
       alcance original y qué se agregó después, y sale así de discriminado en el PDF.</p>
@@ -149,7 +154,7 @@ tr.opcional{opacity:.72;background:repeating-linear-gradient(45deg,transparent,t
 
     <h2>Checkpoint</h2>
     <p class="nota" style="margin:0 0 6px">Guarda "hasta acá llegamos" con el total de hoy, de
-      referencia -- si más adelante el cliente pide algo más, cargalo en "Diferencia" y quede
+      referencia -- si más adelante el cliente pide algo más, cargalo en "Adicional" y quede
       claro qué se sumó después de cuál checkpoint.</p>
     <div id="checkpoints" class="nota" style="margin-bottom:8px"></div>
     <button class="btn sm" id="b-checkpoint" style="width:100%">Guardar checkpoint de hoy</button>
@@ -329,7 +334,7 @@ function filaItems(arr, tbody, clave){
     </tr>`;}).join('')
     : `<tr><td colspan="6" style="color:var(--muted);padding:14px">${
         clave==='items' ? 'Sin ítems. Probá “Recalcular del plano”.'
-        : clave==='extras' ? 'Sin extras cargados.' : 'Sin diferencia cargada todavía.'}</td></tr>`;
+        : clave==='extras' ? 'Sin extras cargados.' : 'Sin adicional cargado todavía.'}</td></tr>`;
 }
 // cómputo automático (Puntos, Artefactos, Tomas): lo que detectó el plano,
 // siempre visible aparte de la tabla -- así se puede tocar la cantidad a
@@ -387,7 +392,7 @@ function pintar(){
     <div class="total-fila"><span>Trabajos</span><span class="v">${plata(t.subtotal)}</span></div>
     ${t.extras?`<div class="total-fila"><span>Extras</span><span class="v">${plata(t.extras)}</span></div>`:''}
     ${t.diferencia?`<div class="total-fila" style="color:var(--amber)">
-      <span>Diferencia</span><span class="v">${plata(t.diferencia)}</span></div>`:''}
+      <span>Adicional</span><span class="v">${plata(t.diferencia)}</span></div>`:''}
     ${t.descuento?`<div class="total-fila" style="color:var(--green)">
       <span>Descuento</span><span class="v">−${plata(t.descuento)}</span></div>`:''}
     ${t.ajuste?`<div class="total-fila" style="color:var(--muted)">
@@ -486,8 +491,12 @@ document.addEventListener('keydown', e => {
 
 // vista previa de PDF adentro del propio módulo -- para ver cómo queda sin
 // tener que volver a la pantalla de la obra
-$('b-pdf').onclick = () => mostrarVistaPreviaPdf('/api/obras/'+OBRA_ID+'/presupuesto.pdf',
-  (obra?.obra?.nombre || 'presupuesto').replace(/\s+/g,'_') + '.pdf');
+$('b-pdf').onclick = () => {
+  const modo = $('b-pdf-modo').value;
+  const sufijo = modo!=='con' ? '_'+modo : '';
+  mostrarVistaPreviaPdf('/api/obras/'+OBRA_ID+'/presupuesto.pdf?modo='+modo,
+    (obra?.obra?.nombre || 'presupuesto').replace(/\s+/g,'_') + sufijo + '.pdf');
+};
 async function mostrarVistaPreviaPdf(url, nombreArchivo){
   let blob;
   try{

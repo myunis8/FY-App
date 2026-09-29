@@ -256,6 +256,12 @@ function pintarCanalizacion(){
     .map(([sec,m]) => `<tr><td>${sec} mm²</td><td class="num">${m} m</td></tr>`).join('');
   const filasCano = Object.entries(canalizacion.canoPorDiametro||{})
     .map(([dia,m]) => `<tr><td>${esc(dia)}</td><td class="num">${m} m</td></tr>`).join('');
+  const filasColor = Object.entries(canalizacion.cableColor||{})
+    .sort((a,b)=>a[0]-b[0])
+    .map(([sec,colores]) => `<tr><td colspan="2" style="padding-top:8px"><b>${sec} mm²</b></td></tr>` +
+      Object.entries(colores).map(([col,m]) =>
+        `<tr><td style="padding-left:14px;color:var(--muted)">${esc(col)}</td><td class="num">${m} m</td></tr>`).join('')
+    ).join('');
   $('canalizacion-cont').innerHTML = `<h2>Cable y caño (Routeo, estimado)</h2>
     <div style="display:flex;gap:14px;flex-wrap:wrap">
       <table style="flex:1;min-width:220px"><thead><tr><th>Sección de cable</th>
@@ -267,7 +273,12 @@ function pintarCanalizacion(){
     </div>
     <div class="nota">Total: ${canalizacion.totalCanoM} m de caño
     (estimado -- para el cómputo detallado de Routeo, usá su propia exportación; el cable no se totaliza
-    porque cada sección es un conductor distinto).</div>`;
+    porque cada sección es un conductor distinto).</div>
+    ${filasColor ? `<h3 style="margin:14px 0 6px">Cable por color (para saber cuántos rollos comprar de cada uno)</h3>
+    <table style="max-width:340px"><tbody>${filasColor}</tbody></table>
+    <div class="nota">Sale del cómputo detallado de Routeo (retornos y tierra compartida reales, no la
+    estimación de arriba) -- por eso la suma de colores de una sección puede no coincidir exacto con sus
+    metros totales.</div>` : ''}`;
 }
 
 function pintarSelectCatalogo(){
