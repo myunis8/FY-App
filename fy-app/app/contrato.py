@@ -5,7 +5,7 @@ import time, uuid
 CONTRATO = 1
 
 BLOQUES = ("plano", "ambientes", "elementos", "circuitos", "tableros",
-           "canalizacion", "computo", "presupuesto", "seguimiento", "validacion")
+           "canalizacion", "computo", "presupuesto", "red", "seguimiento", "validacion")
 
 ESTADOS = {
     "preliminar": "Presupuesto preliminar",
@@ -37,6 +37,10 @@ def obra_vacia(nombre: str = "", cliente: str = "", usuario: str = "") -> dict:
         "canalizacion": None,   # el proyecto tal cual lo produce buildProjectData() de Canaliza
         "computo": None,
         "materiales": {"extras": [], "cables": []},
+        # oferta de productos de red/datos y su plano propio (mismo plano y
+        # escala que Routeo, canalización separada de canalizacion.runs) --
+        # ver app/red.py
+        "red": {"ofertas": [], "dispositivos": [], "tramos": []},
         "presupuesto": {"items": [], "descuento": None, "ajusteFinal": None,
                         "fechaEmision": None},
         "seguimiento": {"estado": "preliminar",
@@ -181,7 +185,7 @@ def actualizar_seguimiento(obra: dict, estado: str | None = None, pago_estado: s
 
 
 # ------------------------------------------------------- estado de módulos
-MODULOS = ("circuitos", "tablero", "routeo", "presupuesto", "materiales", "verificaciones")
+MODULOS = ("circuitos", "tablero", "routeo", "presupuesto", "materiales", "verificaciones", "red")
 
 # los 4 que ya vivían en el checklist viejo (sin quién/cuándo) -- se usan
 # como semilla si el módulo todavía no tiene una decisión manual nueva,
@@ -212,6 +216,11 @@ def _sugerido_modulo(obra: dict, modulo: str) -> bool:
         # usa el mismo prerrequisito que routeo, de donde sale su cálculo.
         # También débil -- el usuario lo puede pisar a mano sin problema.
         return bool((obra.get("canalizacion") or {}).get("runs"))
+    if modulo == "red":
+        # hay al menos un producto de red decidido (aceptado o rechazado,
+        # no simplemente ofrecido sin revisar todavía)
+        return any(o.get("estado") in ("aceptado", "rechazado")
+                  for o in (obra.get("red") or {}).get("ofertas") or [])
     return False
 
 
@@ -258,20 +267,22 @@ def marcar_modulo(obra: dict, modulo: str, finalizado: bool, usuario: str = "") 
 
 
 def total_presupuesto(obra: dict) -> float:
-    """Monto final del presupuesto: trabajos + extras + diferencia, menos
-    descuento, con el ajuste final si está activo -- los extras y la
-    diferencia son plata real de la obra tanto como los trabajos. Misma
-    fórmula que presupuesto.totales()["total"] (no se puede importar ese
-    módulo acá: presupuesto.py ya importa a este, sería circular) -- si se
-    retoca una, retocar la otra."""
+    """Monto final del presupuesto: trabajos + extras + diferencia + red
+    aceptada, menos descuento, con el ajuste final si está activo -- los
+    extras, la diferencia y la red son plata real de la obra tanto como los
+    trabajos. Misma fórmula que presupuesto.totales()["total"] (no se puede
+    importar ese módulo acá: presupuesto.py ya importa a este, sería
+    circular) -- si se retoca una, retocar la otra."""
     pres = obra.get("presupuesto") or {}
+    red_ofertas = (obra.get("red") or {}).get("ofertas") or []
 
     def suma(items):
         return sum((it.get("precioUnitario") or 0) * (it.get("cantidad") or 0)
                   for it in items if not it.get("opcional"))
 
     bruto = (suma(pres.get("items") or []) + suma(pres.get("extras") or [])
-            + suma(pres.get("diferencia") or []))
+            + suma(pres.get("diferencia") or [])
+            + suma([o for o in red_ofertas if o.get("estado") == "aceptado"]))
     desc = pres.get("descuento") or {}
     monto_desc = 0.0
     if desc.get("tipo") == "porcentaje":
