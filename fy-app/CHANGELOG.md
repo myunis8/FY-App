@@ -3,6 +3,26 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 1.3.0 — Routeo: caños en paralelo, altura de recorrido personalizada, PDF más limpio
+
+- **Caño sobrecargado: ahora se sugiere dividir en dos caños en paralelo en
+  vez de agrandar la sección.** El aviso del DRC y el botón de la propiedad
+  del tramo ("Dividir en 2 caños en paralelo") reparten los tramos del caño
+  compartido en dos caños físicos independientes (balanceados por cantidad
+  de conductores), cada uno con la sección que le corresponda. Si el caño
+  sobrecargado tiene un solo tramo (un circuito cuyos propios conductores no
+  entran en ningún caño disponible), no hay nada para repartir de forma
+  automática y el aviso lo indica sin mostrar el botón.
+- **Nuevo recorrido "A una altura personalizada" en Routeo.** Además de "Por
+  cielorraso" y "Directo entre cajas", un tramo puede ir a una altura fija
+  que el usuario elige (media altura, por la losa del piso, etc.). Es una
+  simplificación deliberada: a diferencia de "por cielorraso", la bajada de
+  cada caja no se reparte entre tramos de una misma cadena.
+- **El PDF de Routeo ya no marca con una X roja los cruces de caños sin
+  resolver en altura.** Esa marca sigue estando en el editor (junto con el
+  aviso del DRC); en el plano entregable se sacó para no ensuciarlo. Los
+  cruces resueltos en altura siguen marcados con el triángulo de aviso.
+
 ## 1.2.0 — La app se cierra sola al cerrar el navegador, sin ventana de consola
 
 - **La ventana negra de consola ya no se ve.** Antes era la única forma de

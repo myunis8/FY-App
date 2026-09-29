@@ -31,6 +31,8 @@ CAP0 = {                                   # conductores por caño según secci�
     "1 1/4": {1.5: 14, 2.5: 12, 4: 9, 6: 7, 10: 5, 16: 4},
 }
 
+ALTURA_DEFAULT_M = 1.2  # media altura por defecto para route == "altura" (ver canaliza.html)
+
 Z0 = {"ceiling": 2.60, "tablero": 1.80, "luminaria": 2.60, "interruptor": 1.20,
       "toma": 0.30, "especial": 1.20, "paso": 2.60, "medidor": 1.50, "jabalina": 0}
 
@@ -166,7 +168,7 @@ class Proyecto:
         # canaliza.html y _run_vert_m() en materiales.py)
         self._grados_techo: dict = {}
         for rr in self.runs:
-            if rr.get("route") == "directo":
+            if (rr.get("route") or "techo") != "techo":
                 continue
             for k in ("a", "b"):
                 nid = rr.get(k)
@@ -212,6 +214,10 @@ class Proyecto:
         zb = self.resolve_z(self.node(r.get("b")))
         if r.get("route") == "directo":
             return abs(za - zb)
+        if r.get("route") == "altura":
+            h = r.get("alturaM")
+            h = h if h is not None else ALTURA_DEFAULT_M
+            return abs(za - h) + abs(zb - h)
         c = self.z["ceiling"]
         da = max(1, self._grados_techo.get(r.get("a"), 1))
         db = max(1, self._grados_techo.get(r.get("b"), 1))
@@ -226,7 +232,13 @@ class Proyecto:
         if r.get("share") is False or not r.get("a") or not r.get("b"):
             return "s:" + str(r.get("id"))
         ab = sorted([r["a"], r["b"]])
-        return f"g:{ab[0]}|{ab[1]}:{r.get('route', 'techo')}"
+        route = r.get("route") or "techo"
+        rsuf = ""
+        if route == "altura":
+            h = r.get("alturaM")
+            rsuf = ":h" + str(h if h is not None else ALTURA_DEFAULT_M)
+        psuf = ":p2" if r.get("par") == 2 else ""
+        return f"g:{ab[0]}|{ab[1]}:{route}{rsuf}{psuf}"
 
     def cap_of(self, dia, sec):
         row = self.cap.get(dia)
@@ -269,8 +281,12 @@ class Proyecto:
 
     # ------------------------------------------------------------- cruces
     def group_z_at_fraction(self, g, frac):
-        if (g.get("route") or "techo") == "techo":
+        route = g.get("route") or "techo"
+        if route == "techo":
             return self.z["ceiling"]
+        if route == "altura":
+            h = g["runs"][0].get("alturaM")
+            return h if h is not None else ALTURA_DEFAULT_M
         za = self.resolve_z(self.node(g.get("a")))
         zb = self.resolve_z(self.node(g.get("b")))
         return za + (zb - za) * frac

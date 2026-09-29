@@ -243,12 +243,15 @@ def _run_horiz_m(run, px_por_m):
     return total / px_por_m if px_por_m else 0.0
 
 
+ALTURA_DEFAULT_M = 1.2  # media altura por defecto para route == "altura" (ver canaliza.html)
+
+
 def _grados_techo(runs):
     """Cuántos tramos "por cielorraso" llegan a cada nodo -- para repartir la
     bajada de esa caja entre todos ellos (ver _run_vert_m)."""
     g: dict = {}
     for r in runs or []:
-        if r.get("route") == "directo":
+        if (r.get("route") or "techo") != "techo":
             continue
         for k in ("a", "b"):
             nid = r.get(k)
@@ -268,6 +271,10 @@ def _run_vert_m(run, nodos_por_id, z_cfg, grados_techo=None):
     zb = _resolve_z(nodos_por_id.get(run.get("b")), z_cfg)
     if run.get("route") == "directo":
         return abs(za - zb)
+    if run.get("route") == "altura":
+        h = run.get("alturaM")
+        h = h if h is not None else ALTURA_DEFAULT_M
+        return abs(za - h) + abs(zb - h)
     techo = z_cfg.get("ceiling", 2.4)
     gt = grados_techo or {}
     da = max(1, gt.get(run.get("a"), 1))
@@ -283,7 +290,13 @@ def _grupo_de_cano(run):
     if run.get("share") is False or not run.get("a") or not run.get("b"):
         return "s:" + str(run.get("id"))
     ab = sorted([run["a"], run["b"]])
-    return f"g:{ab[0]}|{ab[1]}:{run.get('route','techo')}"
+    route = run.get("route") or "techo"
+    rsuf = ""
+    if route == "altura":
+        h = run.get("alturaM")
+        rsuf = ":h" + str(h if h is not None else ALTURA_DEFAULT_M)
+    psuf = ":p2" if run.get("par") == 2 else ""
+    return f"g:{ab[0]}|{ab[1]}:{route}{rsuf}{psuf}"
 
 
 def computar_canalizacion(obra: dict) -> dict:
