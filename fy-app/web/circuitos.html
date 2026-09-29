@@ -356,14 +356,38 @@ function pintarPlano(){
   if(!conPlano) return;
   dimensionar();
   let html = '';
+  // varias teclas de una misma caja (cajaId) se dibujan todas en el eje de la
+  // llave -- misma posicionPdfPt para todas -- y sus círculos quedan
+  // exactamente superpuestos: sólo se puede clickear la de más arriba y las
+  // demás quedan "sin asignar" para siempre. Se abren en un pequeño abanico
+  // para que cada tecla siga siendo clickeable por separado (el punto real,
+  // posicionPdfPt, no cambia -- sólo el dibujo).
+  const porCaja = new Map();
+  (obra.elementos||[]).forEach(e=>{
+    if(e.tipo==='llave' && e.cajaId){
+      if(!porCaja.has(e.cajaId)) porCaja.set(e.cajaId, []);
+      porCaja.get(e.cajaId).push(e);
+    }
+  });
+  const abanico = new Map();
+  porCaja.forEach(lista=>{
+    if(lista.length<2) return;
+    const R = 6;
+    lista.forEach((e,i)=>{
+      const ang = (i/lista.length)*Math.PI*2 - Math.PI/2;
+      abanico.set(e.id, {dx:Math.cos(ang)*R, dy:Math.sin(ang)*R});
+    });
+  });
   (obra.elementos||[]).forEach(e=>{
     if(!e.posicionPdfPt) return;
     const c = circuitoDe(e.id);
     const ok = elegible(e);
     const clase = c ? '' : (ok ? 'libre' : 'fuera');
     const relleno = c ? ` style="fill:${colorDe(c)};stroke:${colorDe(c)}"` : '';
+    const off = abanico.get(e.id);
+    const cx = e.posicionPdfPt.x + (off?off.dx:0), cy = e.posicionPdfPt.y + (off?off.dy:0);
     html += `<circle class="el ${clase} ${marcados.has(e.id)?'marcado':''}"${relleno}
-      ${ok?'':'opacity="0.5"'} cx="${e.posicionPdfPt.x}" cy="${e.posicionPdfPt.y}"
+      ${ok?'':'opacity="0.5"'} cx="${cx}" cy="${cy}"
       r="${ok?3.6:2.4}" data-id="${e.id}"><title>${esc(rotulo(e))}${
         c?' · '+esc(c.nombre):''}</title></circle>`;
   });

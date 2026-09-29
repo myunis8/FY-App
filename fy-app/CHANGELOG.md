@@ -3,6 +3,173 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 1.6.1 — Lista de materiales: sidebar de colores, cable tipo taller/Sintenax
+
+- **Sin la nota interna del PDF sobre confirmar cajas/térmicas contra Circuitos
+  y Tablero** -- era para uso propio, no para el cliente que recibe la lista.
+- **El cómputo ya no agrega solo la cantidad de cable a comprar.** Antes,
+  "Actualizar cómputo" sumaba un renglón "Cable X mm² (estimado)" a la lista
+  de materiales con los metros calculados; ahora esa decisión queda 100% en
+  "Cable a comprar", donde el usuario pone a mano cuántos rollos necesita
+  mirando el estimado. El caño sigue agregándose solo (se compra por metro,
+  no hay redondeo que decidir).
+- **"Cable por color" (de la 1.6.0) pasa a una columna fija a la izquierda**
+  que se queda a la vista mientras se scrollea el resto de la página, en vez
+  de tener que volver para arriba para consultarlo mientras se completa
+  "Cable a comprar" más abajo.
+- **Nuevo: cable tipo taller/Sintenax en "Cable a comprar".** Cada renglón
+  tiene un selector de tipo (Unipolar / Taller-Sintenax); el tipo taller
+  pide un formato (2x2.5, 3x2.5, 2x4 mm², etc.) en vez de sección + color,
+  con la misma cantidad/unidad/notas que ya tenía el resto.
+
+## 1.6.0 — Filtros de avisos, fix de teclas superpuestas, cable por color, Adicional
+
+- **Routeo: el código de conductores del PDF ya no lleva fondo blanco** (tapaba
+  el plano cuando había varios caños cerca) y la letra es más chica.
+- **Routeo: "Editar etiquetas de código" ahora sólo muestra las etiquetas de
+  los caños visibles** (según qué circuitos estén tildados), para poder ir
+  acomodándolas de a partes en vez de todas juntas.
+- **Nuevo: filtros en "Observaciones de diseño" (Routeo).** Cada tipo de
+  aviso (codos de 90°, ocupación de cable, cruces a la misma altura, tramo
+  largo sin caja intermedia, etc.) se puede apagar con su propio checkbox --
+  útil para los que ya se resolvieron a propósito y no hace falta seguir
+  viendo. La elección queda guardada en el navegador (no en la obra), y un
+  tipo apagado tampoco resalta en rojo el plano.
+- **Fix: cajas con más de un interruptor (varias teclas en el mismo eje)
+  quedaban con las teclas de más superpuestas e imposibles de clickear** en
+  Circuitos -- por eso parecían "sin asignar" para siempre por más que se
+  las intentara vincular. Ahora se abren en un pequeño abanico para que cada
+  tecla se pueda clickear por separado.
+- **Lista de materiales: nuevo desglose "Cable por color"** dentro de Cable y
+  caño (Routeo) -- antes sólo se veían los metros totales por sección,
+  mezclando fase/neutro/tierra/retornos; ahora se ve cuánto de cada color
+  hay en cada sección, para saber cuántos rollos de cada uno comprar.
+- **Presupuesto: "Diferencia" se renombra a "Adicional"** en toda la pantalla
+  y el PDF. En el PDF, el adicional ya no repite "Diferencia — Categoría"
+  por cada categoría de sus ítems: ahora es un solo bloque "Adicional" con
+  la lista completa sin categorizar, más simple. Nuevo selector en la
+  cabecera para elegir qué PDF generar: con el adicional (como antes), sin
+  el adicional, o sólo el adicional (un documento aparte para entregarlo
+  solo).
+
+## 1.5.1 — Etiquetas de código movibles y rotables, botones de PDF más cortos
+
+- **Nuevo: "Editar etiquetas de código" en Vista.** El código de conductores
+  de cada caño (de la 1.5.0, ej. `2.5(FNT)`) ahora también se puede ver en el
+  editor -- tildando este checkbox aparece al lado de cada caño, se puede
+  arrastrar con el mouse a donde convenga y rotar 90° con doble clic (útil
+  para los tramos verticales). La posición/rotación elegida se guarda por
+  caño y se usa igual en el PDF "con código de cables", así se puede acomodar
+  todo antes de exportar en vez de pelear con superposiciones en el PDF.
+- **Fix: los botones de PDF no entraban en una línea** y el de "Volver"
+  se corría abajo cuando aparecía el aviso de guardado. Se acortaron a
+  "Planos", "Código de cables" y "Materiales" (el texto completo queda en
+  el título al pasar el mouse).
+
+## 1.5.0 — PDF con código de cables, caños en paralelo separados, símbolos chicos
+
+- **Nuevo botón "PDF con código de cables" en Routeo.** Una hoja por circuito
+  elegido, igual que "PDF de planos" pero los caños se dibujan con el color
+  del circuito (no el color real de cada conductor) y, al costado de cada
+  caño, un código de texto con lo que lleva adentro -- p.ej. `2.5(FNT)`: un
+  caño con conductores de 2,5 mm² de fase, neutro y tierra. Si el caño es
+  compartido con otro circuito, el código muestra TODO lo que hay adentro
+  (ej. `2.5(FNT)-4(FNT)`), aunque esa página sólo resalte un circuito -- así
+  no hace falta abrir el cableado detallado para saber qué hay en un caño
+  lleno. Letras: F=fase, N=neutro, T=tierra, R=retorno simple, C=combinado.
+- **Fix: un caño dividido en dos caños en paralelo (ver 1.3.0) se dibujaba
+  con ambos exactamente superpuestos** -- sólo se veía uno, porque comparten
+  el mismo trazado de origen. Ahora se separan visualmente uno al lado del
+  otro (editor y PDF), sin tocar el cálculo de cruces ni de relleno.
+- **Fix: la sección del caño ya no se agranda sola.** Antes, al agregar un
+  tramo a un caño compartido, si el nuevo conductor no entraba se agrandaba
+  automáticamente la sección de todo el caño. Ahora un tramo nuevo sólo
+  adopta la sección que el caño ya tenía (7/8" por defecto) -- si hay que
+  agrandarlo, lo hace el usuario a mano desde el panel o con "Dividir en 2
+  caños en paralelo".
+- **Símbolos de cajas, tablero, etc. más chicos** en el plano (editor y PDF),
+  para que ocupen menos lugar.
+
+## 1.4.2 — Fix: troncal de tierra sin editar/eliminar, cable agrupado por tipo
+
+- **Fix: no se podía eliminar ni editar un troncal de tierra ya creado.** El
+  panel de "Tierra compartida" reusaba las clases `.ci-h`/`.ci-b` de las
+  tarjetas de circuito, pero esas ocultan el cuerpo (`.ci-b{display:none}`)
+  hasta que la tarjeta queda "activa" -- algo que nunca se activaba para un
+  troncal, así que la Sección, el botón Trazar y el Eliminar quedaban
+  siempre invisibles. Ahora el panel de cada troncal se muestra siempre
+  completo, sin necesidad de expandirlo.
+- **El cómputo de cable (Routeo y PDF) ya no separa renglones por instancia.**
+  Antes cada retorno simple o combinado de iluminación tenía su propio
+  renglón por luz (`RS-A`, `RS-B`, `RC-A1`...) y cada troncal de tierra su
+  propio renglón con su nombre; ahora se agrupan por tipo de conductor y
+  sección: todos los retornos simples de una sección suman a un mismo
+  renglón "Blanco (retorno simple)", los combinados a "Amarillo (retorno
+  combinado)", y toda la tierra de una sección (troncal o no) a "Verde-
+  amarillo (tierra)" -- junto con "Marrón (fase)" y "Celeste (neutro)", que
+  ya se agrupaban así.
+
+## 1.4.1 — Cables ortogonales prolijos, sin totales que mezclan secciones
+
+- **Fix: los cables dibujados en los codos del caño (vista detallada, PDF y
+  editor) quedaban levemente inclinados o se cruzaban entre sí en vez de
+  seguir el ángulo recto del caño.** La causa era un bug de geometría en
+  `offset_poly`/`offsetPoly` (promediaba y renormalizaba las normales de los
+  dos segmentos de un vértice en vez de usar la fórmula de inglete correcta),
+  compartido entre `app/canaliza_geom.py` y `web/canaliza.html`. De paso se
+  sacó el borde oscuro de cada conductor y se afinó el grosor de línea para
+  que quede más prolijo; el tono "blanco" de retorno simple pasa a un gris
+  claro para que se siga viendo sobre el fondo blanco del caño sin ese borde.
+- **El cómputo de cable ya no muestra un total sumado entre secciones**
+  (Routeo, PDF y Lista de materiales): son conductores de distinto color y
+  función, sumarlos no tenía sentido. Se mantienen los totales por sección y
+  el total de caño (que sí es homogéneo).
+- **El medidor ya no aparece en la lista de cajas del cómputo de materiales**
+  de Routeo (editor y PDF): lo instala la distribuidora, no es un material
+  que compre la instalación.
+
+## 1.4.0 — Routeo: tierra compartida entre circuitos, PDF sin marcas de cruce
+
+- **PDF de Routeo: ya no se marca ningún cruce de caños.** Se había sacado la X
+  roja de los cruces sin resolver en la versión anterior; ahora también se
+  saca el triángulo de aviso de los cruces resueltos en altura. Esos avisos
+  siguen estando en el editor (DRC y plano interactivo), sólo se sacaron del
+  plano entregable.
+- **Nuevo: tierra compartida entre circuitos ("troncal de tierra"), en la
+  barra izquierda de Routeo.** Igual que un retorno, se traza clickeando los
+  tramos por los que pasa -- pero a diferencia de un retorno no está atado a
+  un solo circuito: puede pasar por tramos de tomas, especiales, exteriores o
+  acometida indistintamente. Los tramos que se suman al troncal dejan de
+  contar su propio conductor de tierra (ya lo lleva el troncal), que a su vez
+  cuenta un solo conductor por cada caño físico que atraviesa, aunque sirva a
+  varios circuitos a la vez -- así se refleja el ahorro real de cable y
+  espacio en el caño de empalmar las tierras en un solo conductor. La sección
+  del conductor del troncal se sugiere automáticamente como la mayor sección
+  de fase entre los circuitos que lo usan (criterio conservador tipo AEA),
+  editable a mano por troncal; el DRC deja explícito qué sección quedó
+  asumida. Impacta también el cómputo de materiales del propio Routeo y la
+  estimación de cable de la Lista de materiales (`app/materiales.py`).
+
+## 1.3.0 — Routeo: caños en paralelo, altura de recorrido personalizada, PDF más limpio
+
+- **Caño sobrecargado: ahora se sugiere dividir en dos caños en paralelo en
+  vez de agrandar la sección.** El aviso del DRC y el botón de la propiedad
+  del tramo ("Dividir en 2 caños en paralelo") reparten los tramos del caño
+  compartido en dos caños físicos independientes (balanceados por cantidad
+  de conductores), cada uno con la sección que le corresponda. Si el caño
+  sobrecargado tiene un solo tramo (un circuito cuyos propios conductores no
+  entran en ningún caño disponible), no hay nada para repartir de forma
+  automática y el aviso lo indica sin mostrar el botón.
+- **Nuevo recorrido "A una altura personalizada" en Routeo.** Además de "Por
+  cielorraso" y "Directo entre cajas", un tramo puede ir a una altura fija
+  que el usuario elige (media altura, por la losa del piso, etc.). Es una
+  simplificación deliberada: a diferencia de "por cielorraso", la bajada de
+  cada caja no se reparte entre tramos de una misma cadena.
+- **El PDF de Routeo ya no marca con una X roja los cruces de caños sin
+  resolver en altura.** Esa marca sigue estando en el editor (junto con el
+  aviso del DRC); en el plano entregable se sacó para no ensuciarlo. Los
+  cruces resueltos en altura siguen marcados con el triángulo de aviso.
+
 ## 1.2.0 — La app se cierra sola al cerrar el navegador, sin ventana de consola
 
 - **La ventana negra de consola ya no se ve.** Antes era la única forma de

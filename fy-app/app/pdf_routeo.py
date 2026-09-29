@@ -146,7 +146,6 @@ def _draw_conduit(pg, T, P, grp, bad, vis, detailed):
     base_w = grp["runs"][0].get("pts") or []        # polilínea en coords del plano
     if len(base_w) < 2:
         return
-    base = T.pts(base_w)                            # coords de página, para las envolturas
     u = T.u
     # los cables van en paralelo, corridos del eje del caño. El offset se aplica
     # sobre las coords DEL PLANO y recién ahí se transforma una sola vez -- si se
@@ -154,28 +153,41 @@ def _draw_conduit(pg, T, P, grp, bad, vis, detailed):
     # la línea de color queda re-escalada y pegada arriba a la izquierda.
     off_u = u / T.k                                 # "1 de offset raw" -> u pt en la página
 
-    def _linea(off_raw, color, w, *, opacity=1.0, dash=None):
-        pts = base if not off_raw else T.pts(offset_poly(base_w, off_raw * off_u))
-        _stroke(pg, pts, color, w, opacity=opacity, dash=dash)
-
     if detailed:
         items = P.conduit_conductors(vis)
         n = max(len(items), 1)
         max_w = max((cond_width(it["section"]) for it in items), default=1.4)
         pipe_w = min(26, 9 + n * (max_w + 0.6))
+    else:
+        pipe_w = 8.5 if bad else 7.5
+
+    # un caño dividido en dos caños en paralelo (mismo trazado de origen que
+    # su "hermano") se corre entero hacia un lado para que no queden dibujados
+    # exactamente superpuestos -- ver conduit_groups()/parSide
+    par_side = grp.get("parSide") or 0
+    if par_side:
+        base_w = offset_poly(base_w, par_side * (pipe_w / 2 + 3) * off_u)
+    base = T.pts(base_w)                            # coords de página, para las envolturas
+
+    def _linea(off_raw, color, w, *, opacity=1.0, dash=None):
+        pts = base if not off_raw else T.pts(offset_poly(base_w, off_raw * off_u))
+        _stroke(pg, pts, color, w, opacity=opacity, dash=dash)
+
+    if detailed:
         _stroke(pg, base, (1, 1, 1), (pipe_w + 4) * u, opacity=0.9)
         _stroke(pg, base, _rgb("#b3261e") if bad else _rgb("#9aa4ad"), (pipe_w + 1.2 if bad else pipe_w) * u)
         _stroke(pg, base, (1, 1, 1), (pipe_w - 2.6) * u)
         sp = min(5.6, (pipe_w - 2.5) / n)
         for i, it in enumerate(items):
             off_raw = (i - (n - 1) / 2) * sp if n > 1 else 0
-            w = cond_width(it["section"])
-            _linea(off_raw, (15 / 255, 18 / 255, 20 / 255), (w + 1.1) * u, opacity=0.6)
-            _linea(off_raw, _rgb(it["color"]), w * u)
+            # sin borde: sólo el color del conductor, más fino -- un borde oscuro
+            # rompía la ortogonalidad visual en los codos (además del bug de
+            # offset_poly ya corregido) y quedaba poco prolijo en el plano
+            _linea(off_raw, _rgb(it["color"]), cond_width(it["section"]) * 0.75 * u)
         return
 
     _stroke(pg, base, (1, 1, 1), 11 * u, opacity=0.9)
-    _stroke(pg, base, _rgb("#b3261e") if bad else _rgb("#9aa4ad"), (8.5 if bad else 7.5) * u)
+    _stroke(pg, base, _rgb("#b3261e") if bad else _rgb("#9aa4ad"), pipe_w * u)
     _stroke(pg, base, (1, 1, 1), 5.5 * u)
     n = len(grp["runs"])
     for i, r in enumerate(grp["runs"]):
@@ -206,7 +218,7 @@ def _draw_device(pg, T, dev, cx, cy, R, color):
 
 
 def _draw_node(pg, T, P, n, bad=False):
-    u, R = T.u, 10 * T.u
+    u, R = T.u, 7 * T.u
     ctr = T.p(n)
     cx, cy = ctr.x, ctr.y
     ci = P.circuit(n.get("circuitId")) if n.get("circuitId") else None
@@ -258,33 +270,28 @@ def _draw_node(pg, T, P, n, bad=False):
 
 
 def _draw_crossing(pg, T, cr):
-    u = T.u
-    ctr = T.p(cr["pt"])
-    cx, cy = ctr.x, ctr.y
-    if cr["safe"]:
-        s = 8 * u
-        tri = [pymupdf.Point(cx, cy - s), pymupdf.Point(cx + s * .87, cy + s * .62),
-               pymupdf.Point(cx - s * .87, cy + s * .62)]
-        sh = pg.new_shape()
-        sh.draw_polyline(tri + [tri[0]])
-        sh.finish(color=_rgb("#8a6100"), fill=(1, 1, 1), width=2 * u, closePath=True)
-        sh.commit()
-        _stroke(pg, [pymupdf.Point(cx, cy - s * .32), pymupdf.Point(cx, cy + s * .18)], _rgb("#8a6100"), 1.8 * u)
-    else:
-        s = 7.5 * u
-        _stroke(pg, [pymupdf.Point(cx - s, cy - s), pymupdf.Point(cx + s, cy + s)], _rgb("#b3261e"), 2.6 * u)
-        _stroke(pg, [pymupdf.Point(cx + s, cy - s), pymupdf.Point(cx - s, cy + s)], _rgb("#b3261e"), 2.6 * u)
+    # los cruces (resueltos en altura o no) ya se avisan en el DRC del editor;
+    # el PDF entregable no marca ninguno para no ensuciar el plano.
+    return
 
 
-def _label(pg, T, x, y, text, fs):
+def _label(pg, T, x, y, text, fs, *, rot=False, bg=True):
     fs = max(4.6, fs)
-    w = pymupdf.get_text_length(text, fontname="helv", fontsize=fs)
-    pg.draw_rect(pymupdf.Rect(x - 1.5, y - fs, x + w + 1.5, y + 2), color=None,
-                 fill=(1, 1, 1), fill_opacity=0.9)
-    pg.insert_text((x, y), text, fontsize=fs, fontname="helv", color=(15 / 255, 18 / 255, 20 / 255))
+    if bg:
+        w = pymupdf.get_text_length(text, fontname="helv", fontsize=fs)
+        if rot:
+            # insert_text con rotate=90 arranca en (x,y) y el texto sube hacia
+            # -Y (comprobado a mano) -- el recuadro de fondo se adapta a eso
+            pg.draw_rect(pymupdf.Rect(x - 3, y - w - 2, x + fs + 2, y + 3), color=None,
+                         fill=(1, 1, 1), fill_opacity=0.9)
+        else:
+            pg.draw_rect(pymupdf.Rect(x - 1.5, y - fs, x + w + 1.5, y + 2), color=None,
+                         fill=(1, 1, 1), fill_opacity=0.9)
+    pg.insert_text((x, y), text, fontsize=fs, fontname="helv", color=(15 / 255, 18 / 255, 20 / 255),
+                    rotate=90 if rot else 0)
 
 
-def _draw_scene(pg, T, P, *, only=None, detailed=False, labels=True, lens=True,
+def _draw_scene(pg, T, P, *, only=None, detailed=False, labels=True, lens=True, codigo=False,
                 crossings=None, problems=None):
     problems = problems if problems is not None else P.drc_error_targets()
     groups = P.conduit_groups()
@@ -324,6 +331,30 @@ def _draw_scene(pg, T, P, *, only=None, detailed=False, labels=True, lens=True,
                 txt += f'  (h {_fmt(grp["horiz"])} + v {_fmt(grp["vert"])})'
             m = T.p(mid)
             _label(pg, T, m.x, m.y - 4 * T.u, txt, 11 * T.u)
+
+    # código de conductores al costado del caño (PDF "con código de cables"):
+    # reemplaza tener que distinguirlos por color -- ver conduit_code()
+    if codigo and P.px_per_m:
+        for grp in groups.values():
+            relevant = (any(r.get("circuit") == only for r in grp["runs"]) if only
+                        else any(P.is_ci_visible(r.get("circuit")) for r in grp["runs"]))
+            if not relevant:
+                continue
+            pnts = grp["runs"][0].get("pts") or []
+            if len(pnts) < 2:
+                continue
+            txt = P.conduit_code(grp)
+            if not txt:
+                continue
+            ov = P.code_labels.get(grp["key"])
+            dx = ov.get("dx", 0) if ov else 0
+            dy = ov.get("dy", 14) if ov else 14
+            rot = bool(ov.get("rot")) if ov else False
+            mid = P.run_mid_point(grp["runs"][0])
+            m = T.p({"x": mid["x"] + dx, "y": mid["y"] + dy})
+            # sin fondo blanco -- tapaba el plano de fondo cuando había varios
+            # caños con código cerca; más chico para no ocupar tanto lugar
+            _label(pg, T, m.x, m.y, txt, 7.5 * T.u, rot=rot, bg=False)
 
     for n in P.nodes:
         if not P.node_visible(n, only):
@@ -384,6 +415,62 @@ def _legend_circuitos(pg, W, y, circuits):
     return y
 
 
+def _hoja_circuito(doc, W, H, P, base_name, plano_png, base_w, base_h, cid, crossings, problems, *, codigo=False):
+    """Una hoja para un circuito. `codigo=False` (por defecto, "PDF de planos"):
+    caños dibujados con el color real de cada conductor. `codigo=True` ("PDF
+    con código de cables"): caños con el color del circuito, como en la hoja
+    general, y un código de texto al lado de cada caño (ver conduit_code())
+    en vez de tener que distinguir los conductores por color."""
+    c = P.circuit(cid)
+    if not c:
+        return
+    rs = [r for r in P.runs if r.get("circuit") == cid]
+    length = sum(P.run_len_m(r) for r in rs)
+    vert = sum(P.run_vert_m(r) for r in rs)
+    cab = sum(P.run_len_m(r) * (r.get("cables") or 0) for r in rs)
+    sub = DEV_KIND.get(c.get("kind"), c.get("kind")) + (f' — {c["detail"]}' if c.get("detail") else "")
+    pg, _ = _plan_page(doc, W, H, f'Circuito {c.get("name")}', sub, plano_png, base_w, base_h, 96,
+                       lambda p, T, _cid=cid: _draw_scene(p, T, P, only=_cid, labels=False, lens=False,
+                                                          detailed=not codigo, codigo=codigo,
+                                                          crossings=crossings, problems=problems))
+    y = H - 84
+    celdas = [("Sección", f'{c.get("section")} mm²'), ("Protección", f'{c.get("prot")} A'),
+              ("Tramos", str(len(rs))), ("Horizontal", f'{_fmt(length - vert, 1)} m'),
+              ("Vertical", f'{_fmt(vert, 1)} m'), ("Cable", f'{_fmt(cab, 1)} m')]
+    x = MARGEN
+    for k, v in celdas:
+        pg.insert_text((x, y), k, fontsize=7, fontname="helv", color=MUTED)
+        pg.insert_text((x, y + 10), v, fontsize=9, fontname="hebo", color=INK)
+        x += max(70, pymupdf.get_text_length(v, fontname="helv", fontsize=9) + 34)
+    y += 24
+    if codigo:
+        pg.insert_text((MARGEN, y), "F=fase · N=neutro · T=tierra · R=retorno simple · C=retorno combinado "
+                        "· 2.5(FNT) = un caño con conductores de 2,5 mm² de esos tipos",
+                        fontsize=7, fontname="helv", color=MUTED)
+        y += 14
+    if rs:
+        pg.draw_line((MARGEN, y - 6), (W - MARGEN, y - 6), color=LINE, width=0.4)
+        cols = [MARGEN, MARGEN + 150, MARGEN + 210, MARGEN + 260, MARGEN + 320, MARGEN + 380, MARGEN + 445]
+        for i, hcol in enumerate(["Tramo", "Caño", "Cond.", "Horiz.", "Vert.", "Total", "Cable"]):
+            pg.insert_text((cols[i], y), hcol, fontsize=7, fontname="hebo", color=MUTED)
+        y += 11
+        gall = P.conduit_groups()
+        for r in rs:
+            if y > H - 24:
+                break
+            a, b = P.node(r.get("a")), P.node(r.get("b"))
+            g = gall.get(P.group_key(r))
+            sh = "  (compartido)" if g and len(g["runs"]) > 1 else ""
+            vals = [f'{(a or {}).get("label", "libre")} → {(b or {}).get("label", "libre")}{sh}',
+                    dia_lbl(r.get("dia")), str(r.get("cables")), _fmt(P.run_horiz_m(r)),
+                    _fmt(P.run_vert_m(r)), f'{_fmt(P.run_len_m(r))} m',
+                    f'{_fmt(P.run_len_m(r) * (r.get("cables") or 0))} m']
+            for i, v in enumerate(vals):
+                pg.insert_text((cols[i], y), v, fontsize=7, fontname="helv", color=INK)
+            y += 10
+    _footer(pg, W, H, base_name, f'Circuito {c.get("name")}')
+
+
 def generar(obra: dict, proyecto: dict, hojas: dict, *, formato="a4",
             orientacion="landscape", ocultos=None) -> bytes:
     plano = _plano_imagen(obra, _zoom_coords(obra, proyecto))
@@ -421,48 +508,10 @@ def generar(obra: dict, proyecto: dict, hojas: dict, *, formato="a4",
         _footer(pg, W, H, base_name, "Cableado detallado")
 
     for cid in (hojas.get("circuitos") or []):
-        c = P.circuit(cid)
-        if not c:
-            continue
-        rs = [r for r in P.runs if r.get("circuit") == cid]
-        length = sum(P.run_len_m(r) for r in rs)
-        vert = sum(P.run_vert_m(r) for r in rs)
-        cab = sum(P.run_len_m(r) * (r.get("cables") or 0) for r in rs)
-        sub = DEV_KIND.get(c.get("kind"), c.get("kind")) + (f' — {c["detail"]}' if c.get("detail") else "")
-        pg, _ = _plan_page(doc, W, H, f'Circuito {c.get("name")}', sub, plano_png, base_w, base_h, 96,
-                           lambda p, T, _cid=cid: _draw_scene(p, T, P, only=_cid, labels=False, lens=False,
-                                                              detailed=True, crossings=crossings, problems=problems))
-        y = H - 84
-        celdas = [("Sección", f'{c.get("section")} mm²'), ("Protección", f'{c.get("prot")} A'),
-                  ("Tramos", str(len(rs))), ("Horizontal", f'{_fmt(length - vert, 1)} m'),
-                  ("Vertical", f'{_fmt(vert, 1)} m'), ("Cable", f'{_fmt(cab, 1)} m')]
-        x = MARGEN
-        for k, v in celdas:
-            pg.insert_text((x, y), k, fontsize=7, fontname="helv", color=MUTED)
-            pg.insert_text((x, y + 10), v, fontsize=9, fontname="hebo", color=INK)
-            x += max(70, pymupdf.get_text_length(v, fontname="helv", fontsize=9) + 34)
-        y += 24
-        if rs:
-            pg.draw_line((MARGEN, y - 6), (W - MARGEN, y - 6), color=LINE, width=0.4)
-            cols = [MARGEN, MARGEN + 150, MARGEN + 210, MARGEN + 260, MARGEN + 320, MARGEN + 380, MARGEN + 445]
-            for i, hcol in enumerate(["Tramo", "Caño", "Cond.", "Horiz.", "Vert.", "Total", "Cable"]):
-                pg.insert_text((cols[i], y), hcol, fontsize=7, fontname="hebo", color=MUTED)
-            y += 11
-            gall = P.conduit_groups()
-            for r in rs:
-                if y > H - 24:
-                    break
-                a, b = P.node(r.get("a")), P.node(r.get("b"))
-                g = gall.get(P.group_key(r))
-                sh = "  (compartido)" if g and len(g["runs"]) > 1 else ""
-                vals = [f'{(a or {}).get("label", "libre")} → {(b or {}).get("label", "libre")}{sh}',
-                        dia_lbl(r.get("dia")), str(r.get("cables")), _fmt(P.run_horiz_m(r)),
-                        _fmt(P.run_vert_m(r)), f'{_fmt(P.run_len_m(r))} m',
-                        f'{_fmt(P.run_len_m(r) * (r.get("cables") or 0))} m']
-                for i, v in enumerate(vals):
-                    pg.insert_text((cols[i], y), v, fontsize=7, fontname="helv", color=INK)
-                y += 10
-        _footer(pg, W, H, base_name, f'Circuito {c.get("name")}')
+        _hoja_circuito(doc, W, H, P, base_name, plano_png, base_w, base_h, cid, crossings, problems)
+
+    for cid in (hojas.get("circuitosCodigo") or []):
+        _hoja_circuito(doc, W, H, P, base_name, plano_png, base_w, base_h, cid, crossings, problems, codigo=True)
 
     if hojas.get("bom"):
         _hoja_bom(doc, W, H, P, base_name)
@@ -492,8 +541,6 @@ def _hoja_bom(doc, W, H, P, base_name):
             pg.insert_text((MARGEN + 8, y), col, fontsize=7, fontname="helv", color=MUTED)
             pg.insert_text((MARGEN + 90, y), f'{_fmt(b["cableColor"][s][col], 1)} m', fontsize=7, fontname="helv", color=MUTED)
             y += 9
-    pg.insert_text((MARGEN, y + 2), "Total cable", fontsize=8, fontname="hebo", color=INK)
-    pg.insert_text((MARGEN + 90, y + 2), f'{_fmt(b["totalCable"], 1)} m', fontsize=8, fontname="hebo", color=INK)
 
     y2 = y0 + 6
     pg.insert_text((col2, y2), "Caño corrugado", fontsize=9, fontname="hebo", color=NAVY)
@@ -511,8 +558,7 @@ def _hoja_bom(doc, W, H, P, base_name):
     y += 12
     filas = [("Octogonales", b["boxes"].get("oct", 0)), ("Rectangulares", b["boxes"].get("rect", 0)),
              ("Tableros", b["boxes"].get("tablero", 0))]
-    if b["boxes"].get("medidor"):
-        filas.append(("Medidores", b["boxes"]["medidor"]))
+    # el medidor no es un material a comprar -- lo instala la distribuidora
     if b["boxes"].get("jabalina"):
         filas.append(("Jabalinas", b["boxes"]["jabalina"]))
     if b["boxes"].get("insp"):

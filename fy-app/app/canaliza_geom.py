@@ -31,6 +31,8 @@ CAP0 = {                                   # conductores por caño según secci�
     "1 1/4": {1.5: 14, 2.5: 12, 4: 9, 6: 7, 10: 5, 16: 4},
 }
 
+ALTURA_DEFAULT_M = 1.2  # media altura por defecto para route == "altura" (ver canaliza.html)
+
 Z0 = {"ceiling": 2.60, "tablero": 1.80, "luminaria": 2.60, "interruptor": 1.20,
       "toma": 0.30, "especial": 1.20, "paso": 2.60, "medidor": 1.50, "jabalina": 0}
 
@@ -55,11 +57,11 @@ WIRE_COLOR_MAP = {
 WIRE_HEX = {
     "Marrón (fase)": "#7a4a25",
     "Celeste (neutro)": "#49a9d8",
-    "Blanco (retorno simple)": "#e9e9e9",
+    "Blanco (retorno simple)": "#c7c7c7",  # gris claro, no blanco puro -- si no se pierde contra el caño blanco
     "Amarillo (retorno combinado)": "#e8c93a",
     "Verde-amarillo (tierra)": "#6a9a2e",
 }
-RS_SHADES = ["#e9e9e9", "#aeaeae", "#767676"]
+RS_SHADES = ["#c7c7c7", "#aeaeae", "#767676"]
 RC_SHADES = ["#e8c93a", "#c79a2a", "#96701a"]
 
 DEV_KIND = {"iluminacion": "Iluminación", "tomas": "Tomacorrientes", "especial": "Especial",
@@ -123,19 +125,36 @@ def offset_poly(pts, d):
     for i, p in enumerate(pts):
         a = pts[i - 1] if i > 0 else None
         b = pts[i + 1] if i < len(pts) - 1 else None
-        nx = ny = 0.0
+        n1 = n2 = None
         if a:
             dx, dy = p["x"] - a["x"], p["y"] - a["y"]
             L = math.hypot(dx, dy) or 1
-            nx += -dy / L
-            ny += dx / L
+            n1 = (-dy / L, dx / L)
         if b:
             dx, dy = b["x"] - p["x"], b["y"] - p["y"]
             L = math.hypot(dx, dy) or 1
-            nx += -dy / L
-            ny += dx / L
-        L = math.hypot(nx, ny) or 1
-        nx, ny = nx / L, ny / L
+            n2 = (-dy / L, dx / L)
+        if n1 and n2:
+            # inglete (miter): mantiene el offset paralelo exacto en los dos
+            # segmentos que se tocan en este vértice -- promediar y renormalizar
+            # las normales (como se hacía antes) acorta el inglete y deja las
+            # líneas paralelas visiblemente inclinadas en los codos, sobre todo
+            # en los ángulos rectos tipicos de estos planos.
+            dot = n1[0] * n2[0] + n1[1] * n2[1]
+            denom = 1 + dot
+            if denom > 1e-4:
+                nx, ny = (n1[0] + n2[0]) / denom, (n1[1] + n2[1]) / denom
+                mlen = math.hypot(nx, ny)
+                if mlen > 4:                       # límite de inglete en vueltas muy cerradas
+                    nx, ny = nx / mlen * 4, ny / mlen * 4
+            else:                                  # vuelta en U: el inglete se va a infinito
+                nx, ny = n1
+        elif n1:
+            nx, ny = n1
+        elif n2:
+            nx, ny = n2
+        else:
+            nx, ny = 0.0, 0.0
         out.append({"x": p["x"] + nx * d, "y": p["y"] + ny * d})
     return out
 
@@ -148,6 +167,8 @@ class Proyecto:
         self.nodes = proy.get("nodes") or []
         self.runs = proy.get("runs") or []
         self.wires = proy.get("wires") or []
+        self.grounds = proy.get("grounds") or []
+        self.code_labels = proy.get("codeLabels") or {}   # {[groupKey]: {dx,dy,rot}} -- ver canaliza.html
         self.px_per_m = proy.get("pxPerM")
         self.base_name = proy.get("baseName") or "plano"
         self.z = {**Z0, **(proy.get("z") or {})}
@@ -166,7 +187,7 @@ class Proyecto:
         # canaliza.html y _run_vert_m() en materiales.py)
         self._grados_techo: dict = {}
         for rr in self.runs:
-            if rr.get("route") == "directo":
+            if (rr.get("route") or "techo") != "techo":
                 continue
             for k in ("a", "b"):
                 nid = rr.get(k)
@@ -212,10 +233,33 @@ class Proyecto:
         zb = self.resolve_z(self.node(r.get("b")))
         if r.get("route") == "directo":
             return abs(za - zb)
+        if r.get("route") == "altura":
+            h = r.get("alturaM")
+            h = h if h is not None else ALTURA_DEFAULT_M
+            return abs(za - h) + abs(zb - h)
         c = self.z["ceiling"]
         da = max(1, self._grados_techo.get(r.get("a"), 1))
         db = max(1, self._grados_techo.get(r.get("b"), 1))
         return max(0.0, c - za) / da + max(0.0, c - zb) / db
+
+    def run_mid_point(self, run):
+        """Punto medio por longitud real del tramo (no por índice del punto
+        de la polilínea) -- para anclar el código de conductores en la misma
+        posición que calcula runMidAndAngle() en canaliza.html."""
+        p = run.get("pts") or []
+        if len(p) < 2:
+            return p[0] if p else {"x": 0.0, "y": 0.0}
+        total = sum(_dist(p[i - 1], p[i]) for i in range(1, len(p)))
+        half = total / 2
+        acc = 0.0
+        for i in range(1, len(p)):
+            d = _dist(p[i - 1], p[i])
+            if acc + d >= half:
+                t = (half - acc) / d if d else 0
+                return {"x": p[i - 1]["x"] + (p[i]["x"] - p[i - 1]["x"]) * t,
+                        "y": p[i - 1]["y"] + (p[i]["y"] - p[i - 1]["y"]) * t}
+            acc += d
+        return p[-1]
 
     def run_len_m(self, r):
         return (self.run_horiz_m(r) + self.run_vert_m(r)) if self.px_per_m else 0.0
@@ -226,7 +270,13 @@ class Proyecto:
         if r.get("share") is False or not r.get("a") or not r.get("b"):
             return "s:" + str(r.get("id"))
         ab = sorted([r["a"], r["b"]])
-        return f"g:{ab[0]}|{ab[1]}:{r.get('route', 'techo')}"
+        route = r.get("route") or "techo"
+        rsuf = ""
+        if route == "altura":
+            h = r.get("alturaM")
+            rsuf = ":h" + str(h if h is not None else ALTURA_DEFAULT_M)
+        psuf = ":p2" if r.get("par") == 2 else ""
+        return f"g:{ab[0]}|{ab[1]}:{route}{rsuf}{psuf}"
 
     def cap_of(self, dia, sec):
         row = self.cap.get(dia)
@@ -247,6 +297,30 @@ class Proyecto:
             f += (r.get("cables") or 0) / cap
         return f
 
+    # --------------------------------------------------- tierra compartida
+    @staticmethod
+    def circuit_has_ground(c):
+        return bool(c) and any("tierra" in s for s in WIRE_COLOR_MAP.get(c.get("kind"), []))
+
+    def ground_section_for(self, gr):
+        if gr.get("sectionOverride") is not None:
+            return gr["sectionOverride"]
+        max_sec = 0
+        for rid in gr.get("runIds") or []:
+            r = next((x for x in self.runs if x.get("id") == rid), None)
+            if not r:
+                continue
+            c = self.circuit(r.get("circuit"))
+            if not c or not self.circuit_has_ground(c):
+                continue
+            if (c.get("section") or 0) > max_sec:
+                max_sec = c.get("section")
+        return max_sec or 1.5
+
+    def grounds_in_group(self, g):
+        ids = {r.get("id") for r in g["runs"]}
+        return [gr for gr in self.grounds if any(rid in ids for rid in (gr.get("runIds") or []))]
+
     def conduit_groups(self):
         m = {}
         for r in self.runs:
@@ -265,12 +339,30 @@ class Proyecto:
             g["len"] = g["horiz"] + g["vert"]
             g["cables"] = sum(r.get("cables") or 0 for r in g["runs"])
             g["fill"] = self.fill_ratio(g["dia"], g["runs"])
+            # troncales de tierra que pasan por este caño: un conductor cada
+            # uno, aunque sirvan a varios de los circuitos de arriba
+            g["grounds"] = self.grounds_in_group(g)
+            for gr in g["grounds"]:
+                cap = self.cap_of(g["dia"], self.ground_section_for(gr))
+                g["cables"] += 1
+                g["fill"] += (1 / cap) if cap > 0 else math.inf
+        # un caño dividido en dos caños en paralelo comparte el mismo trazado
+        # de origen con su "hermano" -- sin esto quedan dibujados uno encima
+        # del otro. par_side marca de qué lado separarlo al dibujar.
+        for g in m.values():
+            is_p2 = g["key"].endswith(":p2")
+            sibling = g["key"][:-3] if is_p2 else g["key"] + ":p2"
+            g["parSide"] = (1 if is_p2 else -1) if sibling in m else 0
         return m
 
     # ------------------------------------------------------------- cruces
     def group_z_at_fraction(self, g, frac):
-        if (g.get("route") or "techo") == "techo":
+        route = g.get("route") or "techo"
+        if route == "techo":
             return self.z["ceiling"]
+        if route == "altura":
+            h = g["runs"][0].get("alturaM")
+            return h if h is not None else ALTURA_DEFAULT_M
         za = self.resolve_z(self.node(g.get("a")))
         zb = self.resolve_z(self.node(g.get("b")))
         return za + (zb - za) * frac
@@ -368,6 +460,42 @@ class Proyecto:
                                   "code": label, "circuit": c.get("name")})
         return items
 
+    @staticmethod
+    def _tipo_letra(item):
+        """F=fase, N=neutro, T=tierra, R=retorno simple, C=retorno combinado --
+        ver conduit_code()."""
+        code = item.get("code") or ""
+        if code == "F" or code.startswith("Marrón"):
+            return "F"
+        if code == "N" or code.startswith("Celeste"):
+            return "N"
+        if code.startswith("RS"):
+            return "R"
+        if code.startswith("RC"):
+            return "C"
+        if code.startswith("Verde-amarillo"):
+            return "T"
+        return "?"
+
+    def conduit_code(self, g):
+        """Código compacto de qué conductores hay en un caño físico, agrupados
+        por sección -- p.ej. "2.5(FNT)-1.5(FN)": un caño con conductores de
+        2,5 mm² de fase+neutro+tierra y de 1,5 mm² de fase+neutro. Se repite
+        una letra por cada conductor real (dos circuitos de 2,5 mm² con tierra
+        propia dan "2.5(FFNNTT)"), para poder contar sin tener que verlos.
+        Pensado para el PDF "con código de cables" (ver _hoja_circuito)."""
+        por_sec: dict = {}
+        for it in self.conduit_conductors(g["runs"]):
+            por_sec.setdefault(it["section"], []).append(self._tipo_letra(it))
+        for gr in g.get("grounds") or []:
+            por_sec.setdefault(self.ground_section_for(gr), []).append("T")
+        orden = {"F": 0, "N": 1, "T": 2, "R": 3, "C": 4}
+        partes = []
+        for sec in sorted(por_sec):
+            letras = sorted(por_sec[sec], key=lambda t: orden.get(t, 9))
+            partes.append(f"{sec}({''.join(letras)})")
+        return "-".join(partes)
+
     # ------------------------------------------------------------- visibilidad
     def runs_at_node(self, nid):
         return [r for r in self.runs if r.get("a") == nid or r.get("b") == nid]
@@ -451,8 +579,13 @@ class Proyecto:
                             continue
                         ends = (1 if run.get("a") else 0) + (1 if run.get("b") else 0)
                         wl += self.run_len_m(run) + ends * spare
-                    code = self.wire_code(w)
-                    cable_color[sec][code] = cable_color[sec].get(code, 0.0) + wl
+                    # se agrupa por tipo de conductor, no por luz/instancia --
+                    # todos los retornos simples de esta sección suman a un
+                    # mismo renglón, e ídem los combinados
+                    k = w.get("kind")
+                    label = ("Marrón (fase)" if k == "F" else "Celeste (neutro)" if k == "N"
+                             else "Blanco (retorno simple)" if k == "RS" else "Amarillo (retorno combinado)")
+                    cable_color[sec][label] = cable_color[sec].get(label, 0.0) + wl
                     cab += wl
             else:
                 colors = self.wire_colors_for(c)
@@ -467,6 +600,32 @@ class Proyecto:
 
             cable[sec] = cable.get(sec, 0.0) + cab
             by_circuit.append({"c": c, "runs": len(rs), "len": length, "vert": vert, "cab": cab})
+
+        # tierra compartida: un solo conductor por troncal, contado una vez
+        # por cada caño físico distinto que atraviesa (no una vez por tramo)
+        for gr in self.grounds:
+            if not gr.get("runIds"):
+                continue
+            seen, length = set(), 0.0
+            for rid in gr["runIds"]:
+                run = next((x for x in self.runs if x.get("id") == rid), None)
+                if not run:
+                    continue
+                gk = self.group_key(run)
+                if gk in seen:
+                    continue
+                seen.add(gk)
+                ends = (1 if run.get("a") else 0) + (1 if run.get("b") else 0)
+                length += self.run_len_m(run) + ends * spare
+            if length <= 0:
+                continue
+            sec = self.ground_section_for(gr)
+            cable_color.setdefault(sec, {})
+            # mismo renglón "Verde-amarillo (tierra)" que la tierra no troncal
+            # de esta sección -- para el cómputo es el mismo conductor
+            col = "Verde-amarillo (tierra)"
+            cable_color[sec][col] = cable_color[sec].get(col, 0.0) + length
+            cable[sec] = cable.get(sec, 0.0) + length
 
         for k in cable:
             cable[k] *= waste

@@ -157,13 +157,18 @@ def _tabla_categoria(pg, y: float, categoria: str, items: list[dict], mostrar_pr
 
 def _fila_cable(c: dict) -> dict:
     """Un renglón de la sección "Cable a comprar": lo que el usuario decidió
-    comprar a mano, ya sea en rollos o en metros (redondeado por él)."""
+    comprar a mano, ya sea en rollos o en metros (redondeado por él).
+    "taller": cable tipo taller/Sintenax, por formato (N conductores x
+    sección) en vez de sección + color unipolar."""
     en_metros = c.get("unidad") == "m"
     cantidad = c.get("cantidad")
     if cantidad in (None, ""):
         cantidad = 1
     etiqueta = "Cable" if en_metros else "Rollo de cable"
-    nombre = f'{etiqueta} {c.get("seccionMm2")} mm² - {c.get("color", "")}'
+    if c.get("tipo") == "taller":
+        nombre = f'{etiqueta} tipo taller/Sintenax {c.get("formato", "")} mm²'
+    else:
+        nombre = f'{etiqueta} {c.get("seccionMm2")} mm² - {c.get("color", "")}'
     if c.get("notas"):
         nombre += f' ({c["notas"]})'
     return {"item": nombre, "unidad": "m" if en_metros else "rollo",
@@ -180,12 +185,12 @@ def _es_cable_cano_estimado(e: dict) -> bool:
 
 
 def _footer(pg):
+    # sin la aclaración de que cajas/térmicas son una estimación a confirmar
+    # contra Circuitos/Tablero -- es una nota interna, no algo para el
+    # cliente que recibe esta lista
     fecha = datetime.now().strftime("%d/%m/%Y")
-    texto = (f"Lista armada el {fecha}. Las cantidades de cajas y térmicas son una "
-            "estimación a partir de lo cargado en Circuitos y Tablero -- conviene "
-            "confirmarlas contra el plano antes de comprar.")
-    pg.insert_textbox(pymupdf.Rect(MARGEN, ALTO - 90, ANCHO - MARGEN, ALTO - 40), texto,
-                      fontsize=8.5, fontname="helv", color=FOOTER_COLOR, lineheight=1.35)
+    pg.insert_text((MARGEN, ALTO - 40), f"Lista armada el {fecha}.",
+                   fontsize=8.5, fontname="helv", color=FOOTER_COLOR)
 
 
 def _items_por_categoria(items: list[dict]) -> list[tuple[str, list[dict]]]:

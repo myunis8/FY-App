@@ -110,13 +110,12 @@ def _logo(pg):
     pg.insert_image(pymupdf.Rect(x0, y0, x0 + ancho, y0 + alto), filename=str(ruta))
 
 
-def _encabezado(pg, obra: dict, cfg: dict) -> float:
+def _encabezado(pg, obra: dict, cfg: dict, *, titulo: str = "Presupuesto - Instalación Eléctrica") -> float:
     """Título, logo arriba a la derecha, y los datos de la obra en una lista
     simple de campo: valor. Sin bloque de empresa/contacto superpuesto: eso
     ya lo dice el logo."""
     _logo(pg)
-    pg.insert_text((MARGEN, 50), "Presupuesto - Instalación Eléctrica",
-                   fontsize=18, fontname="hebo", color=NAVY)
+    pg.insert_text((MARGEN, 50), titulo, fontsize=18, fontname="hebo", color=NAVY)
 
     campos = [
         ("Cliente:", obra["obra"].get("cliente") or "-"),
@@ -207,9 +206,20 @@ def _items_por_categoria(items: list[dict]) -> list[tuple[str, list[dict]]]:
     return salida
 
 
-def generar(obra: dict) -> bytes:
+def generar(obra: dict, *, modo: str = "con") -> bytes:
+    """`modo`: "con" (default, todo el presupuesto con su adicional si tiene),
+    "sin" (el presupuesto sin el adicional, por si hay que entregar sólo el
+    alcance original) o "solo" (un documento aparte con nada más que el
+    adicional, para entregarlo solo)."""
     cfg = cfgmod.leer_config()
-    pres = obra.get("presupuesto") or {}
+    pres_real = obra.get("presupuesto") or {}
+    if modo == "sin":
+        pres = {**pres_real, "diferencia": []}
+    elif modo == "solo":
+        pres = {"items": [], "extras": [], "diferencia": pres_real.get("diferencia") or [],
+                "descuento": {}, "ajusteFinal": {}}
+    else:
+        pres = pres_real
     tot = pres_mod.totales(pres)
     items = [i for i in (pres.get("items") or []) + (pres.get("extras") or [])
             if not i.get("opcional")]
@@ -220,7 +230,8 @@ def generar(obra: dict) -> bytes:
     doc = pymupdf.open()
     pg = doc.new_page(width=ANCHO, height=ALTO)
     _marca_de_agua(pg, cfg)
-    y = _encabezado(pg, obra, cfg)
+    titulo = "Presupuesto - Adicional" if modo == "solo" else "Presupuesto - Instalación Eléctrica"
+    y = _encabezado(pg, obra, cfg, titulo=titulo)
 
     for cat, its in _items_por_categoria(items):
         y = _tabla_categoria(pg, y, cat, its)
@@ -230,22 +241,22 @@ def generar(obra: dict) -> bytes:
             y = MARGEN + 10
             y = _tabla_categoria(pg, y, cat, its)
 
-    # "Diferencia" -- trabajo que el cliente pidió sumar después de un
-    # checkpoint. Va aparte, con su propio encabezado por categoría, para
-    # que en el PDF quede clarísimo qué era el alcance original y qué se
-    # agregó después (y por qué el total subió).
+    # "Adicional" -- trabajo que el cliente pidió sumar después de un
+    # checkpoint. Va aparte, en un solo bloque sin categorizar (no importa
+    # de qué categoría es cada ítem, sólo que se sumó después), para que en
+    # el PDF quede clarísimo qué era el alcance original y qué se agregó
+    # después (y por qué el total subió).
     if diferencia:
         if y > ALTO - 200:
             pg = doc.new_page(width=ANCHO, height=ALTO)
             _marca_de_agua(pg, cfg)
             y = MARGEN + 10
-        for cat, its in _items_por_categoria(diferencia):
-            y = _tabla_categoria(pg, y, f"Diferencia — {cat}", its)
-            if y < 0:
-                pg = doc.new_page(width=ANCHO, height=ALTO)
-                _marca_de_agua(pg, cfg)
-                y = MARGEN + 10
-                y = _tabla_categoria(pg, y, f"Diferencia — {cat}", its)
+        y = _tabla_categoria(pg, y, "Adicional", diferencia)
+        if y < 0:
+            pg = doc.new_page(width=ANCHO, height=ALTO)
+            _marca_de_agua(pg, cfg)
+            y = MARGEN + 10
+            y = _tabla_categoria(pg, y, "Adicional", diferencia)
 
     if opcionales:
         if y > ALTO - 200:
@@ -260,15 +271,22 @@ def generar(obra: dict) -> bytes:
         _marca_de_agua(pg, cfg)
         y = MARGEN + 20
 
-    pg.insert_text((MARGEN, y + 12), f"Subtotal instalación: {_plata(tot['subtotal'] + tot['extras'])}",
-                   fontsize=12, fontname="hebo", color=NAVY)
-    y += 12 + 26
-    if tot["diferencia"]:
-        pg.insert_text((MARGEN, y), f"Diferencia: {_plata(tot['diferencia'])}",
+    if modo == "solo":
+        # documento aparte con sólo el adicional: un único total, sin
+        # desglosar "subtotal instalación" (no hay instalación en esta hoja)
+        y += 12
+        pg.insert_text((MARGEN, y), f"TOTAL ADICIONAL: {_plata(tot['total'])}",
+                       fontsize=15, fontname="hebo", color=NAVY)
+    else:
+        pg.insert_text((MARGEN, y + 12), f"Subtotal instalación: {_plata(tot['subtotal'] + tot['extras'])}",
                        fontsize=12, fontname="hebo", color=NAVY)
-        y += 26
-    pg.insert_text((MARGEN, y), f"TOTAL GENERAL: {_plata(tot['total'])}",
-                   fontsize=15, fontname="hebo", color=NAVY)
+        y += 12 + 26
+        if tot["diferencia"]:
+            pg.insert_text((MARGEN, y), f"Adicional: {_plata(tot['diferencia'])}",
+                           fontsize=12, fontname="hebo", color=NAVY)
+            y += 26
+        pg.insert_text((MARGEN, y), f"TOTAL GENERAL: {_plata(tot['total'])}",
+                       fontsize=15, fontname="hebo", color=NAVY)
 
     for pg2 in doc:
         _footer(pg2)

@@ -205,8 +205,9 @@ table.t input:focus{outline:none;border-color:var(--accent);background:var(--pan
   <button class="btn" id="bUndo" title="Deshacer (Ctrl+Z)" disabled>↶ Deshacer</button>
   <button class="btn" id="bRedo" title="Rehacer (Ctrl+Shift+Z)" disabled>↷ Rehacer</button>
   <div class="sep"></div>
-  <button class="btn primary" id="bPdfPlanos">📐 PDF de planos</button>
-  <button class="btn primary" id="bPdfBom">📋 PDF de materiales</button>
+  <button class="btn primary" id="bPdfPlanos" title="PDF de planos">📐 Planos</button>
+  <button class="btn primary" id="bPdfCodigo" title="PDF con código de cables: una hoja por circuito, caños con el color del circuito y un código de texto (ej: 2.5(FNT)) en vez de cables de colores">🔤 Código de cables</button>
+  <button class="btn primary" id="bPdfBom" title="PDF de materiales">📋 Materiales</button>
   <div class="sep"></div>
   <button class="btn" id="bRules">Configurar reglas y capacidades</button>
   <div id="scaleChip" class="unset"><span class="dot"></span><span id="scaleTxt">Sin escala</span>
@@ -236,6 +237,14 @@ table.t input:focus{outline:none;border-color:var(--accent);background:var(--pan
       <button class="btn sm" id="bAddCi" style="width:100%;margin-top:6px">+ Circuito personalizado</button>
     </div>
     <div class="sect">
+      <h3>Tierra compartida</h3>
+      <p class="msg" style="margin:0 0 6px">Un troncal de tierra único que trazás por los tramos que quieras, de
+        cualquier circuito. Los tramos que se suman dejan de llevar su propio conductor de tierra (lo lleva el
+        troncal, que cuenta una sola vez por caño).</p>
+      <div id="grounds"></div>
+      <button class="btn sm" id="bAddGround" style="width:100%;margin-top:2px">+ Nuevo troncal</button>
+    </div>
+    <div class="sect">
       <h3>Grupos de vista</h3>
       <p class="msg" style="margin:0 0 6px">Mostrá sólo las cajas de los circuitos que elijas. El tablero siempre se ve.</p>
       <div id="viewGroups"></div>
@@ -250,6 +259,7 @@ table.t input:focus{outline:none;border-color:var(--accent);background:var(--pan
       <label class="chk"><input type="checkbox" id="vLbl" checked> Etiquetas de cajas y bocas</label>
       <label class="chk"><input type="checkbox" id="vLen" checked> Longitud sobre cada caño</label>
       <label class="chk"><input type="checkbox" id="vZ"> Altura de cada caja</label>
+      <label class="chk"><input type="checkbox" id="vCodeEdit"> Editar etiquetas de código (arrastrar, 2 clics = girar 90°)</label>
       <label class="chk"><input type="checkbox" id="vGrid" checked> Grilla (tecla G)</label>
       <div class="row" style="margin-top:5px">
         <input class="f mono" id="gridSize" type="number" min="4" max="1000" step="4" value="40" style="width:64px">
@@ -346,6 +356,7 @@ table.t input:focus{outline:none;border-color:var(--accent);background:var(--pan
 <div class="mask" id="mDrc"><div class="modal" style="max-width:560px">
   <h2>Observaciones de diseño</h2>
   <p class="sub" id="drcSummary"></p>
+  <div id="drcFilters" style="margin-bottom:10px"></div>
   <div id="drcGroups"></div>
   <div class="acts"><button class="btn" data-close>Cerrar</button></div>
 </div></div>
@@ -623,7 +634,8 @@ const DEVICES = {
   luminaria:"Luminaria", interruptor:"Interruptor", toma:"Tomacorriente",
   especial:"Punto especial", paso:"Caja de paso"
 };
-const ROUTES = {techo:"Por cielorraso", directo:"Directo entre cajas"};
+const ROUTES = {techo:"Por cielorraso", directo:"Directo entre cajas", altura:"A una altura personalizada"};
+const ALTURA_DEFAULT_M = 1.2; // media altura tipica cuando no se especifica otra
 const PALETTE = ["#c2410c","#1d4ed8","#047857","#7c3aed","#b91c1c","#0e7490","#a16207","#be185d"];
 
 // tipos de circuito normalizados, con sus valores por defecto
@@ -689,13 +701,13 @@ function wireLabel(w){
 const WIRE_HEX = {
   "Marrón (fase)": "#7a4a25",
   "Celeste (neutro)": "#49a9d8",
-  "Blanco (retorno simple)": "#e9e9e9",
+  "Blanco (retorno simple)": "#c7c7c7",  // gris claro, no blanco puro -- si no se pierde contra el caño blanco
   "Amarillo (retorno combinado)": "#e8c93a",
   "Verde-amarillo (tierra)": "#6a9a2e"
 };
 // hasta 3 luces con retorno del mismo tipo compartiendo caño; de ahí en más se repite
 // el tono más oscuro (en la práctica no debería pasar tan seguido)
-const RS_SHADES = ["#e9e9e9", "#aeaeae", "#767676"];   // blanco -> gris medio -> gris oscuro
+const RS_SHADES = ["#c7c7c7", "#aeaeae", "#767676"];   // gris claro -> gris medio -> gris oscuro
 const RC_SHADES = ["#e8c93a", "#c79a2a", "#96701a"];   // amarillo -> mostaza -> ocre oscuro
 
 // orden entre los retornos del MISMO tipo (simple o combinado) del mismo circuito,
@@ -736,6 +748,40 @@ function conduitConductors(vis){
   return items;
 }
 
+// letra de tipo de conductor para el código compacto (ver conduitCode) --
+// F=fase, N=neutro, T=tierra, R=retorno simple, C=retorno combinado
+function tipoLetra(it){
+  const code = it.code || "";
+  if(code==="F" || code.startsWith("Marrón")) return "F";
+  if(code==="N" || code.startsWith("Celeste")) return "N";
+  if(code.startsWith("RS")) return "R";
+  if(code.startsWith("RC")) return "C";
+  if(code.startsWith("Verde-amarillo")) return "T";
+  return "?";
+}
+// código compacto de qué conductores hay en un caño físico, por sección --
+// p.ej. "2.5(FNT)-1.5(FN)" (misma lógica que conduit_code() en canaliza_geom.py,
+// usada por el PDF "con código de cables"; acá se muestra igual en el editor
+// para poder acomodar la etiqueta antes de exportar)
+function conduitCode(g){
+  const bySec = new Map();
+  for(const it of conduitConductors(g.runs)){
+    if(!bySec.has(it.section)) bySec.set(it.section, []);
+    bySec.get(it.section).push(tipoLetra(it));
+  }
+  for(const gr of (g.grounds||[])){
+    const sec = groundSectionFor(gr);
+    if(!bySec.has(sec)) bySec.set(sec, []);
+    bySec.get(sec).push("T");
+  }
+  const orden = {F:0,N:1,T:2,R:3,C:4};
+  const secs = Array.from(bySec.keys()).sort((a,b)=>a-b);
+  return secs.map(s=>{
+    const letras = bySec.get(s).slice().sort((a,b)=>(orden[a]??9)-(orden[b]??9));
+    return s+"("+letras.join("")+")";
+  }).join("-");
+}
+
 const uid = (p)=> p + Math.random().toString(36).slice(2,9);
 
 /* ============================ estado ============================ */
@@ -757,7 +803,12 @@ const S = {
   grid:{on:true, size:40, snap:true},        // grilla de alineación (tamaño en px del plano)
   wires:[],                                  // [{id,circuit,kind:'F'|'N'|'RS'|'RC',light,branch,runIds:[]}]
   tracingWire:null,                          // id del conductor que se está trazando ahora
+  grounds:[],                                // [{id,note,sectionOverride,runIds:[]}] -- tierra compartida entre circuitos
+  tracingGround:null,                        // id del troncal de tierra que se está trazando ahora
   drcPulse:null,                             // {id, t0} -- resalte temporal al clickear un aviso del DRC
+  codeLabels:{},                             // {[groupKey]: {dx,dy,rot}} -- posición/rotación manual del código de conductores
+  editingCodeLabels:false,                   // modo "Editar etiquetas de código" (arrastrar / girar)
+  draggingLabel:null,                        // {groupKey, startX, startY, startDx, startDy} mientras se arrastra
   counters:{}
 };
 
@@ -851,6 +902,81 @@ function toggleRunInWire(wireId, runId){
   const i = w.runIds.indexOf(runId);
   if(i>=0) w.runIds.splice(i,1); else w.runIds.push(runId);
   recalcCablesFor(w.circuit);
+  refreshAll();
+}
+
+/* ============================ tierra compartida entre circuitos ============================ */
+// permite trazar un conductor de tierra único (troncal) por los tramos que
+// elija el usuario, de cualquier circuito -- a diferencia de los retornos,
+// no está atado a un solo circuito. Cada tramo que se suma deja de contar su
+// propio conductor de tierra (r.cables -1) porque ese tramo ya no lo lleva:
+// lo lleva el troncal, que cuenta una sola vez por caño físico que atraviesa
+// (ver conduitGroups) y una sola vez en el cómputo de cable (ver computeBom).
+function circuitHasGround(c){ return !!c && (WIRE_COLOR_MAP[c.kind]||[]).some(s=>s.includes("tierra")); }
+function groundSectionFor(gr){
+  if(gr.sectionOverride!=null) return gr.sectionOverride;
+  let max=0;
+  for(const rid of gr.runIds){
+    const run = S.runs.find(x=>x.id===rid); if(!run) continue;
+    const c = ciById(run.circuit); if(!c || !circuitHasGround(c)) continue;
+    if(c.section>max) max=c.section;
+  }
+  return max || SECTIONS[0];
+}
+function groundsInGroup(g){
+  const ids = new Set(g.runs.map(r=>r.id));
+  return S.grounds.filter(gr=>gr.runIds.some(rid=>ids.has(rid)));
+}
+function addGroundTrunk(){
+  pushUndo();
+  const gr = {id:uid("gt"), note:"Troncal "+(S.grounds.length+1), sectionOverride:null, runIds:[]};
+  S.grounds.push(gr);
+  return gr;
+}
+function deleteGround(id){
+  const gr = S.grounds.find(x=>x.id===id); if(!gr) return;
+  pushUndo();
+  for(const rid of gr.runIds){
+    const run = S.runs.find(r=>r.id===rid); if(!run) continue;
+    if(circuitHasGround(ciById(run.circuit))) run.cables += 1;
+  }
+  if(S.tracingGround===id) S.tracingGround=null;
+  S.grounds = S.grounds.filter(x=>x.id!==id);
+}
+function toggleRunInGround(groundId, runId){
+  const gr = S.grounds.find(x=>x.id===groundId); if(!gr) return;
+  const run = S.runs.find(r=>r.id===runId); if(!run) return;
+  pushUndo();
+  const i = gr.runIds.indexOf(runId);
+  if(i>=0){
+    gr.runIds.splice(i,1);
+    if(circuitHasGround(ciById(run.circuit))) run.cables += 1;
+  } else {
+    // un tramo sólo puede alimentar un troncal a la vez -- si ya estaba en otro, lo sacamos primero
+    for(const other of S.grounds){
+      if(other===gr) continue;
+      const j = other.runIds.indexOf(runId);
+      if(j>=0){ other.runIds.splice(j,1); if(circuitHasGround(ciById(run.circuit))) run.cables += 1; }
+    }
+    gr.runIds.push(runId);
+    if(circuitHasGround(ciById(run.circuit))) run.cables = Math.max(0, run.cables-1);
+  }
+  refreshAll();
+}
+function startTraceGround(id){
+  const gr = S.grounds.find(x=>x.id===id); if(!gr) return;
+  S.tracingGround = id;
+  const hint = $("#hint");
+  hint.innerHTML = `Trazando <b>tierra · ${esc(gr.note||"troncal")}</b>: clic en los tramos por los que pasa (de cualquier circuito) — un clic más lo destilda. `+
+    `<button class="btn sm" id="hEndTrace" style="margin-left:6px">Listo</button>`;
+  hint.classList.add("on");
+  $("#hEndTrace").onclick = endTraceGround;
+  render();
+}
+function endTraceGround(){
+  S.tracingGround = null;
+  const h = $("#hint");
+  if(h){ h.classList.remove("on"); h.innerHTML=""; }
   refreshAll();
 }
 
@@ -952,12 +1078,19 @@ function runHoriz(r){ return S.pxPerM ? runLenPx(r)/S.pxPerM : 0; }
 function ceilingRunsAt(nodeId){
   if(!nodeId) return 1;
   const n = S.runs.reduce((a,r)=>
-    a + ((r.a===nodeId || r.b===nodeId) && r.route!=="directo" ? 1 : 0), 0);
+    a + ((r.a===nodeId || r.b===nodeId) && (r.route||"techo")==="techo" ? 1 : 0), 0);
   return n || 1;
 }
 function runVert(r){
   const za = resolveZ(nodeById(r.a)), zb = resolveZ(nodeById(r.b));
   if(r.route==="directo") return Math.abs(za-zb);
+  if(r.route==="altura"){
+    // altura fija elegida por el usuario (media altura, loza de piso, etc.):
+    // simplificación -- a diferencia de "por cielorraso" no se reparte la
+    // bajada entre tramos de una misma cadena, cada tramo cuenta la suya.
+    const h = r.alturaM!=null ? r.alturaM : ALTURA_DEFAULT_M;
+    return Math.abs(za-h) + Math.abs(zb-h);
+  }
   const c = S.z.ceiling;
   // "por cielorraso": la subida/bajada de cada caja se reparte entre los
   // tramos por cielorraso que llegan a ella, así una caja intermedia de una
@@ -970,7 +1103,11 @@ function runLenM(r){ return S.pxPerM ? runHoriz(r) + runVert(r) : 0; }
 /* ---- agrupamiento de tramos en un mismo caño ---- */
 function groupKey(r){
   if(r.share===false || !r.a || !r.b) return "s:"+r.id;
-  return "g:" + [r.a, r.b].sort().join("|") + ":" + (r.route||"techo");
+  const route = r.route||"techo";
+  // a igual recorrido "altura", sólo comparten caño los tramos a la MISMA altura
+  const rsuf = route==="altura" ? ":h"+(r.alturaM!=null?r.alturaM:ALTURA_DEFAULT_M) : "";
+  // "par" separa un caño sobrecargado en dos caños físicos en paralelo (ver splitParallel)
+  return "g:" + [r.a, r.b].sort().join("|") + ":" + route + rsuf + (r.par===2?":p2":"");
 }
 function conduitGroups(){
   const m = new Map();
@@ -987,6 +1124,23 @@ function conduitGroups(){
     g.len   = g.horiz + g.vert;
     g.cables= g.runs.reduce((a,r)=>a+r.cables, 0);
     g.fill  = fillRatio(g.dia, g.runs);
+    // troncales de tierra que pasan por este caño físico: cuentan un solo
+    // conductor cada uno, aunque sirvan a varios de los circuitos de arriba
+    g.grounds = groundsInGroup(g);
+    for(const gr of g.grounds){
+      const cap = capOf(g.dia, groundSectionFor(gr));
+      g.cables += 1;
+      g.fill += cap>0 ? 1/cap : Infinity;
+    }
+  }
+  // un caño dividido en dos caños en paralelo (ver splitParallel) comparte el
+  // mismo trazado de origen con su "hermano" -- sin esto quedan dibujados uno
+  // encima del otro. parSide marca de qué lado separarlo al dibujar (0 = no
+  // está dividido, se dibuja como siempre).
+  for(const g of m.values()){
+    const isP2 = g.key.endsWith(":p2");
+    const sibling = isP2 ? g.key.slice(0,-3) : g.key+":p2";
+    g.parSide = m.has(sibling) ? (isP2 ? 1 : -1) : 0;
   }
   return m;
 }
@@ -1006,6 +1160,28 @@ function fillRatio(dia, runs){
 function suggestDiaFor(runs){
   for(const d of DIAS){ if(fillRatio(d.id, runs) <= 1) return d.id; }
   return DIAS[DIAS.length-1].id;
+}
+// cuando un caño se pasa de capacidad, en vez de agrandar la sección se reparten
+// sus tramos en dos caños físicos en paralelo (marca r.par=2 en la mitad),
+// balanceados por cantidad de conductores.
+function splitParallel(runs){
+  const sorted = runs.slice().sort((a,b)=> b.cables - a.cables);
+  const g1=[], g2=[]; let c1=0, c2=0;
+  for(const r of sorted){
+    if(c1<=c2){ g1.push(r); c1+=r.cables; } else { g2.push(r); c2+=r.cables; }
+  }
+  return [g1,g2];
+}
+function applyParallelSplit(r){
+  const g = groupOf(r);
+  const runs = g ? g.runs : [r];
+  if(runs.length<2) return; // un solo tramo: no hay nada para repartir entre dos caños
+  const [g1,g2] = splitParallel(runs);
+  g1.forEach(x=> x.par=1);
+  g2.forEach(x=> x.par=2);
+  const d1 = suggestDiaFor(g1), d2 = suggestDiaFor(g2);
+  g1.forEach(x=> x.dia=d1);
+  g2.forEach(x=> x.dia=d2);
 }
 
 function fmt(v,d){ if(!isFinite(v)) return "—"; return v.toFixed(d==null?2:d); }
@@ -1135,6 +1311,38 @@ function distToSeg(p,a,b){
   return Math.hypot(p.x-(a.x+t*dx), p.y-(a.y+t*dy));
 }
 
+// punto medio (por longitud real, no por índice) y ángulo del tramo ahí --
+// usado para anclar tanto la etiqueta de longitud como el código de conductores
+function runMidAndAngle(run){
+  const p = run.pts;
+  if(p.length<2) return {mid:p[0]||{x:0,y:0}, ang:0};
+  let acc=0, half=runLenPx(run)/2, mid=p[0], ang=0;
+  for(let i=1;i<p.length;i++){
+    const d=dist(p[i-1],p[i]);
+    if(acc+d>=half){
+      const t=d?(half-acc)/d:0;
+      mid={x:p[i-1].x+(p[i].x-p[i-1].x)*t, y:p[i-1].y+(p[i].y-p[i-1].y)*t};
+      ang=Math.atan2(p[i].y-p[i-1].y, p[i].x-p[i-1].x); break;
+    }
+    acc+=d;
+  }
+  if(Math.abs(ang)>Math.PI/2) ang+=Math.PI;
+  return {mid, ang};
+}
+// busca si el punto (plano) "w" cae sobre el rectángulo de algún código de
+// conductores dibujado (ver S._codeLabelBoxes, poblado en render())
+function hitCodeLabel(w){
+  const boxes = S._codeLabelBoxes || [];
+  for(let i=boxes.length-1;i>=0;i--){
+    const b = boxes[i];
+    const dx=w.x-b.cx, dy=w.y-b.cy;
+    const cos=Math.cos(-b.rot), sin=Math.sin(-b.rot);
+    const lx = dx*cos - dy*sin, ly = dx*sin + dy*cos;   // al sistema local del rótulo (antes de rotar)
+    if(Math.abs(lx)<=b.hw && Math.abs(ly)<=b.hh) return b;
+  }
+  return null;
+}
+
 /* ---- cantidad de codos de 90° reales en un tramo ---- */
 function runBends(r){
   const p = r.pts; let n=0;
@@ -1163,7 +1371,9 @@ function segIntersect(p1,p2,p3,p4){
 // "por cielorraso" corre siempre pegado al cielorraso; sólo "directo" varía linealmente
 // entre la altura de las dos cajas que conecta.
 function groupZAtFraction(g, frac){
-  if((g.route||"techo")==="techo") return S.z.ceiling;
+  const route = g.route||"techo";
+  if(route==="techo") return S.z.ceiling;
+  if(route==="altura") return g.runs[0].alturaM!=null ? g.runs[0].alturaM : ALTURA_DEFAULT_M;
   const za = resolveZ(nodeById(g.a)), zb = resolveZ(nodeById(g.b));
   return za + (zb-za)*frac;
 }
@@ -1209,10 +1419,25 @@ function offsetPoly(pts, d){
   const out=[];
   for(let i=0;i<pts.length;i++){
     const p=pts[i], a=pts[i-1], b=pts[i+1];
-    let nx=0, ny=0, k=0;
-    if(a){ const dx=p.x-a.x, dy=p.y-a.y, L=Math.hypot(dx,dy)||1; nx+=-dy/L; ny+= dx/L; k++; }
-    if(b){ const dx=b.x-p.x, dy=b.y-p.y, L=Math.hypot(dx,dy)||1; nx+=-dy/L; ny+= dx/L; k++; }
-    if(k){ const L=Math.hypot(nx,ny)||1; nx/=L; ny/=L; }
+    let n1=null, n2=null;
+    if(a){ const dx=p.x-a.x, dy=p.y-a.y, L=Math.hypot(dx,dy)||1; n1=[-dy/L, dx/L]; }
+    if(b){ const dx=b.x-p.x, dy=b.y-p.y, L=Math.hypot(dx,dy)||1; n2=[-dy/L, dx/L]; }
+    let nx=0, ny=0;
+    if(n1 && n2){
+      // inglete (miter): mantiene el offset paralelo exacto en los dos segmentos
+      // que se tocan en este vértice -- promediar y renormalizar las normales
+      // (como se hacía antes) acorta el inglete y deja las líneas paralelas
+      // visiblemente inclinadas en los codos, sobre todo en los ángulos rectos
+      // tipicos de estos planos.
+      const dot = n1[0]*n2[0] + n1[1]*n2[1];
+      const denom = 1 + dot;
+      if(denom > 1e-4){
+        nx = (n1[0]+n2[0])/denom; ny = (n1[1]+n2[1])/denom;
+        const mlen = Math.hypot(nx,ny);
+        if(mlen > 4){ nx = nx/mlen*4; ny = ny/mlen*4; }   // límite de inglete en vueltas muy cerradas
+      } else { nx=n1[0]; ny=n1[1]; }                       // vuelta en U: el inglete se va a infinito
+    } else if(n1){ nx=n1[0]; ny=n1[1]; }
+    else if(n2){ nx=n2[0]; ny=n2[1]; }
     out.push({x:p.x+nx*d, y:p.y+ny*d});
   }
   return out;
@@ -1227,13 +1452,27 @@ function condWidth(section){
 }
 
 function drawConduit(g, grp, bad, z, vis, detailed){
-  const base = grp.runs[0].pts;
+  let base = grp.runs[0].pts;
+  let items, n0, pipeW;
+  if(detailed){
+    items = conduitConductors(vis);
+    n0 = Math.max(items.length, 1);
+    const maxW = items.reduce((a,it)=>Math.max(a,condWidth(it.section)), 1.4);
+    pipeW = Math.min(26, 9 + n0*(maxW+0.6));
+  } else {
+    pipeW = bad ? 8.5 : 7.5;
+  }
+
+  // un caño dividido en dos caños en paralelo (mismo trazado de origen que su
+  // "hermano") se corre entero hacia un lado para que no queden dibujados
+  // exactamente superpuestos -- ver conduitGroups()/parSide
+  const parSide = grp.parSide || 0;
+  if(parSide){
+    const shift = pipeW/2 + 3;
+    base = offsetPoly(base, parSide * (detailed ? shift : shift/z));
+  }
 
   if(detailed){
-    const items = conduitConductors(vis);
-    const n = Math.max(items.length, 1);
-    const maxW = items.reduce((a,it)=>Math.max(a,condWidth(it.section)), 1.4);
-    const pipeW = Math.min(26, 9 + n*(maxW+0.6));
     g.save(); g.lineJoin="round"; g.lineCap="round"; g.setLineDash([]);
     g.strokeStyle="rgba(255,255,255,.9)"; g.lineWidth=(pipeW+4)/z;
     tracePath(g, base); g.stroke();
@@ -1243,15 +1482,14 @@ function drawConduit(g, grp, bad, z, vis, detailed){
     tracePath(g, base); g.stroke();
     g.restore();
 
-    const sp = Math.min(5.6, (pipeW-2.5)/n);
+    const sp = Math.min(5.6, (pipeW-2.5)/n0);
     items.forEach((it,i)=>{
-      const off = n>1 ? (i-(n-1)/2)*sp : 0;
+      const off = n0>1 ? (i-(n0-1)/2)*sp : 0;
       const pts = offsetPoly(base, off);
-      const w = condWidth(it.section);
+      // sin borde: sólo el color del conductor, más fino -- un borde oscuro
+      // rompía la ortogonalidad visual en los codos y quedaba poco prolijo
       g.save(); g.lineJoin="round"; g.lineCap="round";
-      g.strokeStyle="rgba(15,18,20,.6)"; g.lineWidth=(w+1.1)/z;
-      tracePath(g, pts); g.stroke();
-      g.strokeStyle = it.color; g.lineWidth = w/z;
+      g.strokeStyle = it.color; g.lineWidth = condWidth(it.section)*0.75/z;
       tracePath(g, pts); g.stroke();
       g.restore();
     });
@@ -1262,7 +1500,7 @@ function drawConduit(g, grp, bad, z, vis, detailed){
   g.save(); g.lineJoin="round"; g.lineCap="round"; g.setLineDash([]);
   g.strokeStyle="rgba(255,255,255,.9)"; g.lineWidth=11/z;
   tracePath(g, base); g.stroke();
-  g.strokeStyle = bad ? "#b3261e" : "#9aa4ad"; g.lineWidth=(bad?8.5:7.5)/z;
+  g.strokeStyle = bad ? "#b3261e" : "#9aa4ad"; g.lineWidth=pipeW/z;
   tracePath(g, base); g.stroke();
   g.strokeStyle="#ffffff"; g.lineWidth=5.5/z;
   tracePath(g, base); g.stroke();
@@ -1311,18 +1549,8 @@ function drawScene(g, opt){
     for(const grp of groups.values()){
       const vis = grp.runs.filter(r=> only ? r.circuit===only : isCiVisible(r.circuit));
       if(!vis.length) continue;
-      const p = grp.runs[0].pts; if(p.length<2) continue;
-      let acc=0, half=runLenPx(grp.runs[0])/2, mid=p[0], ang=0;
-      for(let i=1;i<p.length;i++){
-        const d=dist(p[i-1],p[i]);
-        if(acc+d>=half){
-          const t=(half-acc)/d;
-          mid={x:p[i-1].x+(p[i].x-p[i-1].x)*t, y:p[i-1].y+(p[i].y-p[i-1].y)*t};
-          ang=Math.atan2(p[i].y-p[i-1].y, p[i].x-p[i-1].x); break;
-        }
-        acc+=d;
-      }
-      if(Math.abs(ang)>Math.PI/2) ang+=Math.PI;
+      if(grp.runs[0].pts.length<2) continue;
+      const {mid, ang} = runMidAndAngle(grp.runs[0]);
       const shown = only ? vis : grp.runs;
       const cab = shown.reduce((a,r)=>a+r.cables,0);
       let txt = fmt(grp.len,2)+" m · "+diaLbl(grp.dia)+" · "+cab+" cond.";
@@ -1340,13 +1568,48 @@ function drawScene(g, opt){
     }
   }
 
+  // --- código de conductores por caño (sólo en modo "Editar etiquetas de
+  // código": arrastrable con el mouse y rotable con doble clic, ver
+  // hitCodeLabel() y los listeners de pointerdown/pointermove/dblclick).
+  // La posición/rotación elegida se guarda por caño (S.codeLabels, por
+  // groupKey) y se manda igual al PDF "con código de cables".
+  S._codeLabelBoxes = [];
+  if(S.editingCodeLabels && S.pxPerM){
+    for(const grp of groups.values()){
+      // sólo los caños visibles en este momento (según qué circuitos estén
+      // tildados/ocultos) -- así se puede ir editando de a partes
+      const relevant = only ? grp.runs.some(r=>r.circuit===only) : grp.runs.some(r=>isCiVisible(r.circuit));
+      if(!relevant) continue;
+      if(grp.runs[0].pts.length<2) continue;
+      const txt = conduitCode(grp);
+      if(!txt) continue;
+      const ov = S.codeLabels[grp.key];
+      const {mid} = runMidAndAngle(grp.runs[0]);
+      const dx = ov ? ov.dx : 0, dy = ov ? ov.dy : 14;
+      const rot = ov && ov.rot ? Math.PI/2 : 0;
+      const cx = mid.x+dx, cy = mid.y+dy;
+      g.save();
+      g.translate(cx, cy); g.rotate(rot);
+      g.font = "600 "+(10.5/z)+"px 'IBM Plex Mono',monospace";
+      g.textAlign="center"; g.textBaseline="middle";
+      const tw = g.measureText(txt).width, th = 12/z;
+      g.fillStyle="rgba(255,241,140,.95)";
+      g.fillRect(-tw/2-3/z, -th/2-1/z, tw+6/z, th+2/z);
+      g.strokeStyle="#8a6100"; g.lineWidth=1/z;
+      g.strokeRect(-tw/2-3/z, -th/2-1/z, tw+6/z, th+2/z);
+      g.fillStyle="#15181b"; g.fillText(txt, 0, 0.5/z);
+      g.restore();
+      S._codeLabelBoxes.push({groupKey:grp.key, cx, cy, hw:tw/2+3/z, hh:th/2+1/z, rot});
+    }
+  }
+
   // --- nodos
   const enRuteo = S.tool==="run" ? activeCi() : null;
   for(const n of S.nodes){
     if(!nodeVisible(n, only)) continue;
     const bad = problems.has(n.id);
     const ci = n.circuitId ? ciById(n.circuitId) : null;
-    const R = 9/z;
+    const R = 7/z;
     g.save();
     g.translate(n.x, n.y);
     if(enRuteo && n.circuitId===enRuteo.id){
@@ -1492,6 +1755,19 @@ function render(){
       ctx.strokeStyle="#0e7490"; ctx.lineWidth=6/S.view.z;
       ctx.setLineDash([3/S.view.z,3/S.view.z]); ctx.lineCap="round"; ctx.lineJoin="round";
       for(const rid of w.runIds){
+        const run = S.runs.find(x=>x.id===rid); if(!run) continue;
+        tracePath(ctx, run.pts); ctx.stroke();
+      }
+      ctx.restore();
+    }
+  }
+  if(S.tracingGround){
+    const gr = S.grounds.find(x=>x.id===S.tracingGround);
+    if(gr){
+      ctx.save();
+      ctx.strokeStyle="#3f8f1f"; ctx.lineWidth=6/S.view.z;
+      ctx.setLineDash([3/S.view.z,3/S.view.z]); ctx.lineCap="round"; ctx.lineJoin="round";
+      for(const rid of gr.runIds){
         const run = S.runs.find(x=>x.id===rid); if(!run) continue;
         tracePath(ctx, run.pts); ctx.stroke();
       }
@@ -1651,6 +1927,21 @@ cv.addEventListener("pointerdown", e=>{
     if(rr) toggleRunInWire(S.tracingWire, rr.id);
     return;
   }
+  if(S.tracingGround){
+    const rr = hitRun(w);
+    if(rr) toggleRunInGround(S.tracingGround, rr.id);
+    return;
+  }
+
+  if(S.editingCodeLabels){
+    const hit = hitCodeLabel(w);
+    if(hit){
+      pushUndo();
+      const cur = S.codeLabels[hit.groupKey] || {dx:0, dy:14, rot:false};
+      S.draggingLabel = {groupKey:hit.groupKey, startX:w.x, startY:w.y, startDx:cur.dx, startDy:cur.dy};
+      return;
+    }
+  }
 
   if(S.tool==="calib"){
     if(!S.calib.a){ S.calib.a=w; }
@@ -1746,6 +2037,12 @@ cv.addEventListener("pointermove", e=>{
     S.view.y = panning.vy + (e.clientY-panning.y);
     render(); return;
   }
+  if(S.draggingLabel){
+    const d = S.draggingLabel;
+    const cur = S.codeLabels[d.groupKey] || {dx:0, dy:14, rot:false};
+    S.codeLabels[d.groupKey] = {...cur, dx: d.startDx + (w.x-d.startX), dy: d.startDy + (w.y-d.startY)};
+    render(); return;
+  }
   if(dragging){
     if(!dragging.moved) pushUndo();
     if(dragging.t==="node"){
@@ -1775,7 +2072,18 @@ cv.addEventListener("pointermove", e=>{
 
 cv.addEventListener("pointerup", e=>{
   if(dragging && dragging.moved) refreshAll();
+  if(S.draggingLabel){ S.draggingLabel=null; scheduleAutosave(); }
   panning=null; dragging=null;
+});
+
+cv.addEventListener("dblclick", e=>{
+  if(!S.base || !S.editingCodeLabels) return;
+  const hit = hitCodeLabel(mouse(e));
+  if(!hit) return;
+  pushUndo();
+  const cur = S.codeLabels[hit.groupKey] || {dx:0, dy:14, rot:false};
+  S.codeLabels[hit.groupKey] = {...cur, rot: !cur.rot};
+  render(); scheduleAutosave();
 });
 
 window.addEventListener("keydown", e=>{
@@ -1784,6 +2092,7 @@ window.addEventListener("keydown", e=>{
   const k = e.key.toLowerCase();
   if(k==="escape"){
     if(S.tracingWire){ endTrace(); return; }
+    if(S.tracingGround){ endTraceGround(); return; }
     S.draft=null; S.calib=null; S.hoverNode=null;
     if(S.tool!=="select") setTool("select"); else { S.sel=null; refreshAll(); }
     return;
@@ -1808,15 +2117,11 @@ function finishRun(bId){
     a:d.a, b:bId, route:"techo", share:true, dia:DEF_DIA,
     cables: c.kind==="iluminacion" ? 0 : c.cables, note:""};
   S.runs.push(r);
-  // si se suma a un caño existente, adopta su medida y la agranda si hace falta
+  // si se suma a un caño existente, adopta su medida actual -- pero no la
+  // agranda sola: la sección del caño la cambia el usuario a mano (panel de
+  // propiedades o "Dividir en 2 caños en paralelo"), nunca automáticamente
   const g = groupOf(r);
-  if(g){
-    const need = suggestDiaFor(g.runs);
-    const dia = diaOf(need).mm > diaOf(g.dia).mm ? need : g.dia;
-    g.runs.forEach(x=> x.dia = dia);
-  } else {
-    r.dia = suggestDiaFor([r]);
-  }
+  if(g) r.dia = g.dia;
   S.sel={t:"run",id:r.id};
   refreshAll();
 }
@@ -1843,6 +2148,7 @@ function delSel(){
   if(removedIds.length){
     const removedSet = new Set(removedIds);
     for(const w of S.wires) w.runIds = w.runIds.filter(id=>!removedSet.has(id));
+    for(const gr of S.grounds) gr.runIds = gr.runIds.filter(id=>!removedSet.has(id));
     touchedCircuits.forEach(recalcCablesFor);
   }
   S.sel=null; refreshAll();
@@ -1900,6 +2206,16 @@ function insertBoxOnRun(r, kind){
     }
     if(changed) w.runIds = next;
   }
+  // idem para los troncales de tierra que pasaban por el tramo viejo
+  for(const gr of S.grounds){
+    let changed = false;
+    const next = [];
+    for(const rid of gr.runIds){
+      if(splitMap.has(rid)){ next.push(...splitMap.get(rid)); changed = true; }
+      else next.push(rid);
+    }
+    if(changed) gr.runIds = next;
+  }
   const affectedCircuits = new Set(targets.map(x=>x.circuit));
   affectedCircuits.forEach(recalcCablesFor);
   S.sel = {t:"node", id:n.id};
@@ -1908,7 +2224,7 @@ function insertBoxOnRun(r, kind){
 
 let rt=null;
 function scheduleRefresh(){ clearTimeout(rt); rt=setTimeout(refreshAll, 140); }
-function refreshAll(){ drcInvalidate(); render(); paintCircuits(); paintViewGroups(); paintProp(); paintDrc(); paintBom(); scheduleAutosave(); }
+function refreshAll(){ drcInvalidate(); render(); paintCircuits(); paintGrounds(); paintViewGroups(); paintProp(); paintDrc(); paintBom(); scheduleAutosave(); }
 
 /* ============================ circuitos UI ============================ */
 
@@ -1979,7 +2295,12 @@ function paintCircuits(){
       c[k]=v;
       if(k==="cables"||k==="section"){
         if(k==="cables" && c.kind!=="iluminacion")
-          S.runs.filter(r=>r.circuit===id).forEach(r=>{ r.cables=c.cables; });
+          S.runs.filter(r=>r.circuit===id).forEach(r=>{
+            // si este tramo alimenta un troncal de tierra compartido, sigue sin contar
+            // su propio conductor de tierra al recalcular
+            const inGround = S.grounds.some(gr=>gr.runIds.includes(r.id));
+            r.cables = (inGround && circuitHasGround(c)) ? Math.max(0, c.cables-1) : c.cables;
+          });
       }
       drcInvalidate(); render(); paintDrc(); paintBom();
       if(k==="name"||k==="color"){
@@ -2019,6 +2340,59 @@ function paintCircuits(){
     S.runs = S.runs.filter(r=>r.circuit!==id);
     S.circuits = S.circuits.filter(c=>c.id!==id);
     if(S.activeCircuit===id) S.activeCircuit = S.circuits[0]?S.circuits[0].id:null;
+    refreshAll();
+  });
+  armUndoOnFocus(el);
+}
+
+function paintGrounds(){
+  const el = $("#grounds"); if(!el) return;
+  // (a diferencia de las tarjetas de circuito, acá todo queda siempre visible
+  // -- son pocos campos y no vale la pena un click extra para desplegarlos;
+  // antes usaba las mismas clases .ci-h/.ci-b que los circuitos, pero esas
+  // ocultan el cuerpo (.ci-b{display:none}) hasta que la tarjeta está "on",
+  // algo que acá nunca se activaba: quedaban Sección/Trazar/Eliminar invisibles)
+  el.innerHTML = S.grounds.map(gr=>{
+    const active = S.tracingGround===gr.id;
+    const sug = groundSectionFor(gr);
+    return `<div class="ci" data-gid="${gr.id}">
+      <div class="ci-h" style="cursor:default">
+        <span class="sw" style="background:#3f8f1f"></span>
+        <input class="f mono" data-gnote="${gr.id}" value="${esc(gr.note||"")}" style="flex:1;min-width:0" placeholder="Troncal">
+        <span class="ci-m">${gr.runIds.length} tr.</span>
+        <button class="btn sm" data-gdel="${gr.id}" title="Eliminar" style="margin-left:6px">×</button>
+      </div>
+      <div class="f2" style="margin-top:7px">
+        <div><label class="f">Sección</label><select class="f" data-gsec="${gr.id}">
+          <option value=""${gr.sectionOverride==null?" selected":""}>Auto · ${sug} mm²</option>
+          ${SECTIONS.map(s=>`<option value="${s}"${gr.sectionOverride===s?" selected":""}>${s} mm²</option>`).join("")}
+        </select></div>
+        <div style="display:flex;align-items:flex-end">
+          <button class="btn sm" data-gtrace="${gr.id}" style="width:100%">${active?"Trazando…":"Trazar"}</button>
+        </div>
+      </div>
+    </div>`;
+  }).join("") || `<p class="msg">Sin troncales todavía.</p>`;
+
+  $$("#grounds [data-gnote]").forEach(inp=> inp.oninput = ()=>{
+    const gr = S.grounds.find(x=>x.id===inp.dataset.gnote); if(gr){ gr.note = inp.value; }
+  });
+  $$("#grounds [data-gsec]").forEach(sel=> sel.onchange = ()=>{
+    const gr = S.grounds.find(x=>x.id===sel.dataset.gsec); if(!gr) return;
+    pushUndo();
+    gr.sectionOverride = sel.value===""? null : parseFloat(sel.value);
+    refreshAll();
+  });
+  $$("#grounds [data-gtrace]").forEach(b=> b.onclick=(e)=>{
+    e.stopPropagation();
+    const id=b.dataset.gtrace;
+    if(S.tracingGround===id) endTraceGround(); else startTraceGround(id);
+    refreshAll();
+  });
+  $$("#grounds [data-gdel]").forEach(b=> b.onclick=(e)=>{
+    e.stopPropagation();
+    if(!confirm("¿Eliminar este troncal de tierra? Los tramos que lo alimentaban vuelven a llevar su propio conductor de tierra.")) return;
+    deleteGround(b.dataset.gdel);
     refreshAll();
   });
   armUndoOnFocus(el);
@@ -2178,6 +2552,8 @@ function paintProp(){
     <div class="kv"><span>Largo total</span><span>${S.pxPerM?fmt(runLenM(r),2)+" m":"—"}</span></div>
     <div class="kv"><span>Cable de este circuito</span><span>${S.pxPerM?fmt(runLenM(r)*r.cables,2)+" m":"—"}</span></div>
     <div class="kv"><span>Ocupación del caño</span><span style="color:${over?"var(--err)":"var(--ok)"}">${pct}</span></div>
+    ${(()=>{ const gr = S.grounds.find(x=>x.runIds.includes(r.id));
+      return gr ? `<p class="msg" style="margin:4px 0 0">Este tramo no lleva su propio conductor de tierra: va por el troncal compartido "${esc(gr.note||"troncal")}".</p>` : ""; })()}
     <div style="margin-top:10px" class="f2">
       <div><label class="f">Caño</label><select class="f" id="pDia">${
         DIAS.map(d=>`<option value="${d.id}"${d.id===r.dia?" selected":""}>${d.lbl} · ${d.mm} mm</option>`).join("")}</select></div>
@@ -2191,13 +2567,15 @@ function paintProp(){
       <div><label class="f">Circuito</label><select class="f" id="pCi">${
         S.circuits.map(x=>`<option value="${x.id}"${x.id===r.circuit?" selected":""}>${esc(x.name)}</option>`).join("")}</select></div>
     </div>
+    ${(r.route||"techo")==="altura"?`<div style="margin-top:6px"><label class="f">Altura del caño (m)</label>
+      <input class="f mono" id="pAltura" type="number" step="0.05" min="0" value="${fmt(r.alturaM!=null?r.alturaM:ALTURA_DEFAULT_M,2)}"></div>`:""}
     <label class="chk" style="margin-top:8px"><input type="checkbox" id="pSh"${r.share!==false?" checked":""}>
       Compartir caño con otros circuitos entre las mismas cajas</label>
     ${shared?`<div style="margin-top:6px;padding:7px 8px;background:var(--panel-2);border:1px solid var(--line);border-radius:5px">
       <div style="font-size:11px;color:var(--ink-2);margin-bottom:4px">Caño compartido — ${g.cables} conductores en total</div>
       ${g.runs.map(x=>{const cc=ciById(x.circuit);return `<div class="kv" style="padding:2px 0;border:none"><span><span class="sw" style="display:inline-block;background:${cc.color};vertical-align:-2px;margin-right:5px"></span>${esc(cc.name)}</span><span>${x.cables} × ${cc.section} mm²</span></div>`}).join("")}
       </div>`:""}
-    ${over?`<button class="btn sm" id="pFix" style="width:100%;margin-top:8px">Pasar a ${diaLbl(suggestDiaFor(g?g.runs:[r]))}</button>`:""}
+    ${over&&shared?`<button class="btn sm" id="pFix" style="width:100%;margin-top:8px">Dividir en 2 caños en paralelo</button>`:""}
     <div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--line-2)">
       <label class="f" style="margin-bottom:5px">Insertar caja de paso en el medio${shared?" (afecta a los "+g.runs.length+" circuitos del caño)":""}</label>
       <div class="row">
@@ -2210,7 +2588,8 @@ function paintProp(){
 
   $("#pDia").onchange = e=>{ setGroupDia(r, e.target.value); refreshAll(); };
   if($("#pCab")) $("#pCab").oninput  = e=>{ r.cables=Math.max(1,parseInt(e.target.value)||1); refreshAll(); };
-  $("#pRt").onchange  = e=>{ r.route=e.target.value; refreshAll(); };
+  $("#pRt").onchange  = e=>{ r.route=e.target.value; if(r.route==="altura" && r.alturaM==null) r.alturaM=ALTURA_DEFAULT_M; refreshAll(); };
+  if($("#pAltura")) $("#pAltura").oninput = e=>{ r.alturaM=Math.max(0,parseFloat(e.target.value)||0); refreshAll(); };
   $("#pCi").onchange  = e=>{
     const oldCi = r.circuit;
     r.circuit = e.target.value;
@@ -2223,7 +2602,7 @@ function paintProp(){
     refreshAll();
   };
   $("#pSh").onchange  = e=>{ r.share=e.target.checked; refreshAll(); };
-  if($("#pFix")) $("#pFix").onclick = ()=>{ pushUndo(); setGroupDia(r, suggestDiaFor(g?g.runs:[r])); refreshAll(); };
+  if($("#pFix")) $("#pFix").onclick = ()=>{ pushUndo(); applyParallelSplit(r); refreshAll(); };
   $("#pInsOct").onclick  = ()=> insertBoxOnRun(r, "oct");
   $("#pInsRect").onclick = ()=> insertBoxOnRun(r, "rect");
   $("#pNote2").oninput= e=>{ r.note=e.target.value; };
@@ -2295,7 +2674,7 @@ function evaluarCaidaTension(c, L){
 
 function drcRun(){
   const out=[];
-  const push=(lvl,txt,target,cat)=> out.push({lvl,txt,target,cat});
+  const push=(lvl,txt,target,cat,tipo)=> out.push({lvl,txt,target,cat,tipo});
   const groups = conduitGroups();
 
   // llenado del caño: se evalua por caño fisico, no por circuito
@@ -2304,26 +2683,39 @@ function drcRun(){
     const a=nodeById(g.a), b=nodeById(g.b);
     const where = (a&&b) ? a.label+" → "+b.label : "tramo suelto";
     if(!isFinite(g.fill)){
-      push("e", `Caño ${where} (${names}): un ${diaLbl(g.dia)} no admite alguna de las secciones que pasan por él.`, g.runs[0].id, "canos");
+      push("e", `Caño ${where} (${names}): un ${diaLbl(g.dia)} no admite alguna de las secciones que pasan por él.`, g.runs[0].id, "canos", "seccion-incompatible");
     } else if(g.fill>1){
-      push("e", `Caño ${where}: ${g.cables} conductores de ${names} ocupan el ${Math.round(g.fill*100)}% de un ${diaLbl(g.dia)}. Pasá a ${diaLbl(suggestDiaFor(g.runs))}.`, g.runs[0].id, "canos");
+      const sug = g.runs.length>1
+        ? "Dividí este caño en dos caños en paralelo."
+        : "Repartí los conductores de este circuito en dos caños en paralelo.";
+      push("e", `Caño ${where}: ${g.cables} conductores de ${names} ocupan el ${Math.round(g.fill*100)}% de un ${diaLbl(g.dia)}. ${sug}`, g.runs[0].id, "canos", "ocupacion");
     } else if(g.fill>0.85){
-      push("w", `Caño ${where} al ${Math.round(g.fill*100)}% de ocupación. Queda poco margen para agregar cables.`, g.runs[0].id, "canos");
+      push("w", `Caño ${where} al ${Math.round(g.fill*100)}% de ocupación. Queda poco margen para agregar cables.`, g.runs[0].id, "canos", "ocupacion");
     }
+  }
+
+  // tierra compartida: se deja explícito qué sección de conductor se está
+  // asumiendo para cada troncal (mayor sección de fase entre los circuitos
+  // que la usan, salvo que el usuario la haya fijado a mano)
+  for(const gr of S.grounds){
+    if(!gr.runIds.length) continue;
+    const sec = groundSectionFor(gr);
+    const auto = gr.sectionOverride==null;
+    push("w", `Tierra compartida "${esc(gr.note||"troncal")}": ${gr.runIds.length} tramo(s), conductor de ${sec} mm²${auto?" (automático: mayor sección de fase entre los circuitos que la usan)":" (fijada a mano)"}.`, gr.runIds[0], "tierra", "tierra");
   }
 
   for(const r of S.runs){
     const c = ciById(r.circuit); if(!c) continue;
     if(!r.a || !r.b)
-      push("w", `Tramo de ${esc(c.name)} sin cerrar en ${!r.a&&!r.b?"ninguno de los dos extremos":"un extremo"}. Enganchalo a una caja.`, r.id, "tramos");
+      push("w", `Tramo de ${esc(c.name)} sin cerrar en ${!r.a&&!r.b?"ninguno de los dos extremos":"un extremo"}. Enganchalo a una caja.`, r.id, "tramos", "tramo-abierto");
     const L = runLenM(r);
     if(S.pxPerM && L>S.rules.longRun)
-      push("w", `Tramo de ${esc(c.name)} de ${fmt(L,1)} m supera los ${S.rules.longRun} m. Verificá caída de tensión.`, r.id, "caida");
+      push("w", `Tramo de ${esc(c.name)} de ${fmt(L,1)} m supera los ${S.rules.longRun} m. Verificá caída de tensión.`, r.id, "caida", "caida");
     if(S.pxPerM && L>S.rules.boxRun)
-      push("w", `Tramo de ${esc(c.name)} de ${fmt(L,1)} m sin caja intermedia (supera los ${S.rules.boxRun} m). Considerá agregar una caja de paso en el medio para facilitar el tendido del cable.`, r.id, "tramos");
+      push("w", `Tramo de ${esc(c.name)} de ${fmt(L,1)} m sin caja intermedia (supera los ${S.rules.boxRun} m). Considerá agregar una caja de paso en el medio para facilitar el tendido del cable.`, r.id, "tramos", "tramo-sin-caja");
     const bends = runBends(r);
     if(bends > 1)
-      push("w", `Tramo de ${esc(c.name)} con ${bends} codos de 90°. Con más de un codo conviene partirlo en tramos o insertar una caja de paso en el quiebre.`, r.id, "tramos");
+      push("w", `Tramo de ${esc(c.name)} con ${bends} codos de 90°. Con más de un codo conviene partirlo en tramos o insertar una caja de paso en el quiebre.`, r.id, "tramos", "codos");
   }
 
   // cajas: se cuentan caños fisicos, no circuitos
@@ -2331,22 +2723,22 @@ function drcRun(){
     const gs = new Set(runsAtNode(n.id).map(groupKey));
     const max = nodeMaxConduits(n);
     if(max!==null && gs.size>max)
-      push("e", `${n.label}: ${gs.size} caños en una ${KINDS[n.kind].n.toLowerCase()} (máx. ${max}).`, n.id, "cajas");
+      push("e", `${n.label}: ${gs.size} caños en una ${KINDS[n.kind].n.toLowerCase()} (máx. ${max}).`, n.id, "cajas", "caja-max");
     if(gs.size===0)
-      push("w", `${n.label} no tiene ningún caño conectado.`, n.id, "cajas");
+      push("w", `${n.label} no tiene ningún caño conectado.`, n.id, "cajas", "caja-sin-cano");
     if(resolveZ(n) > S.z.ceiling + 0.001)
-      push("w", `${n.label} está a ${fmt(resolveZ(n),2)} m, por encima del cielorraso (${fmt(S.z.ceiling,2)} m).`, n.id, "cajas");
+      push("w", `${n.label} está a ${fmt(resolveZ(n),2)} m, por encima del cielorraso (${fmt(S.z.ceiling,2)} m).`, n.id, "cajas", "caja-altura");
   }
 
   for(const c of S.circuits){
     const max = MAXPROT[c.section];
     if(max && c.prot>max)
-      push("e", `${esc(c.name)}: protección de ${c.prot} A para ${c.section} mm² (máx. ${max} A).`, null, "circuitos");
+      push("e", `${esc(c.name)}: protección de ${c.prot} A para ${c.section} mm² (máx. ${max} A).`, null, "circuitos", "proteccion");
   }
 
   const tabs = S.nodes.filter(n=>n.kind==="tablero").map(n=>n.id);
   if(tabs.length===0 && S.runs.length)
-    push("w","No hay ningún tablero en el plano. Agregá uno como origen de los circuitos.",null,"circuitos");
+    push("w","No hay ningún tablero en el plano. Agregá uno como origen de los circuitos.",null,"circuitos","sin-tablero");
   else if(tabs.length){
     for(const c of S.circuits){
       const rs = S.runs.filter(r=>r.circuit===c.id);
@@ -2362,7 +2754,7 @@ function drcRun(){
       }
       const orphan = rs.filter(r=> !(r.a&&seen.has(r.a)) && !(r.b&&seen.has(r.b)));
       if(orphan.length)
-        push("w", `${esc(c.name)}: ${orphan.length} tramo(s) no llegan al tablero por ningún camino.`, orphan[0].id, "circuitos");
+        push("w", `${esc(c.name)}: ${orphan.length} tramo(s) no llegan al tablero por ningún camino.`, orphan[0].id, "circuitos", "circuito-huerfano");
 
       // caída de tensión al punto más lejano del circuito -- PAT/tierra no
       // lleva esta cuenta (ver caida_tension.py)
@@ -2370,14 +2762,14 @@ function drcRun(){
         const camino = caidaMasLarga(rs.filter(r=>r.a&&r.b), tabs);
         if(camino){
           const txt = evaluarCaidaTension(c, camino.L);
-          if(txt) push("w", txt, camino.run.id, "caida");
+          if(txt) push("w", txt, camino.run.id, "caida", "caida");
         }
       }
     }
   }
 
   if(!S.pxPerM && (S.runs.length||S.nodes.length))
-    push("w","El plano no está calibrado: no se pueden calcular longitudes ni cómputo de cable.",null,"calibracion");
+    push("w","El plano no está calibrado: no se pueden calcular longitudes ni cómputo de cable.",null,"calibracion","calibracion");
 
   // cruces entre caños distintos que no se resuelven en una caja
   const seenPairs = new Set();
@@ -2387,23 +2779,62 @@ function drcRun(){
     const namesA = Array.from(new Set(cr.a.runs.map(r=>ciById(r.circuit)).filter(Boolean).map(c=>c.name))).join("+");
     const namesB = Array.from(new Set(cr.b.runs.map(r=>ciById(r.circuit)).filter(Boolean).map(c=>c.name))).join("+");
     if(cr.safe){
-      push("w", `Los caños de ${namesA} y ${namesB} se cruzan pero quedan resueltos en altura (≈${Math.round(cr.diff*100)} cm de diferencia, marcado con ⚠ en el plano). Verificá que sea suficiente margen.`, cr.a.runs[0].id, "cruces");
+      push("w", `Los caños de ${namesA} y ${namesB} se cruzan pero quedan resueltos en altura (≈${Math.round(cr.diff*100)} cm de diferencia, marcado con ⚠ en el plano). Verificá que sea suficiente margen.`, cr.a.runs[0].id, "cruces", "cruce-seguro");
     } else {
-      push("w", `Los caños de ${namesA} y ${namesB} se cruzan a la misma altura sin compartir una caja (marcado con × en el plano). Agregá una caja de paso en el cruce, desviá uno de los trazados, o poné una de las cajas a otra altura y pasá ese tramo a recorrido "Directo entre cajas".`, cr.a.runs[0].id, "cruces");
+      push("w", `Los caños de ${namesA} y ${namesB} se cruzan a la misma altura sin compartir una caja (marcado con × en el plano). Agregá una caja de paso en el cruce, desviá uno de los trazados, o poné una de las cajas a otra altura y pasá ese tramo a recorrido "Directo entre cajas".`, cr.a.runs[0].id, "cruces", "cruce-inseguro");
     }
   }
 
   return out;
 }
 
+// etiquetas legibles de cada "tipo" (más fino que la categoría "cat", que sólo
+// agrupa visualmente en el modal) -- usadas para armar los checkboxes de
+// "qué avisos mostrar" y para que un tipo oculto no siga contando ni
+// resaltando en rojo el plano (ver hiddenDrcTipos más abajo)
+const DRC_TIPOS = {
+  "seccion-incompatible": "Sección incompatible con el caño",
+  "ocupacion":            "Ocupación de cable",
+  "tierra":               "Tierra compartida",
+  "tramo-abierto":        "Tramo sin cerrar en una caja",
+  "caida":                "Caída de tensión",
+  "tramo-sin-caja":       "Tramo largo sin caja intermedia",
+  "codos":                "Codos de 90°",
+  "caja-max":             "Demasiados caños en una caja",
+  "caja-sin-cano":        "Caja sin ningún caño conectado",
+  "caja-altura":          "Caja por encima del cielorraso",
+  "proteccion":           "Protección fuera de rango",
+  "sin-tablero":          "Sin tablero en el plano",
+  "circuito-huerfano":    "Circuito que no llega al tablero",
+  "calibracion":          "Plano sin calibrar",
+  "cruce-seguro":         "Cruce resuelto en altura",
+  "cruce-inseguro":       "Cruce a la misma altura",
+};
+// qué tipos de aviso el usuario decidió no ver más -- por navegador, no por
+// obra, así que sigue vigente aunque abras otro proyecto (localStorage)
+const DRC_HIDDEN_KEY = "canaliza_drc_hidden_tipos";
+let hiddenDrcTipos = new Set();
+try{ hiddenDrcTipos = new Set(JSON.parse(localStorage.getItem(DRC_HIDDEN_KEY)||"[]")); }catch(err){}
+function saveHiddenDrcTipos(){
+  try{ localStorage.setItem(DRC_HIDDEN_KEY, JSON.stringify(Array.from(hiddenDrcTipos))); }catch(err){}
+}
+
 let _drcCache=null, _drcT=new Set();
+let _drcRaw=null;
 function drcCached(){
   if(_drcCache) return _drcCache;
-  _drcCache = drcRun(); _drcT = new Set();
+  _drcRaw = drcRun();
+  // los tipos que el usuario apagó no cuentan, no resaltan en rojo el plano
+  // y no aparecen en el modal -- como si el aviso no existiera
+  _drcCache = _drcRaw.filter(d=> !hiddenDrcTipos.has(d.tipo));
+  _drcT = new Set();
   for(const d of _drcCache) if(d.lvl==="e" && d.target) _drcT.add(d.target);
   return _drcCache;
 }
-function drcInvalidate(){ _drcCache=null; }
+// versión sin filtrar -- la usa el modal para poder seguir mostrando el
+// checkbox de un tipo aunque esté apagado (y así poder volver a prenderlo)
+function drcRawCached(){ drcCached(); return _drcRaw; }
+function drcInvalidate(){ _drcCache=null; _drcRaw=null; }
 function drcTargets(){ drcCached(); return _drcT; }
 
 // categorías del DRC, en el orden en que aparecen en el modal -- agrupan
@@ -2414,6 +2845,7 @@ const DRC_CATS = [
   {id:"canos",       label:"Caños y capacidad"},
   {id:"tramos",      label:"Tramos y tendido"},
   {id:"cruces",      label:"Cruces de caños"},
+  {id:"tierra",      label:"Tierra compartida"},
   {id:"caida",       label:"Caída de tensión"},
   {id:"cajas",       label:"Cajas"},
   {id:"circuitos",   label:"Circuitos y tablero"},
@@ -2428,16 +2860,22 @@ function filaDrc(d, i){
 
 function paintDrc(){
   const list = drcCached();
+  const raw = drcRawCached();
   const es=list.filter(d=>d.lvl==="e").length, ws=list.length-es;
   pintarContadorDrc(es, ws);
   const el=$("#drc");
+  const ocultos = raw.length - list.length;
   if(!list.length){
-    el.innerHTML = `<div id="drcOk"><svg width="14" height="14" viewBox="0 0 16 16"><path d="M3 8.5l3.2 3.2L13 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Sin observaciones.</div>`;
+    // aunque no haya nada para mostrar, si hay avisos ocultos por un filtro
+    // dejamos un botón para poder volver a abrir el modal y desactivarlo
+    el.innerHTML = `<div id="drcOk"><svg width="14" height="14" viewBox="0 0 16 16"><path d="M3 8.5l3.2 3.2L13 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Sin observaciones.</div>` +
+      (ocultos?`<button class="btn sm" id="bDrcDetalle" style="width:100%;margin-top:6px">${ocultos} oculto${ocultos===1?"":"s"} por filtro -- ver</button>`:"");
+    if(ocultos) $("#bDrcDetalle").onclick = abrirModalDrc;
     return;
   }
   // el conteo ya se ve en el contador flotante junto al zoom -- acá sólo
   // el acceso al detalle, para no repetir el mismo número dos veces
-  el.innerHTML = `<button class="btn sm" id="bDrcDetalle" style="width:100%">Ver detalle</button>`;
+  el.innerHTML = `<button class="btn sm" id="bDrcDetalle" style="width:100%">Ver detalle${ocultos?` (+${ocultos} oculto${ocultos===1?"":"s"})`:""}</button>`;
   $("#bDrcDetalle").onclick = abrirModalDrc;
 }
 
@@ -2454,9 +2892,31 @@ function pintarContadorDrc(es, ws){
 // misma categoría que ya se usa para los headers (ver DRC_CATS) -- no
 // cambia qué es error/warning, sólo el orden en que se listan
 function abrirModalDrc(){
+  const raw = drcRawCached();
   const list = drcCached();
   const es=list.filter(d=>d.lvl==="e").length, ws=list.length-es;
   $("#drcSummary").textContent = `${es} error${es===1?"":"es"} · ${ws} aviso${ws===1?"":"s"}`;
+
+  // un checkbox por tipo de aviso presente en este proyecto (aunque esté
+  // oculto ahora) -- para poder apagar "ya lo resolví, no me lo muestres más"
+  // sin tener que volver a resolverlo cada vez que se recalcula el DRC
+  const porTipo = new Map();
+  raw.forEach(d=>{ const t=d.tipo||"otros"; porTipo.set(t, (porTipo.get(t)||0)+1); });
+  const ordenTipos = Object.keys(DRC_TIPOS);
+  const tipos = Array.from(porTipo.keys()).sort((a,b)=> ordenTipos.indexOf(a)-ordenTipos.indexOf(b));
+  $("#drcFilters").innerHTML = tipos.length ? `<label class="f" style="margin-bottom:4px">Mostrar</label>
+    <div style="display:flex;flex-wrap:wrap;gap:4px 10px">${tipos.map(t=>
+      `<label class="chk" style="font-size:11.5px"><input type="checkbox" data-tipo="${t}"${hiddenDrcTipos.has(t)?"":" checked"}>
+        ${esc(DRC_TIPOS[t]||t)} (${porTipo.get(t)})</label>`).join("")}
+    </div>` : "";
+  $$("#drcFilters [data-tipo]").forEach(cb=> cb.onchange = ()=>{
+    if(cb.checked) hiddenDrcTipos.delete(cb.dataset.tipo); else hiddenDrcTipos.add(cb.dataset.tipo);
+    saveHiddenDrcTipos();
+    drcInvalidate();
+    paintDrc();
+    abrirModalDrc();
+  });
+
   const NIVELES = [{lvl:"e", label:"Errores"}, {lvl:"w", label:"Avisos"}];
   $("#drcGroups").innerHTML = NIVELES.map(niv=>{
     const items = list.map((d,i)=>({...d,i})).filter(d=>d.lvl===niv.lvl);
@@ -2540,8 +3000,12 @@ function computeBom(){
           const ends = (run.a?1:0)+(run.b?1:0);
           wl += runLenM(run) + ends*spare;   // metros de este conductor en este tramo
         }
-        const code = wireCode(w);
-        cableColor[c.section][code] = (cableColor[c.section][code]||0) + wl;
+        // se agrupa por tipo de conductor, no por luz/instancia -- todos los
+        // retornos simples de esta sección suman a un mismo renglón, e ídem
+        // los combinados (el detalle por luz ya se ve en "Retornos y cableado")
+        const label = w.kind==="F" ? "Marrón (fase)" : w.kind==="N" ? "Celeste (neutro)"
+          : w.kind==="RS" ? "Blanco (retorno simple)" : "Amarillo (retorno combinado)";
+        cableColor[c.section][label] = (cableColor[c.section][label]||0) + wl;
         cab += wl;
       }
     } else {
@@ -2562,6 +3026,31 @@ function computeBom(){
     cable[c.section] = (cable[c.section]||0) + cab;
     byCircuit.push({c, runs:rs.length, len, vert, cab});
   }
+
+  // tierra compartida: un solo conductor por troncal, contado una vez por
+  // cada caño físico distinto que atraviesa (no una vez por tramo)
+  for(const gr of S.grounds){
+    if(!gr.runIds.length) continue;
+    const seen = new Set(); let length=0;
+    for(const rid of gr.runIds){
+      const run = S.runs.find(x=>x.id===rid); if(!run) continue;
+      const gk = groupKey(run);
+      if(seen.has(gk)) continue;
+      seen.add(gk);
+      const ends = (run.a?1:0)+(run.b?1:0);
+      length += runLenM(run) + ends*spare;
+    }
+    if(length<=0) continue;
+    const sec = groundSectionFor(gr);
+    cableColor[sec] = cableColor[sec] || {};
+    // mismo renglón "Verde-amarillo (tierra)" que la tierra no troncal de esta
+    // sección -- no importa si el metraje viene de un troncal o de un tramo
+    // propio, para el cómputo es el mismo conductor
+    const col = "Verde-amarillo (tierra)";
+    cableColor[sec][col] = (cableColor[sec][col]||0) + length;
+    cable[sec] = (cable[sec]||0) + length;
+  }
+
   for(const k in cable) cable[k] *= waste;
   for(const s in cableColor) for(const col in cableColor[s]) cableColor[s][col] *= waste;
 
@@ -2585,7 +3074,6 @@ function paintBom(){
       `<div class="kv" style="padding-left:10px;border:none"><span style="color:var(--ink-3)">${esc(col)}</span><span>${fmt(colors[col],1)} m</span></div>`).join("");
     return `<div class="kv"><span>${s} mm²</span><span>${fmt(b.cable[s],1)} m</span></div>${colorRows}`;
   }).join("") : `<p class="msg">Sin tramos dibujados.</p>`);
-  if(cs.length) rows.push(`<div class="tot"><span>Total cable</span><span>${fmt(b.totalCable,1)} m</span></div>`);
 
   rows.push(`<h3 style="margin:14px 0 6px;font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3)">Caño corrugado</h3>`);
   const ds = Object.keys(b.conduit).filter(k=>b.conduit[k]>0).sort((x,y)=>diaOf(x).mm-diaOf(y).mm);
@@ -2594,10 +3082,10 @@ function paintBom(){
   if(ds.length) rows.push(`<div class="tot"><span>Total caño</span><span>${fmt(b.totalConduit,1)} m</span></div>`);
 
   rows.push(`<h3 style="margin:14px 0 6px;font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3)">Cajas</h3>`);
+  // el medidor no es un material a comprar -- lo instala la distribuidora, no se lista acá
   rows.push(`<div class="kv"><span>Octogonales</span><span>${b.boxes.oct||0}</span></div>
     <div class="kv"><span>Rectangulares</span><span>${b.boxes.rect||0}</span></div>
     <div class="kv"><span>Tableros</span><span>${b.boxes.tablero||0}</span></div>`
-    + (b.boxes.medidor?`<div class="kv"><span>Medidores</span><span>${b.boxes.medidor}</span></div>`:"")
     + (b.boxes.jabalina?`<div class="kv"><span>Jabalinas</span><span>${b.boxes.jabalina}</span></div>`:"")
   );
   if(b.boxes.insp){
@@ -2764,6 +3252,7 @@ function buildProjectData(){
   return {v:3, baseName:S.baseName, baseSrc:S.baseSrc, pxPerM:S.pxPerM,
     circuits:S.circuits, nodes:S.nodes, runs:S.runs, rules:S.rules, z:S.z, counters:S.counters,
     grid:S.grid, viewGroups:S.viewGroups, hiddenCircuits:Array.from(S.hiddenCircuits), wires:S.wires,
+    grounds:S.grounds, codeLabels:S.codeLabels,
     savedAt: Date.now()};
 }
 async function applyProjectData(d){
@@ -2780,11 +3269,16 @@ async function applyProjectData(d){
   S.hiddenCircuits = new Set(d.hiddenCircuits||[]);
   S.wires = d.wires||[];
   S.tracingWire = null;
+  S.grounds = (d.grounds||[]).map(gr=>({id:gr.id, note:gr.note||"", sectionOverride:gr.sectionOverride!=null?gr.sectionOverride:null, runIds:gr.runIds||[]}));
+  S.tracingGround = null;
+  S.codeLabels = d.codeLabels || {};
+  S.editingCodeLabels = false; S.draggingLabel = null;
   S.activeCircuit = S.circuits[0]?S.circuits[0].id:null; S.sel=null;
   history=[]; future=[]; paintHistBtns();
   if(d.baseSrc) await setBase(d.baseSrc);
   paintScale(); paintGridMeta();
   $("#vGrid").checked=S.grid.on; $("#gridSize").value=S.grid.size; $("#vSnap").checked=S.grid.snap;
+  $("#vCodeEdit").checked=false;
   refreshAll();
 }
 
@@ -2792,7 +3286,8 @@ async function applyProjectData(d){
 // circuitos quedan tal cual. Usado por el botón "Reiniciar" del puente.
 window.canalizaReiniciarRuteo = function(){
   pushUndo();
-  S.runs = []; S.wires = []; S.tracingWire = null; S.draft = null; S.sel = null;
+  S.runs = []; S.wires = []; S.tracingWire = null; S.grounds = []; S.tracingGround = null;
+  S.codeLabels = {}; S.draft = null; S.sel = null;
   refreshAll();
 };
 
@@ -2896,6 +3391,19 @@ $("#bPdfPlanos").onclick = ()=>{
   open$("#mPdf");
 };
 
+$("#bPdfCodigo").onclick = ()=>{
+  if(!S.base){ alert("Cargá primero un plano base."); return; }
+  pdfMode = "codigo";
+  $("#pdfTitulo").textContent = "PDF con código de cables";
+  $("#pdfSub").textContent = "Una hoja por circuito, caños con el color del circuito (no el de cada cable) y "+
+    "un código de texto junto a cada caño -- ej: 2.5(FNT) -- para saber qué conductores lleva sin tener que "+
+    "distinguirlos por color.";
+  const l=$("#pdfList");
+  l.innerHTML = S.circuits.map(c=>`<label class="chk"><input type="checkbox" class="pxCC" value="${c.id}" checked>
+    <span class="sw" style="background:${c.color};margin-top:2px"></span> Hoja de ${esc(c.name)}</label>`).join("");
+  open$("#mPdf");
+};
+
 $("#bPdfBom").onclick = ()=>{
   if(!S.base){ alert("Cargá primero un plano base."); return; }
   pdfMode = "bom";
@@ -2916,12 +3424,16 @@ $("#pdfGo").onclick = async ()=>{
 // buildProjectData() y qué hojas se quieren, y se muestra el resultado.
 async function makePdf(){
   const hojas = pdfMode === "bom"
-    ? { general:false, detallado:false, bom:true, circuitos:[] }
+    ? { general:false, detallado:false, bom:true, circuitos:[], circuitosCodigo:[] }
+    : pdfMode === "codigo"
+    ? { general:false, detallado:false, bom:false, circuitos:[],
+        circuitosCodigo: Array.from(document.querySelectorAll(".pxCC:checked")).map(i=>i.value) }
     : {
         general:   $("#pxAll")   ? $("#pxAll").checked   : true,
         detallado: $("#pxDetail")? $("#pxDetail").checked: false,
         bom:       false,
         circuitos: Array.from(document.querySelectorAll(".pxC:checked")).map(i=>i.value),
+        circuitosCodigo: [],
       };
   const body = {
     proyecto: buildProjectData(),
@@ -2937,7 +3449,7 @@ async function makePdf(){
     const d = await res.json().catch(()=>({}));
     throw new Error(d.error || "No se pudo generar el PDF.");
   }
-  const sufijo = pdfMode === "bom" ? "_materiales" : "_planos";
+  const sufijo = pdfMode === "bom" ? "_materiales" : pdfMode === "codigo" ? "_codigo" : "_planos";
   mostrarVistaPreviaPdf(await res.blob(),
     (S.baseName.replace(/\.[^.]+$/,"")||"canalizacion")+sufijo+".pdf");
 }
@@ -2976,12 +3488,14 @@ function DEV_KIND(k){
 /* ============================ misc UI ============================ */
 
 $("#bAddCi").onclick = ()=>{ pushUndo(); newCircuit(); refreshAll(); };
+$("#bAddGround").onclick = ()=>{ const gr = addGroundTrunk(); startTraceGround(gr.id); refreshAll(); };
 $$("[data-newci]").forEach(b=> b.onclick = ()=>{ pushUndo(); newCircuit(b.dataset.newci); refreshAll(); });
 $("#bUndo").onclick = undo;
 $("#bRedo").onclick = redo;
 $("#vLbl").onchange = e=>{ S.show.labels=e.target.checked; render(); };
 $("#vLen").onchange = e=>{ S.show.lens=e.target.checked; render(); };
 $("#vZ").onchange   = e=>{ S.show.z=e.target.checked; render(); };
+$("#vCodeEdit").onchange = e=>{ S.editingCodeLabels=e.target.checked; render(); };
 $("#vGrid").onchange = e=>{ S.grid.on=e.target.checked; render(); };
 $("#vSnap").onchange = e=>{ S.grid.snap=e.target.checked; };
 $("#gridSize").oninput = e=>{
@@ -3065,7 +3579,8 @@ buildTools();
 // ---- integración externa: no toca nada de lo existente, sólo expone hooks ----
 // solo lectura/depuración: útil para inspeccionar el estado interno desde
 // la consola del navegador sin tener que exportar todo el proyecto
-window.canalizaDebug = {S, activeCi, ciById, nodeById, findNode, wireHex, conduitConductors};
+window.canalizaDebug = {S, activeCi, ciById, nodeById, findNode, wireHex, conduitConductors,
+  conduitGroups, computeBom, addGroundTrunk, toggleRunInGround, deleteGround, groundSectionFor, circuitHasGround};
 
 window.canalizaExportar = buildProjectData;
 window.canalizaImportar = applyProjectData;

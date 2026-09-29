@@ -31,7 +31,14 @@ header .sub{font-size:.72rem;color:#9db2c7;margin-top:2px}
 .btn.ghost{background:transparent;border-color:#33506e;color:#cfe0f0}
 .btn.ghost:hover{border-color:#5b7fa5}
 .btn.sm{padding:5px 10px;font-size:.76rem}
-main{max-width:920px;margin:0 auto;padding:26px 22px 60px}
+.layout{display:flex;gap:24px;max-width:1200px;margin:0 auto;padding:26px 22px 60px;align-items:flex-start}
+main{flex:1;min-width:0;max-width:920px}
+.sidebar{width:250px;flex:none;position:sticky;top:20px}
+.sidebar h2{margin-top:0}
+@media (max-width:820px){
+  .layout{flex-direction:column}
+  .sidebar{position:static;width:auto}
+}
 h2{font-family:'Space Grotesk',sans-serif;font-size:.82rem;margin:26px 0 8px;
   text-transform:uppercase;letter-spacing:.05em;color:var(--muted);display:flex;
   align-items:center;gap:10px}
@@ -85,6 +92,8 @@ td.acc{width:76px;text-align:center;white-space:nowrap}
   <button class="btn ghost" id="b-volver">Volver</button>
 </header>
 
+<div class="layout">
+<aside class="sidebar" id="sidebar-color"></aside>
 <main>
   <h2>Cómputo automático <button class="btn sm" id="b-actualizar">Actualizar cómputo</button></h2>
   <div class="nota" id="cajas-fuente"></div>
@@ -116,16 +125,17 @@ td.acc{width:76px;text-align:center;white-space:nowrap}
   </div>
 
   <h2>Cable a comprar</h2>
-  <div class="nota">Marcá qué secciones y colores necesitás reponer. Elegí si lo pedís en
-  rollos o en metros -- vos redondeás la cantidad, esto va tal cual al PDF.</div>
+  <div class="nota">Marcá qué secciones y colores necesitás reponer (o cable tipo taller/Sintenax, por
+  formato). Elegí si lo pedís en rollos o en metros -- vos redondeás la cantidad, esto va tal cual al PDF.</div>
   <table>
-    <thead><tr><th style="width:100px">Sección</th><th>Color</th><th style="width:70px">Cant.</th>
-      <th style="width:100px">Unidad</th><th>Notas</th>
+    <thead><tr><th style="width:100px">Tipo</th><th style="width:100px">Sección / Formato</th><th>Color</th>
+      <th style="width:70px">Cant.</th><th style="width:100px">Unidad</th><th>Notas</th>
       <th style="width:80px">Comprar</th><th></th></tr></thead>
     <tbody id="t-cables"></tbody>
   </table>
   <button class="btn sm" id="cb-agregar">+ Agregar cable</button>
 </main>
+</div>
 
 <div class="overlay" id="ov-pdf">
   <div class="caja-pdf">
@@ -146,6 +156,8 @@ const OBRA_ID = params.get('obra');
 fyLock.iniciar(OBRA_ID);
 const SECCIONES = [1, 1.5, 2.5, 4, 6, 10, 16, 25];
 const COLORES_CABLE = ['Rojo (fase)', 'Negro (fase)', 'Celeste (neutro)', 'Verde-amarillo (tierra)', 'Marrón', 'Blanco', 'Otro'];
+// formatos habituales de cable tipo taller / Sintenax (N conductores x sección)
+const TALLER_FORMATOS = ['2x1.5', '2x2.5', '2x4', '3x1.5', '3x2.5', '3x4', '3x6', '4x2.5', '4x4', 'Otro'];
 
 const api = async (ruta, opts={}) => {
   const r = await fetch(ruta, {headers:{'Content-Type':'application/json'}, ...opts});
@@ -250,6 +262,8 @@ function pintarCanalizacion(){
     $('canalizacion-cont').innerHTML = `<h2>Cable y caño (Routeo)</h2>
       <div class="nota">Todavía no hay nada ruteado con escala calibrada -- estos metros
       aparecen apenas cargues algo en Routeo.</div>`;
+    $('sidebar-color').style.display = 'none';
+    $('sidebar-color').innerHTML = '';
     return;
   }
   const filasCable = Object.entries(canalizacion.cablePorSeccion||{})
@@ -265,8 +279,24 @@ function pintarCanalizacion(){
         <th style="width:90px">Metros</th></tr></thead><tbody>${filasCano ||
         '<tr><td colspan="2" style="color:var(--muted)">Sin datos</td></tr>'}</tbody></table>
     </div>
-    <div class="nota">Total: ${canalizacion.totalCableM} m de cable, ${canalizacion.totalCanoM} m de caño
-    (estimado -- para el cómputo detallado de Routeo, usá su propia exportación).</div>`;
+    <div class="nota">Total: ${canalizacion.totalCanoM} m de caño
+    (estimado -- para el cómputo detallado de Routeo, usá su propia exportación; el cable no se totaliza
+    porque cada sección es un conductor distinto).</div>`;
+
+  // aparte, en la columna izquierda: se queda fijo en pantalla mientras
+  // scrolleás la lista de materiales para ir completando "Cable a comprar"
+  // más abajo, sin tener que volver para arriba a mirar los metros estimados
+  const filasColor = Object.entries(canalizacion.cableColor||{})
+    .sort((a,b)=>a[0]-b[0])
+    .map(([sec,colores]) => `<tr><td colspan="2" style="padding-top:8px"><b>${sec} mm²</b></td></tr>` +
+      Object.entries(colores).map(([col,m]) =>
+        `<tr><td style="padding-left:10px;color:var(--muted)">${esc(col)}</td><td class="num">${m} m</td></tr>`).join('')
+    ).join('');
+  $('sidebar-color').style.display = filasColor ? '' : 'none';
+  $('sidebar-color').innerHTML = filasColor ? `<h2>Cable por color</h2>
+    <div class="nota">Estimado de Routeo, para saber cuántos rollos de cada color comprar en "Cable a
+    comprar" más abajo.</div>
+    <table><tbody>${filasColor}</tbody></table>` : '';
 }
 
 function pintarSelectCatalogo(){
@@ -318,12 +348,26 @@ function pintarExtras(){
   });
 }
 function pintarCables(){
-  $('t-cables').innerHTML = datosObra.cables.length ? datosObra.cables.map((c,i) => `
+  $('t-cables').innerHTML = datosObra.cables.length ? datosObra.cables.map((c,i) => {
+    const tipo = c.tipo || 'unipolar';
+    const esTaller = tipo === 'taller';
+    const colSeccion = esTaller
+      ? `<select data-c="formato">${TALLER_FORMATOS.map(f=>
+          `<option ${String(c.formato)===f?'selected':''}>${f}</option>`).join('')}</select>`
+      : `<select data-c="seccionMm2">${SECCIONES.map(s=>
+          `<option value="${s}" ${String(c.seccionMm2)===String(s)?'selected':''}>${s} mm²</option>`).join('')}</select>`;
+    const colColor = esTaller
+      ? `<span class="nota" style="margin:0">taller / Sintenax</span>`
+      : `<select data-c="color">${COLORES_CABLE.map(col=>
+          `<option ${c.color===col?'selected':''}>${esc(col)}</option>`).join('')}</select>`;
+    return `
     <tr data-i="${i}">
-      <td><select data-c="seccionMm2">${SECCIONES.map(s=>
-        `<option value="${s}" ${String(c.seccionMm2)===String(s)?'selected':''}>${s} mm²</option>`).join('')}</select></td>
-      <td><select data-c="color">${COLORES_CABLE.map(col=>
-        `<option ${c.color===col?'selected':''}>${esc(col)}</option>`).join('')}</select></td>
+      <td><select data-c="tipo">
+        <option value="unipolar" ${!esTaller?'selected':''}>Unipolar</option>
+        <option value="taller" ${esTaller?'selected':''}>Taller / Sintenax</option>
+      </select></td>
+      <td>${colSeccion}</td>
+      <td>${colColor}</td>
       <td class="num"><input data-c="cantidad" type="number" min="0" step="any" value="${c.cantidad ?? 1}"></td>
       <td><select data-c="unidad">
         <option value="rollo" ${c.unidad!=='m'?'selected':''}>rollo(s)</option>
@@ -331,7 +375,8 @@ function pintarCables(){
       <td><input data-c="notas" value="${esc(c.notas||'')}" placeholder="ej: quedan 8m, alcanza para..."></td>
       <td style="text-align:center"><input type="checkbox" data-c="necesita" ${c.necesita?'checked':''}></td>
       <td class="acc"><button class="del" data-del="${i}" title="Quitar">×</button></td>
-    </tr>`).join('') : '<tr><td colspan="7" style="color:var(--muted);padding:12px">Todavía no agregaste ningún cable.</td></tr>';
+    </tr>`;
+  }).join('') : '<tr><td colspan="8" style="color:var(--muted);padding:12px">Todavía no agregaste ningún cable.</td></tr>';
   $('t-cables').querySelectorAll('tr[data-i]').forEach(tr => {
     const i = +tr.dataset.i;
     tr.querySelectorAll('[data-c]').forEach(el => {
@@ -341,6 +386,7 @@ function pintarCables(){
           : (campo==='cantidad' ? (parseFloat(el.value)||0) : el.value);
         datosObra.cables[i][campo] = val;
         guardar();
+        if(campo==='tipo') pintarCables();   // cambia qué columnas hacen falta
       };
     });
   });
@@ -383,8 +429,8 @@ $('ex-nuevo-catalogo').onclick = async () => {
   toast('Agregado al catálogo -- ya lo podés elegir arriba');
 };
 $('cb-agregar').onclick = () => {
-  datosObra.cables.push({seccionMm2:2.5, color:COLORES_CABLE[0], cantidad:1, unidad:'rollo',
-    notas:'', necesita:true});
+  datosObra.cables.push({tipo:'unipolar', seccionMm2:2.5, color:COLORES_CABLE[0], formato:TALLER_FORMATOS[0],
+    cantidad:1, unidad:'rollo', notas:'', necesita:true});
   pintarCables(); guardar();
 };
 

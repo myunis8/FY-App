@@ -18,7 +18,7 @@ mismos nombres en vez de ir acumulando variantes parecidas.
 from __future__ import annotations
 import json, math, heapq
 from pathlib import Path
-from . import config as cfgmod, caida_tension as ct
+from . import config as cfgmod, caida_tension as ct, canaliza_geom as cg
 
 ARCHIVO = "materiales.json"
 
@@ -243,12 +243,16 @@ def _run_horiz_m(run, px_por_m):
     return total / px_por_m if px_por_m else 0.0
 
 
+ALTURA_DEFAULT_M = 1.2  # media altura por defecto para route == "altura" (ver canaliza.html)
+_KINDS_CON_TIERRA = {"tomas", "especial", "exterior", "acometida", "tierra"}  # == circuitHasGround() en canaliza.html
+
+
 def _grados_techo(runs):
     """Cuántos tramos "por cielorraso" llegan a cada nodo -- para repartir la
     bajada de esa caja entre todos ellos (ver _run_vert_m)."""
     g: dict = {}
     for r in runs or []:
-        if r.get("route") == "directo":
+        if (r.get("route") or "techo") != "techo":
             continue
         for k in ("a", "b"):
             nid = r.get(k)
@@ -268,6 +272,10 @@ def _run_vert_m(run, nodos_por_id, z_cfg, grados_techo=None):
     zb = _resolve_z(nodos_por_id.get(run.get("b")), z_cfg)
     if run.get("route") == "directo":
         return abs(za - zb)
+    if run.get("route") == "altura":
+        h = run.get("alturaM")
+        h = h if h is not None else ALTURA_DEFAULT_M
+        return abs(za - h) + abs(zb - h)
     techo = z_cfg.get("ceiling", 2.4)
     gt = grados_techo or {}
     da = max(1, gt.get(run.get("a"), 1))
@@ -283,7 +291,13 @@ def _grupo_de_cano(run):
     if run.get("share") is False or not run.get("a") or not run.get("b"):
         return "s:" + str(run.get("id"))
     ab = sorted([run["a"], run["b"]])
-    return f"g:{ab[0]}|{ab[1]}:{run.get('route','techo')}"
+    route = run.get("route") or "techo"
+    rsuf = ""
+    if route == "altura":
+        h = run.get("alturaM")
+        rsuf = ":h" + str(h if h is not None else ALTURA_DEFAULT_M)
+    psuf = ":p2" if run.get("par") == 2 else ""
+    return f"g:{ab[0]}|{ab[1]}:{route}{rsuf}{psuf}"
 
 
 def computar_canalizacion(obra: dict) -> dict:
@@ -296,7 +310,7 @@ def computar_canalizacion(obra: dict) -> dict:
     px_por_m = canal.get("pxPerM")
     if not runs or not px_por_m:
         return {"disponible": False, "cablePorSeccion": {}, "canoPorDiametro": {},
-                "totalCableM": 0.0, "totalCanoM": 0.0}
+                "cableColor": {}, "totalCableM": 0.0, "totalCanoM": 0.0}
     nodos_por_id = {n["id"]: n for n in canal.get("nodes") or []}
     circuitos_por_id = {c["id"]: c for c in canal.get("circuits") or []}
     z_cfg = canal.get("z") or {}
@@ -312,6 +326,37 @@ def computar_canalizacion(obra: dict) -> dict:
         cable_por_seccion[seccion] = cable_por_seccion.get(seccion, 0.0) + metros
         total_cable += metros
 
+    # tierra compartida (ver S.grounds en canaliza.html): un solo conductor por
+    # troncal, contado una vez por cada caño físico distinto que atraviesa. La
+    # reducción de cables en los tramos que la alimentan ya viene aplicada en
+    # r["cables"] (se guarda así desde el editor), así que sólo falta sumar el
+    # metraje del conductor del troncal en sí.
+    runs_por_id = {r.get("id"): r for r in runs}
+    for gr in canal.get("grounds") or []:
+        run_ids = gr.get("runIds") or []
+        if not run_ids:
+            continue
+        seen, length, max_sec = set(), 0.0, 0
+        for rid in run_ids:
+            r = runs_por_id.get(rid)
+            if not r:
+                continue
+            c = circuitos_por_id.get(r.get("circuit")) or {}
+            if c.get("kind") in _KINDS_CON_TIERRA and (c.get("section") or 0) > max_sec:
+                max_sec = c.get("section") or 0
+            gk = _grupo_de_cano(r)
+            if gk in seen:
+                continue
+            seen.add(gk)
+            length += _run_horiz_m(r, px_por_m) + _run_vert_m(r, nodos_por_id, z_cfg, grados_techo)
+        if length <= 0:
+            continue
+        sec = gr.get("sectionOverride")
+        if sec is None:
+            sec = max_sec or 1.5
+        cable_por_seccion[sec] = cable_por_seccion.get(sec, 0.0) + length
+        total_cable += length
+
     grupos: dict = {}
     for r in runs:
         grupos.setdefault(_grupo_de_cano(r), []).append(r)
@@ -325,10 +370,19 @@ def computar_canalizacion(obra: dict) -> dict:
         cano_por_diametro[dia] = cano_por_diametro.get(dia, 0.0) + largo
         total_cano += largo
 
+    # desglose de esos mismos metros por color de conductor (para saber cuántos
+    # rollos de cada color/sección comprar) -- se toma del cómputo detallado
+    # de Routeo (Proyecto.compute_bom(), el que sabe de retornos/troncales de
+    # tierra reales), no del estimado propio de arriba; por eso el total de
+    # cada sección puede no coincidir del todo con cablePorSeccion.
+    cable_color = {k: {c: round(m, 1) for c, m in v.items()}
+                   for k, v in (cg.Proyecto(canal).compute_bom()["cableColor"]).items()}
+
     return {
         "disponible": True,
         "cablePorSeccion": {k: round(v, 1) for k, v in cable_por_seccion.items()},
         "canoPorDiametro": {k: round(v, 1) for k, v in cano_por_diametro.items()},
+        "cableColor": cable_color,
         "totalCableM": round(total_cable, 1),
         "totalCanoM": round(total_cano, 1),
     }
@@ -501,9 +555,9 @@ def _renglones_computados(obra: dict) -> list:
                           "u", jaba["cantidad"]))
         renglones.append(("Puesta a tierra", "Caja de inspección para jabalina", "u", jaba["cantidad"]))
     canal = computar_canalizacion(obra)
-    for seccion, metros in canal["cablePorSeccion"].items():
-        if metros > 0:
-            renglones.append(("Cables y caños", f"Cable {seccion} mm² (estimado)", "m", metros))
+    # el cable NO se agrega solo a la lista: el usuario decide a mano cuántos
+    # rollos comprar mirando los metros estimados (arriba, por sección y por
+    # color) en "Cable a comprar" -- el caño sí se agrega, se compra por metro.
     for dia, metros in canal["canoPorDiametro"].items():
         if metros > 0:
             renglones.append(("Cables y caños", f"Caño {dia} (estimado)", "m", metros))
