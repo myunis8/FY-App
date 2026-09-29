@@ -57,11 +57,11 @@ WIRE_COLOR_MAP = {
 WIRE_HEX = {
     "Marrón (fase)": "#7a4a25",
     "Celeste (neutro)": "#49a9d8",
-    "Blanco (retorno simple)": "#e9e9e9",
+    "Blanco (retorno simple)": "#c7c7c7",  # gris claro, no blanco puro -- si no se pierde contra el caño blanco
     "Amarillo (retorno combinado)": "#e8c93a",
     "Verde-amarillo (tierra)": "#6a9a2e",
 }
-RS_SHADES = ["#e9e9e9", "#aeaeae", "#767676"]
+RS_SHADES = ["#c7c7c7", "#aeaeae", "#767676"]
 RC_SHADES = ["#e8c93a", "#c79a2a", "#96701a"]
 
 DEV_KIND = {"iluminacion": "Iluminación", "tomas": "Tomacorrientes", "especial": "Especial",
@@ -125,19 +125,36 @@ def offset_poly(pts, d):
     for i, p in enumerate(pts):
         a = pts[i - 1] if i > 0 else None
         b = pts[i + 1] if i < len(pts) - 1 else None
-        nx = ny = 0.0
+        n1 = n2 = None
         if a:
             dx, dy = p["x"] - a["x"], p["y"] - a["y"]
             L = math.hypot(dx, dy) or 1
-            nx += -dy / L
-            ny += dx / L
+            n1 = (-dy / L, dx / L)
         if b:
             dx, dy = b["x"] - p["x"], b["y"] - p["y"]
             L = math.hypot(dx, dy) or 1
-            nx += -dy / L
-            ny += dx / L
-        L = math.hypot(nx, ny) or 1
-        nx, ny = nx / L, ny / L
+            n2 = (-dy / L, dx / L)
+        if n1 and n2:
+            # inglete (miter): mantiene el offset paralelo exacto en los dos
+            # segmentos que se tocan en este vértice -- promediar y renormalizar
+            # las normales (como se hacía antes) acorta el inglete y deja las
+            # líneas paralelas visiblemente inclinadas en los codos, sobre todo
+            # en los ángulos rectos tipicos de estos planos.
+            dot = n1[0] * n2[0] + n1[1] * n2[1]
+            denom = 1 + dot
+            if denom > 1e-4:
+                nx, ny = (n1[0] + n2[0]) / denom, (n1[1] + n2[1]) / denom
+                mlen = math.hypot(nx, ny)
+                if mlen > 4:                       # límite de inglete en vueltas muy cerradas
+                    nx, ny = nx / mlen * 4, ny / mlen * 4
+            else:                                  # vuelta en U: el inglete se va a infinito
+                nx, ny = n1
+        elif n1:
+            nx, ny = n1
+        elif n2:
+            nx, ny = n2
+        else:
+            nx, ny = 0.0, 0.0
         out.append({"x": p["x"] + nx * d, "y": p["y"] + ny * d})
     return out
 

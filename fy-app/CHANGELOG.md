@@ -3,6 +3,25 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 1.4.1 — Cables ortogonales prolijos, sin totales que mezclan secciones
+
+- **Fix: los cables dibujados en los codos del caño (vista detallada, PDF y
+  editor) quedaban levemente inclinados o se cruzaban entre sí en vez de
+  seguir el ángulo recto del caño.** La causa era un bug de geometría en
+  `offset_poly`/`offsetPoly` (promediaba y renormalizaba las normales de los
+  dos segmentos de un vértice en vez de usar la fórmula de inglete correcta),
+  compartido entre `app/canaliza_geom.py` y `web/canaliza.html`. De paso se
+  sacó el borde oscuro de cada conductor y se afinó el grosor de línea para
+  que quede más prolijo; el tono "blanco" de retorno simple pasa a un gris
+  claro para que se siga viendo sobre el fondo blanco del caño sin ese borde.
+- **El cómputo de cable ya no muestra un total sumado entre secciones**
+  (Routeo, PDF y Lista de materiales): son conductores de distinto color y
+  función, sumarlos no tenía sentido. Se mantienen los totales por sección y
+  el total de caño (que sí es homogéneo).
+- **El medidor ya no aparece en la lista de cajas del cómputo de materiales**
+  de Routeo (editor y PDF): lo instala la distribuidora, no es un material
+  que compre la instalación.
+
 ## 1.4.0 — Routeo: tierra compartida entre circuitos, PDF sin marcas de cruce
 
 - **PDF de Routeo: ya no se marca ningún cruce de caños.** Se había sacado la X

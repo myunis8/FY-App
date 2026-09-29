@@ -169,9 +169,10 @@ def _draw_conduit(pg, T, P, grp, bad, vis, detailed):
         sp = min(5.6, (pipe_w - 2.5) / n)
         for i, it in enumerate(items):
             off_raw = (i - (n - 1) / 2) * sp if n > 1 else 0
-            w = cond_width(it["section"])
-            _linea(off_raw, (15 / 255, 18 / 255, 20 / 255), (w + 1.1) * u, opacity=0.6)
-            _linea(off_raw, _rgb(it["color"]), w * u)
+            # sin borde: sólo el color del conductor, más fino -- un borde oscuro
+            # rompía la ortogonalidad visual en los codos (además del bug de
+            # offset_poly ya corregido) y quedaba poco prolijo en el plano
+            _linea(off_raw, _rgb(it["color"]), cond_width(it["section"]) * 0.75 * u)
         return
 
     _stroke(pg, base, (1, 1, 1), 11 * u, opacity=0.9)
@@ -479,8 +480,6 @@ def _hoja_bom(doc, W, H, P, base_name):
             pg.insert_text((MARGEN + 8, y), col, fontsize=7, fontname="helv", color=MUTED)
             pg.insert_text((MARGEN + 90, y), f'{_fmt(b["cableColor"][s][col], 1)} m', fontsize=7, fontname="helv", color=MUTED)
             y += 9
-    pg.insert_text((MARGEN, y + 2), "Total cable", fontsize=8, fontname="hebo", color=INK)
-    pg.insert_text((MARGEN + 90, y + 2), f'{_fmt(b["totalCable"], 1)} m', fontsize=8, fontname="hebo", color=INK)
 
     y2 = y0 + 6
     pg.insert_text((col2, y2), "Caño corrugado", fontsize=9, fontname="hebo", color=NAVY)
@@ -498,8 +497,7 @@ def _hoja_bom(doc, W, H, P, base_name):
     y += 12
     filas = [("Octogonales", b["boxes"].get("oct", 0)), ("Rectangulares", b["boxes"].get("rect", 0)),
              ("Tableros", b["boxes"].get("tablero", 0))]
-    if b["boxes"].get("medidor"):
-        filas.append(("Medidores", b["boxes"]["medidor"]))
+    # el medidor no es un material a comprar -- lo instala la distribuidora
     if b["boxes"].get("jabalina"):
         filas.append(("Jabalinas", b["boxes"]["jabalina"]))
     if b["boxes"].get("insp"):

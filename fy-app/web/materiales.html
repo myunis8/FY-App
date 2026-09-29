@@ -265,8 +265,9 @@ function pintarCanalizacion(){
         <th style="width:90px">Metros</th></tr></thead><tbody>${filasCano ||
         '<tr><td colspan="2" style="color:var(--muted)">Sin datos</td></tr>'}</tbody></table>
     </div>
-    <div class="nota">Total: ${canalizacion.totalCableM} m de cable, ${canalizacion.totalCanoM} m de caño
-    (estimado -- para el cómputo detallado de Routeo, usá su propia exportación).</div>`;
+    <div class="nota">Total: ${canalizacion.totalCanoM} m de caño
+    (estimado -- para el cómputo detallado de Routeo, usá su propia exportación; el cable no se totaliza
+    porque cada sección es un conductor distinto).</div>`;
 }
 
 function pintarSelectCatalogo(){
