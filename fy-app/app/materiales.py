@@ -244,6 +244,7 @@ def _run_horiz_m(run, px_por_m):
 
 
 ALTURA_DEFAULT_M = 1.2  # media altura por defecto para route == "altura" (ver canaliza.html)
+_KINDS_CON_TIERRA = {"tomas", "especial", "exterior", "acometida", "tierra"}  # == circuitHasGround() en canaliza.html
 
 
 def _grados_techo(runs):
@@ -324,6 +325,37 @@ def computar_canalizacion(obra: dict) -> dict:
         metros = largo * (r.get("cables") or 1)
         cable_por_seccion[seccion] = cable_por_seccion.get(seccion, 0.0) + metros
         total_cable += metros
+
+    # tierra compartida (ver S.grounds en canaliza.html): un solo conductor por
+    # troncal, contado una vez por cada caño físico distinto que atraviesa. La
+    # reducción de cables en los tramos que la alimentan ya viene aplicada en
+    # r["cables"] (se guarda así desde el editor), así que sólo falta sumar el
+    # metraje del conductor del troncal en sí.
+    runs_por_id = {r.get("id"): r for r in runs}
+    for gr in canal.get("grounds") or []:
+        run_ids = gr.get("runIds") or []
+        if not run_ids:
+            continue
+        seen, length, max_sec = set(), 0.0, 0
+        for rid in run_ids:
+            r = runs_por_id.get(rid)
+            if not r:
+                continue
+            c = circuitos_por_id.get(r.get("circuit")) or {}
+            if c.get("kind") in _KINDS_CON_TIERRA and (c.get("section") or 0) > max_sec:
+                max_sec = c.get("section") or 0
+            gk = _grupo_de_cano(r)
+            if gk in seen:
+                continue
+            seen.add(gk)
+            length += _run_horiz_m(r, px_por_m) + _run_vert_m(r, nodos_por_id, z_cfg, grados_techo)
+        if length <= 0:
+            continue
+        sec = gr.get("sectionOverride")
+        if sec is None:
+            sec = max_sec or 1.5
+        cable_por_seccion[sec] = cable_por_seccion.get(sec, 0.0) + length
+        total_cable += length
 
     grupos: dict = {}
     for r in runs:

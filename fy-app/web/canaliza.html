@@ -236,6 +236,14 @@ table.t input:focus{outline:none;border-color:var(--accent);background:var(--pan
       <button class="btn sm" id="bAddCi" style="width:100%;margin-top:6px">+ Circuito personalizado</button>
     </div>
     <div class="sect">
+      <h3>Tierra compartida</h3>
+      <p class="msg" style="margin:0 0 6px">Un troncal de tierra único que trazás por los tramos que quieras, de
+        cualquier circuito. Los tramos que se suman dejan de llevar su propio conductor de tierra (lo lleva el
+        troncal, que cuenta una sola vez por caño).</p>
+      <div id="grounds"></div>
+      <button class="btn sm" id="bAddGround" style="width:100%;margin-top:2px">+ Nuevo troncal</button>
+    </div>
+    <div class="sect">
       <h3>Grupos de vista</h3>
       <p class="msg" style="margin:0 0 6px">Mostrá sólo las cajas de los circuitos que elijas. El tablero siempre se ve.</p>
       <div id="viewGroups"></div>
@@ -758,6 +766,8 @@ const S = {
   grid:{on:true, size:40, snap:true},        // grilla de alineación (tamaño en px del plano)
   wires:[],                                  // [{id,circuit,kind:'F'|'N'|'RS'|'RC',light,branch,runIds:[]}]
   tracingWire:null,                          // id del conductor que se está trazando ahora
+  grounds:[],                                // [{id,note,sectionOverride,runIds:[]}] -- tierra compartida entre circuitos
+  tracingGround:null,                        // id del troncal de tierra que se está trazando ahora
   drcPulse:null,                             // {id, t0} -- resalte temporal al clickear un aviso del DRC
   counters:{}
 };
@@ -852,6 +862,81 @@ function toggleRunInWire(wireId, runId){
   const i = w.runIds.indexOf(runId);
   if(i>=0) w.runIds.splice(i,1); else w.runIds.push(runId);
   recalcCablesFor(w.circuit);
+  refreshAll();
+}
+
+/* ============================ tierra compartida entre circuitos ============================ */
+// permite trazar un conductor de tierra único (troncal) por los tramos que
+// elija el usuario, de cualquier circuito -- a diferencia de los retornos,
+// no está atado a un solo circuito. Cada tramo que se suma deja de contar su
+// propio conductor de tierra (r.cables -1) porque ese tramo ya no lo lleva:
+// lo lleva el troncal, que cuenta una sola vez por caño físico que atraviesa
+// (ver conduitGroups) y una sola vez en el cómputo de cable (ver computeBom).
+function circuitHasGround(c){ return !!c && (WIRE_COLOR_MAP[c.kind]||[]).some(s=>s.includes("tierra")); }
+function groundSectionFor(gr){
+  if(gr.sectionOverride!=null) return gr.sectionOverride;
+  let max=0;
+  for(const rid of gr.runIds){
+    const run = S.runs.find(x=>x.id===rid); if(!run) continue;
+    const c = ciById(run.circuit); if(!c || !circuitHasGround(c)) continue;
+    if(c.section>max) max=c.section;
+  }
+  return max || SECTIONS[0];
+}
+function groundsInGroup(g){
+  const ids = new Set(g.runs.map(r=>r.id));
+  return S.grounds.filter(gr=>gr.runIds.some(rid=>ids.has(rid)));
+}
+function addGroundTrunk(){
+  pushUndo();
+  const gr = {id:uid("gt"), note:"Troncal "+(S.grounds.length+1), sectionOverride:null, runIds:[]};
+  S.grounds.push(gr);
+  return gr;
+}
+function deleteGround(id){
+  const gr = S.grounds.find(x=>x.id===id); if(!gr) return;
+  pushUndo();
+  for(const rid of gr.runIds){
+    const run = S.runs.find(r=>r.id===rid); if(!run) continue;
+    if(circuitHasGround(ciById(run.circuit))) run.cables += 1;
+  }
+  if(S.tracingGround===id) S.tracingGround=null;
+  S.grounds = S.grounds.filter(x=>x.id!==id);
+}
+function toggleRunInGround(groundId, runId){
+  const gr = S.grounds.find(x=>x.id===groundId); if(!gr) return;
+  const run = S.runs.find(r=>r.id===runId); if(!run) return;
+  pushUndo();
+  const i = gr.runIds.indexOf(runId);
+  if(i>=0){
+    gr.runIds.splice(i,1);
+    if(circuitHasGround(ciById(run.circuit))) run.cables += 1;
+  } else {
+    // un tramo sólo puede alimentar un troncal a la vez -- si ya estaba en otro, lo sacamos primero
+    for(const other of S.grounds){
+      if(other===gr) continue;
+      const j = other.runIds.indexOf(runId);
+      if(j>=0){ other.runIds.splice(j,1); if(circuitHasGround(ciById(run.circuit))) run.cables += 1; }
+    }
+    gr.runIds.push(runId);
+    if(circuitHasGround(ciById(run.circuit))) run.cables = Math.max(0, run.cables-1);
+  }
+  refreshAll();
+}
+function startTraceGround(id){
+  const gr = S.grounds.find(x=>x.id===id); if(!gr) return;
+  S.tracingGround = id;
+  const hint = $("#hint");
+  hint.innerHTML = `Trazando <b>tierra · ${esc(gr.note||"troncal")}</b>: clic en los tramos por los que pasa (de cualquier circuito) — un clic más lo destilda. `+
+    `<button class="btn sm" id="hEndTrace" style="margin-left:6px">Listo</button>`;
+  hint.classList.add("on");
+  $("#hEndTrace").onclick = endTraceGround;
+  render();
+}
+function endTraceGround(){
+  S.tracingGround = null;
+  const h = $("#hint");
+  if(h){ h.classList.remove("on"); h.innerHTML=""; }
   refreshAll();
 }
 
@@ -999,6 +1084,14 @@ function conduitGroups(){
     g.len   = g.horiz + g.vert;
     g.cables= g.runs.reduce((a,r)=>a+r.cables, 0);
     g.fill  = fillRatio(g.dia, g.runs);
+    // troncales de tierra que pasan por este caño físico: cuentan un solo
+    // conductor cada uno, aunque sirvan a varios de los circuitos de arriba
+    g.grounds = groundsInGroup(g);
+    for(const gr of g.grounds){
+      const cap = capOf(g.dia, groundSectionFor(gr));
+      g.cables += 1;
+      g.fill += cap>0 ? 1/cap : Infinity;
+    }
   }
   return m;
 }
@@ -1534,6 +1627,19 @@ function render(){
       ctx.restore();
     }
   }
+  if(S.tracingGround){
+    const gr = S.grounds.find(x=>x.id===S.tracingGround);
+    if(gr){
+      ctx.save();
+      ctx.strokeStyle="#3f8f1f"; ctx.lineWidth=6/S.view.z;
+      ctx.setLineDash([3/S.view.z,3/S.view.z]); ctx.lineCap="round"; ctx.lineJoin="round";
+      for(const rid of gr.runIds){
+        const run = S.runs.find(x=>x.id===rid); if(!run) continue;
+        tracePath(ctx, run.pts); ctx.stroke();
+      }
+      ctx.restore();
+    }
+  }
 
   // selección
   if(S.sel){
@@ -1687,6 +1793,11 @@ cv.addEventListener("pointerdown", e=>{
     if(rr) toggleRunInWire(S.tracingWire, rr.id);
     return;
   }
+  if(S.tracingGround){
+    const rr = hitRun(w);
+    if(rr) toggleRunInGround(S.tracingGround, rr.id);
+    return;
+  }
 
   if(S.tool==="calib"){
     if(!S.calib.a){ S.calib.a=w; }
@@ -1820,6 +1931,7 @@ window.addEventListener("keydown", e=>{
   const k = e.key.toLowerCase();
   if(k==="escape"){
     if(S.tracingWire){ endTrace(); return; }
+    if(S.tracingGround){ endTraceGround(); return; }
     S.draft=null; S.calib=null; S.hoverNode=null;
     if(S.tool!=="select") setTool("select"); else { S.sel=null; refreshAll(); }
     return;
@@ -1879,6 +1991,7 @@ function delSel(){
   if(removedIds.length){
     const removedSet = new Set(removedIds);
     for(const w of S.wires) w.runIds = w.runIds.filter(id=>!removedSet.has(id));
+    for(const gr of S.grounds) gr.runIds = gr.runIds.filter(id=>!removedSet.has(id));
     touchedCircuits.forEach(recalcCablesFor);
   }
   S.sel=null; refreshAll();
@@ -1936,6 +2049,16 @@ function insertBoxOnRun(r, kind){
     }
     if(changed) w.runIds = next;
   }
+  // idem para los troncales de tierra que pasaban por el tramo viejo
+  for(const gr of S.grounds){
+    let changed = false;
+    const next = [];
+    for(const rid of gr.runIds){
+      if(splitMap.has(rid)){ next.push(...splitMap.get(rid)); changed = true; }
+      else next.push(rid);
+    }
+    if(changed) gr.runIds = next;
+  }
   const affectedCircuits = new Set(targets.map(x=>x.circuit));
   affectedCircuits.forEach(recalcCablesFor);
   S.sel = {t:"node", id:n.id};
@@ -1944,7 +2067,7 @@ function insertBoxOnRun(r, kind){
 
 let rt=null;
 function scheduleRefresh(){ clearTimeout(rt); rt=setTimeout(refreshAll, 140); }
-function refreshAll(){ drcInvalidate(); render(); paintCircuits(); paintViewGroups(); paintProp(); paintDrc(); paintBom(); scheduleAutosave(); }
+function refreshAll(){ drcInvalidate(); render(); paintCircuits(); paintGrounds(); paintViewGroups(); paintProp(); paintDrc(); paintBom(); scheduleAutosave(); }
 
 /* ============================ circuitos UI ============================ */
 
@@ -2015,7 +2138,12 @@ function paintCircuits(){
       c[k]=v;
       if(k==="cables"||k==="section"){
         if(k==="cables" && c.kind!=="iluminacion")
-          S.runs.filter(r=>r.circuit===id).forEach(r=>{ r.cables=c.cables; });
+          S.runs.filter(r=>r.circuit===id).forEach(r=>{
+            // si este tramo alimenta un troncal de tierra compartido, sigue sin contar
+            // su propio conductor de tierra al recalcular
+            const inGround = S.grounds.some(gr=>gr.runIds.includes(r.id));
+            r.cables = (inGround && circuitHasGround(c)) ? Math.max(0, c.cables-1) : c.cables;
+          });
       }
       drcInvalidate(); render(); paintDrc(); paintBom();
       if(k==="name"||k==="color"){
@@ -2055,6 +2183,56 @@ function paintCircuits(){
     S.runs = S.runs.filter(r=>r.circuit!==id);
     S.circuits = S.circuits.filter(c=>c.id!==id);
     if(S.activeCircuit===id) S.activeCircuit = S.circuits[0]?S.circuits[0].id:null;
+    refreshAll();
+  });
+  armUndoOnFocus(el);
+}
+
+function paintGrounds(){
+  const el = $("#grounds"); if(!el) return;
+  el.innerHTML = S.grounds.map(gr=>{
+    const active = S.tracingGround===gr.id;
+    const sug = groundSectionFor(gr);
+    return `<div class="ci" data-gid="${gr.id}">
+      <div class="ci-h" style="cursor:default">
+        <span class="sw" style="background:#3f8f1f"></span>
+        <input class="f mono" data-gnote="${gr.id}" value="${esc(gr.note||"")}" style="flex:1;min-width:0" placeholder="Troncal">
+        <span class="ci-m">${gr.runIds.length} tr.</span>
+      </div>
+      <div class="ci-b" style="padding-top:6px">
+        <div class="f2" style="margin-bottom:6px">
+          <div><label class="f">Sección</label><select class="f" data-gsec="${gr.id}">
+            <option value=""${gr.sectionOverride==null?" selected":""}>Auto · ${sug} mm²</option>
+            ${SECTIONS.map(s=>`<option value="${s}"${gr.sectionOverride===s?" selected":""}>${s} mm²</option>`).join("")}
+          </select></div>
+          <div style="display:flex;gap:6px;align-items:flex-end">
+            <button class="btn sm" data-gtrace="${gr.id}" style="flex:1">${active?"Trazando…":"Trazar"}</button>
+            <button class="btn sm" data-gdel="${gr.id}" title="Eliminar">×</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }).join("") || `<p class="msg">Sin troncales todavía.</p>`;
+
+  $$("#grounds [data-gnote]").forEach(inp=> inp.oninput = ()=>{
+    const gr = S.grounds.find(x=>x.id===inp.dataset.gnote); if(gr){ gr.note = inp.value; }
+  });
+  $$("#grounds [data-gsec]").forEach(sel=> sel.onchange = ()=>{
+    const gr = S.grounds.find(x=>x.id===sel.dataset.gsec); if(!gr) return;
+    pushUndo();
+    gr.sectionOverride = sel.value===""? null : parseFloat(sel.value);
+    refreshAll();
+  });
+  $$("#grounds [data-gtrace]").forEach(b=> b.onclick=(e)=>{
+    e.stopPropagation();
+    const id=b.dataset.gtrace;
+    if(S.tracingGround===id) endTraceGround(); else startTraceGround(id);
+    refreshAll();
+  });
+  $$("#grounds [data-gdel]").forEach(b=> b.onclick=(e)=>{
+    e.stopPropagation();
+    if(!confirm("¿Eliminar este troncal de tierra? Los tramos que lo alimentaban vuelven a llevar su propio conductor de tierra.")) return;
+    deleteGround(b.dataset.gdel);
     refreshAll();
   });
   armUndoOnFocus(el);
@@ -2214,6 +2392,8 @@ function paintProp(){
     <div class="kv"><span>Largo total</span><span>${S.pxPerM?fmt(runLenM(r),2)+" m":"—"}</span></div>
     <div class="kv"><span>Cable de este circuito</span><span>${S.pxPerM?fmt(runLenM(r)*r.cables,2)+" m":"—"}</span></div>
     <div class="kv"><span>Ocupación del caño</span><span style="color:${over?"var(--err)":"var(--ok)"}">${pct}</span></div>
+    ${(()=>{ const gr = S.grounds.find(x=>x.runIds.includes(r.id));
+      return gr ? `<p class="msg" style="margin:4px 0 0">Este tramo no lleva su propio conductor de tierra: va por el troncal compartido "${esc(gr.note||"troncal")}".</p>` : ""; })()}
     <div style="margin-top:10px" class="f2">
       <div><label class="f">Caño</label><select class="f" id="pDia">${
         DIAS.map(d=>`<option value="${d.id}"${d.id===r.dia?" selected":""}>${d.lbl} · ${d.mm} mm</option>`).join("")}</select></div>
@@ -2354,6 +2534,16 @@ function drcRun(){
     }
   }
 
+  // tierra compartida: se deja explícito qué sección de conductor se está
+  // asumiendo para cada troncal (mayor sección de fase entre los circuitos
+  // que la usan, salvo que el usuario la haya fijado a mano)
+  for(const gr of S.grounds){
+    if(!gr.runIds.length) continue;
+    const sec = groundSectionFor(gr);
+    const auto = gr.sectionOverride==null;
+    push("w", `Tierra compartida "${esc(gr.note||"troncal")}": ${gr.runIds.length} tramo(s), conductor de ${sec} mm²${auto?" (automático: mayor sección de fase entre los circuitos que la usan)":" (fijada a mano)"}.`, gr.runIds[0], "tierra");
+  }
+
   for(const r of S.runs){
     const c = ciById(r.circuit); if(!c) continue;
     if(!r.a || !r.b)
@@ -2456,6 +2646,7 @@ const DRC_CATS = [
   {id:"canos",       label:"Caños y capacidad"},
   {id:"tramos",      label:"Tramos y tendido"},
   {id:"cruces",      label:"Cruces de caños"},
+  {id:"tierra",      label:"Tierra compartida"},
   {id:"caida",       label:"Caída de tensión"},
   {id:"cajas",       label:"Cajas"},
   {id:"circuitos",   label:"Circuitos y tablero"},
@@ -2604,6 +2795,28 @@ function computeBom(){
     cable[c.section] = (cable[c.section]||0) + cab;
     byCircuit.push({c, runs:rs.length, len, vert, cab});
   }
+
+  // tierra compartida: un solo conductor por troncal, contado una vez por
+  // cada caño físico distinto que atraviesa (no una vez por tramo)
+  for(const gr of S.grounds){
+    if(!gr.runIds.length) continue;
+    const seen = new Set(); let length=0;
+    for(const rid of gr.runIds){
+      const run = S.runs.find(x=>x.id===rid); if(!run) continue;
+      const gk = groupKey(run);
+      if(seen.has(gk)) continue;
+      seen.add(gk);
+      const ends = (run.a?1:0)+(run.b?1:0);
+      length += runLenM(run) + ends*spare;
+    }
+    if(length<=0) continue;
+    const sec = groundSectionFor(gr);
+    cableColor[sec] = cableColor[sec] || {};
+    const col = "Verde-amarillo (tierra) · "+(gr.note||"troncal compartido");
+    cableColor[sec][col] = (cableColor[sec][col]||0) + length;
+    cable[sec] = (cable[sec]||0) + length;
+  }
+
   for(const k in cable) cable[k] *= waste;
   for(const s in cableColor) for(const col in cableColor[s]) cableColor[s][col] *= waste;
 
@@ -2806,6 +3019,7 @@ function buildProjectData(){
   return {v:3, baseName:S.baseName, baseSrc:S.baseSrc, pxPerM:S.pxPerM,
     circuits:S.circuits, nodes:S.nodes, runs:S.runs, rules:S.rules, z:S.z, counters:S.counters,
     grid:S.grid, viewGroups:S.viewGroups, hiddenCircuits:Array.from(S.hiddenCircuits), wires:S.wires,
+    grounds:S.grounds,
     savedAt: Date.now()};
 }
 async function applyProjectData(d){
@@ -2822,6 +3036,8 @@ async function applyProjectData(d){
   S.hiddenCircuits = new Set(d.hiddenCircuits||[]);
   S.wires = d.wires||[];
   S.tracingWire = null;
+  S.grounds = (d.grounds||[]).map(gr=>({id:gr.id, note:gr.note||"", sectionOverride:gr.sectionOverride!=null?gr.sectionOverride:null, runIds:gr.runIds||[]}));
+  S.tracingGround = null;
   S.activeCircuit = S.circuits[0]?S.circuits[0].id:null; S.sel=null;
   history=[]; future=[]; paintHistBtns();
   if(d.baseSrc) await setBase(d.baseSrc);
@@ -2834,7 +3050,7 @@ async function applyProjectData(d){
 // circuitos quedan tal cual. Usado por el botón "Reiniciar" del puente.
 window.canalizaReiniciarRuteo = function(){
   pushUndo();
-  S.runs = []; S.wires = []; S.tracingWire = null; S.draft = null; S.sel = null;
+  S.runs = []; S.wires = []; S.tracingWire = null; S.grounds = []; S.tracingGround = null; S.draft = null; S.sel = null;
   refreshAll();
 };
 
@@ -3018,6 +3234,7 @@ function DEV_KIND(k){
 /* ============================ misc UI ============================ */
 
 $("#bAddCi").onclick = ()=>{ pushUndo(); newCircuit(); refreshAll(); };
+$("#bAddGround").onclick = ()=>{ const gr = addGroundTrunk(); startTraceGround(gr.id); refreshAll(); };
 $$("[data-newci]").forEach(b=> b.onclick = ()=>{ pushUndo(); newCircuit(b.dataset.newci); refreshAll(); });
 $("#bUndo").onclick = undo;
 $("#bRedo").onclick = redo;
@@ -3107,7 +3324,8 @@ buildTools();
 // ---- integración externa: no toca nada de lo existente, sólo expone hooks ----
 // solo lectura/depuración: útil para inspeccionar el estado interno desde
 // la consola del navegador sin tener que exportar todo el proyecto
-window.canalizaDebug = {S, activeCi, ciById, nodeById, findNode, wireHex, conduitConductors};
+window.canalizaDebug = {S, activeCi, ciById, nodeById, findNode, wireHex, conduitConductors,
+  conduitGroups, computeBom, addGroundTrunk, toggleRunInGround, deleteGround, groundSectionFor, circuitHasGround};
 
 window.canalizaExportar = buildProjectData;
 window.canalizaImportar = applyProjectData;

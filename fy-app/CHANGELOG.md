@@ -3,6 +3,28 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 1.4.0 — Routeo: tierra compartida entre circuitos, PDF sin marcas de cruce
+
+- **PDF de Routeo: ya no se marca ningún cruce de caños.** Se había sacado la X
+  roja de los cruces sin resolver en la versión anterior; ahora también se
+  saca el triángulo de aviso de los cruces resueltos en altura. Esos avisos
+  siguen estando en el editor (DRC y plano interactivo), sólo se sacaron del
+  plano entregable.
+- **Nuevo: tierra compartida entre circuitos ("troncal de tierra"), en la
+  barra izquierda de Routeo.** Igual que un retorno, se traza clickeando los
+  tramos por los que pasa -- pero a diferencia de un retorno no está atado a
+  un solo circuito: puede pasar por tramos de tomas, especiales, exteriores o
+  acometida indistintamente. Los tramos que se suman al troncal dejan de
+  contar su propio conductor de tierra (ya lo lleva el troncal), que a su vez
+  cuenta un solo conductor por cada caño físico que atraviesa, aunque sirva a
+  varios circuitos a la vez -- así se refleja el ahorro real de cable y
+  espacio en el caño de empalmar las tierras en un solo conductor. La sección
+  del conductor del troncal se sugiere automáticamente como la mayor sección
+  de fase entre los circuitos que lo usan (criterio conservador tipo AEA),
+  editable a mano por troncal; el DRC deja explícito qué sección quedó
+  asumida. Impacta también el cómputo de materiales del propio Routeo y la
+  estimación de cable de la Lista de materiales (`app/materiales.py`).
+
 ## 1.3.0 — Routeo: caños en paralelo, altura de recorrido personalizada, PDF más limpio
 
 - **Caño sobrecargado: ahora se sugiere dividir en dos caños en paralelo en

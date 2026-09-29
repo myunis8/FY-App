@@ -150,6 +150,7 @@ class Proyecto:
         self.nodes = proy.get("nodes") or []
         self.runs = proy.get("runs") or []
         self.wires = proy.get("wires") or []
+        self.grounds = proy.get("grounds") or []
         self.px_per_m = proy.get("pxPerM")
         self.base_name = proy.get("baseName") or "plano"
         self.z = {**Z0, **(proy.get("z") or {})}
@@ -259,6 +260,30 @@ class Proyecto:
             f += (r.get("cables") or 0) / cap
         return f
 
+    # --------------------------------------------------- tierra compartida
+    @staticmethod
+    def circuit_has_ground(c):
+        return bool(c) and any("tierra" in s for s in WIRE_COLOR_MAP.get(c.get("kind"), []))
+
+    def ground_section_for(self, gr):
+        if gr.get("sectionOverride") is not None:
+            return gr["sectionOverride"]
+        max_sec = 0
+        for rid in gr.get("runIds") or []:
+            r = next((x for x in self.runs if x.get("id") == rid), None)
+            if not r:
+                continue
+            c = self.circuit(r.get("circuit"))
+            if not c or not self.circuit_has_ground(c):
+                continue
+            if (c.get("section") or 0) > max_sec:
+                max_sec = c.get("section")
+        return max_sec or 1.5
+
+    def grounds_in_group(self, g):
+        ids = {r.get("id") for r in g["runs"]}
+        return [gr for gr in self.grounds if any(rid in ids for rid in (gr.get("runIds") or []))]
+
     def conduit_groups(self):
         m = {}
         for r in self.runs:
@@ -277,6 +302,13 @@ class Proyecto:
             g["len"] = g["horiz"] + g["vert"]
             g["cables"] = sum(r.get("cables") or 0 for r in g["runs"])
             g["fill"] = self.fill_ratio(g["dia"], g["runs"])
+            # troncales de tierra que pasan por este caño: un conductor cada
+            # uno, aunque sirvan a varios de los circuitos de arriba
+            g["grounds"] = self.grounds_in_group(g)
+            for gr in g["grounds"]:
+                cap = self.cap_of(g["dia"], self.ground_section_for(gr))
+                g["cables"] += 1
+                g["fill"] += (1 / cap) if cap > 0 else math.inf
         return m
 
     # ------------------------------------------------------------- cruces
@@ -483,6 +515,30 @@ class Proyecto:
 
             cable[sec] = cable.get(sec, 0.0) + cab
             by_circuit.append({"c": c, "runs": len(rs), "len": length, "vert": vert, "cab": cab})
+
+        # tierra compartida: un solo conductor por troncal, contado una vez
+        # por cada caño físico distinto que atraviesa (no una vez por tramo)
+        for gr in self.grounds:
+            if not gr.get("runIds"):
+                continue
+            seen, length = set(), 0.0
+            for rid in gr["runIds"]:
+                run = next((x for x in self.runs if x.get("id") == rid), None)
+                if not run:
+                    continue
+                gk = self.group_key(run)
+                if gk in seen:
+                    continue
+                seen.add(gk)
+                ends = (1 if run.get("a") else 0) + (1 if run.get("b") else 0)
+                length += self.run_len_m(run) + ends * spare
+            if length <= 0:
+                continue
+            sec = self.ground_section_for(gr)
+            cable_color.setdefault(sec, {})
+            col = "Verde-amarillo (tierra) · " + (gr.get("note") or "troncal compartido")
+            cable_color[sec][col] = cable_color[sec].get(col, 0.0) + length
+            cable[sec] = cable.get(sec, 0.0) + length
 
         for k in cable:
             cable[k] *= waste

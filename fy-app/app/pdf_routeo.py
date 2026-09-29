@@ -258,21 +258,9 @@ def _draw_node(pg, T, P, n, bad=False):
 
 
 def _draw_crossing(pg, T, cr):
-    # los cruces sin resolver en altura ya se avisan en el DRC del editor;
-    # en el PDF entregable no se marcan con la X roja para no ensuciar el plano.
-    if not cr["safe"]:
-        return
-    u = T.u
-    ctr = T.p(cr["pt"])
-    cx, cy = ctr.x, ctr.y
-    s = 8 * u
-    tri = [pymupdf.Point(cx, cy - s), pymupdf.Point(cx + s * .87, cy + s * .62),
-           pymupdf.Point(cx - s * .87, cy + s * .62)]
-    sh = pg.new_shape()
-    sh.draw_polyline(tri + [tri[0]])
-    sh.finish(color=_rgb("#8a6100"), fill=(1, 1, 1), width=2 * u, closePath=True)
-    sh.commit()
-    _stroke(pg, [pymupdf.Point(cx, cy - s * .32), pymupdf.Point(cx, cy + s * .18)], _rgb("#8a6100"), 1.8 * u)
+    # los cruces (resueltos en altura o no) ya se avisan en el DRC del editor;
+    # el PDF entregable no marca ninguno para no ensuciar el plano.
+    return
 
 
 def _label(pg, T, x, y, text, fs):
