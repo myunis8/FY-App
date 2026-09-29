@@ -3,6 +3,20 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 1.5.1 — Etiquetas de código movibles y rotables, botones de PDF más cortos
+
+- **Nuevo: "Editar etiquetas de código" en Vista.** El código de conductores
+  de cada caño (de la 1.5.0, ej. `2.5(FNT)`) ahora también se puede ver en el
+  editor -- tildando este checkbox aparece al lado de cada caño, se puede
+  arrastrar con el mouse a donde convenga y rotar 90° con doble clic (útil
+  para los tramos verticales). La posición/rotación elegida se guarda por
+  caño y se usa igual en el PDF "con código de cables", así se puede acomodar
+  todo antes de exportar en vez de pelear con superposiciones en el PDF.
+- **Fix: los botones de PDF no entraban en una línea** y el de "Volver"
+  se corría abajo cuando aparecía el aviso de guardado. Se acortaron a
+  "Planos", "Código de cables" y "Materiales" (el texto completo queda en
+  el título al pasar el mouse).
+
 ## 1.5.0 — PDF con código de cables, caños en paralelo separados, símbolos chicos
 
 - **Nuevo botón "PDF con código de cables" en Routeo.** Una hoja por circuito

@@ -205,9 +205,9 @@ table.t input:focus{outline:none;border-color:var(--accent);background:var(--pan
   <button class="btn" id="bUndo" title="Deshacer (Ctrl+Z)" disabled>↶ Deshacer</button>
   <button class="btn" id="bRedo" title="Rehacer (Ctrl+Shift+Z)" disabled>↷ Rehacer</button>
   <div class="sep"></div>
-  <button class="btn primary" id="bPdfPlanos">📐 PDF de planos</button>
-  <button class="btn primary" id="bPdfCodigo" title="Una hoja por circuito, caños con el color del circuito y un código de texto (ej: 2.5(FNT)) en vez de cables de colores">🔤 PDF con código de cables</button>
-  <button class="btn primary" id="bPdfBom">📋 PDF de materiales</button>
+  <button class="btn primary" id="bPdfPlanos" title="PDF de planos">📐 Planos</button>
+  <button class="btn primary" id="bPdfCodigo" title="PDF con código de cables: una hoja por circuito, caños con el color del circuito y un código de texto (ej: 2.5(FNT)) en vez de cables de colores">🔤 Código de cables</button>
+  <button class="btn primary" id="bPdfBom" title="PDF de materiales">📋 Materiales</button>
   <div class="sep"></div>
   <button class="btn" id="bRules">Configurar reglas y capacidades</button>
   <div id="scaleChip" class="unset"><span class="dot"></span><span id="scaleTxt">Sin escala</span>
@@ -259,6 +259,7 @@ table.t input:focus{outline:none;border-color:var(--accent);background:var(--pan
       <label class="chk"><input type="checkbox" id="vLbl" checked> Etiquetas de cajas y bocas</label>
       <label class="chk"><input type="checkbox" id="vLen" checked> Longitud sobre cada caño</label>
       <label class="chk"><input type="checkbox" id="vZ"> Altura de cada caja</label>
+      <label class="chk"><input type="checkbox" id="vCodeEdit"> Editar etiquetas de código (arrastrar, 2 clics = girar 90°)</label>
       <label class="chk"><input type="checkbox" id="vGrid" checked> Grilla (tecla G)</label>
       <div class="row" style="margin-top:5px">
         <input class="f mono" id="gridSize" type="number" min="4" max="1000" step="4" value="40" style="width:64px">
@@ -746,6 +747,40 @@ function conduitConductors(vis){
   return items;
 }
 
+// letra de tipo de conductor para el código compacto (ver conduitCode) --
+// F=fase, N=neutro, T=tierra, R=retorno simple, C=retorno combinado
+function tipoLetra(it){
+  const code = it.code || "";
+  if(code==="F" || code.startsWith("Marrón")) return "F";
+  if(code==="N" || code.startsWith("Celeste")) return "N";
+  if(code.startsWith("RS")) return "R";
+  if(code.startsWith("RC")) return "C";
+  if(code.startsWith("Verde-amarillo")) return "T";
+  return "?";
+}
+// código compacto de qué conductores hay en un caño físico, por sección --
+// p.ej. "2.5(FNT)-1.5(FN)" (misma lógica que conduit_code() en canaliza_geom.py,
+// usada por el PDF "con código de cables"; acá se muestra igual en el editor
+// para poder acomodar la etiqueta antes de exportar)
+function conduitCode(g){
+  const bySec = new Map();
+  for(const it of conduitConductors(g.runs)){
+    if(!bySec.has(it.section)) bySec.set(it.section, []);
+    bySec.get(it.section).push(tipoLetra(it));
+  }
+  for(const gr of (g.grounds||[])){
+    const sec = groundSectionFor(gr);
+    if(!bySec.has(sec)) bySec.set(sec, []);
+    bySec.get(sec).push("T");
+  }
+  const orden = {F:0,N:1,T:2,R:3,C:4};
+  const secs = Array.from(bySec.keys()).sort((a,b)=>a-b);
+  return secs.map(s=>{
+    const letras = bySec.get(s).slice().sort((a,b)=>(orden[a]??9)-(orden[b]??9));
+    return s+"("+letras.join("")+")";
+  }).join("-");
+}
+
 const uid = (p)=> p + Math.random().toString(36).slice(2,9);
 
 /* ============================ estado ============================ */
@@ -770,6 +805,9 @@ const S = {
   grounds:[],                                // [{id,note,sectionOverride,runIds:[]}] -- tierra compartida entre circuitos
   tracingGround:null,                        // id del troncal de tierra que se está trazando ahora
   drcPulse:null,                             // {id, t0} -- resalte temporal al clickear un aviso del DRC
+  codeLabels:{},                             // {[groupKey]: {dx,dy,rot}} -- posición/rotación manual del código de conductores
+  editingCodeLabels:false,                   // modo "Editar etiquetas de código" (arrastrar / girar)
+  draggingLabel:null,                        // {groupKey, startX, startY, startDx, startDy} mientras se arrastra
   counters:{}
 };
 
@@ -1272,6 +1310,38 @@ function distToSeg(p,a,b){
   return Math.hypot(p.x-(a.x+t*dx), p.y-(a.y+t*dy));
 }
 
+// punto medio (por longitud real, no por índice) y ángulo del tramo ahí --
+// usado para anclar tanto la etiqueta de longitud como el código de conductores
+function runMidAndAngle(run){
+  const p = run.pts;
+  if(p.length<2) return {mid:p[0]||{x:0,y:0}, ang:0};
+  let acc=0, half=runLenPx(run)/2, mid=p[0], ang=0;
+  for(let i=1;i<p.length;i++){
+    const d=dist(p[i-1],p[i]);
+    if(acc+d>=half){
+      const t=d?(half-acc)/d:0;
+      mid={x:p[i-1].x+(p[i].x-p[i-1].x)*t, y:p[i-1].y+(p[i].y-p[i-1].y)*t};
+      ang=Math.atan2(p[i].y-p[i-1].y, p[i].x-p[i-1].x); break;
+    }
+    acc+=d;
+  }
+  if(Math.abs(ang)>Math.PI/2) ang+=Math.PI;
+  return {mid, ang};
+}
+// busca si el punto (plano) "w" cae sobre el rectángulo de algún código de
+// conductores dibujado (ver S._codeLabelBoxes, poblado en render())
+function hitCodeLabel(w){
+  const boxes = S._codeLabelBoxes || [];
+  for(let i=boxes.length-1;i>=0;i--){
+    const b = boxes[i];
+    const dx=w.x-b.cx, dy=w.y-b.cy;
+    const cos=Math.cos(-b.rot), sin=Math.sin(-b.rot);
+    const lx = dx*cos - dy*sin, ly = dx*sin + dy*cos;   // al sistema local del rótulo (antes de rotar)
+    if(Math.abs(lx)<=b.hw && Math.abs(ly)<=b.hh) return b;
+  }
+  return null;
+}
+
 /* ---- cantidad de codos de 90° reales en un tramo ---- */
 function runBends(r){
   const p = r.pts; let n=0;
@@ -1478,18 +1548,8 @@ function drawScene(g, opt){
     for(const grp of groups.values()){
       const vis = grp.runs.filter(r=> only ? r.circuit===only : isCiVisible(r.circuit));
       if(!vis.length) continue;
-      const p = grp.runs[0].pts; if(p.length<2) continue;
-      let acc=0, half=runLenPx(grp.runs[0])/2, mid=p[0], ang=0;
-      for(let i=1;i<p.length;i++){
-        const d=dist(p[i-1],p[i]);
-        if(acc+d>=half){
-          const t=(half-acc)/d;
-          mid={x:p[i-1].x+(p[i].x-p[i-1].x)*t, y:p[i-1].y+(p[i].y-p[i-1].y)*t};
-          ang=Math.atan2(p[i].y-p[i-1].y, p[i].x-p[i-1].x); break;
-        }
-        acc+=d;
-      }
-      if(Math.abs(ang)>Math.PI/2) ang+=Math.PI;
+      if(grp.runs[0].pts.length<2) continue;
+      const {mid, ang} = runMidAndAngle(grp.runs[0]);
       const shown = only ? vis : grp.runs;
       const cab = shown.reduce((a,r)=>a+r.cables,0);
       let txt = fmt(grp.len,2)+" m · "+diaLbl(grp.dia)+" · "+cab+" cond.";
@@ -1504,6 +1564,37 @@ function drawScene(g, opt){
       g.fillRect(-w/2-3/z, -16/z, w+6/z, 13/z);
       g.fillStyle="#15181b"; g.fillText(txt, 0, -5/z);
       g.restore();
+    }
+  }
+
+  // --- código de conductores por caño (sólo en modo "Editar etiquetas de
+  // código": arrastrable con el mouse y rotable con doble clic, ver
+  // hitCodeLabel() y los listeners de pointerdown/pointermove/dblclick).
+  // La posición/rotación elegida se guarda por caño (S.codeLabels, por
+  // groupKey) y se manda igual al PDF "con código de cables".
+  S._codeLabelBoxes = [];
+  if(S.editingCodeLabels && S.pxPerM){
+    for(const grp of groups.values()){
+      if(grp.runs[0].pts.length<2) continue;
+      const txt = conduitCode(grp);
+      if(!txt) continue;
+      const ov = S.codeLabels[grp.key];
+      const {mid} = runMidAndAngle(grp.runs[0]);
+      const dx = ov ? ov.dx : 0, dy = ov ? ov.dy : 14;
+      const rot = ov && ov.rot ? Math.PI/2 : 0;
+      const cx = mid.x+dx, cy = mid.y+dy;
+      g.save();
+      g.translate(cx, cy); g.rotate(rot);
+      g.font = "600 "+(10.5/z)+"px 'IBM Plex Mono',monospace";
+      g.textAlign="center"; g.textBaseline="middle";
+      const tw = g.measureText(txt).width, th = 12/z;
+      g.fillStyle="rgba(255,241,140,.95)";
+      g.fillRect(-tw/2-3/z, -th/2-1/z, tw+6/z, th+2/z);
+      g.strokeStyle="#8a6100"; g.lineWidth=1/z;
+      g.strokeRect(-tw/2-3/z, -th/2-1/z, tw+6/z, th+2/z);
+      g.fillStyle="#15181b"; g.fillText(txt, 0, 0.5/z);
+      g.restore();
+      S._codeLabelBoxes.push({groupKey:grp.key, cx, cy, hw:tw/2+3/z, hh:th/2+1/z, rot});
     }
   }
 
@@ -1837,6 +1928,16 @@ cv.addEventListener("pointerdown", e=>{
     return;
   }
 
+  if(S.editingCodeLabels){
+    const hit = hitCodeLabel(w);
+    if(hit){
+      pushUndo();
+      const cur = S.codeLabels[hit.groupKey] || {dx:0, dy:14, rot:false};
+      S.draggingLabel = {groupKey:hit.groupKey, startX:w.x, startY:w.y, startDx:cur.dx, startDy:cur.dy};
+      return;
+    }
+  }
+
   if(S.tool==="calib"){
     if(!S.calib.a){ S.calib.a=w; }
     else { S.calib.b=w; openCal(); }
@@ -1931,6 +2032,12 @@ cv.addEventListener("pointermove", e=>{
     S.view.y = panning.vy + (e.clientY-panning.y);
     render(); return;
   }
+  if(S.draggingLabel){
+    const d = S.draggingLabel;
+    const cur = S.codeLabels[d.groupKey] || {dx:0, dy:14, rot:false};
+    S.codeLabels[d.groupKey] = {...cur, dx: d.startDx + (w.x-d.startX), dy: d.startDy + (w.y-d.startY)};
+    render(); return;
+  }
   if(dragging){
     if(!dragging.moved) pushUndo();
     if(dragging.t==="node"){
@@ -1960,7 +2067,18 @@ cv.addEventListener("pointermove", e=>{
 
 cv.addEventListener("pointerup", e=>{
   if(dragging && dragging.moved) refreshAll();
+  if(S.draggingLabel){ S.draggingLabel=null; scheduleAutosave(); }
   panning=null; dragging=null;
+});
+
+cv.addEventListener("dblclick", e=>{
+  if(!S.base || !S.editingCodeLabels) return;
+  const hit = hitCodeLabel(mouse(e));
+  if(!hit) return;
+  pushUndo();
+  const cur = S.codeLabels[hit.groupKey] || {dx:0, dy:14, rot:false};
+  S.codeLabels[hit.groupKey] = {...cur, rot: !cur.rot};
+  render(); scheduleAutosave();
 });
 
 window.addEventListener("keydown", e=>{
@@ -3062,7 +3180,7 @@ function buildProjectData(){
   return {v:3, baseName:S.baseName, baseSrc:S.baseSrc, pxPerM:S.pxPerM,
     circuits:S.circuits, nodes:S.nodes, runs:S.runs, rules:S.rules, z:S.z, counters:S.counters,
     grid:S.grid, viewGroups:S.viewGroups, hiddenCircuits:Array.from(S.hiddenCircuits), wires:S.wires,
-    grounds:S.grounds,
+    grounds:S.grounds, codeLabels:S.codeLabels,
     savedAt: Date.now()};
 }
 async function applyProjectData(d){
@@ -3081,11 +3199,14 @@ async function applyProjectData(d){
   S.tracingWire = null;
   S.grounds = (d.grounds||[]).map(gr=>({id:gr.id, note:gr.note||"", sectionOverride:gr.sectionOverride!=null?gr.sectionOverride:null, runIds:gr.runIds||[]}));
   S.tracingGround = null;
+  S.codeLabels = d.codeLabels || {};
+  S.editingCodeLabels = false; S.draggingLabel = null;
   S.activeCircuit = S.circuits[0]?S.circuits[0].id:null; S.sel=null;
   history=[]; future=[]; paintHistBtns();
   if(d.baseSrc) await setBase(d.baseSrc);
   paintScale(); paintGridMeta();
   $("#vGrid").checked=S.grid.on; $("#gridSize").value=S.grid.size; $("#vSnap").checked=S.grid.snap;
+  $("#vCodeEdit").checked=false;
   refreshAll();
 }
 
@@ -3093,7 +3214,8 @@ async function applyProjectData(d){
 // circuitos quedan tal cual. Usado por el botón "Reiniciar" del puente.
 window.canalizaReiniciarRuteo = function(){
   pushUndo();
-  S.runs = []; S.wires = []; S.tracingWire = null; S.grounds = []; S.tracingGround = null; S.draft = null; S.sel = null;
+  S.runs = []; S.wires = []; S.tracingWire = null; S.grounds = []; S.tracingGround = null;
+  S.codeLabels = {}; S.draft = null; S.sel = null;
   refreshAll();
 };
 
@@ -3301,6 +3423,7 @@ $("#bRedo").onclick = redo;
 $("#vLbl").onchange = e=>{ S.show.labels=e.target.checked; render(); };
 $("#vLen").onchange = e=>{ S.show.lens=e.target.checked; render(); };
 $("#vZ").onchange   = e=>{ S.show.z=e.target.checked; render(); };
+$("#vCodeEdit").onchange = e=>{ S.editingCodeLabels=e.target.checked; render(); };
 $("#vGrid").onchange = e=>{ S.grid.on=e.target.checked; render(); };
 $("#vSnap").onchange = e=>{ S.grid.snap=e.target.checked; };
 $("#gridSize").oninput = e=>{

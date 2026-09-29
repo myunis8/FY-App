@@ -275,12 +275,19 @@ def _draw_crossing(pg, T, cr):
     return
 
 
-def _label(pg, T, x, y, text, fs):
+def _label(pg, T, x, y, text, fs, *, rot=False):
     fs = max(4.6, fs)
     w = pymupdf.get_text_length(text, fontname="helv", fontsize=fs)
-    pg.draw_rect(pymupdf.Rect(x - 1.5, y - fs, x + w + 1.5, y + 2), color=None,
-                 fill=(1, 1, 1), fill_opacity=0.9)
-    pg.insert_text((x, y), text, fontsize=fs, fontname="helv", color=(15 / 255, 18 / 255, 20 / 255))
+    if rot:
+        # insert_text con rotate=90 arranca en (x,y) y el texto sube hacia
+        # -Y (comprobado a mano) -- el recuadro de fondo se adapta a eso
+        pg.draw_rect(pymupdf.Rect(x - 3, y - w - 2, x + fs + 2, y + 3), color=None,
+                     fill=(1, 1, 1), fill_opacity=0.9)
+    else:
+        pg.draw_rect(pymupdf.Rect(x - 1.5, y - fs, x + w + 1.5, y + 2), color=None,
+                     fill=(1, 1, 1), fill_opacity=0.9)
+    pg.insert_text((x, y), text, fontsize=fs, fontname="helv", color=(15 / 255, 18 / 255, 20 / 255),
+                    rotate=90 if rot else 0)
 
 
 def _draw_scene(pg, T, P, *, only=None, detailed=False, labels=True, lens=True, codigo=False,
@@ -338,9 +345,13 @@ def _draw_scene(pg, T, P, *, only=None, detailed=False, labels=True, lens=True, 
             txt = P.conduit_code(grp)
             if not txt:
                 continue
-            mid = pnts[len(pnts) // 2]
-            m = T.p(mid)
-            _label(pg, T, m.x, m.y + 12 * T.u, txt, 10.5 * T.u)
+            ov = P.code_labels.get(grp["key"])
+            dx = ov.get("dx", 0) if ov else 0
+            dy = ov.get("dy", 14) if ov else 14
+            rot = bool(ov.get("rot")) if ov else False
+            mid = P.run_mid_point(grp["runs"][0])
+            m = T.p({"x": mid["x"] + dx, "y": mid["y"] + dy})
+            _label(pg, T, m.x, m.y, txt, 10.5 * T.u, rot=rot)
 
     for n in P.nodes:
         if not P.node_visible(n, only):

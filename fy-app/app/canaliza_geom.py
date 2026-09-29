@@ -168,6 +168,7 @@ class Proyecto:
         self.runs = proy.get("runs") or []
         self.wires = proy.get("wires") or []
         self.grounds = proy.get("grounds") or []
+        self.code_labels = proy.get("codeLabels") or {}   # {[groupKey]: {dx,dy,rot}} -- ver canaliza.html
         self.px_per_m = proy.get("pxPerM")
         self.base_name = proy.get("baseName") or "plano"
         self.z = {**Z0, **(proy.get("z") or {})}
@@ -240,6 +241,25 @@ class Proyecto:
         da = max(1, self._grados_techo.get(r.get("a"), 1))
         db = max(1, self._grados_techo.get(r.get("b"), 1))
         return max(0.0, c - za) / da + max(0.0, c - zb) / db
+
+    def run_mid_point(self, run):
+        """Punto medio por longitud real del tramo (no por índice del punto
+        de la polilínea) -- para anclar el código de conductores en la misma
+        posición que calcula runMidAndAngle() en canaliza.html."""
+        p = run.get("pts") or []
+        if len(p) < 2:
+            return p[0] if p else {"x": 0.0, "y": 0.0}
+        total = sum(_dist(p[i - 1], p[i]) for i in range(1, len(p)))
+        half = total / 2
+        acc = 0.0
+        for i in range(1, len(p)):
+            d = _dist(p[i - 1], p[i])
+            if acc + d >= half:
+                t = (half - acc) / d if d else 0
+                return {"x": p[i - 1]["x"] + (p[i]["x"] - p[i - 1]["x"]) * t,
+                        "y": p[i - 1]["y"] + (p[i]["y"] - p[i - 1]["y"]) * t}
+            acc += d
+        return p[-1]
 
     def run_len_m(self, r):
         return (self.run_horiz_m(r) + self.run_vert_m(r)) if self.px_per_m else 0.0
