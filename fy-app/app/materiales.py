@@ -555,9 +555,9 @@ def _renglones_computados(obra: dict) -> list:
                           "u", jaba["cantidad"]))
         renglones.append(("Puesta a tierra", "Caja de inspección para jabalina", "u", jaba["cantidad"]))
     canal = computar_canalizacion(obra)
-    for seccion, metros in canal["cablePorSeccion"].items():
-        if metros > 0:
-            renglones.append(("Cables y caños", f"Cable {seccion} mm² (estimado)", "m", metros))
+    # el cable NO se agrega solo a la lista: el usuario decide a mano cuántos
+    # rollos comprar mirando los metros estimados (arriba, por sección y por
+    # color) en "Cable a comprar" -- el caño sí se agrega, se compra por metro.
     for dia, metros in canal["canoPorDiametro"].items():
         if metros > 0:
             renglones.append(("Cables y caños", f"Caño {dia} (estimado)", "m", metros))

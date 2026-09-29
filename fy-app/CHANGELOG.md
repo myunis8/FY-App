@@ -3,6 +3,25 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 1.6.1 — Lista de materiales: sidebar de colores, cable tipo taller/Sintenax
+
+- **Sin la nota interna del PDF sobre confirmar cajas/térmicas contra Circuitos
+  y Tablero** -- era para uso propio, no para el cliente que recibe la lista.
+- **El cómputo ya no agrega solo la cantidad de cable a comprar.** Antes,
+  "Actualizar cómputo" sumaba un renglón "Cable X mm² (estimado)" a la lista
+  de materiales con los metros calculados; ahora esa decisión queda 100% en
+  "Cable a comprar", donde el usuario pone a mano cuántos rollos necesita
+  mirando el estimado. El caño sigue agregándose solo (se compra por metro,
+  no hay redondeo que decidir).
+- **"Cable por color" (de la 1.6.0) pasa a una columna fija a la izquierda**
+  que se queda a la vista mientras se scrollea el resto de la página, en vez
+  de tener que volver para arriba para consultarlo mientras se completa
+  "Cable a comprar" más abajo.
+- **Nuevo: cable tipo taller/Sintenax en "Cable a comprar".** Cada renglón
+  tiene un selector de tipo (Unipolar / Taller-Sintenax); el tipo taller
+  pide un formato (2x2.5, 3x2.5, 2x4 mm², etc.) en vez de sección + color,
+  con la misma cantidad/unidad/notas que ya tenía el resto.
+
 ## 1.6.0 — Filtros de avisos, fix de teclas superpuestas, cable por color, Adicional
 
 - **Routeo: el código de conductores del PDF ya no lleva fondo blanco** (tapaba
