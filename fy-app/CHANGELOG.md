@@ -3,6 +3,30 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 1.5.0 — PDF con código de cables, caños en paralelo separados, símbolos chicos
+
+- **Nuevo botón "PDF con código de cables" en Routeo.** Una hoja por circuito
+  elegido, igual que "PDF de planos" pero los caños se dibujan con el color
+  del circuito (no el color real de cada conductor) y, al costado de cada
+  caño, un código de texto con lo que lleva adentro -- p.ej. `2.5(FNT)`: un
+  caño con conductores de 2,5 mm² de fase, neutro y tierra. Si el caño es
+  compartido con otro circuito, el código muestra TODO lo que hay adentro
+  (ej. `2.5(FNT)-4(FNT)`), aunque esa página sólo resalte un circuito -- así
+  no hace falta abrir el cableado detallado para saber qué hay en un caño
+  lleno. Letras: F=fase, N=neutro, T=tierra, R=retorno simple, C=combinado.
+- **Fix: un caño dividido en dos caños en paralelo (ver 1.3.0) se dibujaba
+  con ambos exactamente superpuestos** -- sólo se veía uno, porque comparten
+  el mismo trazado de origen. Ahora se separan visualmente uno al lado del
+  otro (editor y PDF), sin tocar el cálculo de cruces ni de relleno.
+- **Fix: la sección del caño ya no se agranda sola.** Antes, al agregar un
+  tramo a un caño compartido, si el nuevo conductor no entraba se agrandaba
+  automáticamente la sección de todo el caño. Ahora un tramo nuevo sólo
+  adopta la sección que el caño ya tenía (7/8" por defecto) -- si hay que
+  agrandarlo, lo hace el usuario a mano desde el panel o con "Dividir en 2
+  caños en paralelo".
+- **Símbolos de cajas, tablero, etc. más chicos** en el plano (editor y PDF),
+  para que ocupen menos lugar.
+
 ## 1.4.2 — Fix: troncal de tierra sin editar/eliminar, cable agrupado por tipo
 
 - **Fix: no se podía eliminar ni editar un troncal de tierra ya creado.** El

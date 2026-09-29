@@ -326,6 +326,13 @@ class Proyecto:
                 cap = self.cap_of(g["dia"], self.ground_section_for(gr))
                 g["cables"] += 1
                 g["fill"] += (1 / cap) if cap > 0 else math.inf
+        # un caño dividido en dos caños en paralelo comparte el mismo trazado
+        # de origen con su "hermano" -- sin esto quedan dibujados uno encima
+        # del otro. par_side marca de qué lado separarlo al dibujar.
+        for g in m.values():
+            is_p2 = g["key"].endswith(":p2")
+            sibling = g["key"][:-3] if is_p2 else g["key"] + ":p2"
+            g["parSide"] = (1 if is_p2 else -1) if sibling in m else 0
         return m
 
     # ------------------------------------------------------------- cruces
@@ -432,6 +439,42 @@ class Proyecto:
                     items.append({"color": WIRE_HEX.get(label, "#5b6470"), "section": c.get("section"),
                                   "code": label, "circuit": c.get("name")})
         return items
+
+    @staticmethod
+    def _tipo_letra(item):
+        """F=fase, N=neutro, T=tierra, R=retorno simple, C=retorno combinado --
+        ver conduit_code()."""
+        code = item.get("code") or ""
+        if code == "F" or code.startswith("Marrón"):
+            return "F"
+        if code == "N" or code.startswith("Celeste"):
+            return "N"
+        if code.startswith("RS"):
+            return "R"
+        if code.startswith("RC"):
+            return "C"
+        if code.startswith("Verde-amarillo"):
+            return "T"
+        return "?"
+
+    def conduit_code(self, g):
+        """Código compacto de qué conductores hay en un caño físico, agrupados
+        por sección -- p.ej. "2.5(FNT)-1.5(FN)": un caño con conductores de
+        2,5 mm² de fase+neutro+tierra y de 1,5 mm² de fase+neutro. Se repite
+        una letra por cada conductor real (dos circuitos de 2,5 mm² con tierra
+        propia dan "2.5(FFNNTT)"), para poder contar sin tener que verlos.
+        Pensado para el PDF "con código de cables" (ver _hoja_circuito)."""
+        por_sec: dict = {}
+        for it in self.conduit_conductors(g["runs"]):
+            por_sec.setdefault(it["section"], []).append(self._tipo_letra(it))
+        for gr in g.get("grounds") or []:
+            por_sec.setdefault(self.ground_section_for(gr), []).append("T")
+        orden = {"F": 0, "N": 1, "T": 2, "R": 3, "C": 4}
+        partes = []
+        for sec in sorted(por_sec):
+            letras = sorted(por_sec[sec], key=lambda t: orden.get(t, 9))
+            partes.append(f"{sec}({''.join(letras)})")
+        return "-".join(partes)
 
     # ------------------------------------------------------------- visibilidad
     def runs_at_node(self, nid):

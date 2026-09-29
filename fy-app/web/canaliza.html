@@ -206,6 +206,7 @@ table.t input:focus{outline:none;border-color:var(--accent);background:var(--pan
   <button class="btn" id="bRedo" title="Rehacer (Ctrl+Shift+Z)" disabled>↷ Rehacer</button>
   <div class="sep"></div>
   <button class="btn primary" id="bPdfPlanos">📐 PDF de planos</button>
+  <button class="btn primary" id="bPdfCodigo" title="Una hoja por circuito, caños con el color del circuito y un código de texto (ej: 2.5(FNT)) en vez de cables de colores">🔤 PDF con código de cables</button>
   <button class="btn primary" id="bPdfBom">📋 PDF de materiales</button>
   <div class="sep"></div>
   <button class="btn" id="bRules">Configurar reglas y capacidades</button>
@@ -1093,6 +1094,15 @@ function conduitGroups(){
       g.fill += cap>0 ? 1/cap : Infinity;
     }
   }
+  // un caño dividido en dos caños en paralelo (ver splitParallel) comparte el
+  // mismo trazado de origen con su "hermano" -- sin esto quedan dibujados uno
+  // encima del otro. parSide marca de qué lado separarlo al dibujar (0 = no
+  // está dividido, se dibuja como siempre).
+  for(const g of m.values()){
+    const isP2 = g.key.endsWith(":p2");
+    const sibling = isP2 ? g.key.slice(0,-3) : g.key+":p2";
+    g.parSide = m.has(sibling) ? (isP2 ? 1 : -1) : 0;
+  }
   return m;
 }
 function groupOf(r){ return conduitGroups().get(groupKey(r)); }
@@ -1371,13 +1381,27 @@ function condWidth(section){
 }
 
 function drawConduit(g, grp, bad, z, vis, detailed){
-  const base = grp.runs[0].pts;
+  let base = grp.runs[0].pts;
+  let items, n0, pipeW;
+  if(detailed){
+    items = conduitConductors(vis);
+    n0 = Math.max(items.length, 1);
+    const maxW = items.reduce((a,it)=>Math.max(a,condWidth(it.section)), 1.4);
+    pipeW = Math.min(26, 9 + n0*(maxW+0.6));
+  } else {
+    pipeW = bad ? 8.5 : 7.5;
+  }
+
+  // un caño dividido en dos caños en paralelo (mismo trazado de origen que su
+  // "hermano") se corre entero hacia un lado para que no queden dibujados
+  // exactamente superpuestos -- ver conduitGroups()/parSide
+  const parSide = grp.parSide || 0;
+  if(parSide){
+    const shift = pipeW/2 + 3;
+    base = offsetPoly(base, parSide * (detailed ? shift : shift/z));
+  }
 
   if(detailed){
-    const items = conduitConductors(vis);
-    const n = Math.max(items.length, 1);
-    const maxW = items.reduce((a,it)=>Math.max(a,condWidth(it.section)), 1.4);
-    const pipeW = Math.min(26, 9 + n*(maxW+0.6));
     g.save(); g.lineJoin="round"; g.lineCap="round"; g.setLineDash([]);
     g.strokeStyle="rgba(255,255,255,.9)"; g.lineWidth=(pipeW+4)/z;
     tracePath(g, base); g.stroke();
@@ -1387,9 +1411,9 @@ function drawConduit(g, grp, bad, z, vis, detailed){
     tracePath(g, base); g.stroke();
     g.restore();
 
-    const sp = Math.min(5.6, (pipeW-2.5)/n);
+    const sp = Math.min(5.6, (pipeW-2.5)/n0);
     items.forEach((it,i)=>{
-      const off = n>1 ? (i-(n-1)/2)*sp : 0;
+      const off = n0>1 ? (i-(n0-1)/2)*sp : 0;
       const pts = offsetPoly(base, off);
       // sin borde: sólo el color del conductor, más fino -- un borde oscuro
       // rompía la ortogonalidad visual en los codos y quedaba poco prolijo
@@ -1405,7 +1429,7 @@ function drawConduit(g, grp, bad, z, vis, detailed){
   g.save(); g.lineJoin="round"; g.lineCap="round"; g.setLineDash([]);
   g.strokeStyle="rgba(255,255,255,.9)"; g.lineWidth=11/z;
   tracePath(g, base); g.stroke();
-  g.strokeStyle = bad ? "#b3261e" : "#9aa4ad"; g.lineWidth=(bad?8.5:7.5)/z;
+  g.strokeStyle = bad ? "#b3261e" : "#9aa4ad"; g.lineWidth=pipeW/z;
   tracePath(g, base); g.stroke();
   g.strokeStyle="#ffffff"; g.lineWidth=5.5/z;
   tracePath(g, base); g.stroke();
@@ -1489,7 +1513,7 @@ function drawScene(g, opt){
     if(!nodeVisible(n, only)) continue;
     const bad = problems.has(n.id);
     const ci = n.circuitId ? ciById(n.circuitId) : null;
-    const R = 9/z;
+    const R = 7/z;
     g.save();
     g.translate(n.x, n.y);
     if(enRuteo && n.circuitId===enRuteo.id){
@@ -1970,15 +1994,11 @@ function finishRun(bId){
     a:d.a, b:bId, route:"techo", share:true, dia:DEF_DIA,
     cables: c.kind==="iluminacion" ? 0 : c.cables, note:""};
   S.runs.push(r);
-  // si se suma a un caño existente, adopta su medida y la agranda si hace falta
+  // si se suma a un caño existente, adopta su medida actual -- pero no la
+  // agranda sola: la sección del caño la cambia el usuario a mano (panel de
+  // propiedades o "Dividir en 2 caños en paralelo"), nunca automáticamente
   const g = groupOf(r);
-  if(g){
-    const need = suggestDiaFor(g.runs);
-    const dia = diaOf(need).mm > diaOf(g.dia).mm ? need : g.dia;
-    g.runs.forEach(x=> x.dia = dia);
-  } else {
-    r.dia = suggestDiaFor([r]);
-  }
+  if(g) r.dia = g.dia;
   S.sel={t:"run",id:r.id};
   refreshAll();
 }
@@ -3177,6 +3197,19 @@ $("#bPdfPlanos").onclick = ()=>{
   open$("#mPdf");
 };
 
+$("#bPdfCodigo").onclick = ()=>{
+  if(!S.base){ alert("Cargá primero un plano base."); return; }
+  pdfMode = "codigo";
+  $("#pdfTitulo").textContent = "PDF con código de cables";
+  $("#pdfSub").textContent = "Una hoja por circuito, caños con el color del circuito (no el de cada cable) y "+
+    "un código de texto junto a cada caño -- ej: 2.5(FNT) -- para saber qué conductores lleva sin tener que "+
+    "distinguirlos por color.";
+  const l=$("#pdfList");
+  l.innerHTML = S.circuits.map(c=>`<label class="chk"><input type="checkbox" class="pxCC" value="${c.id}" checked>
+    <span class="sw" style="background:${c.color};margin-top:2px"></span> Hoja de ${esc(c.name)}</label>`).join("");
+  open$("#mPdf");
+};
+
 $("#bPdfBom").onclick = ()=>{
   if(!S.base){ alert("Cargá primero un plano base."); return; }
   pdfMode = "bom";
@@ -3197,12 +3230,16 @@ $("#pdfGo").onclick = async ()=>{
 // buildProjectData() y qué hojas se quieren, y se muestra el resultado.
 async function makePdf(){
   const hojas = pdfMode === "bom"
-    ? { general:false, detallado:false, bom:true, circuitos:[] }
+    ? { general:false, detallado:false, bom:true, circuitos:[], circuitosCodigo:[] }
+    : pdfMode === "codigo"
+    ? { general:false, detallado:false, bom:false, circuitos:[],
+        circuitosCodigo: Array.from(document.querySelectorAll(".pxCC:checked")).map(i=>i.value) }
     : {
         general:   $("#pxAll")   ? $("#pxAll").checked   : true,
         detallado: $("#pxDetail")? $("#pxDetail").checked: false,
         bom:       false,
         circuitos: Array.from(document.querySelectorAll(".pxC:checked")).map(i=>i.value),
+        circuitosCodigo: [],
       };
   const body = {
     proyecto: buildProjectData(),
@@ -3218,7 +3255,7 @@ async function makePdf(){
     const d = await res.json().catch(()=>({}));
     throw new Error(d.error || "No se pudo generar el PDF.");
   }
-  const sufijo = pdfMode === "bom" ? "_materiales" : "_planos";
+  const sufijo = pdfMode === "bom" ? "_materiales" : pdfMode === "codigo" ? "_codigo" : "_planos";
   mostrarVistaPreviaPdf(await res.blob(),
     (S.baseName.replace(/\.[^.]+$/,"")||"canalizacion")+sufijo+".pdf");
 }
