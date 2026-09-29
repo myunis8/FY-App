@@ -516,8 +516,13 @@ class Proyecto:
                             continue
                         ends = (1 if run.get("a") else 0) + (1 if run.get("b") else 0)
                         wl += self.run_len_m(run) + ends * spare
-                    code = self.wire_code(w)
-                    cable_color[sec][code] = cable_color[sec].get(code, 0.0) + wl
+                    # se agrupa por tipo de conductor, no por luz/instancia --
+                    # todos los retornos simples de esta sección suman a un
+                    # mismo renglón, e ídem los combinados
+                    k = w.get("kind")
+                    label = ("Marrón (fase)" if k == "F" else "Celeste (neutro)" if k == "N"
+                             else "Blanco (retorno simple)" if k == "RS" else "Amarillo (retorno combinado)")
+                    cable_color[sec][label] = cable_color[sec].get(label, 0.0) + wl
                     cab += wl
             else:
                 colors = self.wire_colors_for(c)
@@ -553,7 +558,9 @@ class Proyecto:
                 continue
             sec = self.ground_section_for(gr)
             cable_color.setdefault(sec, {})
-            col = "Verde-amarillo (tierra) · " + (gr.get("note") or "troncal compartido")
+            # mismo renglón "Verde-amarillo (tierra)" que la tierra no troncal
+            # de esta sección -- para el cómputo es el mismo conductor
+            col = "Verde-amarillo (tierra)"
             cable_color[sec][col] = cable_color[sec].get(col, 0.0) + length
             cable[sec] = cable.get(sec, 0.0) + length
 

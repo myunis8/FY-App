@@ -3,6 +3,25 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 1.4.2 — Fix: troncal de tierra sin editar/eliminar, cable agrupado por tipo
+
+- **Fix: no se podía eliminar ni editar un troncal de tierra ya creado.** El
+  panel de "Tierra compartida" reusaba las clases `.ci-h`/`.ci-b` de las
+  tarjetas de circuito, pero esas ocultan el cuerpo (`.ci-b{display:none}`)
+  hasta que la tarjeta queda "activa" -- algo que nunca se activaba para un
+  troncal, así que la Sección, el botón Trazar y el Eliminar quedaban
+  siempre invisibles. Ahora el panel de cada troncal se muestra siempre
+  completo, sin necesidad de expandirlo.
+- **El cómputo de cable (Routeo y PDF) ya no separa renglones por instancia.**
+  Antes cada retorno simple o combinado de iluminación tenía su propio
+  renglón por luz (`RS-A`, `RS-B`, `RC-A1`...) y cada troncal de tierra su
+  propio renglón con su nombre; ahora se agrupan por tipo de conductor y
+  sección: todos los retornos simples de una sección suman a un mismo
+  renglón "Blanco (retorno simple)", los combinados a "Amarillo (retorno
+  combinado)", y toda la tierra de una sección (troncal o no) a "Verde-
+  amarillo (tierra)" -- junto con "Marrón (fase)" y "Celeste (neutro)", que
+  ya se agrupaban así.
+
 ## 1.4.1 — Cables ortogonales prolijos, sin totales que mezclan secciones
 
 - **Fix: los cables dibujados en los codos del caño (vista detallada, PDF y

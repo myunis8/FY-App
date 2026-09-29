@@ -2204,6 +2204,11 @@ function paintCircuits(){
 
 function paintGrounds(){
   const el = $("#grounds"); if(!el) return;
+  // (a diferencia de las tarjetas de circuito, acá todo queda siempre visible
+  // -- son pocos campos y no vale la pena un click extra para desplegarlos;
+  // antes usaba las mismas clases .ci-h/.ci-b que los circuitos, pero esas
+  // ocultan el cuerpo (.ci-b{display:none}) hasta que la tarjeta está "on",
+  // algo que acá nunca se activaba: quedaban Sección/Trazar/Eliminar invisibles)
   el.innerHTML = S.grounds.map(gr=>{
     const active = S.tracingGround===gr.id;
     const sug = groundSectionFor(gr);
@@ -2212,17 +2217,15 @@ function paintGrounds(){
         <span class="sw" style="background:#3f8f1f"></span>
         <input class="f mono" data-gnote="${gr.id}" value="${esc(gr.note||"")}" style="flex:1;min-width:0" placeholder="Troncal">
         <span class="ci-m">${gr.runIds.length} tr.</span>
+        <button class="btn sm" data-gdel="${gr.id}" title="Eliminar" style="margin-left:6px">×</button>
       </div>
-      <div class="ci-b" style="padding-top:6px">
-        <div class="f2" style="margin-bottom:6px">
-          <div><label class="f">Sección</label><select class="f" data-gsec="${gr.id}">
-            <option value=""${gr.sectionOverride==null?" selected":""}>Auto · ${sug} mm²</option>
-            ${SECTIONS.map(s=>`<option value="${s}"${gr.sectionOverride===s?" selected":""}>${s} mm²</option>`).join("")}
-          </select></div>
-          <div style="display:flex;gap:6px;align-items:flex-end">
-            <button class="btn sm" data-gtrace="${gr.id}" style="flex:1">${active?"Trazando…":"Trazar"}</button>
-            <button class="btn sm" data-gdel="${gr.id}" title="Eliminar">×</button>
-          </div>
+      <div class="f2" style="margin-top:7px">
+        <div><label class="f">Sección</label><select class="f" data-gsec="${gr.id}">
+          <option value=""${gr.sectionOverride==null?" selected":""}>Auto · ${sug} mm²</option>
+          ${SECTIONS.map(s=>`<option value="${s}"${gr.sectionOverride===s?" selected":""}>${s} mm²</option>`).join("")}
+        </select></div>
+        <div style="display:flex;align-items:flex-end">
+          <button class="btn sm" data-gtrace="${gr.id}" style="width:100%">${active?"Trazando…":"Trazar"}</button>
         </div>
       </div>
     </div>`;
@@ -2787,8 +2790,12 @@ function computeBom(){
           const ends = (run.a?1:0)+(run.b?1:0);
           wl += runLenM(run) + ends*spare;   // metros de este conductor en este tramo
         }
-        const code = wireCode(w);
-        cableColor[c.section][code] = (cableColor[c.section][code]||0) + wl;
+        // se agrupa por tipo de conductor, no por luz/instancia -- todos los
+        // retornos simples de esta sección suman a un mismo renglón, e ídem
+        // los combinados (el detalle por luz ya se ve en "Retornos y cableado")
+        const label = w.kind==="F" ? "Marrón (fase)" : w.kind==="N" ? "Celeste (neutro)"
+          : w.kind==="RS" ? "Blanco (retorno simple)" : "Amarillo (retorno combinado)";
+        cableColor[c.section][label] = (cableColor[c.section][label]||0) + wl;
         cab += wl;
       }
     } else {
@@ -2826,7 +2833,10 @@ function computeBom(){
     if(length<=0) continue;
     const sec = groundSectionFor(gr);
     cableColor[sec] = cableColor[sec] || {};
-    const col = "Verde-amarillo (tierra) · "+(gr.note||"troncal compartido");
+    // mismo renglón "Verde-amarillo (tierra)" que la tierra no troncal de esta
+    // sección -- no importa si el metraje viene de un troncal o de un tramo
+    // propio, para el cómputo es el mismo conductor
+    const col = "Verde-amarillo (tierra)";
     cableColor[sec][col] = (cableColor[sec][col]||0) + length;
     cable[sec] = (cable[sec]||0) + length;
   }
