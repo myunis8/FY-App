@@ -67,6 +67,29 @@ td.acc{width:50px;text-align:center;white-space:nowrap}
 .tab-btn.on{color:var(--ink);border-color:var(--amber)}
 .tab-pane{display:none}
 .tab-pane.on{display:block}
+/* --- plano de red --- */
+.plano-layout{display:flex;gap:14px;align-items:flex-start}
+.plano-tools{width:230px;flex:none}
+.plano-tools .grupo{margin-bottom:16px}
+.plano-tools h3{font-size:.68rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);
+  margin:0 0 6px;font-weight:600}
+.plano-tools .fila{display:flex;gap:4px;margin-bottom:4px}
+.tipo-btn{display:block;width:100%;text-align:left;margin-bottom:3px;font-size:.74rem;padding:5px 8px}
+.tipo-btn.on{background:var(--amber);border-color:var(--amber-deep);color:#2a1e07}
+#plano-stage{position:relative;flex:1;min-width:0;background:#0b0f14;border:1px solid var(--line);
+  border-radius:8px;overflow:hidden;height:600px}
+#plano-cv{display:block;touch-action:none}
+#plano-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  color:var(--muted);font-size:.85rem;text-align:center;padding:30px;line-height:1.5}
+.plano-zoom{position:absolute;right:10px;bottom:10px;display:flex;gap:4px;background:var(--panel);
+  border:1px solid var(--line);border-radius:8px;padding:4px}
+.campo{margin-bottom:6px}
+.campo label{display:block;font-size:.68rem;color:var(--muted);margin-bottom:2px}
+.campo input,.campo select{width:100%;border:1px solid var(--line);border-radius:6px;padding:5px 7px;font-size:.8rem}
+.drc-row{padding:6px 8px;border-radius:6px;font-size:.76rem;margin-bottom:4px;cursor:pointer;line-height:1.35}
+.drc-row.e{background:var(--danger-soft);color:var(--danger)}
+.drc-row.w{background:rgba(226,163,61,.14);color:var(--amber)}
+.drc-row:hover{filter:brightness(1.15)}
 </style>
 </head>
 <body>
@@ -107,7 +130,46 @@ td.acc{width:50px;text-align:center;white-space:nowrap}
   </div>
 
   <div class="tab-pane" id="pane-plano">
-    <div class="nota">Plano de red -- próximamente.</div>
+    <div class="plano-layout">
+      <div class="plano-tools">
+        <div class="grupo">
+          <h3>Herramienta</h3>
+          <button class="btn sm" id="pt-seleccionar" style="width:100%;margin-bottom:4px">Seleccionar</button>
+          <div class="fila">
+            <button class="btn sm" id="pt-tramo" style="flex:1">Trazar tramo</button>
+            <select id="pt-medio" style="flex:1">
+              <option value="exterior">Exterior</option>
+              <option value="utp" selected>UTP</option>
+              <option value="fibra">Fibra</option>
+              <option value="inalambrico">Inalámbrico</option>
+            </select>
+          </div>
+          <div class="fila">
+            <button class="btn sm" id="bUndoRed" title="Deshacer (Ctrl+Z)" disabled>↶ Deshacer</button>
+            <button class="btn sm" id="bRedoRed" title="Rehacer (Ctrl+Shift+Z)" disabled>↷ Rehacer</button>
+          </div>
+        </div>
+        <div class="grupo">
+          <h3>Colocar dispositivo</h3>
+          <div id="paleta"></div>
+        </div>
+        <div class="grupo" id="panel-prop"></div>
+        <div class="grupo">
+          <h3>Observaciones (<span id="drc-count">0</span>)</h3>
+          <div id="drc-list"><p class="nota">Sin observaciones.</p></div>
+        </div>
+      </div>
+      <div id="plano-stage">
+        <canvas id="plano-cv"></canvas>
+        <div id="plano-empty" style="display:none">Esta obra todavía no tiene un plano extraído para
+          poder ubicar dispositivos acá.<br><br>La pestaña Oferta funciona igual sin plano.</div>
+        <div class="plano-zoom">
+          <button class="btn sm" id="pz-out">−</button>
+          <button class="btn sm" id="pz-fit">Ajustar</button>
+          <button class="btn sm" id="pz-in">+</button>
+        </div>
+      </div>
+    </div>
   </div>
 </main>
 
@@ -135,6 +197,9 @@ const plata = n => '$ ' + Math.round(n||0).toLocaleString('es-AR');
 document.querySelectorAll('.tab-btn').forEach(b => b.onclick = () => {
   document.querySelectorAll('.tab-btn').forEach(x => x.classList.toggle('on', x===b));
   document.querySelectorAll('.tab-pane').forEach(p => p.classList.toggle('on', p.id==='pane-'+b.dataset.tab));
+  // el canvas mide 0x0 mientras su pestaña está oculta (display:none) -- hay
+  // que recién dimensionarlo/redibujarlo cuando la pestaña Plano se hace visible
+  if(b.dataset.tab==='plano') mostrarPestañaPlano();
 });
 
 let catalogo = [];
@@ -146,6 +211,7 @@ $('b-volver').onclick = () => location.href = '/obra.html?obra=' + OBRA_ID;
 async function cargar(){
   if(!OBRA_ID){ toast('Falta el id de la obra en la URL.'); return; }
   const d = await api('/api/obras/'+OBRA_ID+'/red');
+  const planoUrlNuevo = d.planoUrl;
   aplicarRespuesta(d);
   $('h-sub').textContent = 'Obra ' + OBRA_ID;
   const cat = await api('/api/precios');
@@ -154,6 +220,8 @@ async function cargar(){
   // únicamente aceptando un renglón de esta Oferta, nunca por otro camino)
   catalogo = (cat.items||[]).filter(it => it.categoria === 'Red y datos');
   pintarSelectCatalogo();
+  if(planoUrlNuevo) cargarImagenPlano(planoUrlNuevo);
+  else $('plano-empty').style.display = 'flex';
 }
 function aplicarRespuesta(d){
   datosObra = d.obra || d.red || datosObra;
@@ -162,10 +230,12 @@ function aplicarRespuesta(d){
   datosObra.tramos = datosObra.tramos || [];
   if(d.planoUrl !== undefined) planoUrl = d.planoUrl;
   if(d.pxPerM !== undefined) pxPerM = d.pxPerM;
-  if(d.verificaciones) verificaciones = d.verificaciones;
+  if(d.verificaciones !== undefined) verificaciones = d.verificaciones;
   if(d.totalesOferta) pintarResumen(d.totalesOferta);
   else calcularResumenLocal();
   pintarOfertas();
+  pintarDrc();
+  renderPlano();
 }
 
 function pintarSelectCatalogo(){
@@ -188,7 +258,7 @@ $('of-agregar').onclick = () => {
   datosObra.ofertas.push({id:'ro_'+Date.now().toString(36), precioId:it.id, item:it.item,
     categoria:it.categoria, unidad:it.unidad||'u', cantidad:cant, precioUnitario:it.precio||0,
     congelado:false, estado:'ofrecido', nota:''});
-  pintarOfertas(); calcularResumenLocal(); guardar();
+  pintarOfertas(); calcularResumenLocal(); pintarPanel(); guardar();
   $('of-item').value = ''; $('of-cant').value = 1;
 };
 
@@ -229,11 +299,17 @@ function pintarOfertas(){
       const campo = el.dataset.c, o = arr[i];
       o[campo] = (campo==='cantidad' || campo==='precioUnitario') ? (parseFloat(el.value)||0) : el.value;
       if(campo === 'precioUnitario') o.congelado = true;   // tocado a mano: no se pisa después
-      calcularResumenLocal(); guardar();
+      calcularResumenLocal(); pintarPanel(); guardar();
     };
   });
   $('t-ofertas').querySelectorAll('[data-del]').forEach(btn => {
-    btn.onclick = () => { arr.splice(+btn.dataset.del, 1); pintarOfertas(); calcularResumenLocal(); guardar(); };
+    btn.onclick = () => {
+      const idBorrado = arr[+btn.dataset.del].id;
+      arr.splice(+btn.dataset.del, 1);
+      // un dispositivo que apuntaba a esta oferta queda sin vincular, no roto
+      for(const d of datosObra.dispositivos) if(d.ofertaId === idBorrado) d.ofertaId = null;
+      pintarOfertas(); calcularResumenLocal(); pintarPanel(); renderPlano(); guardar();
+    };
   });
 }
 
@@ -247,11 +323,395 @@ function guardar(){
       const r = await api('/api/obras/'+OBRA_ID+'/red',
         {method:'POST', body: JSON.stringify({red: datosObra, guardar:true})});
       if(r.totalesOferta) pintarResumen(r.totalesOferta);
-      if(r.verificaciones) verificaciones = r.verificaciones;
+      if(r.verificaciones){ verificaciones = r.verificaciones; pintarDrc(); }
       paintAutosaveTag('Guardado');
     }catch(e){ toast('No se pudo guardar: ' + e.message); paintAutosaveTag(''); }
   }, 400);
 }
+
+/* ============================ plano de red ============================ */
+
+const TIPOS_DISPOSITIVO = {
+  entrada:"Entrada de servicio", router:"Router", switch:"Switch", switch_poe:"Switch PoE",
+  ap:"Access point", mesh:"Nodo mesh", camara:"Cámara", nvr:"NVR", nas:"NAS", ups:"UPS",
+  rack:"Rack", patchera:"Patchera", rj45:"Boca RJ45", sensor:"Sensor inteligente", hub:"Hub domótico",
+};
+const ABREV_TIPO = {entrada:"EXT", router:"RT", switch:"SW", switch_poe:"SWP", ap:"AP", mesh:"MSH",
+  camara:"CAM", nvr:"NVR", nas:"NAS", ups:"UPS", rack:"RK", patchera:"PT", rj45:"RJ",
+  sensor:"SEN", hub:"HUB"};
+const MEDIO_COLOR = {exterior:"#8896a8", utp:"#49a9d8", fibra:"#e8c93a", inalambrico:"#4caf82"};
+// PoE (switch_poe) y consumo (camara/ap) son los únicos tipos con esos campos propios -- ver red.py
+const TIPOS_CON_POE_W = new Set(["switch_poe"]);
+const TIPOS_CON_CONSUMO_POE = new Set(["camara", "ap"]);
+
+let planoImg = null;
+let vista = {x:0, y:0, z:1};
+let herramienta = 'seleccionar';   // 'seleccionar' | 'colocar' | 'tramo'
+let tipoArmado = null;
+let tramoOrigen = null;            // id del dispositivo donde arrancó un tramo en curso
+let seleccion = null;              // {t:'dispositivo'|'tramo', id}
+let contadores = {};
+let historial = [], futuro = [];
+const MAX_HISTORIAL = 60;
+
+let huboAjusteInicial = false;
+function cargarImagenPlano(url){
+  const img = new Image();
+  img.onload = () => {
+    planoImg = img;
+    $('plano-empty').style.display = 'none';
+    // si la pestaña Plano ya está visible, ajustar ya -- si no, se ajusta
+    // sola la primera vez que se abra (ver mostrarPestañaPlano)
+    if($('pane-plano').classList.contains('on')) mostrarPestañaPlano();
+  };
+  img.onerror = () => { $('plano-empty').style.display = 'flex'; };
+  img.src = url;
+}
+function mostrarPestañaPlano(){
+  if(!planoImg){ dimensionarCanvas(); renderPlano(); return; }
+  if(!huboAjusteInicial){ huboAjusteInicial = true; ajustarZoom(); }
+  else dimensionarCanvas();
+  renderPlano();
+}
+function dimensionarCanvas(){
+  const cv = $('plano-cv'), stage = $('plano-stage');
+  const r = stage.getBoundingClientRect();
+  cv.width = r.width; cv.height = r.height;
+}
+function ajustarZoom(){
+  if(!planoImg) return;
+  dimensionarCanvas();
+  const cv = $('plano-cv');
+  const z = Math.min(cv.width/planoImg.width, cv.height/planoImg.height) * 0.94;
+  vista = {x:(cv.width-planoImg.width*z)/2, y:(cv.height-planoImg.height*z)/2, z};
+}
+
+/* ---- paleta de dispositivos ---- */
+function pintarPaleta(){
+  $('paleta').innerHTML = Object.entries(TIPOS_DISPOSITIVO).map(([k,v]) =>
+    `<button class="btn sm tipo-btn${tipoArmado===k?' on':''}" data-tipo="${k}">${esc(v)}</button>`).join('');
+  document.querySelectorAll('.tipo-btn').forEach(b => b.onclick = () => {
+    tipoArmado = tipoArmado===b.dataset.tipo ? null : b.dataset.tipo;
+    herramienta = tipoArmado ? 'colocar' : 'seleccionar';
+    marcarHerramienta();
+    pintarPaleta();
+  });
+}
+function marcarHerramienta(){
+  $('pt-seleccionar').classList.toggle('primary', herramienta==='seleccionar');
+  $('pt-tramo').classList.toggle('primary', herramienta==='tramo');
+}
+$('pt-seleccionar').onclick = () => { herramienta='seleccionar'; tipoArmado=null; tramoOrigen=null; marcarHerramienta(); pintarPaleta(); };
+$('pt-tramo').onclick = () => { herramienta='tramo'; tipoArmado=null; tramoOrigen=null; marcarHerramienta(); pintarPaleta(); };
+
+/* ---- geometría ---- */
+function disp(id){ return datosObra.dispositivos.find(d => d.id===id) || null; }
+function tramoById(id){ return datosObra.tramos.find(t => t.id===id) || null; }
+function ofertaDe(id){ return datosObra.ofertas.find(o => o.id===id) || null; }
+function ofertaAceptada(id){ const o = ofertaDe(id); return !!o && o.estado==='aceptado'; }
+function rutaOrtogonal(a, b){
+  if(a.x===b.x || a.y===b.y) return [{x:a.x,y:a.y}, {x:b.x,y:b.y}];
+  return [{x:a.x,y:a.y}, {x:b.x,y:a.y}, {x:b.x,y:b.y}];   // codo horizontal->vertical, simplificación
+}
+function longitudTramoM(t){
+  if(t.medio==='inalambrico' || !pxPerM) return 0;
+  const pts = t.puntos || [];
+  let L = 0;
+  for(let i=1;i<pts.length;i++) L += Math.hypot(pts[i].x-pts[i-1].x, pts[i].y-pts[i-1].y);
+  return L / pxPerM;
+}
+function coordsCanvas(ev){
+  const r = $('plano-cv').getBoundingClientRect();
+  return {x:(ev.clientX-r.left-vista.x)/vista.z, y:(ev.clientY-r.top-vista.y)/vista.z};
+}
+function hitDispositivo(w){
+  const tol = 12/vista.z;
+  return datosObra.dispositivos.find(d => Math.hypot(d.x-w.x, d.y-w.y) < tol) || null;
+}
+function distSeg(p,a,b){
+  const dx=b.x-a.x, dy=b.y-a.y, L=dx*dx+dy*dy;
+  if(!L) return Math.hypot(p.x-a.x, p.y-a.y);
+  let t = ((p.x-a.x)*dx+(p.y-a.y)*dy)/L; t = Math.max(0, Math.min(1,t));
+  return Math.hypot(p.x-(a.x+t*dx), p.y-(a.y+t*dy));
+}
+function hitTramo(w){
+  const tol = 8/vista.z;
+  for(const t of datosObra.tramos){
+    const pts = t.puntos || [];
+    for(let i=1;i<pts.length;i++) if(distSeg(w, pts[i-1], pts[i]) < tol) return t;
+  }
+  return null;
+}
+
+/* ---- dibujo ---- */
+function puntoMedioPoli(pts){
+  if(pts.length < 2) return pts[0];
+  let total = 0;
+  for(let i=1;i<pts.length;i++) total += Math.hypot(pts[i].x-pts[i-1].x, pts[i].y-pts[i-1].y);
+  let acum = 0;
+  for(let i=1;i<pts.length;i++){
+    const d = Math.hypot(pts[i].x-pts[i-1].x, pts[i].y-pts[i-1].y);
+    if(acum + d >= total/2){
+      const f = d ? (total/2 - acum) / d : 0;
+      return {x: pts[i-1].x + (pts[i].x-pts[i-1].x)*f, y: pts[i-1].y + (pts[i].y-pts[i-1].y)*f};
+    }
+    acum += d;
+  }
+  return pts[pts.length-1];
+}
+function etiquetaCv(ctx, x, y, texto){
+  ctx.save();
+  ctx.font = (11/vista.z)+"px 'IBM Plex Mono',monospace";
+  const w = ctx.measureText(texto).width;
+  ctx.fillStyle = 'rgba(10,18,29,.85)';
+  ctx.fillRect(x-3/vista.z, y-12/vista.z, w+6/vista.z, 15/vista.z);
+  ctx.fillStyle = '#dde3ea';
+  ctx.fillText(texto, x, y);
+  ctx.restore();
+}
+function renderPlano(){
+  const cv = $('plano-cv'); if(!cv.width) dimensionarCanvas();
+  const ctx = cv.getContext('2d');
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.fillStyle = '#0b0f14'; ctx.fillRect(0,0,cv.width,cv.height);
+  ctx.save();
+  ctx.translate(vista.x, vista.y); ctx.scale(vista.z, vista.z);
+  if(planoImg) ctx.drawImage(planoImg, 0, 0);
+
+  for(const t of datosObra.tramos){
+    const a = disp(t.desde), b = disp(t.hasta);
+    if(!a || !b) continue;
+    const pts = (t.puntos && t.puntos.length) ? t.puntos : rutaOrtogonal(a,b);
+    const activo = seleccion && seleccion.t==='tramo' && seleccion.id===t.id;
+    ctx.save();
+    ctx.strokeStyle = activo ? '#e2a33d' : (MEDIO_COLOR[t.medio] || '#8896a8');
+    ctx.lineWidth = (activo?3.2:2.4)/vista.z;
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.setLineDash(t.medio==='inalambrico' ? [6/vista.z,5/vista.z] : []);
+    ctx.beginPath();
+    pts.forEach((p,i)=> i ? ctx.lineTo(p.x,p.y) : ctx.moveTo(p.x,p.y));
+    ctx.stroke();
+    ctx.restore();
+    if(t.medio!=='inalambrico' && pxPerM){
+      const mid = puntoMedioPoli(pts);
+      etiquetaCv(ctx, mid.x+6/vista.z, mid.y-6/vista.z, longitudTramoM(t).toFixed(1)+' m');
+    }
+  }
+  if(herramienta==='tramo' && tramoOrigen){
+    const o = disp(tramoOrigen);
+    if(o){
+      ctx.save();
+      ctx.strokeStyle = MEDIO_COLOR[$('pt-medio').value] || '#8896a8';
+      ctx.lineWidth = 1.6/vista.z; ctx.setLineDash([4/vista.z,4/vista.z]);
+      ctx.beginPath(); ctx.arc(o.x,o.y,14/vista.z,0,7); ctx.stroke();
+      ctx.restore();
+    }
+  }
+  for(const d of datosObra.dispositivos){
+    const atenuado = d.ofertaId && !ofertaAceptada(d.ofertaId);
+    const activo = seleccion && seleccion.t==='dispositivo' && seleccion.id===d.id;
+    ctx.save();
+    ctx.globalAlpha = atenuado ? 0.38 : 1;
+    ctx.fillStyle = activo ? '#e2a33d' : '#49a9d8';
+    ctx.strokeStyle = '#0a121d'; ctx.lineWidth = 1.5/vista.z;
+    ctx.beginPath(); ctx.arc(d.x, d.y, 9/vista.z, 0, 7); ctx.fill(); ctx.stroke();
+    ctx.restore();
+    ctx.save(); ctx.globalAlpha = atenuado ? 0.6 : 1;
+    etiquetaCv(ctx, d.x+12/vista.z, d.y-8/vista.z, d.etiqueta || TIPOS_DISPOSITIVO[d.tipo] || d.tipo);
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
+/* ---- interacción: colocar / trazar / seleccionar, paneo y zoom ---- */
+let arrastrando = null;
+$('plano-cv').addEventListener('pointerdown', ev => {
+  if(!planoImg) return;
+  $('plano-cv').setPointerCapture(ev.pointerId);
+  if(ev.button===1 || ev.button===2 || ev.altKey){
+    arrastrando = {x:ev.clientX, y:ev.clientY, vx:vista.x, vy:vista.y};
+    return;
+  }
+  if(ev.button!==0) return;
+  const w = coordsCanvas(ev);
+
+  if(herramienta==='colocar' && tipoArmado){
+    pushUndoRed();
+    contadores[tipoArmado] = (contadores[tipoArmado]||0)+1;
+    const d = {id:'rd_'+Date.now().toString(36)+Math.random().toString(36).slice(2,5), tipo:tipoArmado,
+      x:w.x, y:w.y, etiqueta:(ABREV_TIPO[tipoArmado]||'D')+contadores[tipoArmado], ofertaId:null,
+      poeW: TIPOS_CON_POE_W.has(tipoArmado) ? 60 : null,
+      consumoPoeW: null};
+    datosObra.dispositivos.push(d);
+    seleccion = {t:'dispositivo', id:d.id};
+    renderPlano(); pintarPanel(); guardar();
+    return;
+  }
+  if(herramienta==='tramo'){
+    const hit = hitDispositivo(w);
+    if(!hit) return;
+    if(!tramoOrigen){ tramoOrigen = hit.id; renderPlano(); return; }
+    if(tramoOrigen===hit.id){ tramoOrigen=null; renderPlano(); return; }
+    pushUndoRed();
+    const a = disp(tramoOrigen);
+    datosObra.tramos.push({id:'rt_'+Date.now().toString(36), desde:tramoOrigen, hasta:hit.id,
+      puntos: rutaOrtogonal(a, hit), medio: $('pt-medio').value});
+    tramoOrigen = null;
+    seleccion = null;
+    renderPlano(); pintarDrc(); guardar();
+    return;
+  }
+  // seleccionar
+  const hitD = hitDispositivo(w);
+  if(hitD){ seleccion = {t:'dispositivo', id:hitD.id}; renderPlano(); pintarPanel(); return; }
+  const hitT = hitTramo(w);
+  if(hitT){ seleccion = {t:'tramo', id:hitT.id}; renderPlano(); pintarPanel(); return; }
+  seleccion = null; renderPlano(); pintarPanel();
+});
+window.addEventListener('pointermove', ev => {
+  if(!arrastrando) return;
+  vista.x = arrastrando.vx + (ev.clientX - arrastrando.x);
+  vista.y = arrastrando.vy + (ev.clientY - arrastrando.y);
+  renderPlano();
+});
+window.addEventListener('pointerup', () => { arrastrando = null; });
+$('plano-cv').addEventListener('contextmenu', ev => ev.preventDefault());
+function zoomAt(factor, cx, cy){
+  const nz = Math.max(0.15, Math.min(6, vista.z*factor));
+  vista.x = cx - (cx-vista.x)*(nz/vista.z);
+  vista.y = cy - (cy-vista.y)*(nz/vista.z);
+  vista.z = nz;
+  renderPlano();
+}
+$('plano-cv').addEventListener('wheel', ev => {
+  if(!planoImg) return;
+  ev.preventDefault();
+  const r = $('plano-cv').getBoundingClientRect();
+  zoomAt(ev.deltaY<0?1.12:1/1.12, ev.clientX-r.left, ev.clientY-r.top);
+}, {passive:false});
+$('pz-in').onclick = () => zoomAt(1.25, $('plano-cv').width/2, $('plano-cv').height/2);
+$('pz-out').onclick = () => zoomAt(1/1.25, $('plano-cv').width/2, $('plano-cv').height/2);
+$('pz-fit').onclick = () => { ajustarZoom(); renderPlano(); };
+window.addEventListener('resize', () => { if(planoImg){ dimensionarCanvas(); renderPlano(); } });
+
+/* ---- panel de propiedades del seleccionado ---- */
+function pintarPanel(){
+  const el = $('panel-prop');
+  if(!seleccion){ el.innerHTML = ''; return; }
+  if(seleccion.t === 'dispositivo'){
+    const d = disp(seleccion.id);
+    if(!d){ seleccion=null; el.innerHTML=''; return; }
+    const opcionesOferta = '<option value="">Sin vincular</option>' +
+      datosObra.ofertas.map(o => `<option value="${o.id}" ${d.ofertaId===o.id?'selected':''}>${
+        esc(o.item)} (${o.estado})</option>`).join('');
+    el.innerHTML = `<h3>${esc(TIPOS_DISPOSITIVO[d.tipo]||d.tipo)}</h3>
+      <div class="campo"><label>Etiqueta</label><input id="pp-etiqueta" value="${esc(d.etiqueta||'')}"></div>
+      <div class="campo"><label>Vincular a oferta</label><select id="pp-oferta">${opcionesOferta}</select></div>
+      ${TIPOS_CON_POE_W.has(d.tipo)?`<div class="campo"><label>Potencia PoE disponible (W)</label>
+        <input id="pp-poe" type="number" min="0" value="${d.poeW ?? ''}"></div>`:''}
+      ${TIPOS_CON_CONSUMO_POE.has(d.tipo)?`<div class="campo"><label>Consumo PoE (W, vacío = valor típico)</label>
+        <input id="pp-consumo" type="number" min="0" value="${d.consumoPoeW ?? ''}"></div>`:''}
+      <button class="btn sm" id="pp-borrar" style="width:100%;color:var(--danger)">Eliminar dispositivo</button>`;
+    $('pp-etiqueta').onchange = e => { d.etiqueta = e.target.value; renderPlano(); guardar(); };
+    $('pp-oferta').onchange = e => { d.ofertaId = e.target.value || null; renderPlano(); guardar(); };
+    if($('pp-poe')) $('pp-poe').onchange = e => { d.poeW = parseFloat(e.target.value)||0; guardar(); };
+    if($('pp-consumo')) $('pp-consumo').onchange = e => {
+      d.consumoPoeW = e.target.value==='' ? null : (parseFloat(e.target.value)||0); guardar();
+    };
+    $('pp-borrar').onclick = () => { borrarSeleccion(); };
+  } else if(seleccion.t === 'tramo'){
+    const t = tramoById(seleccion.id);
+    if(!t){ seleccion=null; el.innerHTML=''; return; }
+    el.innerHTML = `<h3>Tramo</h3>
+      <div class="campo"><label>Medio</label><select id="pp-medio">
+        ${Object.entries({exterior:"Exterior",utp:"UTP",fibra:"Fibra",inalambrico:"Inalámbrico"}).map(([k,v])=>
+          `<option value="${k}" ${t.medio===k?'selected':''}>${v}</option>`).join('')}</select></div>
+      <div class="campo"><label>Longitud</label><input value="${longitudTramoM(t).toFixed(1)} m" disabled></div>
+      <button class="btn sm" id="pp-borrar" style="width:100%;color:var(--danger)">Eliminar tramo</button>`;
+    $('pp-medio').onchange = e => { t.medio = e.target.value; renderPlano(); pintarDrc(); guardar(); };
+    $('pp-borrar').onclick = () => { borrarSeleccion(); };
+  }
+}
+function borrarSeleccion(){
+  if(!seleccion) return;
+  pushUndoRed();
+  if(seleccion.t === 'dispositivo'){
+    datosObra.dispositivos = datosObra.dispositivos.filter(d => d.id !== seleccion.id);
+    datosObra.tramos = datosObra.tramos.filter(t => t.desde!==seleccion.id && t.hasta!==seleccion.id);
+  } else {
+    datosObra.tramos = datosObra.tramos.filter(t => t.id !== seleccion.id);
+  }
+  seleccion = null;
+  renderPlano(); pintarPanel(); pintarDrc(); guardar();
+}
+window.addEventListener('keydown', ev => {
+  const tag = (ev.target.tagName||'').toLowerCase();
+  if(tag==='input' || tag==='select' || tag==='textarea') return;
+  if(document.querySelector('.tab-btn.on')?.dataset.tab !== 'plano') return;
+  if((ev.key==='Delete' || ev.key==='Backspace') && seleccion){ ev.preventDefault(); borrarSeleccion(); }
+  if(ev.key==='Escape'){ tramoOrigen=null; herramienta='seleccionar'; tipoArmado=null; marcarHerramienta(); pintarPaleta(); renderPlano(); }
+  if((ev.ctrlKey||ev.metaKey) && !ev.shiftKey && ev.key.toLowerCase()==='z'){ ev.preventDefault(); deshacerRed(); }
+  if((ev.ctrlKey||ev.metaKey) && (ev.key.toLowerCase()==='y' || (ev.shiftKey && ev.key.toLowerCase()==='z'))){ ev.preventDefault(); rehacerRed(); }
+});
+
+/* ---- deshacer / rehacer -- mismo patrón que canaliza.html ---- */
+function snapshotRed(){ return JSON.stringify({dispositivos:datosObra.dispositivos, tramos:datosObra.tramos}); }
+function restaurarRed(json){
+  const d = JSON.parse(json);
+  datosObra.dispositivos = d.dispositivos; datosObra.tramos = d.tramos;
+  seleccion = null;
+  renderPlano(); pintarPanel(); pintarDrc(); guardar();
+}
+function pushUndoRed(){
+  historial.push(snapshotRed());
+  if(historial.length > MAX_HISTORIAL) historial.shift();
+  futuro = [];
+  pintarBotonesHistorial();
+}
+function deshacerRed(){
+  if(!historial.length) return;
+  futuro.push(snapshotRed());
+  restaurarRed(historial.pop());
+  pintarBotonesHistorial();
+}
+function rehacerRed(){
+  if(!futuro.length) return;
+  historial.push(snapshotRed());
+  restaurarRed(futuro.pop());
+  pintarBotonesHistorial();
+}
+function pintarBotonesHistorial(){
+  $('bUndoRed').disabled = !historial.length;
+  $('bRedoRed').disabled = !futuro.length;
+}
+$('bUndoRed').onclick = deshacerRed;
+$('bRedoRed').onclick = rehacerRed;
+
+/* ---- observaciones de diseño (DRC), clickeables como en Routeo ---- */
+function pintarDrc(){
+  $('drc-count').textContent = verificaciones.length;
+  $('drc-list').innerHTML = verificaciones.length ? verificaciones.map((v,i) =>
+    `<div class="drc-row ${v.lvl}" data-i="${i}">${esc(v.txt)}</div>`).join('')
+    : '<p class="nota">Sin observaciones.</p>';
+  $('drc-list').querySelectorAll('[data-i]').forEach(row => row.onclick = () => {
+    const v = verificaciones[+row.dataset.i];
+    if(!v.target) return;
+    const d = disp(v.target);
+    if(d){
+      seleccion = {t:'dispositivo', id:d.id};
+      vista.x = $('plano-cv').width/2 - d.x*vista.z;
+      vista.y = $('plano-cv').height/2 - d.y*vista.z;
+      renderPlano(); pintarPanel();
+      return;
+    }
+    const t = tramoById(v.target) || datosObra.tramos.find(x => x.desde===v.target || x.hasta===v.target);
+    if(t){ seleccion = {t:'tramo', id:t.id}; renderPlano(); pintarPanel(); }
+  });
+}
+
+pintarPaleta();
+marcarHerramienta();
+pintarBotonesHistorial();
 
 cargar().catch(e => toast('No se pudo cargar: ' + e.message));
 </script>
