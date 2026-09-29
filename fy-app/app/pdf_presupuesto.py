@@ -9,7 +9,7 @@ from __future__ import annotations
 import io
 from datetime import datetime
 import pymupdf
-from . import config as cfgmod, precios as precios_mod, presupuesto as pres_mod
+from . import config as cfgmod, precios as precios_mod, presupuesto as pres_mod, red as red_mod
 
 ANCHO, ALTO = 595.28, 841.89                # A4 en puntos, igual que la referencia
 MARGEN = 40
@@ -220,7 +220,10 @@ def generar(obra: dict, *, modo: str = "con") -> bytes:
                 "descuento": {}, "ajusteFinal": {}}
     else:
         pres = pres_real
-    tot = pres_mod.totales(pres)
+    # "solo" es un documento aparte con nada más que el adicional -- la
+    # instalación de red no forma parte de eso, así que no entra ahí
+    red_ofertas = [] if modo == "solo" else red_mod.ofertas_aceptadas(obra.get("red") or {})
+    tot = pres_mod.totales(pres, obra.get("red") if modo != "solo" else None)
     items = [i for i in (pres.get("items") or []) + (pres.get("extras") or [])
             if not i.get("opcional")]
     diferencia = [i for i in (pres.get("diferencia") or []) if not i.get("opcional")]
@@ -258,6 +261,18 @@ def generar(obra: dict, *, modo: str = "con") -> bytes:
             y = MARGEN + 10
             y = _tabla_categoria(pg, y, "Adicional", diferencia)
 
+    if red_ofertas:
+        if y > ALTO - 200:
+            pg = doc.new_page(width=ANCHO, height=ALTO)
+            _marca_de_agua(pg, cfg)
+            y = MARGEN + 10
+        y = _tabla_categoria(pg, y, "Instalación de red", red_ofertas)
+        if y < 0:
+            pg = doc.new_page(width=ANCHO, height=ALTO)
+            _marca_de_agua(pg, cfg)
+            y = MARGEN + 10
+            y = _tabla_categoria(pg, y, "Instalación de red", red_ofertas)
+
     if opcionales:
         if y > ALTO - 200:
             pg = doc.new_page(width=ANCHO, height=ALTO)
@@ -283,6 +298,10 @@ def generar(obra: dict, *, modo: str = "con") -> bytes:
         y += 12 + 26
         if tot["diferencia"]:
             pg.insert_text((MARGEN, y), f"Adicional: {_plata(tot['diferencia'])}",
+                           fontsize=12, fontname="hebo", color=NAVY)
+            y += 26
+        if tot["red"]:
+            pg.insert_text((MARGEN, y), f"Instalación de red: {_plata(tot['red'])}",
                            fontsize=12, fontname="hebo", color=NAVY)
             y += 26
         pg.insert_text((MARGEN, y), f"TOTAL GENERAL: {_plata(tot['total'])}",

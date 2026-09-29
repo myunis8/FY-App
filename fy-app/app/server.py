@@ -406,7 +406,7 @@ class Handler(BaseHTTPRequestHandler):
                 "presupuesto": obra.get("presupuesto") or {},
                 "cantidades": pres_mod.cantidades(obra),
                 "cantidadesExtra": pres_mod.cantidades(obra, extra=True),
-                "totales": pres_mod.totales(obra.get("presupuesto") or {}),
+                "totales": pres_mod.totales(obra.get("presupuesto") or {}, obra.get("red")),
                 "comparacion": precios_mod.comparar(
                     (obra.get("presupuesto") or {}).get("items") or []),
             })

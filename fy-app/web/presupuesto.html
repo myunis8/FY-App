@@ -141,6 +141,15 @@ tr.opcional{opacity:.72;background:repeating-linear-gradient(45deg,transparent,t
       </select>
       <button class="btn sm" id="b-diferencia">+ Personalizado</button>
     </div>
+
+    <h2>Instalación de red</h2>
+    <p class="nota" style="margin:0 0 8px">Productos de red aceptados en la <a href="#" id="link-red">pestaña
+      Oferta del módulo Red</a>. Se editan ahí, no acá.</p>
+    <table><thead><tr>
+      <th style="width:40%">Ítem</th><th style="width:11%">Cant.</th>
+      <th style="width:8%">Un.</th><th style="width:17%">Unitario</th>
+      <th style="width:17%">Subtotal</th><th class="acc"></th>
+    </tr></thead><tbody id="t-red"></tbody></table>
   </div>
 
   <aside>
@@ -228,11 +237,27 @@ async function cargar(){
   obra = await api('/api/obras/'+OBRA_ID);
   $('h-nombre').textContent = obra.obra.nombre;
   checkpoints = obra.checkpoints || [];
+  $('link-red').href = '/red.html?obra='+OBRA_ID;
   await sincronizar({});
   if(!(pres.items||[]).length) await sincronizar({recalcularCantidades:true});
   pintarControles();
   pintarCheckpoints();
+  pintarRed();
   cargarListaPrecios();
+}
+function pintarRed(){
+  const ofertas = ((obra.red||{}).ofertas||[]).filter(o=>o.estado==='aceptado');
+  $('t-red').innerHTML = ofertas.length ? ofertas.map(o=>{
+    const sub = (o.precioUnitario||0) * (o.cantidad||0);
+    return `<tr>
+      <td>${esc(o.item||'')}${o.nota?`<span class="tag" title="${esc(o.nota)}">nota</span>`:''}</td>
+      <td class="num">${o.cantidad||0}</td>
+      <td>${esc(o.unidad||'u')}</td>
+      <td class="num">${plata(o.precioUnitario)}</td>
+      <td class="num">${plata(sub)}</td>
+      <td class="acc"></td>
+    </tr>`;}).join('')
+    : `<tr><td colspan="6" style="color:var(--muted);padding:14px">Sin productos de red aceptados todavía.</td></tr>`;
 }
 function pintarCheckpoints(){
   $('checkpoints').innerHTML = checkpoints.length
@@ -397,6 +422,8 @@ function pintar(){
     ${t.extras?`<div class="total-fila"><span>Extras</span><span class="v">${plata(t.extras)}</span></div>`:''}
     ${t.diferencia?`<div class="total-fila" style="color:var(--amber)">
       <span>Adicional</span><span class="v">${plata(t.diferencia)}</span></div>`:''}
+    ${t.red?`<div class="total-fila">
+      <span>Instalación de red</span><span class="v">${plata(t.red)}</span></div>`:''}
     ${t.descuento?`<div class="total-fila" style="color:var(--green)">
       <span>Descuento</span><span class="v">−${plata(t.descuento)}</span></div>`:''}
     ${t.ajuste?`<div class="total-fila" style="color:var(--muted)">
