@@ -3409,6 +3409,18 @@ function dl(blob, name){
 
 /* ============================ exportar PDF ============================ */
 
+// orientación elegida -- por navegador, no por obra (mismo criterio que
+// DRC_HIDDEN_KEY), para no tener que elegirla de nuevo cada vez
+const PDF_ORI_KEY = "canaliza_pdf_orientacion";
+try{
+  const guardada = localStorage.getItem(PDF_ORI_KEY);
+  if(guardada) $("#pdfOri").value = guardada;
+}catch(err){}
+function guardarOrientacionPdf(v){
+  try{ localStorage.setItem(PDF_ORI_KEY, v); }catch(err){}
+}
+$("#pdfOri").onchange = e=> guardarOrientacionPdf(e.target.value);
+
 let pdfMode = "planos";
 
 $("#bPdfPlanos").onclick = ()=>{
@@ -3501,6 +3513,7 @@ function mostrarVistaPreviaPdf(blob, nombreArchivo){
   $("#pdfPOri").value = $("#pdfOri").value;
   $("#pdfPOri").onchange = async () => {
     $("#pdfOri").value = $("#pdfPOri").value;
+    guardarOrientacionPdf($("#pdfPOri").value);
     busy(true);
     try{ await makePdf(); }catch(e){ alert("Error al generar el PDF: "+e.message); }
     busy(false);
