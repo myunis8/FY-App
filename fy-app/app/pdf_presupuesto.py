@@ -119,7 +119,8 @@ def _encabezado(pg, obra: dict, cfg: dict, *, titulo: str = "Presupuesto - Insta
 
     campos = [
         ("Cliente:", obra["obra"].get("cliente") or "-"),
-        ("Obra / dirección:", obra["obra"].get("nombre") or "-"),
+        ("Obra:", obra["obra"].get("nombre") or "-"),
+        ("Dirección:", obra["obra"].get("direccion") or "-"),
         ("Fecha:", datetime.now().strftime("%d/%m/%Y")),
         ("Tipo de instalación:",
          "Trifásica" if obra["obra"].get("tipoInstalacion") == 3 else "Monofásica"),

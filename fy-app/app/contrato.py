@@ -116,6 +116,17 @@ def monto_evento_pago(h: dict, total: float) -> float:
     return total * (despues - antes) / 100
 
 
+def actualizar_datos_proyecto(obra: dict, *, cliente: str | None = None,
+                              direccion: str | None = None) -> None:
+    """Edita cliente/dirección (ver obra_vacia()) -- sólo los campos que
+    vienen se tocan, para poder llamarla con uno solo sin pisar el otro."""
+    o = obra.setdefault("obra", {})
+    if cliente is not None:
+        o["cliente"] = cliente.strip()
+    if direccion is not None:
+        o["direccion"] = direccion.strip()
+
+
 def actualizar_seguimiento(obra: dict, estado: str | None = None, pago_estado: str | None = None,
                             pago_porcentaje=None, pago_monto=None, usuario: str = "") -> dict:
     """Cambia estado y/o pago de la obra y deja un registro en el

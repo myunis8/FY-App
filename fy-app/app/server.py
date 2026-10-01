@@ -92,6 +92,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._revalidar(partes[2])
             if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "seguimiento":
                 return self._actualizar_seguimiento(partes[2])
+            if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "datos":
+                return self._actualizar_datos_proyecto(partes[2])
             if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "modulos":
                 return self._marcar_modulo(partes[2])
             if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "checkpoint":
@@ -525,6 +527,16 @@ class Handler(BaseHTTPRequestHandler):
         return self._json({"ok": True, "validacion": obra["validacion"],
                            "elementos": obra.get("elementos") or [],
                            "resumen": vinculos.resumen(obra)})
+
+    def _actualizar_datos_proyecto(self, obra_id):
+        obra = almacen.leer_obra(obra_id)
+        if obra is None:
+            return self._error("Esa obra no está en este equipo.", 404)
+        cuerpo = self._cuerpo() or {}
+        C.actualizar_datos_proyecto(obra, cliente=cuerpo.get("cliente"), direccion=cuerpo.get("direccion"))
+        almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""), modulo="Obra",
+                             resumen="Editó los datos del proyecto")
+        return self._json({"ok": True, "obra": obra["obra"]})
 
     def _actualizar_seguimiento(self, obra_id):
         obra = almacen.leer_obra(obra_id)
