@@ -391,7 +391,6 @@ def _draw_scene(pg, T, P, *, only=None, detailed=False, labels=True, lens=True, 
             mid = P.run_mid_point(grp["runs"][0])
             m = T.p({"x": mid["x"] + dx, "y": mid["y"] + dy})
             _codigo_badge(pg, T, m.x, m.y, numero)
-    return referencias
 
     for n in P.nodes:
         if not P.node_visible(n, only):
@@ -408,6 +407,7 @@ def _draw_scene(pg, T, P, *, only=None, detailed=False, labels=True, lens=True, 
                 and not any(r.get("circuit") == only for r in cr["b"]["runs"]):
             continue
         _draw_crossing(pg, T, cr)
+    return referencias
 
 
 # ------------------------------------------------------------------ hojas
