@@ -291,19 +291,51 @@ def _label(pg, T, x, y, text, fs, *, rot=False, bg=True):
                     rotate=90 if rot else 0)
 
 
+def _codigo_badge(pg, T, x, y, numero):
+    """Numerito de referencia al lado de un caño, en vez del código completo
+    de conductores (ver _draw_scene/codigo) -- el código real de ese número
+    se lista aparte en el cuadro de referencias (_legend_codigos)."""
+    u = T.u
+    r = max(4.6, 7.2 * u)
+    pg.draw_circle(pymupdf.Point(x, y), r, color=NAVY, fill=(1, 1, 1), width=1.1 * u, fill_opacity=0.95)
+    txt = str(numero)
+    fs = max(5.2, 7.4 * u)
+    tw = pymupdf.get_text_length(txt, fontname="hebo", fontsize=fs)
+    pg.insert_text((x - tw / 2, y + fs * 0.34), txt, fontsize=fs, fontname="hebo", color=NAVY)
+
+
 def _draw_scene(pg, T, P, *, only=None, detailed=False, labels=True, lens=True, codigo=False,
                 crossings=None, problems=None):
     problems = problems if problems is not None else P.drc_error_targets()
     groups = P.conduit_groups()
+
+    def _es_relevante(grp):
+        return (any(r.get("circuit") == only for r in grp["runs"]) if only
+                else any(P.is_ci_visible(r.get("circuit")) for r in grp["runs"]))
+
+    relevant_keys = {g["key"] for g in groups.values() if _es_relevante(g)}
+    if only:
+        # un caño dividido en dos por exceso de circuitos (ver parSide en
+        # conduit_groups): si uno de los dos es de este circuito, se trae el
+        # par completo -- es el mismo tramo físico, instalado en paralelo, y
+        # verlos juntos (con sus propios circuitos y su propio código cada
+        # uno) da el panorama real de lo que hay que tender ahí.
+        for g in list(groups.values()):
+            if g["key"] in relevant_keys and g.get("parSide"):
+                sib = g["key"][:-3] if g["key"].endswith(":p2") else g["key"] + ":p2"
+                if sib in groups:
+                    relevant_keys.add(sib)
+
     for grp in groups.values():
-        relevant = (any(r.get("circuit") == only for r in grp["runs"]) if only
-                    else any(P.is_ci_visible(r.get("circuit")) for r in grp["runs"]))
-        if not relevant:
+        if grp["key"] not in relevant_keys:
             continue
         if only and detailed:
             vis = list(grp["runs"])
         elif only:
-            vis = [r for r in grp["runs"] if r.get("circuit") == only]
+            # si este caño es sólo el "hermano" traído para contexto (ninguno
+            # de sus tramos es de `only`), se muestra completo con su propio
+            # circuito en vez de quedar vacío
+            vis = [r for r in grp["runs"] if r.get("circuit") == only] or list(grp["runs"])
         else:
             vis = [r for r in grp["runs"] if P.is_ci_visible(r.get("circuit"))]
         if not vis:
@@ -332,13 +364,18 @@ def _draw_scene(pg, T, P, *, only=None, detailed=False, labels=True, lens=True, 
             m = T.p(mid)
             _label(pg, T, m.x, m.y - 4 * T.u, txt, 11 * T.u)
 
-    # código de conductores al costado del caño (PDF "con código de cables"):
-    # reemplaza tener que distinguirlos por color -- ver conduit_code()
+    # número de referencia al costado del caño (PDF "con código de cables"):
+    # en vez de escribir el código completo arriba del plano (se superponía y
+    # ensuciaba la vista con varios caños cerca), se dibuja sólo un numerito,
+    # y el código real de cada uno se lista aparte en un cuadro de
+    # referencias (ver _legend_codigos) -- así un caño dividido en dos por
+    # exceso de circuitos sale con dos números y dos renglones propios en el
+    # cuadro, cada uno con sus cables reales, en vez de mezclarse en uno.
+    referencias = []
     if codigo and P.px_per_m:
+        numero = 0
         for grp in groups.values():
-            relevant = (any(r.get("circuit") == only for r in grp["runs"]) if only
-                        else any(P.is_ci_visible(r.get("circuit")) for r in grp["runs"]))
-            if not relevant:
+            if grp["key"] not in relevant_keys:
                 continue
             pnts = grp["runs"][0].get("pts") or []
             if len(pnts) < 2:
@@ -346,15 +383,15 @@ def _draw_scene(pg, T, P, *, only=None, detailed=False, labels=True, lens=True, 
             txt = P.conduit_code(grp)
             if not txt:
                 continue
+            numero += 1
+            referencias.append({"numero": numero, "key": grp["key"], "codigo": txt})
             ov = P.code_labels.get(grp["key"])
             dx = ov.get("dx", 0) if ov else 0
             dy = ov.get("dy", 14) if ov else 14
-            rot = bool(ov.get("rot")) if ov else False
             mid = P.run_mid_point(grp["runs"][0])
             m = T.p({"x": mid["x"] + dx, "y": mid["y"] + dy})
-            # sin fondo blanco -- tapaba el plano de fondo cuando había varios
-            # caños con código cerca; más chico para no ocupar tanto lugar
-            _label(pg, T, m.x, m.y, txt, 7.5 * T.u, rot=rot, bg=False)
+            _codigo_badge(pg, T, m.x, m.y, numero)
+    return referencias
 
     for n in P.nodes:
         if not P.node_visible(n, only):
@@ -396,8 +433,8 @@ def _plan_page(doc, W, H, titulo, sub, plano_png, base_w, base_h, alto_reserva, 
     rect = pymupdf.Rect(MARGEN, y0 + 4, W - MARGEN, H - alto_reserva)
     T = _T(rect, base_w, base_h)
     pg.insert_image(T.rect, stream=plano_png)
-    draw_fn(pg, T)
-    return pg, T
+    resultado = draw_fn(pg, T)
+    return pg, T, resultado
 
 
 def _legend_circuitos(pg, W, y, circuits):
@@ -415,12 +452,39 @@ def _legend_circuitos(pg, W, y, circuits):
     return y
 
 
+def _legend_codigos(pg, W, y, referencias):
+    """Cuadro de referencias del PDF "con código de cables": qué conductores
+    lleva cada caño numerado (ver _codigo_badge) -- un caño dividido en dos
+    por exceso de circuitos sale con dos números acá, cada uno con sus
+    cables reales, no mezclados en un renglón."""
+    if not referencias:
+        return y
+    pg.insert_text((MARGEN, y), "Referencias de caños", fontsize=8.5, fontname="hebo", color=NAVY)
+    y += 13
+    x = MARGEN
+    for ref in referencias:
+        cx, cy = x + 5, y - 3
+        pg.draw_circle(pymupdf.Point(cx, cy), 5, color=NAVY, fill=(1, 1, 1), width=0.9)
+        tnum = str(ref["numero"])
+        tnw = pymupdf.get_text_length(tnum, fontname="hebo", fontsize=6.3)
+        pg.insert_text((cx - tnw / 2, cy + 2.2), tnum, fontsize=6.3, fontname="hebo", color=NAVY)
+        pg.insert_text((x + 13, y), ref["codigo"], fontsize=8, fontname="helv", color=INK)
+        x += 13 + pymupdf.get_text_length(ref["codigo"], fontname="helv", fontsize=8) + 16
+        if x > W - MARGEN - 90:
+            x = MARGEN
+            y += 13
+    return y + 13
+
+
 def _hoja_circuito(doc, W, H, P, base_name, plano_png, base_w, base_h, cid, crossings, problems, *, codigo=False):
     """Una hoja para un circuito. `codigo=False` (por defecto, "PDF de planos"):
     caños dibujados con el color real de cada conductor. `codigo=True` ("PDF
     con código de cables"): caños con el color del circuito, como en la hoja
-    general, y un código de texto al lado de cada caño (ver conduit_code())
-    en vez de tener que distinguir los conductores por color."""
+    general, y un numerito al lado de cada caño que remite al cuadro de
+    "Referencias de caños" (ver _codigo_badge/_legend_codigos) con el código
+    real de conductores de ese caño -- en vez de escribir el código entero
+    sobre el plano (se ensuciaba la vista con varios caños cerca) o tener que
+    distinguir los conductores por color."""
     c = P.circuit(cid)
     if not c:
         return
@@ -429,11 +493,14 @@ def _hoja_circuito(doc, W, H, P, base_name, plano_png, base_w, base_h, cid, cros
     vert = sum(P.run_vert_m(r) for r in rs)
     cab = sum(P.run_len_m(r) * (r.get("cables") or 0) for r in rs)
     sub = DEV_KIND.get(c.get("kind"), c.get("kind")) + (f' — {c["detail"]}' if c.get("detail") else "")
-    pg, _ = _plan_page(doc, W, H, f'Circuito {c.get("name")}', sub, plano_png, base_w, base_h, 96,
-                       lambda p, T, _cid=cid: _draw_scene(p, T, P, only=_cid, labels=False, lens=False,
-                                                          detailed=not codigo, codigo=codigo,
-                                                          crossings=crossings, problems=problems))
-    y = H - 84
+    alto_reserva = 112 if codigo else 96   # un poco más de lugar abajo para el cuadro de referencias
+    pg, _, referencias = _plan_page(doc, W, H, f'Circuito {c.get("name")}', sub, plano_png, base_w, base_h,
+                                    alto_reserva,
+                                    lambda p, T, _cid=cid: _draw_scene(p, T, P, only=_cid, labels=False,
+                                                                       lens=False, detailed=not codigo,
+                                                                       codigo=codigo, crossings=crossings,
+                                                                       problems=problems))
+    y = H - alto_reserva + 12
     celdas = [("Sección", f'{c.get("section")} mm²'), ("Protección", f'{c.get("prot")} A'),
               ("Tramos", str(len(rs))), ("Horizontal", f'{_fmt(length - vert, 1)} m'),
               ("Vertical", f'{_fmt(vert, 1)} m'), ("Cable", f'{_fmt(cab, 1)} m')]
@@ -443,15 +510,24 @@ def _hoja_circuito(doc, W, H, P, base_name, plano_png, base_w, base_h, cid, cros
         pg.insert_text((x, y + 10), v, fontsize=9, fontname="hebo", color=INK)
         x += max(70, pymupdf.get_text_length(v, fontname="helv", fontsize=9) + 34)
     y += 24
+    num_by_key = {}
     if codigo:
         pg.insert_text((MARGEN, y), "F=fase · N=neutro · T=tierra · R=retorno simple · C=retorno combinado "
                         "· 2.5(FNT) = un caño con conductores de 2,5 mm² de esos tipos",
                         fontsize=7, fontname="helv", color=MUTED)
         y += 14
+        y = _legend_codigos(pg, W, y, referencias)
+        num_by_key = {r["key"]: r["numero"] for r in referencias}
     if rs:
         pg.draw_line((MARGEN, y - 6), (W - MARGEN, y - 6), color=LINE, width=0.4)
-        cols = [MARGEN, MARGEN + 150, MARGEN + 210, MARGEN + 260, MARGEN + 320, MARGEN + 380, MARGEN + 445]
-        for i, hcol in enumerate(["Tramo", "Caño", "Cond.", "Horiz.", "Vert.", "Total", "Cable"]):
+        if codigo:
+            cols = [MARGEN, MARGEN + 150, MARGEN + 172, MARGEN + 230, MARGEN + 280,
+                   MARGEN + 340, MARGEN + 400, MARGEN + 465]
+            headers = ["Tramo", "Nº", "Caño", "Cond.", "Horiz.", "Vert.", "Total", "Cable"]
+        else:
+            cols = [MARGEN, MARGEN + 150, MARGEN + 210, MARGEN + 260, MARGEN + 320, MARGEN + 380, MARGEN + 445]
+            headers = ["Tramo", "Caño", "Cond.", "Horiz.", "Vert.", "Total", "Cable"]
+        for i, hcol in enumerate(headers):
             pg.insert_text((cols[i], y), hcol, fontsize=7, fontname="hebo", color=MUTED)
         y += 11
         gall = P.conduit_groups()
@@ -461,8 +537,10 @@ def _hoja_circuito(doc, W, H, P, base_name, plano_png, base_w, base_h, cid, cros
             a, b = P.node(r.get("a")), P.node(r.get("b"))
             g = gall.get(P.group_key(r))
             sh = "  (compartido)" if g and len(g["runs"]) > 1 else ""
-            vals = [f'{(a or {}).get("label", "libre")} → {(b or {}).get("label", "libre")}{sh}',
-                    dia_lbl(r.get("dia")), str(r.get("cables")), _fmt(P.run_horiz_m(r)),
+            vals = [f'{(a or {}).get("label", "libre")} → {(b or {}).get("label", "libre")}{sh}']
+            if codigo:
+                vals.append(str(num_by_key.get(g["key"], "—")) if g else "—")
+            vals += [dia_lbl(r.get("dia")), str(r.get("cables")), _fmt(P.run_horiz_m(r)),
                     _fmt(P.run_vert_m(r)), f'{_fmt(P.run_len_m(r))} m',
                     f'{_fmt(P.run_len_m(r) * (r.get("cables") or 0))} m']
             for i, v in enumerate(vals):
@@ -487,17 +565,17 @@ def generar(obra: dict, proyecto: dict, hojas: dict, *, formato="a4",
 
     if hojas.get("general", True):
         sub = f"{_fmt(P.px_per_m, 1)} px/m" if P.px_per_m else "sin escala"
-        pg, _ = _plan_page(doc, W, H, "Routeo — todos los circuitos", sub, plano_png, base_w, base_h,
-                           88, lambda p, T: _draw_scene(p, T, P, labels=False, lens=False,
-                                                        crossings=crossings, problems=problems))
+        pg, _, _ = _plan_page(doc, W, H, "Routeo — todos los circuitos", sub, plano_png, base_w, base_h,
+                             88, lambda p, T: _draw_scene(p, T, P, labels=False, lens=False,
+                                                          crossings=crossings, problems=problems))
         _legend_circuitos(pg, W, H - 74, [c for c in P.circuits if P.is_ci_visible(c["id"])])
         _footer(pg, W, H, base_name, "Hoja general")
 
     if hojas.get("detallado"):
-        pg, _ = _plan_page(doc, W, H, "Cableado detallado — todos los circuitos",
-                           "cables reales dentro de cada caño", plano_png, base_w, base_h, 78,
-                           lambda p, T: _draw_scene(p, T, P, labels=False, lens=False, detailed=True,
-                                                    crossings=crossings, problems=problems))
+        pg, _, _ = _plan_page(doc, W, H, "Cableado detallado — todos los circuitos",
+                             "cables reales dentro de cada caño", plano_png, base_w, base_h, 78,
+                             lambda p, T: _draw_scene(p, T, P, labels=False, lens=False, detailed=True,
+                                                      crossings=crossings, problems=problems))
         y = H - 66
         pg.insert_text((MARGEN, y), "Cómo leer los caños", fontsize=8.5, fontname="hebo", color=NAVY)
         pg.insert_textbox(pymupdf.Rect(MARGEN, y + 4, W - MARGEN, y + 30),
