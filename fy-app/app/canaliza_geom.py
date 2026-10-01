@@ -65,7 +65,13 @@ RS_SHADES = ["#c7c7c7", "#aeaeae", "#767676"]
 RC_SHADES = ["#e8c93a", "#c79a2a", "#96701a"]
 
 DEV_KIND = {"iluminacion": "Iluminación", "tomas": "Tomacorrientes", "especial": "Especial",
-            "exterior": "Exterior", "acometida": "Acometida", "tierra": "Puesta a tierra"}
+            "exterior": "Exterior", "acometida": "Acometida", "tierra": "Puesta a tierra",
+            "bomba": "Automático de bomba"}
+
+# circuitos cuyo cableado se traza conductor por conductor (F, N, retornos) en
+# vez de llevar una cantidad fija de cables por tramo -- ver KINDS_CON_TRAZADO
+# en web/canaliza.html, misma idea en los dos lados
+KINDS_CON_TRAZADO = {"iluminacion", "bomba"}
 
 
 def dia_of(did):
@@ -445,7 +451,7 @@ class Proyecto:
             c = self.circuit(r.get("circuit"))
             if not c:
                 continue
-            if c.get("kind") == "iluminacion":
+            if c.get("kind") in KINDS_CON_TRAZADO:
                 ws = [w for w in self.wires
                       if w.get("circuit") == c["id"] and r.get("id") in (w.get("runIds") or [])]
                 ws.sort(key=order)
@@ -569,7 +575,7 @@ class Proyecto:
             cable_color.setdefault(sec, {})
             cab = 0.0
 
-            if c.get("kind") == "iluminacion":
+            if c.get("kind") in KINDS_CON_TRAZADO:
                 wires = [w for w in self.wires if w.get("circuit") == c["id"] and (w.get("runIds") or [])]
                 for w in wires:
                     wl = 0.0

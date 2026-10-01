@@ -239,6 +239,17 @@ def _draw_node(pg, T, P, n, bad=False):
         sh.commit()
         _stroke(pg, [ctr, pymupdf.Point(cx - R * .55, cy - R * .35)], stroke, 2 * u)
         return
+    if kind == "automatico":
+        sh.draw_circle(ctr, R * 1.15)
+        sh.finish(color=stroke, fill=(1, 1, 1), width=2 * u)
+        sh.commit()
+        _stroke(pg, [pymupdf.Point(cx, cy - R * .7), pymupdf.Point(cx, cy + R * .1)], stroke, 2 * u)
+        sh2 = pg.new_shape()
+        sh2.draw_polyline([pymupdf.Point(cx, cy + R * .1), pymupdf.Point(cx - R * .42, cy + R * .78),
+                           pymupdf.Point(cx + R * .42, cy + R * .78), pymupdf.Point(cx, cy + R * .1)])
+        sh2.finish(color=stroke, fill=stroke, width=0.6 * u, closePath=True)
+        sh2.commit()
+        return
     if kind == "jabalina":
         _stroke(pg, [pymupdf.Point(cx, cy - R * 1.15), pymupdf.Point(cx, cy + R * .05)], stroke, 2 * u)
         for w, yy in ((.85, .05), (.55, .45), (.25, .85)):

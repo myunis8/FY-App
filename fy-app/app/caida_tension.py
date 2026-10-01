@@ -53,6 +53,7 @@ LARGO_MAX_REFERENCIA_M = 500.0
 CATEGORIA_POR_TIPO = {
     "IUG": "iluminacion", "IUE": "iluminacion", "iluminacion": "iluminacion",
     "motor": "fuerza_motriz", "fuerza_motriz": "fuerza_motriz",
+    "BOM": "fuerza_motriz", "bomba": "fuerza_motriz",
     "TUG": "otros", "TUE": "otros", "ACU": "otros", "OCE": "otros",
     "tomas": "otros", "especial": "otros",
 }
