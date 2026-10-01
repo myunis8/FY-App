@@ -377,7 +377,11 @@ table.t input:focus{outline:none;border-color:var(--accent);background:var(--pan
   <div style="padding:10px 14px;border-bottom:1px solid var(--line);display:flex;
       align-items:center;justify-content:space-between">
     <b>Vista previa del PDF</b>
-    <div style="display:flex;gap:8px">
+    <div style="display:flex;gap:8px;align-items:center">
+      <label class="f" for="pdfPOri" style="margin:0 2px 0 0">Orientación</label>
+      <select class="f" id="pdfPOri" style="width:auto">
+        <option value="landscape">Apaisada</option><option value="portrait">Vertical</option>
+      </select>
       <button class="btn" id="pdfPCerrar">Cerrar</button>
       <button class="btn primary" id="pdfPDescargar">Descargar…</button>
     </div>
@@ -1293,10 +1297,19 @@ function findNode(w, skip){
   return best;
 }
 
-function hitRun(w){
+function hitRun(w, circuitFilter){
+  // `circuitFilter`: cuando se traza un conductor (F/N/retorno, atado a un
+  // circuito -- ver toggleRunInWire) y el caño es compartido, hay más de un
+  // run en el mismo trazado físico; sin el filtro, clickear ahí podía
+  // "pegarle" al run del OTRO circuito que comparte el caño (el primero que
+  // aparece en S.runs) y toggleRunInWire lo rechazaba en silencio por no
+  // coincidir el circuito -- quedaba sin poder trazarse ahí a menos que se
+  // ocultara el otro circuito. Los troncales de tierra no tienen este
+  // problema (no están atados a un circuito), así que no pasan filtro.
   const tol = 7/S.view.z;
   for(const r of S.runs){
     if(!isCiVisible(r.circuit)) continue;
+    if(circuitFilter && r.circuit!==circuitFilter) continue;
     const p=r.pts;
     for(let i=1;i<p.length;i++){
       if(distToSeg(w,p[i-1],p[i])<tol) return r;
@@ -1923,7 +1936,8 @@ cv.addEventListener("pointerdown", e=>{
   if(e.button!==0) return;
 
   if(S.tracingWire){
-    const rr = hitRun(w);
+    const tw = S.wires.find(x=>x.id===S.tracingWire);
+    const rr = hitRun(w, tw && tw.circuit);
     if(rr) toggleRunInWire(S.tracingWire, rr.id);
     return;
   }
@@ -2568,7 +2582,7 @@ function paintProp(){
         S.circuits.map(x=>`<option value="${x.id}"${x.id===r.circuit?" selected":""}>${esc(x.name)}</option>`).join("")}</select></div>
     </div>
     ${(r.route||"techo")==="altura"?`<div style="margin-top:6px"><label class="f">Altura del caño (m)</label>
-      <input class="f mono" id="pAltura" type="number" step="0.05" min="0" value="${fmt(r.alturaM!=null?r.alturaM:ALTURA_DEFAULT_M,2)}"></div>`:""}
+      <input class="f mono" id="pAltura" type="text" inputmode="decimal" value="${fmt(r.alturaM!=null?r.alturaM:ALTURA_DEFAULT_M,2)}"></div>`:""}
     <label class="chk" style="margin-top:8px"><input type="checkbox" id="pSh"${r.share!==false?" checked":""}>
       Compartir caño con otros circuitos entre las mismas cajas</label>
     ${shared?`<div style="margin-top:6px;padding:7px 8px;background:var(--panel-2);border:1px solid var(--line);border-radius:5px">
@@ -2587,9 +2601,29 @@ function paintProp(){
     <button class="btn sm" id="pDel2" style="width:100%;margin-top:8px">Eliminar tramo</button>`;
 
   $("#pDia").onchange = e=>{ setGroupDia(r, e.target.value); refreshAll(); };
-  if($("#pCab")) $("#pCab").oninput  = e=>{ r.cables=Math.max(1,parseInt(e.target.value)||1); refreshAll(); };
+  if($("#pCab")){
+    // oninput NO llama a refreshAll(): repintaría el panel entero en cada
+    // tecla y el input perdería el foco a mitad de escribir (mismo motivo
+    // que #pZ/#pInspMax más abajo) -- el panel se termina de sincronizar
+    // (valor redondeado, totales por circuito, etc.) al salir del campo.
+    $("#pCab").oninput = e=>{
+      const v = parseInt(e.target.value, 10);
+      if(isFinite(v)) r.cables = Math.max(1, v);
+      drcInvalidate(); render(); paintDrc(); paintBom();
+    };
+    $("#pCab").onblur = refreshAll;
+  }
   $("#pRt").onchange  = e=>{ r.route=e.target.value; if(r.route==="altura" && r.alturaM==null) r.alturaM=ALTURA_DEFAULT_M; refreshAll(); };
-  if($("#pAltura")) $("#pAltura").oninput = e=>{ r.alturaM=Math.max(0,parseFloat(e.target.value)||0); refreshAll(); };
+  if($("#pAltura")){
+    // acepta "2.7" y "2,7" (coma decimal); mismo motivo que #pCab arriba
+    // para no usar refreshAll() en oninput.
+    $("#pAltura").oninput = e=>{
+      const v = parseFloat(String(e.target.value).replace(",", "."));
+      if(isFinite(v)) r.alturaM = Math.max(0, v);
+      drcInvalidate(); render(); paintDrc(); paintBom();
+    };
+    $("#pAltura").onblur = refreshAll;
+  }
   $("#pCi").onchange  = e=>{
     const oldCi = r.circuit;
     r.circuit = e.target.value;
@@ -3456,10 +3490,21 @@ async function makePdf(){
 
 // vista previa: se muestra el PDF (blob que devolvió el servidor) en un iframe
 // adentro de la app, con el botón de Descargar recién ahí.
+let ultimoPdfPreviewUrl = null;
 function mostrarVistaPreviaPdf(blob, nombreArchivo){
-  const objUrl = URL.createObjectURL(blob);
+  if(ultimoPdfPreviewUrl) URL.revokeObjectURL(ultimoPdfPreviewUrl);
+  const objUrl = ultimoPdfPreviewUrl = URL.createObjectURL(blob);
   $("#pdfPFrame").src = objUrl;
   open$("#mPdfPreview");
+  // misma orientación que se eligió al generar -- cambiarla acá, sin volver
+  // a "Exportar PDF", rehace el mismo pedido y reemplaza la vista previa
+  $("#pdfPOri").value = $("#pdfOri").value;
+  $("#pdfPOri").onchange = async () => {
+    $("#pdfOri").value = $("#pdfPOri").value;
+    busy(true);
+    try{ await makePdf(); }catch(e){ alert("Error al generar el PDF: "+e.message); }
+    busy(false);
+  };
   $("#pdfPDescargar").onclick = async () => {
     if(window.showSaveFilePicker){
       try{
