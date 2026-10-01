@@ -105,13 +105,18 @@ def sugerir_items(obra: dict, extra: bool = False) -> tuple[list[dict], list[str
     return salida, avisos
 
 
-def totales(pres: dict) -> dict:
-    """Subtotal, extras, diferencia, descuento y ajuste final.
+def totales(pres: dict, red: dict | None = None) -> dict:
+    """Subtotal, extras, diferencia, red, descuento y ajuste final.
 
     "diferencia" es trabajo adicional que pidió el cliente después de un
     checkpoint -- items sueltos, igual que extras, pero se muestran y se
     imprimen aparte para que quede claro qué es el alcance original y qué
     se sumó después.
+
+    "red" son los renglones ACEPTADOS de obra.red.ofertas (ver
+    red.ofertas_aceptadas()) -- única fuente de verdad, no se copian acá.
+    `red` es opcional para no romper otros llamadores de esta función; sin
+    él, la sección de red simplemente da $0 (no falta al call).
 
     Los opcionales se muestran aparte y no entran en el total: son un
     "si querés, sumamos esto".
@@ -125,11 +130,13 @@ def totales(pres: dict) -> dict:
     diferencia = [i for i in (pres.get("diferencia") or []) if not i.get("opcional")]
     opcionales = [i for i in (pres.get("items") or []) + (pres.get("extras") or [])
                   + (pres.get("diferencia") or []) if i.get("opcional")]
+    red_aceptada = [o for o in (red or {}).get("ofertas") or [] if o.get("estado") == "aceptado"]
 
     sub = suma(items)
     ext = suma(extras)
     dif = suma(diferencia)
-    bruto = sub + ext + dif
+    red_total = suma(red_aceptada)
+    bruto = sub + ext + dif + red_total
 
     desc = pres.get("descuento") or {}
     monto_desc = 0.0
@@ -151,6 +158,7 @@ def totales(pres: dict) -> dict:
         "subtotal": round(sub, 2),
         "extras": round(ext, 2),
         "diferencia": round(dif, 2),
+        "red": round(red_total, 2),
         "bruto": round(bruto, 2),
         "descuento": round(monto_desc, 2),
         "neto": round(neto, 2),
@@ -177,7 +185,7 @@ def eventos_ganancia(obra: dict) -> list[dict]:
     material con un margen propio, esta es la única función que hay que
     tocar: acá es donde se define qué es "ganancia" de una obra."""
     seg = obra.get("seguimiento") or {}
-    total = totales(obra.get("presupuesto") or {}).get("total") or 0
+    total = totales(obra.get("presupuesto") or {}, obra.get("red")).get("total") or 0
     eventos = [{"el": h.get("el"), "monto": C.monto_evento_pago(h, total)}
               for h in seg.get("historial") or [] if h.get("campo") == "pago"]
 
