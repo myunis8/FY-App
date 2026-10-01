@@ -349,6 +349,7 @@ let vista = {x:0, y:0, z:1};
 let herramienta = 'seleccionar';   // 'seleccionar' | 'colocar' | 'tramo'
 let tipoArmado = null;
 let tramoOrigen = null;            // id del dispositivo donde arrancó un tramo en curso
+let cursorPlano = null;            // posición (plano-space) del mouse, para la vista previa del tramo en curso
 let seleccion = null;              // {t:'dispositivo'|'tramo', id}
 let contadores = {};
 let historial = [], futuro = [];
@@ -401,8 +402,8 @@ function marcarHerramienta(){
   $('pt-seleccionar').classList.toggle('primary', herramienta==='seleccionar');
   $('pt-tramo').classList.toggle('primary', herramienta==='tramo');
 }
-$('pt-seleccionar').onclick = () => { herramienta='seleccionar'; tipoArmado=null; tramoOrigen=null; marcarHerramienta(); pintarPaleta(); };
-$('pt-tramo').onclick = () => { herramienta='tramo'; tipoArmado=null; tramoOrigen=null; marcarHerramienta(); pintarPaleta(); };
+$('pt-seleccionar').onclick = () => { herramienta='seleccionar'; tipoArmado=null; tramoOrigen=null; cursorPlano=null; marcarHerramienta(); pintarPaleta(); };
+$('pt-tramo').onclick = () => { herramienta='tramo'; tipoArmado=null; tramoOrigen=null; cursorPlano=null; marcarHerramienta(); pintarPaleta(); };
 
 /* ---- geometría ---- */
 function disp(id){ return datosObra.dispositivos.find(d => d.id===id) || null; }
@@ -504,6 +505,21 @@ function renderPlano(){
       ctx.strokeStyle = MEDIO_COLOR[$('pt-medio').value] || '#8896a8';
       ctx.lineWidth = 1.6/vista.z; ctx.setLineDash([4/vista.z,4/vista.z]);
       ctx.beginPath(); ctx.arc(o.x,o.y,14/vista.z,0,7); ctx.stroke();
+      if(cursorPlano){
+        // vista previa en vivo del tramo mientras se arrastra, con el mismo
+        // ruteo ortogonal que va a quedar al soltar -- así se ve por dónde
+        // pasa el cable antes de clickear el destino, no sólo después
+        const medioSel = $('pt-medio').value;
+        const previa = rutaOrtogonal(o, cursorPlano);
+        ctx.beginPath();
+        previa.forEach((p,i)=> i ? ctx.lineTo(p.x,p.y) : ctx.moveTo(p.x,p.y));
+        ctx.stroke();
+        if(medioSel!=='inalambrico' && pxPerM){
+          const mid = puntoMedioPoli(previa);
+          const largo = previa.reduce((s,p,i)=> i ? s+Math.hypot(p.x-previa[i-1].x,p.y-previa[i-1].y) : s, 0) / pxPerM;
+          etiquetaCv(ctx, mid.x+6/vista.z, mid.y-6/vista.z, largo.toFixed(1)+' m');
+        }
+      }
       ctx.restore();
     }
   }
@@ -551,12 +567,13 @@ $('plano-cv').addEventListener('pointerdown', ev => {
     const hit = hitDispositivo(w);
     if(!hit) return;
     if(!tramoOrigen){ tramoOrigen = hit.id; renderPlano(); return; }
-    if(tramoOrigen===hit.id){ tramoOrigen=null; renderPlano(); return; }
+    if(tramoOrigen===hit.id){ tramoOrigen=null; cursorPlano=null; renderPlano(); return; }
     pushUndoRed();
     const a = disp(tramoOrigen);
     datosObra.tramos.push({id:'rt_'+Date.now().toString(36), desde:tramoOrigen, hasta:hit.id,
       puntos: rutaOrtogonal(a, hit), medio: $('pt-medio').value});
     tramoOrigen = null;
+    cursorPlano = null;
     seleccion = null;
     renderPlano(); pintarDrc(); guardar();
     return;
@@ -569,10 +586,16 @@ $('plano-cv').addEventListener('pointerdown', ev => {
   seleccion = null; renderPlano(); pintarPanel();
 });
 window.addEventListener('pointermove', ev => {
-  if(!arrastrando) return;
-  vista.x = arrastrando.vx + (ev.clientX - arrastrando.x);
-  vista.y = arrastrando.vy + (ev.clientY - arrastrando.y);
-  renderPlano();
+  if(arrastrando){
+    vista.x = arrastrando.vx + (ev.clientX - arrastrando.x);
+    vista.y = arrastrando.vy + (ev.clientY - arrastrando.y);
+    renderPlano();
+    return;
+  }
+  if(herramienta==='tramo' && tramoOrigen){
+    cursorPlano = coordsCanvas(ev);
+    renderPlano();
+  }
 });
 window.addEventListener('pointerup', () => { arrastrando = null; });
 $('plano-cv').addEventListener('contextmenu', ev => ev.preventDefault());
@@ -649,7 +672,7 @@ window.addEventListener('keydown', ev => {
   if(tag==='input' || tag==='select' || tag==='textarea') return;
   if(document.querySelector('.tab-btn.on')?.dataset.tab !== 'plano') return;
   if((ev.key==='Delete' || ev.key==='Backspace') && seleccion){ ev.preventDefault(); borrarSeleccion(); }
-  if(ev.key==='Escape'){ tramoOrigen=null; herramienta='seleccionar'; tipoArmado=null; marcarHerramienta(); pintarPaleta(); renderPlano(); }
+  if(ev.key==='Escape'){ tramoOrigen=null; cursorPlano=null; herramienta='seleccionar'; tipoArmado=null; marcarHerramienta(); pintarPaleta(); renderPlano(); }
   if((ev.ctrlKey||ev.metaKey) && !ev.shiftKey && ev.key.toLowerCase()==='z'){ ev.preventDefault(); deshacerRed(); }
   if((ev.ctrlKey||ev.metaKey) && (ev.key.toLowerCase()==='y' || (ev.shiftKey && ev.key.toLowerCase()==='z'))){ ev.preventDefault(); rehacerRed(); }
 });
