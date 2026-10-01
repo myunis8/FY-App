@@ -3,6 +3,28 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 1.7.0 — Nuevo módulo Red
+
+- **Nuevo módulo "Red"** (instalación de red/datos), con tres partes:
+  - **Oferta**: productos de red (router, switch, switch PoE, access point,
+    cámaras, NVR, NAS, sensores, etc. -- categoría "Red y datos" agregada a
+    la lista de precios) que se le ofrecen al cliente en la obra, con
+    cantidad, precio congelado al agregar, nota y estado (ofrecido /
+    aceptado / rechazado).
+  - **Plano de red**: editor propio sobre el mismo plano y escala que
+    Routeo, para ubicar dispositivos y trazar la canalización de red
+    (exterior/UTP/fibra/inalámbrico) desde la entrada de servicio hasta el
+    router y de ahí a cada dispositivo. Con avisos (DRC) de recorrido
+    faltante, dispositivos sin conexión, tramos UTP de más de 90 m,
+    presupuesto de potencia PoE excedido y cercanía con canalización
+    eléctrica.
+  - **Presupuesto**: los productos aceptados en la Oferta aparecen solos
+    (sin duplicar datos) en una sección nueva "Instalación de red", con
+    subtotal propio que suma al total, tanto en pantalla como en el PDF.
+- **`obra.red`**: bloque nuevo en el contrato de `obra.json`
+  (`ofertas`/`dispositivos`/`tramos`); las obras existentes sin este bloque
+  lo reciben vacío al abrir, sin perder nada de lo que ya tenían.
+
 ## 1.6.1 — Lista de materiales: sidebar de colores, cable tipo taller/Sintenax
 
 - **Sin la nota interna del PDF sobre confirmar cajas/térmicas contra Circuitos

@@ -7,7 +7,8 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 from . import (almacen, config as cfgmod, contrato as C, canalizacion as canal_mod, extraccion, github as gh,
                materiales as mat_mod, pdf_informe, pdf_materiales, pdf_presupuesto, pdf_routeo, pdf_tablero,
-               precios as precios_mod, presupuesto as pres_mod, sync, tablero as tablero_mod, vinculos)
+               precios as precios_mod, presupuesto as pres_mod, red as red_mod, sync, tablero as tablero_mod,
+               vinculos)
 
 if getattr(sys, "frozen", False):
     DIR_WEB = Path(sys._MEIPASS) / "web"        # bundle de PyInstaller
@@ -92,6 +93,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._revalidar(partes[2])
             if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "seguimiento":
                 return self._actualizar_seguimiento(partes[2])
+            if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "datos":
+                return self._actualizar_datos_proyecto(partes[2])
             if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "modulos":
                 return self._marcar_modulo(partes[2])
             if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "checkpoint":
@@ -259,6 +262,19 @@ class Handler(BaseHTTPRequestHandler):
             if obra is None:
                 return self._error("Esa obra no está en este equipo.", 404)
             return self._json(mat_mod.computar_verificaciones(obra))
+        if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "red":
+            obra = almacen.leer_obra(partes[2])
+            if obra is None:
+                return self._error("Esa obra no está en este equipo.", 404)
+            px_por_m = canal_mod.pxpermetro_para_canaliza(obra)
+            return self._json({
+                "obra": obra.get("red") or {"ofertas": [], "dispositivos": [], "tramos": []},
+                "planoUrl": (f"/api/obras/{partes[2]}/plano.png?zoom={canal_mod.ZOOM_PLANO}"
+                            if (obra.get("plano") or {}).get("referencia") else None),
+                "pxPerM": px_por_m,
+                "totalesOferta": red_mod.totales_oferta((obra.get("red") or {}).get("ofertas") or []),
+                "verificaciones": red_mod.verificar(obra, px_por_m),
+            })
         if ruta == "/api/tablero/presets":
             return self._json({"presets": tablero_mod.PRESETS})
         if len(partes) == 4 and partes[:3] == ["api", "config", "imagen"]:
@@ -392,7 +408,7 @@ class Handler(BaseHTTPRequestHandler):
                 "presupuesto": obra.get("presupuesto") or {},
                 "cantidades": pres_mod.cantidades(obra),
                 "cantidadesExtra": pres_mod.cantidades(obra, extra=True),
-                "totales": pres_mod.totales(obra.get("presupuesto") or {}),
+                "totales": pres_mod.totales(obra.get("presupuesto") or {}, obra.get("red")),
                 "comparacion": precios_mod.comparar(
                     (obra.get("presupuesto") or {}).get("items") or []),
             })
@@ -419,6 +435,24 @@ class Handler(BaseHTTPRequestHandler):
                 "termicas": mat_mod.computar_termicas(obra),
                 "jabalina": mat_mod.computar_jabalina(obra),
                 "canalizacion": mat_mod.computar_canalizacion(obra),
+            })
+
+        if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "red":
+            obra = almacen.leer_obra(partes[2])
+            if obra is None:
+                return self._error("Esa obra no está en este equipo.", 404)
+            red = cuerpo.get("red")
+            if red is not None:
+                obra["red"] = red
+            if cuerpo.get("guardar"):
+                almacen.guardar_obra(obra, cfg.get("usuario", ""), modulo="Red",
+                                     resumen="Guardó cambios")
+            px_por_m = canal_mod.pxpermetro_para_canaliza(obra)
+            return self._json({
+                "ok": True,
+                "red": obra.get("red") or {"ofertas": [], "dispositivos": [], "tramos": []},
+                "totalesOferta": red_mod.totales_oferta((obra.get("red") or {}).get("ofertas") or []),
+                "verificaciones": red_mod.verificar(obra, px_por_m),
             })
 
         if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "routeo.pdf":
@@ -526,6 +560,16 @@ class Handler(BaseHTTPRequestHandler):
                            "elementos": obra.get("elementos") or [],
                            "resumen": vinculos.resumen(obra)})
 
+    def _actualizar_datos_proyecto(self, obra_id):
+        obra = almacen.leer_obra(obra_id)
+        if obra is None:
+            return self._error("Esa obra no está en este equipo.", 404)
+        cuerpo = self._cuerpo() or {}
+        C.actualizar_datos_proyecto(obra, cliente=cuerpo.get("cliente"), direccion=cuerpo.get("direccion"))
+        almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""), modulo="Obra",
+                             resumen="Editó los datos del proyecto")
+        return self._json({"ok": True, "obra": obra["obra"]})
+
     def _actualizar_seguimiento(self, obra_id):
         obra = almacen.leer_obra(obra_id)
         if obra is None:
@@ -559,7 +603,7 @@ class Handler(BaseHTTPRequestHandler):
 
     _MODULO_ETIQUETAS = {"circuitos": "Circuitos", "tablero": "Tablero", "routeo": "Routeo",
                          "presupuesto": "Presupuesto", "materiales": "Lista de materiales",
-                         "verificaciones": "Verificaciones técnicas"}
+                         "verificaciones": "Verificaciones técnicas", "red": "Red"}
 
     def _marcar_modulo(self, obra_id):
         obra = almacen.leer_obra(obra_id)

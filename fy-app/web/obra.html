@@ -143,6 +143,11 @@ h2:first-child{margin-top:0}
       <div><b>Routeo</b><div class="nota" id="d-ncanalizacion"></div></div>
       <span class="led" data-modulo="routeo" title="Marcar como terminado / no terminado"></span>
     </div>
+    <div class="modulo-btn" id="fila-red">
+      <span class="ic"><svg width="28" height="28" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7.5" width="12" height="5" rx="1.2"/><path d="M5.5 7.5V5M10.5 7.5V5"/><circle cx="4.3" cy="10" r=".5" fill="currentColor" stroke="none"/><circle cx="6.6" cy="10" r=".5" fill="currentColor" stroke="none"/></svg></span>
+      <div><b>Red <span style="font-size:.6rem;font-weight:600;text-transform:uppercase;letter-spacing:.03em;color:var(--amber);background:rgba(226,163,61,.16);padding:1px 5px;border-radius:99px;vertical-align:1px">beta</span></b><div class="nota" id="d-nred"></div></div>
+      <span class="led" data-modulo="red" title="Marcar como terminado / no terminado"></span>
+    </div>
     <div class="modulo-btn" id="fila-presupuesto">
       <span class="ic"><svg width="28" height="28" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="1.8" width="10" height="12.4" rx="1"/><path d="M5.3 5.4h5.4M5.3 7.8h5.4M5.3 10.2h3.4"/></svg></span>
       <div><b>Presupuesto</b><div class="nota" id="d-npresupuesto"></div></div>
@@ -197,8 +202,17 @@ h2:first-child{margin-top:0}
 <aside class="panel-lateral">
   <div class="panel">
     <h2 style="margin-top:0">Datos del proyecto</h2>
-    <div class="campo-fijo"><b>Cliente</b><span id="pl-cliente">—</span></div>
-    <div class="campo-fijo"><b>Dirección</b><span id="pl-direccion">—</span></div>
+    <div class="campo" style="margin-bottom:10px">
+      <label for="pl-cliente-in">Cliente</label>
+      <input id="pl-cliente-in" placeholder="Nombre del cliente">
+    </div>
+    <div class="campo" style="margin-bottom:10px">
+      <label for="pl-direccion-in">Dirección</label>
+      <input id="pl-direccion-in" placeholder="Dirección de la obra">
+    </div>
+    <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
+      <button class="btn primary sm" id="pl-guardar">Guardar datos</button>
+    </div>
     <div class="campo-fijo"><b>Tipo de instalación</b><span id="pl-tipo">—</span></div>
     <div class="campo-fijo"><b>Creada</b><span id="pl-creada">—</span></div>
     <div class="campo-fijo"><b>Última actualización</b><span id="pl-actualizada">—</span></div>
@@ -422,12 +436,24 @@ async function cargar(){
 }
 function pintarDatosProyecto(obra){
   const o = obra.obra;
-  $('pl-cliente').textContent = o.cliente || '—';
-  $('pl-direccion').textContent = o.direccion || '—';
+  $('pl-cliente-in').value = o.cliente || '';
+  $('pl-direccion-in').value = o.direccion || '';
   $('pl-tipo').textContent = o.tipoInstalacion || '—';
   $('pl-creada').textContent = cuando(o.creadoEl);
   $('pl-actualizada').textContent = cuando(o.actualizadoEl);
 }
+$('pl-guardar').onclick = async () => {
+  if(!obraAbierta) return;
+  const body = {cliente: $('pl-cliente-in').value, direccion: $('pl-direccion-in').value};
+  try{
+    const r = await api('/api/obras/'+obraAbierta.obra.id+'/datos', {method:'POST', body:JSON.stringify(body)});
+    obraAbierta.obra = r.obra;
+    pintarDatosProyecto(obraAbierta);
+    $('h-sub').textContent = (obraAbierta.obra.cliente ? obraAbierta.obra.cliente+' · ' : '') +
+      (ESTADOS[obraAbierta.seguimiento.estado]||'') + ' · última edición ' + cuando(obraAbierta.obra.actualizadoEl);
+    toast('Datos del proyecto guardados');
+  }catch(e){ toast(e.message); }
+};
 function pintarBloques(obra){
   const canal = obra.canalizacion||{};
   const filas = [
@@ -454,6 +480,12 @@ function pintarBloques(obra){
   $('d-ncanalizacion').textContent = (obra.canalizacion?.runs||[]).length
     ? `${obra.canalizacion.runs.length} tramo(s)` : 'Todavía ninguno';
   $('fila-canalizacion').onclick = () => location.href = '/canaliza.html?obra=' + obra.obra.id;
+  const ofertasRed = obra.red?.ofertas || [];
+  const nAceptados = ofertasRed.filter(o => o.estado === 'aceptado').length;
+  const nPendientes = ofertasRed.filter(o => o.estado === 'ofrecido').length;
+  $('d-nred').textContent = ofertasRed.length
+    ? `${nAceptados} aceptado(s) · ${nPendientes} pendiente(s)` : 'Todavía ninguno';
+  $('fila-red').onclick = () => location.href = '/red.html?obra=' + obra.obra.id;
   const nit = (obra.presupuesto?.items||[]).length + (obra.presupuesto?.extras||[]).length;
   $('d-npresupuesto').textContent = nit ? `${nit} ítems` +
     (obra.presupuesto?.congeladoEl ? ' · congelado' : ' · sin congelar') : 'Todavía ninguno';

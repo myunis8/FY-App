@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Red</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+:root{
+  color-scheme:dark;
+  --navy:#16283f; --navy-deep:#0a121d; --paper:#10161e; --panel:#1a2330; --line:#2c3846;
+  --ink:#dde3ea; --muted:#8896a8; --amber:#e2a33d; --amber-deep:#c07f1f;
+  --copper:#c9793f; --copper-soft:rgba(201,121,63,.18); --slate-soft:#212c39;
+  --green:#4caf82; --green-soft:rgba(76,175,130,.16); --danger:#e0685a; --danger-soft:rgba(224,104,90,.16);
+  --radius:10px; font-family:'IBM Plex Sans',system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink)}
+button{font:inherit;cursor:pointer} input,select{font:inherit;background:var(--panel);color:var(--ink);border:1px solid var(--line)}
+input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+input[type=number]{-moz-appearance:textfield}
+header{background:var(--navy);color:#fff;padding:14px 22px;display:flex;
+  align-items:center;gap:16px;flex-wrap:wrap}
+header h1{font-size:1.05rem;margin:0;font-weight:600;font-family:'Space Grotesk',sans-serif}
+header .sub{font-size:.72rem;color:#9db2c7;margin-top:2px}
+#autosaveTag{font-size:.72rem;color:#9db2c7;white-space:nowrap}
+.spacer{flex:1}
+.btn{border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:8px 14px;
+  border-radius:var(--radius);font-size:.83rem;font-weight:500}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--amber);border-color:var(--amber-deep);color:#2a1e07;font-weight:600}
+.btn.ghost{background:transparent;border-color:#33506e;color:#cfe0f0}
+.btn.ghost:hover{border-color:#5b7fa5}
+.btn.sm{padding:5px 10px;font-size:.76rem}
+main{max-width:920px;margin:0 auto;padding:22px 22px 60px}
+h2{font-family:'Space Grotesk',sans-serif;font-size:.82rem;margin:26px 0 8px;
+  text-transform:uppercase;letter-spacing:.05em;color:var(--muted);display:flex;
+  align-items:center;gap:10px}
+h2:first-child{margin-top:0}
+.nota{font-size:.78rem;color:var(--muted);margin:2px 0 10px}
+.bloques{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-bottom:6px}
+.bloque{border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:.82rem;background:var(--panel)}
+.bloque b{display:block;font-size:.68rem;text-transform:uppercase;letter-spacing:.04em;
+  color:var(--muted);font-weight:600;margin-bottom:3px}
+.bloque .num{font-size:1.3rem;font-weight:700;color:var(--ink);font-family:'Space Grotesk',sans-serif}
+table{width:100%;border-collapse:collapse;background:var(--panel);border-radius:8px;overflow:hidden;
+  border:1px solid var(--line);margin-bottom:8px}
+th{background:var(--slate-soft);text-align:left;font-size:.68rem;text-transform:uppercase;
+  letter-spacing:.04em;color:var(--muted);padding:7px 9px;font-weight:600}
+td{padding:7px 9px;font-size:.83rem;border-top:1px solid var(--line)}
+td input,td select{width:100%;border:1px solid transparent;background:transparent;padding:3px 4px;
+  border-radius:5px}
+td input:focus,td select:focus{border-color:var(--line);background:var(--paper);outline:none}
+td.num{text-align:center;width:90px}
+td.acc{width:50px;text-align:center;white-space:nowrap}
+.acc button{border:none;background:transparent;font-size:.95rem;padding:2px 4px;color:var(--danger)}
+.agregar-fila{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0 18px;
+  padding:10px 12px;background:var(--panel);border:1px dashed var(--line);border-radius:8px}
+.agregar-fila select,.agregar-fila input{border:1px solid var(--line);border-radius:7px;
+  padding:6px 8px;font-size:.82rem}
+.agregar-fila .cant{width:70px}
+#toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--navy-deep);
+  color:#fff;padding:11px 18px;border-radius:var(--radius);font-size:.83rem;display:none;z-index:60}
+.tabs{display:flex;gap:22px;margin-bottom:18px;border-bottom:1px solid var(--line)}
+.tab-btn{background:transparent;border:none;color:var(--muted);padding:0 0 10px;
+  font-size:.85rem;font-weight:600;cursor:pointer;border-bottom:2px solid transparent}
+.tab-btn.on{color:var(--ink);border-color:var(--amber)}
+.tab-pane{display:none}
+.tab-pane.on{display:block}
+/* --- plano de red --- */
+.plano-layout{display:flex;gap:14px;align-items:flex-start}
+.plano-tools{width:230px;flex:none}
+.plano-tools .grupo{margin-bottom:16px}
+.plano-tools h3{font-size:.68rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);
+  margin:0 0 6px;font-weight:600}
+.plano-tools .fila{display:flex;gap:4px;margin-bottom:4px}
+.tipo-btn{display:block;width:100%;text-align:left;margin-bottom:3px;font-size:.74rem;padding:5px 8px}
+.tipo-btn.on{background:var(--amber);border-color:var(--amber-deep);color:#2a1e07}
+#plano-stage{position:relative;flex:1;min-width:0;background:#0b0f14;border:1px solid var(--line);
+  border-radius:8px;overflow:hidden;height:600px}
+#plano-cv{display:block;touch-action:none}
+#plano-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  color:var(--muted);font-size:.85rem;text-align:center;padding:30px;line-height:1.5}
+.plano-zoom{position:absolute;right:10px;bottom:10px;display:flex;gap:4px;background:var(--panel);
+  border:1px solid var(--line);border-radius:8px;padding:4px}
+.campo{margin-bottom:6px}
+.campo label{display:block;font-size:.68rem;color:var(--muted);margin-bottom:2px}
+.campo input,.campo select{width:100%;border:1px solid var(--line);border-radius:6px;padding:5px 7px;font-size:.8rem}
+.drc-row{padding:6px 8px;border-radius:6px;font-size:.76rem;margin-bottom:4px;cursor:pointer;line-height:1.35}
+.drc-row.e{background:var(--danger-soft);color:var(--danger)}
+.drc-row.w{background:rgba(226,163,61,.14);color:var(--amber)}
+.drc-row:hover{filter:brightness(1.15)}
+</style>
+</head>
+<body>
+<header>
+  <div><h1>Red <span style="font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:#2a1e07;background:var(--amber);padding:2px 6px;border-radius:99px;vertical-align:2px">beta</span></h1><div class="sub" id="h-sub">Cargando…</div></div>
+  <span id="autosaveTag"></span>
+  <div class="spacer"></div>
+  <button class="btn ghost" id="b-volver">Volver</button>
+</header>
+
+<main>
+  <div class="tabs">
+    <button class="tab-btn on" data-tab="oferta">Oferta</button>
+    <button class="tab-btn" data-tab="plano">Plano</button>
+  </div>
+
+  <div class="tab-pane on" id="pane-oferta">
+    <div class="bloques">
+      <div class="bloque"><b>Total ofrecido</b><div class="num" id="r-ofrecido">$ 0</div></div>
+      <div class="bloque"><b>Total aceptado</b><div class="num" id="r-aceptado">$ 0</div></div>
+      <div class="bloque"><b>Rechazados</b><div class="num" id="r-rechazados">0</div></div>
+    </div>
+
+    <h2>Productos de red</h2>
+    <div class="nota">Agregá productos de la lista de precios y marcá el estado de cada uno. Lo
+    aceptado aparece solo en Presupuesto, en "Instalación de red" -- si lo pasás a rechazado u
+    ofrecido, sale de ahí.</div>
+    <div class="agregar-fila">
+      <select id="of-item" style="min-width:220px;flex:1"></select>
+      <input class="cant" id="of-cant" type="number" min="1" value="1">
+      <button class="btn sm primary" id="of-agregar">Agregar</button>
+    </div>
+    <table>
+      <thead><tr><th>Producto</th><th style="width:90px">Cant.</th><th style="width:130px">P. unitario</th>
+        <th>Nota</th><th style="width:140px">Estado</th><th class="acc"></th></tr></thead>
+      <tbody id="t-ofertas"></tbody>
+    </table>
+  </div>
+
+  <div class="tab-pane" id="pane-plano">
+    <div class="plano-layout">
+      <div class="plano-tools">
+        <div class="grupo">
+          <h3>Herramienta</h3>
+          <button class="btn sm" id="pt-seleccionar" style="width:100%;margin-bottom:4px">Seleccionar</button>
+          <div class="fila">
+            <button class="btn sm" id="pt-tramo" style="flex:1">Trazar tramo</button>
+            <select id="pt-medio" style="flex:1">
+              <option value="exterior">Exterior</option>
+              <option value="utp" selected>UTP</option>
+              <option value="fibra">Fibra</option>
+              <option value="inalambrico">Inalámbrico</option>
+            </select>
+          </div>
+          <div class="fila">
+            <button class="btn sm" id="bUndoRed" title="Deshacer (Ctrl+Z)" disabled>↶ Deshacer</button>
+            <button class="btn sm" id="bRedoRed" title="Rehacer (Ctrl+Shift+Z)" disabled>↷ Rehacer</button>
+          </div>
+        </div>
+        <div class="grupo">
+          <h3>Colocar dispositivo</h3>
+          <div id="paleta"></div>
+        </div>
+        <div class="grupo" id="panel-prop"></div>
+        <div class="grupo">
+          <h3>Observaciones (<span id="drc-count">0</span>)</h3>
+          <div id="drc-list"><p class="nota">Sin observaciones.</p></div>
+        </div>
+      </div>
+      <div id="plano-stage">
+        <canvas id="plano-cv"></canvas>
+        <div id="plano-empty" style="display:none">Esta obra todavía no tiene un plano extraído para
+          poder ubicar dispositivos acá.<br><br>La pestaña Oferta funciona igual sin plano.</div>
+        <div class="plano-zoom">
+          <button class="btn sm" id="pz-out">−</button>
+          <button class="btn sm" id="pz-fit">Ajustar</button>
+          <button class="btn sm" id="pz-in">+</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div id="toast"></div>
+<script src="/latido.js"></script>
+<script src="/lock.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const params = new URLSearchParams(location.search);
+const OBRA_ID = params.get('obra');
+fyLock.iniciar(OBRA_ID);
+
+const api = async (ruta, opts={}) => {
+  const r = await fetch(ruta, {headers:{'Content-Type':'application/json'}, ...opts});
+  const d = await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error(d.error || 'Error inesperado');
+  return d;
+};
+function toast(m){ const t=$('toast'); t.textContent=m; t.style.display='block';
+  clearTimeout(t._t); t._t=setTimeout(()=>t.style.display='none',3000); }
+const esc = s => (s==null?'':String(s)).replace(/[&<>"]/g,
+  c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const plata = n => '$ ' + Math.round(n||0).toLocaleString('es-AR');
+
+document.querySelectorAll('.tab-btn').forEach(b => b.onclick = () => {
+  document.querySelectorAll('.tab-btn').forEach(x => x.classList.toggle('on', x===b));
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.toggle('on', p.id==='pane-'+b.dataset.tab));
+  // el canvas mide 0x0 mientras su pestaña está oculta (display:none) -- hay
+  // que recién dimensionarlo/redibujarlo cuando la pestaña Plano se hace visible
+  if(b.dataset.tab==='plano') mostrarPestañaPlano();
+});
+
+let catalogo = [];
+let datosObra = {ofertas:[], dispositivos:[], tramos:[]};
+let planoUrl = null, pxPerM = null, verificaciones = [];
+
+$('b-volver').onclick = () => location.href = '/obra.html?obra=' + OBRA_ID;
+
+async function cargar(){
+  if(!OBRA_ID){ toast('Falta el id de la obra en la URL.'); return; }
+  const d = await api('/api/obras/'+OBRA_ID+'/red');
+  const planoUrlNuevo = d.planoUrl;
+  aplicarRespuesta(d);
+  $('h-sub').textContent = 'Obra ' + OBRA_ID;
+  const cat = await api('/api/precios');
+  // sólo "Red y datos": el resto de la lista de precios no aplica acá (ver
+  // decisión de arquitectura -- un producto de red entra al presupuesto
+  // únicamente aceptando un renglón de esta Oferta, nunca por otro camino)
+  catalogo = (cat.items||[]).filter(it => it.categoria === 'Red y datos');
+  pintarSelectCatalogo();
+  if(planoUrlNuevo) cargarImagenPlano(planoUrlNuevo);
+  else $('plano-empty').style.display = 'flex';
+}
+function aplicarRespuesta(d){
+  datosObra = d.obra || d.red || datosObra;
+  datosObra.ofertas = datosObra.ofertas || [];
+  datosObra.dispositivos = datosObra.dispositivos || [];
+  datosObra.tramos = datosObra.tramos || [];
+  if(d.planoUrl !== undefined) planoUrl = d.planoUrl;
+  if(d.pxPerM !== undefined) pxPerM = d.pxPerM;
+  if(d.verificaciones !== undefined) verificaciones = d.verificaciones;
+  if(d.totalesOferta) pintarResumen(d.totalesOferta);
+  else calcularResumenLocal();
+  pintarOfertas();
+  pintarDrc();
+  renderPlano();
+}
+
+function pintarSelectCatalogo(){
+  if(!catalogo.length){
+    $('of-item').innerHTML = '<option value="">No hay productos de "Red y datos" en la lista de precios</option>';
+    return;
+  }
+  const porCategoria = {};
+  for(const it of catalogo) (porCategoria[it.categoria||'Otros'] ||= []).push(it);
+  $('of-item').innerHTML = '<option value="">+ Agregar producto…</option>' +
+    Object.keys(porCategoria).map(cat => `<optgroup label="${esc(cat)}">${
+      porCategoria[cat].map(it => `<option value="${it.id}">${esc(it.item)} — ${plata(it.precio)}</option>`).join('')
+    }</optgroup>`).join('');
+}
+$('of-agregar').onclick = () => {
+  const id = $('of-item').value;
+  const it = catalogo.find(x => x.id === id);
+  if(!it){ toast('Elegí un producto primero.'); return; }
+  const cant = parseFloat($('of-cant').value) || 1;
+  datosObra.ofertas.push({id:'ro_'+Date.now().toString(36), precioId:it.id, item:it.item,
+    categoria:it.categoria, unidad:it.unidad||'u', cantidad:cant, precioUnitario:it.precio||0,
+    congelado:false, estado:'ofrecido', nota:''});
+  pintarOfertas(); calcularResumenLocal(); pintarPanel(); guardar();
+  $('of-item').value = ''; $('of-cant').value = 1;
+};
+
+function calcularResumenLocal(){
+  // feedback inmediato en el cliente, sin esperar la vuelta del server
+  const suma = arr => arr.reduce((s,o)=>s+(o.precioUnitario||0)*(o.cantidad||0),0);
+  pintarResumen({
+    ofrecido: suma(datosObra.ofertas),
+    aceptado: suma(datosObra.ofertas.filter(o=>o.estado==='aceptado')),
+    rechazados: datosObra.ofertas.filter(o=>o.estado==='rechazado').length,
+  });
+}
+function pintarResumen(t){
+  $('r-ofrecido').textContent = plata(t.ofrecido);
+  $('r-aceptado').textContent = plata(t.aceptado);
+  $('r-rechazados').textContent = t.rechazados;
+}
+
+function pintarOfertas(){
+  const arr = datosObra.ofertas;
+  $('t-ofertas').innerHTML = arr.length ? arr.map((o,i) => `
+    <tr data-i="${i}">
+      <td>${esc(o.item)}</td>
+      <td class="num"><input data-c="cantidad" type="number" min="1" step="any" value="${o.cantidad||1}"></td>
+      <td class="num"><input data-c="precioUnitario" type="number" min="0" step="any" value="${o.precioUnitario||0}"></td>
+      <td><input data-c="nota" value="${esc(o.nota||'')}" placeholder="opcional"></td>
+      <td><select data-c="estado">
+        <option value="ofrecido" ${o.estado!=='aceptado'&&o.estado!=='rechazado'?'selected':''}>Ofrecido</option>
+        <option value="aceptado" ${o.estado==='aceptado'?'selected':''}>Aceptado</option>
+        <option value="rechazado" ${o.estado==='rechazado'?'selected':''}>Rechazado</option>
+      </select></td>
+      <td class="acc"><button data-del="${i}" title="Quitar">×</button></td>
+    </tr>`).join('')
+    : '<tr><td colspan="6" style="color:var(--muted);padding:12px">Todavía no agregaste ningún producto.</td></tr>';
+  $('t-ofertas').querySelectorAll('[data-c]').forEach(el => {
+    el.onchange = () => {
+      const i = +el.closest('tr').dataset.i;
+      const campo = el.dataset.c, o = arr[i];
+      o[campo] = (campo==='cantidad' || campo==='precioUnitario') ? (parseFloat(el.value)||0) : el.value;
+      if(campo === 'precioUnitario') o.congelado = true;   // tocado a mano: no se pisa después
+      calcularResumenLocal(); pintarPanel(); guardar();
+    };
+  });
+  $('t-ofertas').querySelectorAll('[data-del]').forEach(btn => {
+    btn.onclick = () => {
+      const idBorrado = arr[+btn.dataset.del].id;
+      arr.splice(+btn.dataset.del, 1);
+      // un dispositivo que apuntaba a esta oferta queda sin vincular, no roto
+      for(const d of datosObra.dispositivos) if(d.ofertaId === idBorrado) d.ofertaId = null;
+      pintarOfertas(); calcularResumenLocal(); pintarPanel(); renderPlano(); guardar();
+    };
+  });
+}
+
+let guardando = null;
+function paintAutosaveTag(txt){ const el=$('autosaveTag'); if(el) el.textContent = txt; }
+function guardar(){
+  clearTimeout(guardando);
+  paintAutosaveTag('Guardando…');
+  guardando = setTimeout(async () => {
+    try{
+      const r = await api('/api/obras/'+OBRA_ID+'/red',
+        {method:'POST', body: JSON.stringify({red: datosObra, guardar:true})});
+      if(r.totalesOferta) pintarResumen(r.totalesOferta);
+      if(r.verificaciones){ verificaciones = r.verificaciones; pintarDrc(); }
+      paintAutosaveTag('Guardado');
+    }catch(e){ toast('No se pudo guardar: ' + e.message); paintAutosaveTag(''); }
+  }, 400);
+}
+
+/* ============================ plano de red ============================ */
+
+const TIPOS_DISPOSITIVO = {
+  entrada:"Entrada de servicio", router:"Router", switch:"Switch", switch_poe:"Switch PoE",
+  ap:"Access point", mesh:"Nodo mesh", camara:"Cámara", nvr:"NVR", nas:"NAS", ups:"UPS",
+  rack:"Rack", patchera:"Patchera", rj45:"Boca RJ45", sensor:"Sensor inteligente", hub:"Hub domótico",
+};
+const ABREV_TIPO = {entrada:"EXT", router:"RT", switch:"SW", switch_poe:"SWP", ap:"AP", mesh:"MSH",
+  camara:"CAM", nvr:"NVR", nas:"NAS", ups:"UPS", rack:"RK", patchera:"PT", rj45:"RJ",
+  sensor:"SEN", hub:"HUB"};
+const MEDIO_COLOR = {exterior:"#8896a8", utp:"#49a9d8", fibra:"#e8c93a", inalambrico:"#4caf82"};
+// PoE (switch_poe) y consumo (camara/ap) son los únicos tipos con esos campos propios -- ver red.py
+const TIPOS_CON_POE_W = new Set(["switch_poe"]);
+const TIPOS_CON_CONSUMO_POE = new Set(["camara", "ap"]);
+
+let planoImg = null;
+let vista = {x:0, y:0, z:1};
+let herramienta = 'seleccionar';   // 'seleccionar' | 'colocar' | 'tramo'
+let tipoArmado = null;
+let tramoOrigen = null;            // id del dispositivo donde arrancó un tramo en curso
+let cursorPlano = null;            // posición (plano-space) del mouse, para la vista previa del tramo en curso
+let seleccion = null;              // {t:'dispositivo'|'tramo', id}
+let contadores = {};
+let historial = [], futuro = [];
+const MAX_HISTORIAL = 60;
+
+let huboAjusteInicial = false;
+function cargarImagenPlano(url){
+  const img = new Image();
+  img.onload = () => {
+    planoImg = img;
+    $('plano-empty').style.display = 'none';
+    // si la pestaña Plano ya está visible, ajustar ya -- si no, se ajusta
+    // sola la primera vez que se abra (ver mostrarPestañaPlano)
+    if($('pane-plano').classList.contains('on')) mostrarPestañaPlano();
+  };
+  img.onerror = () => { $('plano-empty').style.display = 'flex'; };
+  img.src = url;
+}
+function mostrarPestañaPlano(){
+  if(!planoImg){ dimensionarCanvas(); renderPlano(); return; }
+  if(!huboAjusteInicial){ huboAjusteInicial = true; ajustarZoom(); }
+  else dimensionarCanvas();
+  renderPlano();
+}
+function dimensionarCanvas(){
+  const cv = $('plano-cv'), stage = $('plano-stage');
+  const r = stage.getBoundingClientRect();
+  cv.width = r.width; cv.height = r.height;
+}
+function ajustarZoom(){
+  if(!planoImg) return;
+  dimensionarCanvas();
+  const cv = $('plano-cv');
+  const z = Math.min(cv.width/planoImg.width, cv.height/planoImg.height) * 0.94;
+  vista = {x:(cv.width-planoImg.width*z)/2, y:(cv.height-planoImg.height*z)/2, z};
+}
+
+/* ---- paleta de dispositivos ---- */
+function pintarPaleta(){
+  $('paleta').innerHTML = Object.entries(TIPOS_DISPOSITIVO).map(([k,v]) =>
+    `<button class="btn sm tipo-btn${tipoArmado===k?' on':''}" data-tipo="${k}">${esc(v)}</button>`).join('');
+  document.querySelectorAll('.tipo-btn').forEach(b => b.onclick = () => {
+    tipoArmado = tipoArmado===b.dataset.tipo ? null : b.dataset.tipo;
+    herramienta = tipoArmado ? 'colocar' : 'seleccionar';
+    marcarHerramienta();
+    pintarPaleta();
+  });
+}
+function marcarHerramienta(){
+  $('pt-seleccionar').classList.toggle('primary', herramienta==='seleccionar');
+  $('pt-tramo').classList.toggle('primary', herramienta==='tramo');
+}
+$('pt-seleccionar').onclick = () => { herramienta='seleccionar'; tipoArmado=null; tramoOrigen=null; cursorPlano=null; marcarHerramienta(); pintarPaleta(); };
+$('pt-tramo').onclick = () => { herramienta='tramo'; tipoArmado=null; tramoOrigen=null; cursorPlano=null; marcarHerramienta(); pintarPaleta(); };
+
+/* ---- geometría ---- */
+function disp(id){ return datosObra.dispositivos.find(d => d.id===id) || null; }
+function tramoById(id){ return datosObra.tramos.find(t => t.id===id) || null; }
+function ofertaDe(id){ return datosObra.ofertas.find(o => o.id===id) || null; }
+function ofertaAceptada(id){ const o = ofertaDe(id); return !!o && o.estado==='aceptado'; }
+function rutaOrtogonal(a, b){
+  if(a.x===b.x || a.y===b.y) return [{x:a.x,y:a.y}, {x:b.x,y:b.y}];
+  return [{x:a.x,y:a.y}, {x:b.x,y:a.y}, {x:b.x,y:b.y}];   // codo horizontal->vertical, simplificación
+}
+function longitudTramoM(t){
+  if(t.medio==='inalambrico' || !pxPerM) return 0;
+  const pts = t.puntos || [];
+  let L = 0;
+  for(let i=1;i<pts.length;i++) L += Math.hypot(pts[i].x-pts[i-1].x, pts[i].y-pts[i-1].y);
+  return L / pxPerM;
+}
+function coordsCanvas(ev){
+  const r = $('plano-cv').getBoundingClientRect();
+  return {x:(ev.clientX-r.left-vista.x)/vista.z, y:(ev.clientY-r.top-vista.y)/vista.z};
+}
+function hitDispositivo(w){
+  const tol = 12/vista.z;
+  return datosObra.dispositivos.find(d => Math.hypot(d.x-w.x, d.y-w.y) < tol) || null;
+}
+function distSeg(p,a,b){
+  const dx=b.x-a.x, dy=b.y-a.y, L=dx*dx+dy*dy;
+  if(!L) return Math.hypot(p.x-a.x, p.y-a.y);
+  let t = ((p.x-a.x)*dx+(p.y-a.y)*dy)/L; t = Math.max(0, Math.min(1,t));
+  return Math.hypot(p.x-(a.x+t*dx), p.y-(a.y+t*dy));
+}
+function hitTramo(w){
+  const tol = 8/vista.z;
+  for(const t of datosObra.tramos){
+    const pts = t.puntos || [];
+    for(let i=1;i<pts.length;i++) if(distSeg(w, pts[i-1], pts[i]) < tol) return t;
+  }
+  return null;
+}
+
+/* ---- dibujo ---- */
+function puntoMedioPoli(pts){
+  if(pts.length < 2) return pts[0];
+  let total = 0;
+  for(let i=1;i<pts.length;i++) total += Math.hypot(pts[i].x-pts[i-1].x, pts[i].y-pts[i-1].y);
+  let acum = 0;
+  for(let i=1;i<pts.length;i++){
+    const d = Math.hypot(pts[i].x-pts[i-1].x, pts[i].y-pts[i-1].y);
+    if(acum + d >= total/2){
+      const f = d ? (total/2 - acum) / d : 0;
+      return {x: pts[i-1].x + (pts[i].x-pts[i-1].x)*f, y: pts[i-1].y + (pts[i].y-pts[i-1].y)*f};
+    }
+    acum += d;
+  }
+  return pts[pts.length-1];
+}
+function etiquetaCv(ctx, x, y, texto){
+  ctx.save();
+  ctx.font = (11/vista.z)+"px 'IBM Plex Mono',monospace";
+  const w = ctx.measureText(texto).width;
+  ctx.fillStyle = 'rgba(10,18,29,.85)';
+  ctx.fillRect(x-3/vista.z, y-12/vista.z, w+6/vista.z, 15/vista.z);
+  ctx.fillStyle = '#dde3ea';
+  ctx.fillText(texto, x, y);
+  ctx.restore();
+}
+function renderPlano(){
+  const cv = $('plano-cv'); if(!cv.width) dimensionarCanvas();
+  const ctx = cv.getContext('2d');
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.fillStyle = '#0b0f14'; ctx.fillRect(0,0,cv.width,cv.height);
+  ctx.save();
+  ctx.translate(vista.x, vista.y); ctx.scale(vista.z, vista.z);
+  if(planoImg) ctx.drawImage(planoImg, 0, 0);
+
+  for(const t of datosObra.tramos){
+    const a = disp(t.desde), b = disp(t.hasta);
+    if(!a || !b) continue;
+    const pts = (t.puntos && t.puntos.length) ? t.puntos : rutaOrtogonal(a,b);
+    const activo = seleccion && seleccion.t==='tramo' && seleccion.id===t.id;
+    ctx.save();
+    ctx.strokeStyle = activo ? '#e2a33d' : (MEDIO_COLOR[t.medio] || '#8896a8');
+    ctx.lineWidth = (activo?3.2:2.4)/vista.z;
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.setLineDash(t.medio==='inalambrico' ? [6/vista.z,5/vista.z] : []);
+    ctx.beginPath();
+    pts.forEach((p,i)=> i ? ctx.lineTo(p.x,p.y) : ctx.moveTo(p.x,p.y));
+    ctx.stroke();
+    ctx.restore();
+    if(t.medio!=='inalambrico' && pxPerM){
+      const mid = puntoMedioPoli(pts);
+      etiquetaCv(ctx, mid.x+6/vista.z, mid.y-6/vista.z, longitudTramoM(t).toFixed(1)+' m');
+    }
+  }
+  if(herramienta==='tramo' && tramoOrigen){
+    const o = disp(tramoOrigen);
+    if(o){
+      ctx.save();
+      ctx.strokeStyle = MEDIO_COLOR[$('pt-medio').value] || '#8896a8';
+      ctx.lineWidth = 1.6/vista.z; ctx.setLineDash([4/vista.z,4/vista.z]);
+      ctx.beginPath(); ctx.arc(o.x,o.y,14/vista.z,0,7); ctx.stroke();
+      if(cursorPlano){
+        // vista previa en vivo del tramo mientras se arrastra, con el mismo
+        // ruteo ortogonal que va a quedar al soltar -- así se ve por dónde
+        // pasa el cable antes de clickear el destino, no sólo después
+        const medioSel = $('pt-medio').value;
+        const previa = rutaOrtogonal(o, cursorPlano);
+        ctx.beginPath();
+        previa.forEach((p,i)=> i ? ctx.lineTo(p.x,p.y) : ctx.moveTo(p.x,p.y));
+        ctx.stroke();
+        if(medioSel!=='inalambrico' && pxPerM){
+          const mid = puntoMedioPoli(previa);
+          const largo = previa.reduce((s,p,i)=> i ? s+Math.hypot(p.x-previa[i-1].x,p.y-previa[i-1].y) : s, 0) / pxPerM;
+          etiquetaCv(ctx, mid.x+6/vista.z, mid.y-6/vista.z, largo.toFixed(1)+' m');
+        }
+      }
+      ctx.restore();
+    }
+  }
+  for(const d of datosObra.dispositivos){
+    const atenuado = d.ofertaId && !ofertaAceptada(d.ofertaId);
+    const activo = seleccion && seleccion.t==='dispositivo' && seleccion.id===d.id;
+    ctx.save();
+    ctx.globalAlpha = atenuado ? 0.38 : 1;
+    ctx.fillStyle = activo ? '#e2a33d' : '#49a9d8';
+    ctx.strokeStyle = '#0a121d'; ctx.lineWidth = 1.5/vista.z;
+    ctx.beginPath(); ctx.arc(d.x, d.y, 9/vista.z, 0, 7); ctx.fill(); ctx.stroke();
+    ctx.restore();
+    ctx.save(); ctx.globalAlpha = atenuado ? 0.6 : 1;
+    etiquetaCv(ctx, d.x+12/vista.z, d.y-8/vista.z, d.etiqueta || TIPOS_DISPOSITIVO[d.tipo] || d.tipo);
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
+/* ---- interacción: colocar / trazar / seleccionar, paneo y zoom ---- */
+let arrastrando = null;
+$('plano-cv').addEventListener('pointerdown', ev => {
+  if(!planoImg) return;
+  $('plano-cv').setPointerCapture(ev.pointerId);
+  if(ev.button===1 || ev.button===2 || ev.altKey){
+    arrastrando = {x:ev.clientX, y:ev.clientY, vx:vista.x, vy:vista.y};
+    return;
+  }
+  if(ev.button!==0) return;
+  const w = coordsCanvas(ev);
+
+  if(herramienta==='colocar' && tipoArmado){
+    pushUndoRed();
+    contadores[tipoArmado] = (contadores[tipoArmado]||0)+1;
+    const d = {id:'rd_'+Date.now().toString(36)+Math.random().toString(36).slice(2,5), tipo:tipoArmado,
+      x:w.x, y:w.y, etiqueta:(ABREV_TIPO[tipoArmado]||'D')+contadores[tipoArmado], ofertaId:null,
+      poeW: TIPOS_CON_POE_W.has(tipoArmado) ? 60 : null,
+      consumoPoeW: null};
+    datosObra.dispositivos.push(d);
+    seleccion = {t:'dispositivo', id:d.id};
+    renderPlano(); pintarPanel(); guardar();
+    return;
+  }
+  if(herramienta==='tramo'){
+    const hit = hitDispositivo(w);
+    if(!hit) return;
+    if(!tramoOrigen){ tramoOrigen = hit.id; renderPlano(); return; }
+    if(tramoOrigen===hit.id){ tramoOrigen=null; cursorPlano=null; renderPlano(); return; }
+    pushUndoRed();
+    const a = disp(tramoOrigen);
+    datosObra.tramos.push({id:'rt_'+Date.now().toString(36), desde:tramoOrigen, hasta:hit.id,
+      puntos: rutaOrtogonal(a, hit), medio: $('pt-medio').value});
+    tramoOrigen = null;
+    cursorPlano = null;
+    seleccion = null;
+    renderPlano(); pintarDrc(); guardar();
+    return;
+  }
+  // seleccionar
+  const hitD = hitDispositivo(w);
+  if(hitD){ seleccion = {t:'dispositivo', id:hitD.id}; renderPlano(); pintarPanel(); return; }
+  const hitT = hitTramo(w);
+  if(hitT){ seleccion = {t:'tramo', id:hitT.id}; renderPlano(); pintarPanel(); return; }
+  seleccion = null; renderPlano(); pintarPanel();
+});
+window.addEventListener('pointermove', ev => {
+  if(arrastrando){
+    vista.x = arrastrando.vx + (ev.clientX - arrastrando.x);
+    vista.y = arrastrando.vy + (ev.clientY - arrastrando.y);
+    renderPlano();
+    return;
+  }
+  if(herramienta==='tramo' && tramoOrigen){
+    cursorPlano = coordsCanvas(ev);
+    renderPlano();
+  }
+});
+window.addEventListener('pointerup', () => { arrastrando = null; });
+$('plano-cv').addEventListener('contextmenu', ev => ev.preventDefault());
+function zoomAt(factor, cx, cy){
+  const nz = Math.max(0.15, Math.min(6, vista.z*factor));
+  vista.x = cx - (cx-vista.x)*(nz/vista.z);
+  vista.y = cy - (cy-vista.y)*(nz/vista.z);
+  vista.z = nz;
+  renderPlano();
+}
+$('plano-cv').addEventListener('wheel', ev => {
+  if(!planoImg) return;
+  ev.preventDefault();
+  const r = $('plano-cv').getBoundingClientRect();
+  zoomAt(ev.deltaY<0?1.12:1/1.12, ev.clientX-r.left, ev.clientY-r.top);
+}, {passive:false});
+$('pz-in').onclick = () => zoomAt(1.25, $('plano-cv').width/2, $('plano-cv').height/2);
+$('pz-out').onclick = () => zoomAt(1/1.25, $('plano-cv').width/2, $('plano-cv').height/2);
+$('pz-fit').onclick = () => { ajustarZoom(); renderPlano(); };
+window.addEventListener('resize', () => { if(planoImg){ dimensionarCanvas(); renderPlano(); } });
+
+/* ---- panel de propiedades del seleccionado ---- */
+function pintarPanel(){
+  const el = $('panel-prop');
+  if(!seleccion){ el.innerHTML = ''; return; }
+  if(seleccion.t === 'dispositivo'){
+    const d = disp(seleccion.id);
+    if(!d){ seleccion=null; el.innerHTML=''; return; }
+    const opcionesOferta = '<option value="">Sin vincular</option>' +
+      datosObra.ofertas.map(o => `<option value="${o.id}" ${d.ofertaId===o.id?'selected':''}>${
+        esc(o.item)} (${o.estado})</option>`).join('');
+    el.innerHTML = `<h3>${esc(TIPOS_DISPOSITIVO[d.tipo]||d.tipo)}</h3>
+      <div class="campo"><label>Etiqueta</label><input id="pp-etiqueta" value="${esc(d.etiqueta||'')}"></div>
+      <div class="campo"><label>Vincular a oferta</label><select id="pp-oferta">${opcionesOferta}</select></div>
+      ${TIPOS_CON_POE_W.has(d.tipo)?`<div class="campo"><label>Potencia PoE disponible (W)</label>
+        <input id="pp-poe" type="number" min="0" value="${d.poeW ?? ''}"></div>`:''}
+      ${TIPOS_CON_CONSUMO_POE.has(d.tipo)?`<div class="campo"><label>Consumo PoE (W, vacío = valor típico)</label>
+        <input id="pp-consumo" type="number" min="0" value="${d.consumoPoeW ?? ''}"></div>`:''}
+      <button class="btn sm" id="pp-borrar" style="width:100%;color:var(--danger)">Eliminar dispositivo</button>`;
+    $('pp-etiqueta').onchange = e => { d.etiqueta = e.target.value; renderPlano(); guardar(); };
+    $('pp-oferta').onchange = e => { d.ofertaId = e.target.value || null; renderPlano(); guardar(); };
+    if($('pp-poe')) $('pp-poe').onchange = e => { d.poeW = parseFloat(e.target.value)||0; guardar(); };
+    if($('pp-consumo')) $('pp-consumo').onchange = e => {
+      d.consumoPoeW = e.target.value==='' ? null : (parseFloat(e.target.value)||0); guardar();
+    };
+    $('pp-borrar').onclick = () => { borrarSeleccion(); };
+  } else if(seleccion.t === 'tramo'){
+    const t = tramoById(seleccion.id);
+    if(!t){ seleccion=null; el.innerHTML=''; return; }
+    el.innerHTML = `<h3>Tramo</h3>
+      <div class="campo"><label>Medio</label><select id="pp-medio">
+        ${Object.entries({exterior:"Exterior",utp:"UTP",fibra:"Fibra",inalambrico:"Inalámbrico"}).map(([k,v])=>
+          `<option value="${k}" ${t.medio===k?'selected':''}>${v}</option>`).join('')}</select></div>
+      <div class="campo"><label>Longitud</label><input value="${longitudTramoM(t).toFixed(1)} m" disabled></div>
+      <button class="btn sm" id="pp-borrar" style="width:100%;color:var(--danger)">Eliminar tramo</button>`;
+    $('pp-medio').onchange = e => { t.medio = e.target.value; renderPlano(); pintarDrc(); guardar(); };
+    $('pp-borrar').onclick = () => { borrarSeleccion(); };
+  }
+}
+function borrarSeleccion(){
+  if(!seleccion) return;
+  pushUndoRed();
+  if(seleccion.t === 'dispositivo'){
+    datosObra.dispositivos = datosObra.dispositivos.filter(d => d.id !== seleccion.id);
+    datosObra.tramos = datosObra.tramos.filter(t => t.desde!==seleccion.id && t.hasta!==seleccion.id);
+  } else {
+    datosObra.tramos = datosObra.tramos.filter(t => t.id !== seleccion.id);
+  }
+  seleccion = null;
+  renderPlano(); pintarPanel(); pintarDrc(); guardar();
+}
+window.addEventListener('keydown', ev => {
+  const tag = (ev.target.tagName||'').toLowerCase();
+  if(tag==='input' || tag==='select' || tag==='textarea') return;
+  if(document.querySelector('.tab-btn.on')?.dataset.tab !== 'plano') return;
+  if((ev.key==='Delete' || ev.key==='Backspace') && seleccion){ ev.preventDefault(); borrarSeleccion(); }
+  if(ev.key==='Escape'){ tramoOrigen=null; cursorPlano=null; herramienta='seleccionar'; tipoArmado=null; marcarHerramienta(); pintarPaleta(); renderPlano(); }
+  if((ev.ctrlKey||ev.metaKey) && !ev.shiftKey && ev.key.toLowerCase()==='z'){ ev.preventDefault(); deshacerRed(); }
+  if((ev.ctrlKey||ev.metaKey) && (ev.key.toLowerCase()==='y' || (ev.shiftKey && ev.key.toLowerCase()==='z'))){ ev.preventDefault(); rehacerRed(); }
+});
+
+/* ---- deshacer / rehacer -- mismo patrón que canaliza.html ---- */
+function snapshotRed(){ return JSON.stringify({dispositivos:datosObra.dispositivos, tramos:datosObra.tramos}); }
+function restaurarRed(json){
+  const d = JSON.parse(json);
+  datosObra.dispositivos = d.dispositivos; datosObra.tramos = d.tramos;
+  seleccion = null;
+  renderPlano(); pintarPanel(); pintarDrc(); guardar();
+}
+function pushUndoRed(){
+  historial.push(snapshotRed());
+  if(historial.length > MAX_HISTORIAL) historial.shift();
+  futuro = [];
+  pintarBotonesHistorial();
+}
+function deshacerRed(){
+  if(!historial.length) return;
+  futuro.push(snapshotRed());
+  restaurarRed(historial.pop());
+  pintarBotonesHistorial();
+}
+function rehacerRed(){
+  if(!futuro.length) return;
+  historial.push(snapshotRed());
+  restaurarRed(futuro.pop());
+  pintarBotonesHistorial();
+}
+function pintarBotonesHistorial(){
+  $('bUndoRed').disabled = !historial.length;
+  $('bRedoRed').disabled = !futuro.length;
+}
+$('bUndoRed').onclick = deshacerRed;
+$('bRedoRed').onclick = rehacerRed;
+
+/* ---- observaciones de diseño (DRC), clickeables como en Routeo ---- */
+function pintarDrc(){
+  $('drc-count').textContent = verificaciones.length;
+  $('drc-list').innerHTML = verificaciones.length ? verificaciones.map((v,i) =>
+    `<div class="drc-row ${v.lvl}" data-i="${i}">${esc(v.txt)}</div>`).join('')
+    : '<p class="nota">Sin observaciones.</p>';
+  $('drc-list').querySelectorAll('[data-i]').forEach(row => row.onclick = () => {
+    const v = verificaciones[+row.dataset.i];
+    if(!v.target) return;
+    const d = disp(v.target);
+    if(d){
+      seleccion = {t:'dispositivo', id:d.id};
+      vista.x = $('plano-cv').width/2 - d.x*vista.z;
+      vista.y = $('plano-cv').height/2 - d.y*vista.z;
+      renderPlano(); pintarPanel();
+      return;
+    }
+    const t = tramoById(v.target) || datosObra.tramos.find(x => x.desde===v.target || x.hasta===v.target);
+    if(t){ seleccion = {t:'tramo', id:t.id}; renderPlano(); pintarPanel(); }
+  });
+}
+
+pintarPaleta();
+marcarHerramienta();
+pintarBotonesHistorial();
+
+cargar().catch(e => toast('No se pudo cargar: ' + e.message));
+</script>
+</body>
+</html>
