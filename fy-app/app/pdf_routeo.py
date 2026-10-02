@@ -321,11 +321,13 @@ def _codigo_badge(pg, T, x, y, numero):
 
 
 def _draw_scene(pg, T, P, *, only=None, detailed=False, labels=True, lens=True, codigo=False,
-                solo_cano=False, crossings=None, problems=None):
+                solo_cano=False, solo_dia=None, crossings=None, problems=None):
     problems = problems if problems is not None else P.drc_error_targets()
     groups = P.conduit_groups()
 
     def _es_relevante(grp):
+        if solo_dia and grp.get("dia") != solo_dia:
+            return False
         return (any(r.get("circuit") == only for r in grp["runs"]) if only
                 else any(P.is_ci_visible(r.get("circuit")) for r in grp["runs"]))
 
@@ -408,8 +410,17 @@ def _draw_scene(pg, T, P, *, only=None, detailed=False, labels=True, lens=True, 
             m = T.p({"x": mid["x"] + dx, "y": mid["y"] + dy})
             _codigo_badge(pg, T, m.x, m.y, numero)
 
+    nodos_con_cano = None
+    if solo_dia:
+        nodos_con_cano = set()
+        for grp in groups.values():
+            if grp["key"] in relevant_keys:
+                nodos_con_cano.add(grp.get("a"))
+                nodos_con_cano.add(grp.get("b"))
     for n in P.nodes:
         if not P.node_visible(n, only):
+            continue
+        if solo_dia and n.get("id") not in nodos_con_cano:
             continue
         _draw_node(pg, T, P, n, n.get("id") in problems, solo_cano=solo_cano)
         if labels:
@@ -602,18 +613,21 @@ def generar(obra: dict, proyecto: dict, hojas: dict, *, formato="a4",
         _footer(pg, W, H, base_name, "Cableado detallado")
 
     if hojas.get("canos"):
-        # plano de caños, sin colores por circuito -- para ir a la obra y
-        # colocar los caños antes de pasar los cables (ver canos de qué
-        # circuito es cada uno, con las otras hojas, recién después)
-        sub = f"{_fmt(P.px_per_m, 1)} px/m" if P.px_per_m else "sin escala"
-        pg, _, _ = _plan_page(doc, W, H, "Routeo — plano de caños", sub, plano_png, base_w, base_h,
-                             60, lambda p, T: _draw_scene(p, T, P, labels=True, lens=True, solo_cano=True,
-                                                          crossings=crossings, problems=problems))
-        pg.insert_textbox(pymupdf.Rect(MARGEN, H - 50, W - MARGEN, H - 30),
-                          "Caños y cajas solamente, sin diferenciar por circuito -- para colocarlos en la obra "
-                          "antes de pasar los cables. Qué conductor va en cada uno sale en las otras hojas.",
-                          fontsize=7.5, fontname="helv", color=INK, lineheight=1.3)
-        _footer(pg, W, H, base_name, "Plano de caños")
+        # plano de caños, una hoja por diámetro -- sin colores por circuito y
+        # sin texto de largo/altura/sección (eso ya se ve en las otras hojas);
+        # acá sólo importa por dónde va cada diámetro de caño, para colocarlos
+        # en la obra antes de pasar los cables
+        diametros = sorted({g["dia"] for g in P.conduit_groups().values() if g.get("dia")},
+                           key=lambda d: dia_of(d)["mm"])
+        for dia in diametros:
+            titulo = f"Routeo — plano de caños · {dia_lbl(dia)}"
+            pg, _, _ = _plan_page(doc, W, H, titulo, None, plano_png, base_w, base_h, 46,
+                                  lambda p, T, _d=dia: _draw_scene(p, T, P, labels=True, lens=False,
+                                                                   solo_cano=True, solo_dia=_d,
+                                                                   crossings=crossings, problems=problems))
+            pg.insert_text((MARGEN, H - 34), "Sin diferenciar por circuito -- colocar antes de pasar los cables.",
+                           fontsize=7.5, fontname="helv", color=INK)
+            _footer(pg, W, H, base_name, f"Plano de caños · {dia_lbl(dia)}")
 
     for cid in (hojas.get("circuitos") or []):
         _hoja_circuito(doc, W, H, P, base_name, plano_png, base_w, base_h, cid, crossings, problems)
