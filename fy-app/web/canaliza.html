@@ -3502,6 +3502,7 @@ $("#bPdfPlanos").onclick = ()=>{
   l.innerHTML =
     `<label class="chk"><input type="checkbox" id="pxAll" checked> Hoja con todos los circuitos juntos</label>` +
     `<label class="chk"><input type="checkbox" id="pxDetail" checked> Hoja de cableado detallado (todos los circuitos, cables adentro de cada caño)</label>` +
+    `<label class="chk"><input type="checkbox" id="pxCanos"> Hoja de plano de caños (sin colores por circuito -- para ir a la obra, colocar los caños, y después pasar los cables mirando las otras hojas)</label>` +
     S.circuits.map(c=>`<label class="chk"><input type="checkbox" class="pxC" value="${c.id}" checked>
       <span class="sw" style="background:${c.color};margin-top:2px"></span> Hoja de ${esc(c.name)}</label>`).join("");
   open$("#mPdf");
@@ -3547,6 +3548,7 @@ async function makePdf(){
     : {
         general:   $("#pxAll")   ? $("#pxAll").checked   : true,
         detallado: $("#pxDetail")? $("#pxDetail").checked: false,
+        canos:     $("#pxCanos") ? $("#pxCanos").checked  : false,
         bom:       false,
         circuitos: Array.from(document.querySelectorAll(".pxC:checked")).map(i=>i.value),
         circuitosCodigo: [],
