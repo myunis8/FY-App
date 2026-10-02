@@ -2808,7 +2808,12 @@ function drcRun(){
       push("w", `Tramo de ${esc(c.name)} sin cerrar en ${!r.a&&!r.b?"ninguno de los dos extremos":"un extremo"}. Enganchalo a una caja.`, r.id, "tramos", "tramo-abierto");
     const L = runLenM(r);
     if(S.pxPerM && L>S.rules.longRun)
-      push("w", `Tramo de ${esc(c.name)} de ${fmt(L,1)} m supera los ${S.rules.longRun} m. Verificá caída de tensión.`, r.id, "caida", "caida");
+      // esto es sólo "este tramo individual es largo, revisalo" -- NO es el
+      // cálculo de caída de tensión del circuito (eso usa el camino completo
+      // desde el tablero hasta el punto más lejano, ver caidaMasLarga() más
+      // abajo). Categoría y texto separados a propósito para no mezclar los
+      // dos avisos bajo "Caída de tensión".
+      push("w", `Tramo de ${esc(c.name)} de ${fmt(L,1)} m supera los ${S.rules.longRun} m. Considerá dividirlo con una caja de paso.`, r.id, "tramos", "tramo-largo");
     if(S.pxPerM && L>S.rules.boxRun)
       push("w", `Tramo de ${esc(c.name)} de ${fmt(L,1)} m sin caja intermedia (supera los ${S.rules.boxRun} m). Considerá agregar una caja de paso en el medio para facilitar el tendido del cable.`, r.id, "tramos", "tramo-sin-caja");
     const bends = runBends(r);
@@ -2896,6 +2901,7 @@ const DRC_TIPOS = {
   "tierra":               "Tierra compartida",
   "tramo-abierto":        "Tramo sin cerrar en una caja",
   "caida":                "Caída de tensión",
+  "tramo-largo":          "Tramo individual largo",
   "tramo-sin-caja":       "Tramo largo sin caja intermedia",
   "codos":                "Codos de 90°",
   "caja-max":             "Demasiados caños en una caja",
