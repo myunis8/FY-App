@@ -3,6 +3,21 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 1.8.1 — Tablero: más lugar entre térmicas, cables rectos, caños arrastrables
+
+- **Más aire entre térmicas** (la boca se agrandó para dejar un canal real a
+  los dos lados de cada dispositivo) -- ese canal es por donde pasan los
+  cables que van de un piso a otro o de un caño hacia un circuito, sin tapar
+  el dibujo de la térmica de al lado.
+- **Todo pin, caño y tramo de cable vive en la misma grilla fija.** Cualquier
+  cable sale siempre derecho (un tramo recto fijo) desde el pin, la bornera,
+  el caño o el peine al que se conecta, antes de poder doblar -- ya no puede
+  quedar "ladeado" justo al salir de un punto de conexión.
+- **Las entradas de caño se arrastran con el mouse para reordenarlas**, en
+  vez de borrarlas y volver a crearlas. También dejaron de superponerse
+  entre sí sea cual sea la cantidad: tienen una separación fija que alcanza
+  para el ícono y la etiqueta.
+
 ## 1.8.0 — Tablero: rediseño a canvas
 
 - **El editor de Tablero pasa de SVG/DOM a un `<canvas>` real, con cámara

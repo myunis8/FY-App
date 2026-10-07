@@ -138,6 +138,22 @@ def mover_entrada_cano(tablero: dict, cano_id: str, direccion: int) -> tuple[boo
     return True, ""
 
 
+def reordenar_entrada_cano(tablero: dict, cano_id: str, nuevo_orden: int) -> tuple[bool, str]:
+    """Mueve la entrada directamente a la posición `nuevo_orden` dentro de su
+    mismo lado (arrastre con el mouse, en vez de correrla de a una)."""
+    canos = tablero.get("canos") or []
+    objetivo = next((c for c in canos if c["id"] == cano_id), None)
+    if objetivo is None:
+        return False, "Esa entrada no existe."
+    hermanos = sorted([c for c in canos if c["lado"] == objetivo["lado"]], key=lambda c: c["orden"])
+    hermanos.remove(objetivo)
+    destino = max(0, min(int(nuevo_orden), len(hermanos)))
+    hermanos.insert(destino, objetivo)
+    for i, c in enumerate(hermanos):
+        c["orden"] = i
+    return True, ""
+
+
 TIPOS_CON_TIERRA = ("TUG", "TUE")   # a estos circuitos se les suma el conductor de tierra
 
 

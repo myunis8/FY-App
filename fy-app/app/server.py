@@ -119,6 +119,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._editar_entrada_cano(partes[2], partes[4], partes[6])
             if len(partes) == 8 and partes[:2] == ["api", "obras"] and partes[3] == "tableros" and partes[5] == "canos" and partes[7] == "mover":
                 return self._mover_entrada_cano(partes[2], partes[4], partes[6])
+            if len(partes) == 8 and partes[:2] == ["api", "obras"] and partes[3] == "tableros" and partes[5] == "canos" and partes[7] == "reordenar":
+                return self._reordenar_entrada_cano(partes[2], partes[4], partes[6])
             if len(partes) == 6 and partes[:2] == ["api", "obras"] and partes[3] == "tableros" and partes[5] == "cables":
                 return self._crear_cable(partes[2], partes[4])
             if len(partes) == 5 and partes[:2] == ["api", "obras"] and partes[3] == "tableros":
@@ -776,6 +778,20 @@ class Handler(BaseHTTPRequestHandler):
             return self._error("Ese tablero no existe.", 404)
         cuerpo = self._cuerpo()
         ok, msg = tablero_mod.mover_entrada_cano(t, cano_id, int(cuerpo.get("direccion", 1)))
+        if not ok:
+            return self._error(msg)
+        almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
+        return self._json({"ok": True, "tablero": t})
+
+    def _reordenar_entrada_cano(self, obra_id, tablero_id, cano_id):
+        obra = almacen.leer_obra(obra_id)
+        if obra is None:
+            return self._error("Esa obra no está en este equipo.", 404)
+        t = next((x for x in obra.get("tableros") or [] if x["id"] == tablero_id), None)
+        if t is None:
+            return self._error("Ese tablero no existe.", 404)
+        cuerpo = self._cuerpo()
+        ok, msg = tablero_mod.reordenar_entrada_cano(t, cano_id, int(cuerpo.get("orden", 0)))
         if not ok:
             return self._error(msg)
         almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))

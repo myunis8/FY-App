@@ -197,9 +197,6 @@ h2:first-child{margin-top:0}
       </div>
       <div class="nota" id="t-resumen" style="margin-bottom:12px"></div>
 
-      <div class="campo"><label for="t-grilla">Grilla para rutear cables (px)</label>
-        <input id="t-grilla" type="number" min="2" max="40"></div>
-
       <button class="btn sm danger" id="b-borrar-tablero" style="width:100%">Borrar este tablero</button>
     </div>
     <div id="sin-tablero" class="vacio" style="display:none">Esta obra todavía no tiene
@@ -255,19 +252,30 @@ h2:first-child{margin-top:0}
 const $ = id => document.getElementById(id);
 const OBRA_ID = new URLSearchParams(location.search).get('obra');
 fyLock.iniciar(OBRA_ID);
-const CELDA = 64;              // ancho de una boca, en px "de mundo" (escala 1)
+const CELDA = 80;               // ancho de una boca, en px "de mundo" (escala 1) -- más
+                                 // ancha que una boca real, a propósito: ese aire de más es
+                                 // el canal por donde pasan los cables que no se conectan ahí
 const ALTO_DISP = 150;         // alto de la fila de dispositivos
 const BANDA = 78;              // alto de cada banda de cableado, arriba y abajo del riel
 const MARGEN_PISO = 22;        // separación visual entre el piso de abajo y el de arriba
-const CANAL = 46;              // canal lateral reservado para el recorrido de los cables
+const CANAL = 48;              // canal lateral reservado para el recorrido de los cables
 const FRANJA_CANO = 58;        // alto de la franja de entrada/salida de caños, arriba y abajo
 const ALTURA_PISO = BANDA + ALTO_DISP + BANDA + MARGEN_PISO;
+const GRID = 8;                 // unidad única de grilla: todo pin, caño y tramo de cable
+                                 // es múltiplo de esto, para que nunca quede nada "ladeado"
+const MARGEN_DISP = 18;         // aire a cada lado de una térmica dentro de su rango de bocas
+const STUB = 24;                // tramo fijo y recto que sale de cualquier pin/caño/peine
+                                 // antes de poder doblar -- así el cable nunca sale ladeado
+const PITCH_CANO = 64;          // separación fija entre una entrada de caño y la siguiente
+                                 // -- tiene que alcanzar para la etiqueta de texto, no sólo
+                                 // para el ícono, si no las etiquetas se superponen igual
 function yPiso(piso){ return FRANJA_CANO + piso * ALTURA_PISO; }
 function yRiel(piso){ return yPiso(piso) + BANDA; }
 function yBandaInf(piso){ return yRiel(piso) + ALTO_DISP; }
 let obra = null, tableros = [], activo = null, presets = [];
 let seleccion = null;          // {t:'dispositivo'|'cable'|'conexion'|'cano', id}
 let herramienta = {tipo: 'select', paso1: null, ruta: []};   // 'select'|'peine'|'conectorPeine'|'cable'
+let arrastreCano = null;       // {id, lado, startX, xLive, moved} -- arrastre de una entrada de caño
 
 const api = async (r,o={}) => {
   const res = await fetch(r,{headers:{'Content-Type':'application/json'},...o});
@@ -491,7 +499,10 @@ function dimensionarCanvas(){
 }
 function anchoAltoMundo(t){
   if(!t) return [CANAL+CELDA, FRANJA_CANO*2];
-  return [t.bocasPorPiso*CELDA + CANAL, 2*FRANJA_CANO + t.pisos*ALTURA_PISO - MARGEN_PISO];
+  const nCanos = Math.max(entradasDeLado(t,'arriba').length, entradasDeLado(t,'abajo').length);
+  const anchoCanos = INICIO_CANOS + (nCanos+1)*PITCH_CANO + PITCH_CANO/2;
+  const ancho = Math.max(t.bocasPorPiso*CELDA + CANAL, anchoCanos);
+  return [ancho, 2*FRANJA_CANO + t.pisos*ALTURA_PISO - MARGEN_PISO];
 }
 function ajustarVista(){
   const t = tableroActivo();
@@ -582,12 +593,17 @@ function etiquetaCano(c){
 function entradasDeLado(t, lado){
   return (t.canos||[]).filter(c=>c.lado===lado).sort((a,b)=>a.orden-b.orden);
 }
+const INICIO_CANOS = CANAL + GRID*2;   // separado del canal lateral, no se mezclan
 function xEntradaCano(t, cano){
+  if(arrastreCano && arrastreCano.id === cano.id) return arrastreCano.xLive;
   const hermanos = entradasDeLado(t, cano.lado);
-  const n = Math.max(hermanos.length, 1);
   const orden = hermanos.findIndex(c=>c.id===cano.id);
-  const ancho = t.bocasPorPiso*CELDA;
-  return CANAL + (orden+0.5)*ancho/n;
+  return INICIO_CANOS + PITCH_CANO/2 + orden*PITCH_CANO;
+}
+function ordenDesdeX(t, lado, x){
+  const n = entradasDeLado(t, lado).length;
+  const i = Math.round((x - INICIO_CANOS - PITCH_CANO/2) / PITCH_CANO);
+  return Math.max(0, Math.min(n-1, i));
 }
 function desfaseEntrada(indice, lado){
   if(indice % 2 === 0) return 0;
@@ -599,7 +615,7 @@ function puntaDeStub(t, cano, polaridad){
   const idx = pols.indexOf(polaridad);
   if(idx < 0) return null;
   const dir = cano.lado === 'arriba' ? 1 : -1;
-  const paso = 9, largoBase = 22;
+  const paso = 9, largoBase = STUB;
   const n = pols.length;
   const dx = (idx - (n-1)/2) * paso;
   const y2 = (13+largoBase)*dir;
@@ -626,8 +642,9 @@ function puntoDeEndpoint(t, ep){
     if(!d || d.piso===null || d.piso===undefined) return null;
     const polo = ep.polo || 0;
     if(d.tipo === 'bornera'){
+      const w = d.polos*CELDA - MARGEN_DISP*2, x = CANAL + d.posicion*CELDA + MARGEN_DISP;
       const y0 = yRiel(d.piso) + ALTO_DISP*0.07 + (ALTO_DISP*0.86/BOCAS_BORNERA)*(polo+0.5);
-      return {x: CANAL + (d.posicion+1)*CELDA - 6, y: y0};
+      return {x: x + w - 6, y: y0};
     }
     const hDiv = ALTO_DISP - 14, topDiv = yRiel(d.piso) + 6;
     return {x: CANAL + (d.posicion + polo + 0.5)*CELDA,
@@ -659,8 +676,7 @@ function colorDeCable(t, cable){
   return '#5b6b7a';
 }
 function ajustarAGrilla(t, x, y){
-  const g = Math.max(2, t.grillaPx || 8);
-  return [Math.round(x/g)*g, Math.round(y/g)*g];
+  return [Math.round(x/GRID)*GRID, Math.round(y/GRID)*GRID];
 }
 function ortogonalizar(pts){
   const out = [pts[0]];
@@ -670,6 +686,38 @@ function ortogonalizar(pts){
     out.push([x1, y1]);
   }
   return out;
+}
+/* ---------------- salida recta y fija desde cualquier extremo ----------------
+   Antes un cable podía salir ladeado de un pin apenas el punto siguiente no
+   coincidía con su grilla -- ahora cada extremo fuerza un tramo recto (STUB)
+   en su dirección natural (hacia arriba/abajo de una térmica, hacia el costado
+   de una bornera, hacia adentro del gabinete desde un caño, hacia arriba de
+   un peine) antes de permitir cualquier doblez. Lo que el usuario rutea a mano
+   son los tramos intermedios, nunca el primer/último segmento. */
+function direccionNatural(t, ep){
+  if(!ep) return [0,-1];
+  if(ep.tipo === 'dispositivo'){
+    if(ep.lado === 'costado') return [1, 0];
+    return ep.lado === 'arriba' ? [0,-1] : [0,1];
+  }
+  if(ep.tipo === 'cano'){
+    const cano = (t.canos||[]).find(c=>c.id===ep.id);
+    return [0, (cano && cano.lado === 'arriba') ? 1 : -1];
+  }
+  if(ep.tipo === 'conectorPeine'){
+    const con = (t.conexiones||[]).find(c=>c.id===ep.id);
+    return (con && con.carga === 'lateral') ? [1, 0] : [0,-1];
+  }
+  return [0,-1];   // peine
+}
+function construirPuntos(t, origenEp, destinoEp, ruta){
+  const a = puntoDeEndpoint(t, origenEp), b = puntoDeEndpoint(t, destinoEp);
+  if(!a || !b) return null;
+  const da = direccionNatural(t, origenEp), db = direccionNatural(t, destinoEp);
+  const aStub = [a.x + da[0]*STUB, a.y + da[1]*STUB];
+  const bStub = [b.x + db[0]*STUB, b.y + db[1]*STUB];
+  const medio = (ruta||[]).map(p => [p[0], p[1]]);
+  return ortogonalizar([[a.x,a.y], aStub, ...medio, bStub, [b.x,b.y]]);
 }
 const LANE_SPACING = 2.6;
 function separarParalelos(listaCables){
@@ -795,10 +843,8 @@ function render(){
   // que antes -- el área de clic ancha del cable no debe tapar el punto
   // exacto del conector)
   const listaCables = (t.cables||[]).map(cb => {
-    const a = puntoDeEndpoint(t, cb.origen), b = puntoDeEndpoint(t, cb.destino);
-    if(!a || !b) return null;
-    const ruta = (cb.ruta && cb.ruta.length) ? cb.ruta : [];
-    return {id: cb.id, pts: ortogonalizar([[a.x,a.y], ...ruta, [b.x,b.y]]).map(p=>p.slice())};
+    const pts = construirPuntos(t, cb.origen, cb.destino, cb.ruta);
+    return pts ? {id: cb.id, pts: pts.map(p=>p.slice())} : null;
   }).filter(Boolean);
   separarParalelos(listaCables);
   const saltos = calcularSaltos(listaCables);
@@ -852,10 +898,6 @@ function dibujarRiel(ctx, t, piso, ancho){
 function iconoCanoColor(c){
   return c.tipo==='tierra' ? '#2f7d5c' : c.tipo==='acometida' ? '#8a5a2b' : '#2b6ca3';
 }
-function flechasReordenRects(cano, lado){
-  const y = lado === 'arriba' ? -22 : 33;
-  return {atras:{x:-16,y:y-3,r:8}, adelante:{x:16,y:y-3,r:8}};
-}
 function dibujarFranjaCano(ctx, t, lado, anchoTotal){
   const [, altoTotal] = anchoAltoMundo(t);
   const y = lado==='arriba' ? FRANJA_CANO : altoTotal - FRANJA_CANO;
@@ -871,30 +913,23 @@ function dibujarFranjaCano(ctx, t, lado, anchoTotal){
     const x = xEntradaCano(t, cano);
     const yEntrada = y + desfaseEntrada(i, lado);
     const color = iconoCanoColor(cano);
+    const arrastrando = arrastreCano && arrastreCano.id === cano.id;
     ctx.save(); ctx.translate(x, yEntrada);
+    if(arrastrando){
+      ctx.beginPath(); ctx.arc(0,0,15,0,7); ctx.strokeStyle='#c9793f'; ctx.lineWidth=2;
+      ctx.setLineDash([3,2]); ctx.stroke(); ctx.setLineDash([]);
+    }
+    ctx.globalAlpha = arrastrando ? 0.55 : 1;
     ctx.beginPath(); ctx.arc(0,0,11,0,7); ctx.fillStyle='#e8ebe9'; ctx.fill();
     ctx.strokeStyle=color; ctx.lineWidth=2; ctx.stroke();
     ctx.beginPath(); ctx.arc(0,0,6,0,7); ctx.fillStyle=color; ctx.fill();
+    ctx.globalAlpha = 1;
     ctx.fillStyle = '#33506e'; ctx.font = '8px IBM Plex Sans, sans-serif'; ctx.textAlign='center';
     ctx.fillText(etiquetaCano(cano), 0, lado==='arriba'?-28:37);
     ctx.textAlign='left';
-    // flechas de reordenar
-    const fr = flechasReordenRects(cano, lado);
-    if(i>0){
-      ctx.beginPath(); ctx.arc(fr.atras.x, fr.atras.y, fr.atras.r, 0, 7); ctx.fillStyle='#fff';
-      ctx.fill(); ctx.strokeStyle=TRAZO; ctx.lineWidth=1.1; ctx.stroke();
-      ctx.fillStyle=TRAZO; ctx.font='bold 10px sans-serif'; ctx.textAlign='center';
-      ctx.fillText('◀', fr.atras.x, fr.atras.y+3); ctx.textAlign='left';
-    }
-    if(i<entradas.length-1){
-      ctx.beginPath(); ctx.arc(fr.adelante.x, fr.adelante.y, fr.adelante.r, 0, 7); ctx.fillStyle='#fff';
-      ctx.fill(); ctx.strokeStyle=TRAZO; ctx.lineWidth=1.1; ctx.stroke();
-      ctx.fillStyle=TRAZO; ctx.font='bold 10px sans-serif'; ctx.textAlign='center';
-      ctx.fillText('▶', fr.adelante.x, fr.adelante.y+3); ctx.textAlign='left';
-    }
     // stubs de polaridad (siempre visibles -- son el extremo "caño" del cable)
     const pols = polaridadesDeCano(cano);
-    const dir = lado === 'arriba' ? 1 : -1, paso = 9, largoBase = 22, n = pols.length;
+    const dir = lado === 'arriba' ? 1 : -1, paso = 9, largoBase = STUB, n = pols.length;
     pols.forEach((pol, pi) => {
       const dx = (pi - (n-1)/2) * paso, y1 = 13*dir, y2 = (13+largoBase)*dir;
       ctx.strokeStyle = COLOR_POLARIDAD[pol]; ctx.lineWidth = 3.4; ctx.lineCap='round';
@@ -903,7 +938,7 @@ function dibujarFranjaCano(ctx, t, lado, anchoTotal){
     });
     ctx.restore();
   });
-  const xNueva = CANAL + Math.max(entradas.length, 0) * 40 + 22;
+  const xNueva = INICIO_CANOS + PITCH_CANO/2 + entradas.length*PITCH_CANO;
   ctx.save(); ctx.translate(xNueva, y);
   ctx.beginPath(); ctx.arc(0,0,11,0,7); ctx.fillStyle='#fff'; ctx.fill();
   ctx.strokeStyle='#a9b3b0'; ctx.lineWidth=1.6; ctx.setLineDash([3,2]); ctx.stroke(); ctx.setLineDash([]);
@@ -914,8 +949,8 @@ function dibujarFranjaCano(ctx, t, lado, anchoTotal){
   ctx.restore();
 }
 function dibujarDispositivo(ctx, t, d){
-  const w = d.polos*CELDA - 20, h = ALTO_DISP - 14;
-  const x = CANAL + d.posicion*CELDA + 10, y = yRiel(d.piso) + 6;
+  const w = d.polos*CELDA - MARGEN_DISP*2, h = ALTO_DISP - 14;
+  const x = CANAL + d.posicion*CELDA + MARGEN_DISP, y = yRiel(d.piso) + 6;
   const entry = imagenSVG(svgDispositivo(d, w, h));
   ctx.save();
   if(seleccion && seleccion.t==='dispositivo' && seleccion.id===d.id){
@@ -934,8 +969,8 @@ function dibujarDispositivo(ctx, t, d){
   ctx.restore();
 }
 function dibujarNodosDispositivo(ctx, d){
-  const w = d.polos*CELDA - 20, h = ALTO_DISP - 14;
-  const x = CANAL + d.posicion*CELDA + 10, y = yRiel(d.piso) + 6;
+  const w = d.polos*CELDA - MARGEN_DISP*2, h = ALTO_DISP - 14;
+  const x = CANAL + d.posicion*CELDA + MARGEN_DISP, y = yRiel(d.piso) + 6;
   const activo = herramienta.tipo === 'cable';
   const r = activo ? 5 : 3.4;
   ctx.save();
@@ -965,10 +1000,7 @@ function dibujarCable(ctx, t, cable, saltosDeEste, pts){
   const a = puntoDeEndpoint(t, cable.origen), b = puntoDeEndpoint(t, cable.destino);
   if(!a || !b) return;
   const color = colorDeCable(t, cable);
-  if(!pts){
-    const ruta = (cable.ruta && cable.ruta.length) ? cable.ruta : [];
-    pts = ortogonalizar([[a.x,a.y], ...ruta, [b.x,b.y]]);
-  }
+  if(!pts) pts = construirPuntos(t, cable.origen, cable.destino, cable.ruta);
   const path = new Path2D(pathConSaltos(pts, saltosDeEste));
   const sel = seleccion && seleccion.t==='cable' && seleccion.id===cable.id;
   ctx.save();
@@ -1042,7 +1074,9 @@ function dibujarPendienteHerramienta(ctx, t){
   if(herramienta.tipo === 'cable' && herramienta.paso1){
     const a = puntoDeEndpoint(t, herramienta.paso1);
     if(!a) return;
-    const pts = ortogonalizar([[a.x,a.y], ...(herramienta.ruta||[])]);
+    const da = direccionNatural(t, herramienta.paso1);
+    const aStub = [a.x + da[0]*STUB, a.y + da[1]*STUB];
+    const pts = ortogonalizar([[a.x,a.y], aStub, ...(herramienta.ruta||[])]);
     ctx.save();
     ctx.strokeStyle = '#c9793f'; ctx.lineWidth = 2; ctx.setLineDash([4,3]);
     ctx.beginPath(); pts.forEach((p,i)=> i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1])); ctx.stroke();
@@ -1074,8 +1108,8 @@ function dibujarPendienteHerramienta(ctx, t){
 function hitDispositivo(t, w){
   for(const d of t.dispositivos){
     if(d.piso===null || d.piso===undefined) continue;
-    const dw = d.polos*CELDA - 20, dh = ALTO_DISP - 14;
-    const x = CANAL + d.posicion*CELDA + 10, y = yRiel(d.piso) + 6;
+    const dw = d.polos*CELDA - MARGEN_DISP*2, dh = ALTO_DISP - 14;
+    const x = CANAL + d.posicion*CELDA + MARGEN_DISP, y = yRiel(d.piso) + 6;
     if(w.x>=x && w.x<=x+dw && w.y>=y && w.y<=y+dh) return d;
   }
   return null;
@@ -1084,8 +1118,8 @@ function hitNodoDispositivo(t, w, tol){
   tol = tol || 9/vista.z;
   for(const d of t.dispositivos){
     if(d.piso===null || d.piso===undefined) continue;
-    const dw = d.polos*CELDA - 20, dh = ALTO_DISP - 14;
-    const x = CANAL + d.posicion*CELDA + 10, y = yRiel(d.piso) + 6;
+    const dw = d.polos*CELDA - MARGEN_DISP*2, dh = ALTO_DISP - 14;
+    const x = CANAL + d.posicion*CELDA + MARGEN_DISP, y = yRiel(d.piso) + 6;
     if(d.tipo === 'bornera'){
       for(let i=0;i<BOCAS_BORNERA;i++){
         const cy = y + dh*0.07 + (dh*0.86/BOCAS_BORNERA)*(i+0.5), cx = x+dw-6;
@@ -1123,13 +1157,9 @@ function hitIconoCano(t, w, tol){
     for(let i=0;i<entradas.length;i++){
       const cano = entradas[i];
       const x = xEntradaCano(t, cano), yy = y + desfaseEntrada(i, lado);
-      if(Math.hypot(w.x-x, w.y-yy)<tol) return cano;
-      // flechas de reorden
-      const fr = flechasReordenRects(cano, lado);
-      if(i>0 && Math.hypot(w.x-(x+fr.atras.x), w.y-(yy+fr.atras.y))<fr.atras.r+3) return {mover:cano.id, dir:-1};
-      if(i<entradas.length-1 && Math.hypot(w.x-(x+fr.adelante.x), w.y-(yy+fr.adelante.y))<fr.adelante.r+3) return {mover:cano.id, dir:1};
+      if(Math.hypot(w.x-x, w.y-yy)<tol) return {cano, lado};
     }
-    const xNueva = CANAL + Math.max(entradas.length, 0) * 40 + 22;
+    const xNueva = INICIO_CANOS + PITCH_CANO/2 + entradas.length*PITCH_CANO;
     if(Math.hypot(w.x-xNueva, w.y-y)<13) return {agregar:lado};
   }
   return null;
@@ -1164,10 +1194,8 @@ function hitConexion(t, w, tol){
 function hitCable(t, w, tol){
   tol = tol || 7/vista.z;
   for(const cb of t.cables||[]){
-    const a = puntoDeEndpoint(t, cb.origen), b = puntoDeEndpoint(t, cb.destino);
-    if(!a || !b) continue;
-    const ruta = (cb.ruta && cb.ruta.length) ? cb.ruta : [];
-    const pts = ortogonalizar([[a.x,a.y], ...ruta, [b.x,b.y]]);
+    const pts = construirPuntos(t, cb.origen, cb.destino, cb.ruta);
+    if(!pts) continue;
     for(let i=1;i<pts.length;i++){
       if(distSeg(w, {x:pts[i-1][0],y:pts[i-1][1]}, {x:pts[i][0],y:pts[i][1]}) < tol) return cb;
     }
@@ -1228,9 +1256,11 @@ cv.addEventListener('pointerdown', ev => {
   // select: elegir/arrastrar, o click en caño/peine/cable para seleccionar
   const canoHit = hitIconoCano(t, w);
   if(canoHit){
-    if(canoHit.mover){ moverEntradaCanoAPI(canoHit.mover, canoHit.dir); return; }
     if(canoHit.agregar){ abrirAgregarCano(canoHit.agregar); return; }
-    abrirEditarCano(canoHit); return;
+    arrastreCano = {id:canoHit.cano.id, lado:canoHit.lado,
+      startClientX:ev.clientX, startX: xEntradaCano(t, canoHit.cano),
+      xLive: xEntradaCano(t, canoHit.cano), moved:false};
+    return;
   }
   const d = hitDispositivo(t, w);
   if(d){
@@ -1257,6 +1287,12 @@ window.addEventListener('pointermove', ev => {
     render();
     dibujarArrastrePreview();
   }
+  if(arrastreCano){
+    const dx = (ev.clientX - arrastreCano.startClientX) / vista.z;
+    if(Math.abs(dx) > 3) arrastreCano.moved = true;
+    arrastreCano.xLive = arrastreCano.startX + dx;
+    render();
+  }
 });
 window.addEventListener('pointerup', async () => {
   if(arrastre){
@@ -1264,6 +1300,14 @@ window.addEventListener('pointerup', async () => {
     arrastre = null;
     if(pos!=null && piso!=null) await moverA(id, piso, pos);
     else render();
+  }
+  if(arrastreCano){
+    const {id, lado, xLive, moved} = arrastreCano;
+    arrastreCano = null;
+    const t = tableroActivo();
+    if(!moved){ abrirEditarCano((t.canos||[]).find(c=>c.id===id)); return; }
+    const orden = ordenDesdeX(t, lado, xLive);
+    await reordenarEntradaCanoAPI(id, orden);
   }
 });
 cv.addEventListener('wheel', ev => {
@@ -1280,8 +1324,8 @@ function dibujarArrastrePreview(){
   ctx.strokeStyle = '#c9793f'; ctx.lineWidth = 2; ctx.setLineDash([5,3]);
   const t = tableroActivo();
   const d = t.dispositivos.find(x=>x.id===arrastre.id);
-  const w = (d?.polos||1)*CELDA - 20, h = ALTO_DISP - 14;
-  const x = CANAL + arrastre.posPreview*CELDA + 10, y = yRiel(arrastre.pisoPreview) + 6;
+  const w = (d?.polos||1)*CELDA - MARGEN_DISP*2, h = ALTO_DISP - 14;
+  const x = CANAL + arrastre.posPreview*CELDA + MARGEN_DISP, y = yRiel(arrastre.pisoPreview) + 6;
   ctx.strokeRect(x,y,w,h);
   ctx.restore();
 }
@@ -1407,11 +1451,11 @@ async function editarEntradaCanoAPI(canoId, tipo, circuitoId){
     actualizarTablero(r.tablero, null);
   }catch(e){ toast(e.message); render(); }
 }
-async function moverEntradaCanoAPI(canoId, direccion){
+async function reordenarEntradaCanoAPI(canoId, orden){
   const t = tableroActivo();
   try{
-    const r = await api(`/api/obras/${OBRA_ID}/tableros/${t.id}/canos/${canoId}/mover`,
-      {method:'POST', body:JSON.stringify({direccion})});
+    const r = await api(`/api/obras/${OBRA_ID}/tableros/${t.id}/canos/${canoId}/reordenar`,
+      {method:'POST', body:JSON.stringify({orden})});
     actualizarTablero(r.tablero, null);
   }catch(e){ toast(e.message); render(); }
 }
@@ -1592,17 +1636,10 @@ function pintarPanel(){
   if(!t) return;
   $('t-nombre').value = t.nombre; $('t-tipo').value = t.tipo;
   $('t-bocas').value = t.bocas; $('t-pisos').value = t.pisos;
-  $('t-grilla').value = t.grillaPx ?? 8;
   const usados = t.dispositivos.filter(d=>d.piso!==null).reduce((s,d)=>s+d.polos,0);
   $('t-resumen').textContent = `${t.fases===3?'Trifásico':'Monofásico'} · `
     + `${t.bocasPorPiso} bocas por piso · ${usados} de ${t.bocas} colocadas`;
 }
-$('t-grilla').onchange = async () => {
-  const t = tableroActivo(); if(!t) return;
-  t.grillaPx = Math.max(2, +$('t-grilla').value || 8);
-  await api(`/api/obras/${OBRA_ID}/tableros/${t.id}`,
-    {method:'POST', body:JSON.stringify({tablero:{grillaPx:t.grillaPx}})});
-};
 function pintarAvisos(avisos){
   if(avisos) ultimosAvisos = avisos;
   const rel = (ultimosAvisos||[]).filter(a =>
@@ -1766,7 +1803,7 @@ document.addEventListener('keydown', e => {
   if(enCampo) return;
   const tl = TOOLS.find(x=>x.k.toLowerCase()===e.key.toLowerCase());
   if(tl && !(e.ctrlKey||e.metaKey)){ elegirHerramienta(tl.id); return; }
-  if(e.key === 'Escape'){ elegirHerramienta('select'); return; }
+  if(e.key === 'Escape'){ arrastreCano = null; elegirHerramienta('select'); return; }
   if(e.key === 'Delete' || e.key === 'Backspace'){
     if(seleccion && seleccion.t==='cable'){ e.preventDefault(); eliminarCableAPI(seleccion.id); seleccion=null; }
     else if(seleccion && seleccion.t==='conexion'){ e.preventDefault(); eliminarConexionAPI(seleccion.id); seleccion=null; }
