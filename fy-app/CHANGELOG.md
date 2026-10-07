@@ -3,6 +3,32 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 1.8.0 — Tablero: rediseño a canvas
+
+- **El editor de Tablero pasa de SVG/DOM a un `<canvas>` real, con cámara
+  tipo Routeo** (paneo y zoom), herramientas a la izquierda con atajo de
+  teclado y un cartel de ayuda fijo con el paso actual. Buscaba resolver
+  las cuatro quejas del usuario sobre el entorno anterior: no se parecía a
+  un tablero real, conectar cosas era confuso, no se veía qué estaba
+  conectado a qué, y mover dispositivos era incómodo.
+- **Los bornes de cada dispositivo (polos de térmica, terminales de
+  bornera) ahora se ven siempre**, no sólo mientras la herramienta "Cable"
+  está activa -- se agrandan al activarla, pero nunca desaparecen.
+- **Mover una térmica es con el mouse (pointerdown/move/up), ya no con el
+  drag-and-drop nativo del navegador.** Incluye arrastrar desde la bandeja
+  de "sin colocar" directo a un riel.
+- **Cualquier selección (térmica, cable, peine o conector) muestra su
+  detalle en el panel derecho**, no sólo los dispositivos como antes --
+  con botón para borrar cada uno.
+- El dibujo de los dispositivos (térmica, diferencial, protector, bornera)
+  sigue siendo el mismo SVG detallado de siempre; sólo cambió cómo se pinta
+  (se cachea como imagen y se dibuja sobre el canvas, en vez de insertarse
+  como HTML). El modelo de datos de tablero no cambió: los tableros ya
+  guardados se abren igual que antes.
+- Pendiente para una próxima etapa: revisar `app/pdf_tablero.py` contra el
+  nuevo modelo de interacción, y el esquema unifilar editable (todavía no
+  implementado).
+
 ## 1.7.0 — Nuevo módulo Red
 
 - **Nuevo módulo "Red"** (instalación de red/datos), con tres partes:
@@ -24,6 +50,26 @@ El formato es una línea por cambio, agrupadas por versión.
 - **`obra.red`**: bloque nuevo en el contrato de `obra.json`
   (`ofertas`/`dispositivos`/`tramos`); las obras existentes sin este bloque
   lo reciben vacío al abrir, sin perder nada de lo que ya tenían.
+- **Nuevo circuito "Automático de bomba"** en Routeo, con su propio elemento
+  de plano "Automático de tanque" (tanque principal o cisterna, con
+  Común/NC/NA) y la posibilidad de marcar un tablero como principal,
+  seccional o auxiliar.
+- **Fix: una caja de interruptores con más de una tecla (ej. A y B) ya no
+  genera un nodo de Routeo por tecla.** Antes, al compartir la misma caja,
+  la segunda tecla quedaba como un nodo duplicado y sin caño conectado
+  -- ahora se fusionan en un solo nodo. Los proyectos ya guardados antes de
+  este fix no se corrigen solos: hay que borrar a mano el nodo duplicado
+  sobrante la próxima vez que se abra Routeo.
+- **Fix: el aviso de "tramo largo, revisar caída de tensión" medía el tramo
+  más largo entre cajas, no la distancia real tablero → toma/lámpara** (esa
+  cuenta, que sí usa el camino completo, ya se calculaba bien en las
+  Verificaciones técnicas). Se separó en un aviso propio ("tramo individual
+  largo, considerá una caja de paso") para no confundirlo con la caída de
+  tensión real.
+- **Nuevo PDF "plano de caños"** en Routeo: un plano neutro, sin colores
+  por circuito, para llevar a la obra y colocar la cañería antes de pasar
+  los cables -- una hoja por cada diámetro de caño usado.
+- Routeo recuerda si la última exportación de PDF fue vertical u horizontal.
 
 ## 1.6.1 — Lista de materiales: sidebar de colores, cable tipo taller/Sintenax
 
