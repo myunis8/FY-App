@@ -3,6 +3,25 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 1.8.2 — Tablero: la grilla vertical, el zigzag de caños y el punto de clic
+
+Causas reales de lo que seguía mal después de la 1.8.1:
+
+- **La grilla vertical nunca fue realmente una grilla.** `BANDA` (78), `FRANJA_CANO`
+  (58) y el cálculo del pin (`alto * 0.13`, un porcentaje) no eran múltiplos de
+  la unidad de grilla -- sólo el eje X se había corregido. Ahora todas las
+  medidas verticales (`BANDA`, `FRANJA_CANO`, `ALTO_DISP`, `MARGEN_PISO`, el
+  inset del pin) son múltiplos fijos de la misma unidad, en los dos ejes.
+- **El zigzag que alternaba la altura de los caños para que no se pisaran
+  lograba lo contrario**: con la franja chica y nombres de circuito largos,
+  las etiquetas se superponían o quedaban tapadas por el título de la franja.
+  Se eliminó el zigzag, se agrandó la franja y las etiquetas ahora se acortan
+  con "…" si no entran en el espacio fijo que les toca.
+- **El clic para conectar un cable a un caño sólo se aceptaba en la puntita
+  del cablecito de color, no en el ícono** (que es lo que se ve y se clickea
+  naturalmente) -- por eso "no detectaba". Ahora se acepta en todo el
+  trayecto, desde el ícono hasta la punta.
+
 ## 1.8.1 — Tablero: más lugar entre térmicas, cables rectos, caños arrastrables
 
 - **Más aire entre térmicas** (la boca se agrandó para dejar un canal real a

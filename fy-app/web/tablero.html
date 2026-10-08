@@ -255,18 +255,26 @@ fyLock.iniciar(OBRA_ID);
 const CELDA = 80;               // ancho de una boca, en px "de mundo" (escala 1) -- más
                                  // ancha que una boca real, a propósito: ese aire de más es
                                  // el canal por donde pasan los cables que no se conectan ahí
-const ALTO_DISP = 150;         // alto de la fila de dispositivos
-const BANDA = 78;              // alto de cada banda de cableado, arriba y abajo del riel
-const MARGEN_PISO = 22;        // separación visual entre el piso de abajo y el de arriba
-const CANAL = 48;              // canal lateral reservado para el recorrido de los cables
-const FRANJA_CANO = 58;        // alto de la franja de entrada/salida de caños, arriba y abajo
+const GRID = 8;                 // unidad única de grilla: TODO -- pines, caños, bandas,
+                                 // franjas y tramos de cable -- es múltiplo de esto en los
+                                 // dos ejes (x e y), nunca un porcentaje ni un número suelto
+const ALTO_DISP = 18*GRID;      // alto de la fila de dispositivos (144)
+const BANDA = 10*GRID;          // alto de cada banda de cableado, arriba y abajo del riel (80)
+const MARGEN_PISO = 3*GRID;     // separación visual entre el piso de abajo y el de arriba (24)
+const CANAL = 6*GRID;           // canal lateral reservado para el recorrido de los cables (48)
+const FRANJA_CANO = 8*GRID;     // alto de la franja de entrada/salida de caños (64) -- generosa
+                                 // a propósito, para que entre ícono + etiqueta sin pisarse
 const ALTURA_PISO = BANDA + ALTO_DISP + BANDA + MARGEN_PISO;
-const GRID = 8;                 // unidad única de grilla: todo pin, caño y tramo de cable
-                                 // es múltiplo de esto, para que nunca quede nada "ladeado"
-const MARGEN_DISP = 18;         // aire a cada lado de una térmica dentro de su rango de bocas
-const STUB = 24;                // tramo fijo y recto que sale de cualquier pin/caño/peine
+const DISP_PAD = GRID;          // separación entre el borde del riel y el cuerpo de la térmica
+const PIN_INSET = 3*GRID;       // distancia fija (no porcentaje) del borde de la térmica a
+                                 // su fila de pines -- así el pin cae siempre en la grilla
+const MARGEN_DISP = 2*GRID;     // aire a cada lado de una térmica dentro de su rango de bocas
+                                 // (16) -- también en la grilla: el pin de la bornera depende
+                                 // de este margen, así que si no fuera múltiplo de GRID el
+                                 // pin se corre de la grilla igual que antes
+const STUB = 3*GRID;            // tramo fijo y recto que sale de cualquier pin/caño/peine
                                  // antes de poder doblar -- así el cable nunca sale ladeado
-const PITCH_CANO = 64;          // separación fija entre una entrada de caño y la siguiente
+const PITCH_CANO = 8*GRID;      // separación fija entre una entrada de caño y la siguiente
                                  // -- tiene que alcanzar para la etiqueta de texto, no sólo
                                  // para el ícono, si no las etiquetas se superponen igual
 function yPiso(piso){ return FRANJA_CANO + piso * ALTURA_PISO; }
@@ -421,14 +429,17 @@ function svgProtector(w, h, tensionV, circuito){
   </svg>`;
 }
 function svgBornera(w, h){
-  const filas = 6, alto = h*0.86/filas, x0 = h*0.07;
+  // Mismo offset fijo que yTerminalBornera() usa para el punto de conexión
+  // real (BORNERA_INICIO + i*BORNERA_PASO) -- así el dibujo y el pin
+  // clickeable quedan siempre en el mismo lugar exacto, nunca corridos.
+  const filas = BOCAS_BORNERA, alto = BORNERA_PASO;
   let term = '';
   for(let i=0;i<filas;i++){
-    const cy = x0 + alto*(i+0.5);
+    const cy = BORNERA_INICIO + alto*i;
     term += `<rect x="${w*0.28}" y="${cy-alto*0.3}" width="${w*0.44}" height="${alto*0.6}" rx="${alto*0.28}"
       fill="none" stroke="${TRAZO}" stroke-width="0.9"/>
       <circle cx="${w*0.5}" cy="${cy}" r="${alto*0.16}" fill="none" stroke="${TRAZO}" stroke-width=".7"/>`;
-    if(i===1 || i===3) term += `<line x1="4" y1="${x0+alto*(i+1)}" x2="${w-4}" y2="${x0+alto*(i+1)}"
+    if(i===1 || i===3) term += `<line x1="4" y1="${cy+alto/2}" x2="${w-4}" y2="${cy+alto/2}"
       stroke="${TRAZO}" stroke-width=".7" stroke-dasharray="2 2"/>`;
   }
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}">
@@ -566,7 +577,11 @@ function elegirHerramienta(tipo){
    terminales a tornillo. Sin marcas de fábrica: sólo el contorno, la
    corriente y el circuito. */
 const BOCAS_BORNERA = 6;   // igual que en el motor: terminales laterales de la bornera
-const MARGEN_PIN = 0.13;   // % del alto donde está el tornillo real (coincide con svgTermica)
+const BORNERA_INICIO = 3*GRID, BORNERA_PASO = 2*GRID;   // separación fija entre terminales
+                                                          // -- también en la grilla, no un %
+function yTerminalBornera(piso, i){
+  return yRiel(piso) + DISP_PAD + BORNERA_INICIO + i*BORNERA_PASO;
+}
 const COLOR_POLARIDAD = {fase:'#8a5a2b', neutro:'#2b6ca3', tierra:'#2f7d5c'};
 function polaridadDePolo(d, polo){
   if(d.tipo === 'bornera') return 'tierra';
@@ -605,25 +620,20 @@ function ordenDesdeX(t, lado, x){
   const i = Math.round((x - INICIO_CANOS - PITCH_CANO/2) / PITCH_CANO);
   return Math.max(0, Math.min(n-1, i));
 }
-function desfaseEntrada(indice, lado){
-  if(indice % 2 === 0) return 0;
-  const monto = 16;
-  return lado === 'arriba' ? -monto : monto;
-}
+const ICONO_CANO_R = 2*GRID;     // radio del círculo del caño (16) -- de ahí arranca el stub
 function puntaDeStub(t, cano, polaridad){
   const pols = polaridadesDeCano(cano);
   const idx = pols.indexOf(polaridad);
   if(idx < 0) return null;
   const dir = cano.lado === 'arriba' ? 1 : -1;
-  const paso = 9, largoBase = STUB;
-  const n = pols.length;
+  const paso = 2*GRID, n = pols.length;   // paso de a 2*GRID -- con n par, (idx-(n-1)/2)
+                                           // da medios pasos; al duplicar el paso, el
+                                           // resultado vuelve a ser múltiplo de GRID
   const dx = (idx - (n-1)/2) * paso;
-  const y2 = (13+largoBase)*dir;
+  const y2 = (ICONO_CANO_R + STUB)*dir;
   const [, altoTotal] = anchoAltoMundo(t);
   const xBase = xEntradaCano(t, cano);
-  const orden = entradasDeLado(t, cano.lado).findIndex(c => c.id === cano.id);
-  const yBase = (cano.lado === 'arriba' ? FRANJA_CANO : altoTotal - FRANJA_CANO)
-    + desfaseEntrada(orden, cano.lado);
+  const yBase = cano.lado === 'arriba' ? FRANJA_CANO : altoTotal - FRANJA_CANO;
   return {x: xBase + dx, y: yBase + y2};
 }
 
@@ -643,12 +653,11 @@ function puntoDeEndpoint(t, ep){
     const polo = ep.polo || 0;
     if(d.tipo === 'bornera'){
       const w = d.polos*CELDA - MARGEN_DISP*2, x = CANAL + d.posicion*CELDA + MARGEN_DISP;
-      const y0 = yRiel(d.piso) + ALTO_DISP*0.07 + (ALTO_DISP*0.86/BOCAS_BORNERA)*(polo+0.5);
-      return {x: x + w - 6, y: y0};
+      return {x: x + w - PIN_INSET, y: yTerminalBornera(d.piso, polo)};
     }
-    const hDiv = ALTO_DISP - 14, topDiv = yRiel(d.piso) + 6;
+    const y = yRiel(d.piso) + DISP_PAD;
     return {x: CANAL + (d.posicion + polo + 0.5)*CELDA,
-            y: ep.lado==='arriba' ? topDiv + hDiv*MARGEN_PIN : topDiv + hDiv*(1-MARGEN_PIN)};
+            y: ep.lado==='arriba' ? y + PIN_INSET : y + ALTO_DISP - DISP_PAD*2 - PIN_INSET};
   }
   if(ep.tipo === 'peine'){
     const pe = (t.conexiones||[]).find(c=>c.id===ep.id);
@@ -898,6 +907,13 @@ function dibujarRiel(ctx, t, piso, ancho){
 function iconoCanoColor(c){
   return c.tipo==='tierra' ? '#2f7d5c' : c.tipo==='acometida' ? '#8a5a2b' : '#2b6ca3';
 }
+function textoAcotado(ctx, texto, anchoMax){
+  if(ctx.measureText(texto).width <= anchoMax) return texto;
+  let cortado = texto;
+  while(cortado.length > 1 && ctx.measureText(cortado + '…').width > anchoMax)
+    cortado = cortado.slice(0, -1);
+  return cortado + '…';
+}
 function dibujarFranjaCano(ctx, t, lado, anchoTotal){
   const [, altoTotal] = anchoAltoMundo(t);
   const y = lado==='arriba' ? FRANJA_CANO : altoTotal - FRANJA_CANO;
@@ -911,27 +927,28 @@ function dibujarFranjaCano(ctx, t, lado, anchoTotal){
   const entradas = entradasDeLado(t, lado);
   entradas.forEach((cano, i) => {
     const x = xEntradaCano(t, cano);
-    const yEntrada = y + desfaseEntrada(i, lado);
     const color = iconoCanoColor(cano);
     const arrastrando = arrastreCano && arrastreCano.id === cano.id;
-    ctx.save(); ctx.translate(x, yEntrada);
+    ctx.save(); ctx.translate(x, y);
     if(arrastrando){
-      ctx.beginPath(); ctx.arc(0,0,15,0,7); ctx.strokeStyle='#c9793f'; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.arc(0,0,ICONO_CANO_R-1,0,7);
+      ctx.strokeStyle='#c9793f'; ctx.lineWidth=2;
       ctx.setLineDash([3,2]); ctx.stroke(); ctx.setLineDash([]);
     }
     ctx.globalAlpha = arrastrando ? 0.55 : 1;
-    ctx.beginPath(); ctx.arc(0,0,11,0,7); ctx.fillStyle='#e8ebe9'; ctx.fill();
+    ctx.beginPath(); ctx.arc(0,0,ICONO_CANO_R-5,0,7); ctx.fillStyle='#e8ebe9'; ctx.fill();
     ctx.strokeStyle=color; ctx.lineWidth=2; ctx.stroke();
-    ctx.beginPath(); ctx.arc(0,0,6,0,7); ctx.fillStyle=color; ctx.fill();
+    ctx.beginPath(); ctx.arc(0,0,ICONO_CANO_R-10,0,7); ctx.fillStyle=color; ctx.fill();
     ctx.globalAlpha = 1;
     ctx.fillStyle = '#33506e'; ctx.font = '8px IBM Plex Sans, sans-serif'; ctx.textAlign='center';
-    ctx.fillText(etiquetaCano(cano), 0, lado==='arriba'?-28:37);
+    const etq = textoAcotado(ctx, etiquetaCano(cano), PITCH_CANO - 10);
+    ctx.fillText(etq, 0, lado==='arriba' ? -(ICONO_CANO_R+6) : (ICONO_CANO_R+15));
     ctx.textAlign='left';
     // stubs de polaridad (siempre visibles -- son el extremo "caño" del cable)
     const pols = polaridadesDeCano(cano);
-    const dir = lado === 'arriba' ? 1 : -1, paso = 9, largoBase = STUB, n = pols.length;
+    const dir = lado === 'arriba' ? 1 : -1, paso = 2*GRID, n = pols.length;
     pols.forEach((pol, pi) => {
-      const dx = (pi - (n-1)/2) * paso, y1 = 13*dir, y2 = (13+largoBase)*dir;
+      const dx = (pi - (n-1)/2) * paso, y1 = ICONO_CANO_R*dir, y2 = (ICONO_CANO_R+STUB)*dir;
       ctx.strokeStyle = COLOR_POLARIDAD[pol]; ctx.lineWidth = 3.4; ctx.lineCap='round';
       ctx.beginPath(); ctx.moveTo(dx,y1); ctx.lineTo(dx,y2); ctx.stroke();
       ctx.beginPath(); ctx.arc(dx,y2,4.5,0,7); ctx.fillStyle = COLOR_POLARIDAD[pol]; ctx.fill();
@@ -949,8 +966,8 @@ function dibujarFranjaCano(ctx, t, lado, anchoTotal){
   ctx.restore();
 }
 function dibujarDispositivo(ctx, t, d){
-  const w = d.polos*CELDA - MARGEN_DISP*2, h = ALTO_DISP - 14;
-  const x = CANAL + d.posicion*CELDA + MARGEN_DISP, y = yRiel(d.piso) + 6;
+  const w = d.polos*CELDA - MARGEN_DISP*2, h = ALTO_DISP - DISP_PAD*2;
+  const x = CANAL + d.posicion*CELDA + MARGEN_DISP, y = yRiel(d.piso) + DISP_PAD;
   const entry = imagenSVG(svgDispositivo(d, w, h));
   ctx.save();
   if(seleccion && seleccion.t==='dispositivo' && seleccion.id===d.id){
@@ -969,23 +986,22 @@ function dibujarDispositivo(ctx, t, d){
   ctx.restore();
 }
 function dibujarNodosDispositivo(ctx, d){
-  const w = d.polos*CELDA - MARGEN_DISP*2, h = ALTO_DISP - 14;
-  const x = CANAL + d.posicion*CELDA + MARGEN_DISP, y = yRiel(d.piso) + 6;
+  const w = d.polos*CELDA - MARGEN_DISP*2, h = ALTO_DISP - DISP_PAD*2;
+  const x = CANAL + d.posicion*CELDA + MARGEN_DISP, y = yRiel(d.piso) + DISP_PAD;
   const activo = herramienta.tipo === 'cable';
   const r = activo ? 5 : 3.4;
   ctx.save();
   if(d.tipo === 'bornera'){
     for(let i=0;i<BOCAS_BORNERA;i++){
-      const cy = y + h*0.07 + (h*0.86/BOCAS_BORNERA)*(i+0.5);
-      dibujarNodo(ctx, x+w-6, cy, r, COLOR_POLARIDAD.tierra, activo);
+      dibujarNodo(ctx, x+w-PIN_INSET, yTerminalBornera(d.piso, i), r, COLOR_POLARIDAD.tierra, activo);
     }
     ctx.restore(); return;
   }
   for(let i=0;i<d.polos;i++){
     const cx = x + (i+0.5)*w/d.polos;
     const pol = polaridadDePolo(d, i);
-    dibujarNodo(ctx, cx, y+h*MARGEN_PIN, r, COLOR_POLARIDAD[pol], activo);
-    dibujarNodo(ctx, cx, y+h*(1-MARGEN_PIN), r, COLOR_POLARIDAD[pol], activo);
+    dibujarNodo(ctx, cx, y+PIN_INSET, r, COLOR_POLARIDAD[pol], activo);
+    dibujarNodo(ctx, cx, y+h-PIN_INSET, r, COLOR_POLARIDAD[pol], activo);
   }
   ctx.restore();
 }
@@ -1108,56 +1124,64 @@ function dibujarPendienteHerramienta(ctx, t){
 function hitDispositivo(t, w){
   for(const d of t.dispositivos){
     if(d.piso===null || d.piso===undefined) continue;
-    const dw = d.polos*CELDA - MARGEN_DISP*2, dh = ALTO_DISP - 14;
-    const x = CANAL + d.posicion*CELDA + MARGEN_DISP, y = yRiel(d.piso) + 6;
+    const dw = d.polos*CELDA - MARGEN_DISP*2, dh = ALTO_DISP - DISP_PAD*2;
+    const x = CANAL + d.posicion*CELDA + MARGEN_DISP, y = yRiel(d.piso) + DISP_PAD;
     if(w.x>=x && w.x<=x+dw && w.y>=y && w.y<=y+dh) return d;
   }
   return null;
 }
 function hitNodoDispositivo(t, w, tol){
-  tol = tol || 9/vista.z;
+  tol = tol || 12/vista.z;
   for(const d of t.dispositivos){
     if(d.piso===null || d.piso===undefined) continue;
-    const dw = d.polos*CELDA - MARGEN_DISP*2, dh = ALTO_DISP - 14;
-    const x = CANAL + d.posicion*CELDA + MARGEN_DISP, y = yRiel(d.piso) + 6;
+    const dw = d.polos*CELDA - MARGEN_DISP*2, dh = ALTO_DISP - DISP_PAD*2;
+    const x = CANAL + d.posicion*CELDA + MARGEN_DISP, y = yRiel(d.piso) + DISP_PAD;
     if(d.tipo === 'bornera'){
       for(let i=0;i<BOCAS_BORNERA;i++){
-        const cy = y + dh*0.07 + (dh*0.86/BOCAS_BORNERA)*(i+0.5), cx = x+dw-6;
+        const cy = yTerminalBornera(d.piso, i), cx = x+dw-PIN_INSET;
         if(Math.hypot(w.x-cx,w.y-cy)<tol) return {tipo:'dispositivo', id:d.id, lado:'costado', polo:i};
       }
       continue;
     }
     for(let i=0;i<d.polos;i++){
       const cx = x + (i+0.5)*dw/d.polos;
-      if(Math.hypot(w.x-cx, w.y-(y+dh*MARGEN_PIN))<tol) return {tipo:'dispositivo', id:d.id, lado:'arriba', polo:i};
-      if(Math.hypot(w.x-cx, w.y-(y+dh*(1-MARGEN_PIN)))<tol) return {tipo:'dispositivo', id:d.id, lado:'abajo', polo:i};
+      if(Math.hypot(w.x-cx, w.y-(y+PIN_INSET))<tol) return {tipo:'dispositivo', id:d.id, lado:'arriba', polo:i};
+      if(Math.hypot(w.x-cx, w.y-(y+dh-PIN_INSET))<tol) return {tipo:'dispositivo', id:d.id, lado:'abajo', polo:i};
     }
   }
   return null;
 }
 function hitStubCano(t, w, tol){
-  tol = tol || 9/vista.z;
+  // El click se acepta en TODO el trayecto ícono→punta del cablecito, no sólo
+  // en la puntita -- lo que se ve grande y se clickea naturalmente es el
+  // ícono, así que tiene que "agarrar" desde ahí, no sólo en la cola fina.
+  tol = tol || (ICONO_CANO_R + 6)/vista.z;
+  const [, altoTotal] = anchoAltoMundo(t);
+  let mejor = null, mejorDist = Infinity;
   for(const lado of ['arriba','abajo']){
-    const entradas = entradasDeLado(t, lado);
-    for(const cano of entradas){
+    const yBase = lado==='arriba' ? FRANJA_CANO : altoTotal - FRANJA_CANO;
+    for(const cano of entradasDeLado(t, lado)){
+      const centro = {x: xEntradaCano(t, cano), y: yBase};
       for(const pol of polaridadesDeCano(cano)){
         const p = puntaDeStub(t, cano, pol);
-        if(p && Math.hypot(w.x-p.x, w.y-p.y)<tol) return {tipo:'cano', id:cano.id, polaridad:pol};
+        if(!p) continue;
+        const d = distSeg(w, centro, p);
+        if(d < tol && d < mejorDist){ mejorDist = d; mejor = {tipo:'cano', id:cano.id, polaridad:pol}; }
       }
     }
   }
-  return null;
+  return mejor;
 }
 function hitIconoCano(t, w, tol){
-  tol = tol || 11/vista.z;
+  tol = tol || ICONO_CANO_R/vista.z;
   const [, altoTotal] = anchoAltoMundo(t);
   for(const lado of ['arriba','abajo']){
     const y = lado==='arriba' ? FRANJA_CANO : altoTotal - FRANJA_CANO;
     const entradas = entradasDeLado(t, lado);
     for(let i=0;i<entradas.length;i++){
       const cano = entradas[i];
-      const x = xEntradaCano(t, cano), yy = y + desfaseEntrada(i, lado);
-      if(Math.hypot(w.x-x, w.y-yy)<tol) return {cano, lado};
+      const x = xEntradaCano(t, cano);
+      if(Math.hypot(w.x-x, w.y-y)<tol) return {cano, lado};
     }
     const xNueva = INICIO_CANOS + PITCH_CANO/2 + entradas.length*PITCH_CANO;
     if(Math.hypot(w.x-xNueva, w.y-y)<13) return {agregar:lado};
@@ -1324,8 +1348,8 @@ function dibujarArrastrePreview(){
   ctx.strokeStyle = '#c9793f'; ctx.lineWidth = 2; ctx.setLineDash([5,3]);
   const t = tableroActivo();
   const d = t.dispositivos.find(x=>x.id===arrastre.id);
-  const w = (d?.polos||1)*CELDA - MARGEN_DISP*2, h = ALTO_DISP - 14;
-  const x = CANAL + arrastre.posPreview*CELDA + MARGEN_DISP, y = yRiel(arrastre.pisoPreview) + 6;
+  const w = (d?.polos||1)*CELDA - MARGEN_DISP*2, h = ALTO_DISP - DISP_PAD*2;
+  const x = CANAL + arrastre.posPreview*CELDA + MARGEN_DISP, y = yRiel(arrastre.pisoPreview) + DISP_PAD;
   ctx.strokeRect(x,y,w,h);
   ctx.restore();
 }
