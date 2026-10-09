@@ -421,29 +421,46 @@ def _pines_dispositivo(g: _Geom, d: dict) -> list[dict]:
     return pines
 
 
-def _polaridades_entrada(d: dict, obra: dict) -> list[str]:
-    if d.get("rol") == "general" and d["tipo"] == "termica":
+PITCH_CANO_WEB = 48
+INICIO_CANOS_WEB = MARGEN_IZQ_WEB + 16
+
+
+def _polaridades_cano(cano: dict) -> list[str]:
+    if cano["tipo"] == "tierra":
+        return ["tierra"]
+    if cano["tipo"] == "acometida":
         return ["fase", "neutro"]
-    cid = d.get("circuitoId")
-    if cid:
-        c = next((x for x in obra.get("circuitos") or [] if x["id"] == cid), None)
-        if c is None:
-            return []
-        base = ["fase", "neutro"]
-        if c.get("tipo") in TIPOS_CON_TIERRA:
-            base.append("tierra")
-        return base
-    return []
+    base = ["fase", "neutro"]
+    if cano.get("circuitoTipo") in TIPOS_CON_TIERRA:
+        base.append("tierra")
+    return base
 
 
-def _punto_entrada(g: _Geom, d: dict, polaridad: str, obra: dict) -> tuple[float, float] | None:
-    pols = _polaridades_entrada(d, obra)
+def _entradas_de_lado(t: dict, lado: str) -> list[dict]:
+    return sorted([c for c in t.get("canos") or [] if c["lado"] == lado], key=lambda c: c["orden"])
+
+
+def _x_entrada_cano(t: dict, cano: dict) -> float:
+    hermanos = _entradas_de_lado(t, cano["lado"])
+    orden = next((i for i, c in enumerate(hermanos) if c["id"] == cano["id"]), 0)
+    return INICIO_CANOS_WEB + PITCH_CANO_WEB / 2 + orden * PITCH_CANO_WEB
+
+
+def _punto_cano_pdf(g: _Geom, t: dict, cano: dict, polaridad: str) -> tuple[float, float] | None:
+    """Convierte la posición del caño (en píxeles del editor web, donde su
+    franja vive) a la geometría de esta hoja -- mismo criterio que
+    _ruta_a_pdf para cualquier otro punto trazado en ese lienzo."""
+    pols = _polaridades_cano(cano)
     if polaridad not in pols:
         return None
-    idx, n, paso = pols.index(polaridad), len(pols), 4.5
-    x0, w = g.x(d["posicion"]), d["polos"] * g.celda
-    cx = x0 + w / 2 + (idx - (n - 1) / 2) * paso
-    return (cx, g.y_riel(d["piso"]) - 8)
+    x_web = _x_entrada_cano(t, cano) + (pols.index(polaridad) - (len(pols) - 1) / 2) * 8
+    posicion = (x_web - MARGEN_IZQ_WEB) / CELDA_WEB
+    if cano["lado"] == "arriba":
+        y = g.y_piso(0) - 6
+    else:
+        ultimo = t.get("pisos", 1) - 1
+        y = g.y_riel(ultimo) + g.alto_disp + g.banda + 6
+    return (g.x(posicion), y)
 
 
 def _caja_peine(g: _Geom, p: dict) -> dict:
@@ -458,16 +475,16 @@ def _punto_peine(g: _Geom, p: dict, polaridad: str) -> tuple[float, float]:
 
 def _punto_conexion(g: _Geom, t: dict, obra: dict, ep: dict):
     """Punto de anclaje de un extremo de conexión: un pin (un tornillo
-    puntual, arriba o abajo, de una térmica/diferencial/bornera), una
-    entrada (el cablecito importado de Circuitos) o un peine."""
+    puntual, arriba o abajo, de una térmica/diferencial/bornera), un caño
+    (entrada/salida independiente, cableada a mano) o un peine."""
     if not ep:
         return None
     tipo = ep.get("tipo")
-    if tipo == "entrada":
-        d = next((x for x in t["dispositivos"] if x["id"] == ep.get("dispositivoId")), None)
-        if d is None or d.get("piso") is None:
+    if tipo == "cano":
+        cano = next((x for x in t.get("canos") or [] if x["id"] == ep.get("id")), None)
+        if cano is None:
             return None
-        return _punto_entrada(g, d, ep.get("polaridad"), obra)
+        return _punto_cano_pdf(g, t, cano, ep.get("polaridad"))
     if tipo == "pin":
         d = next((x for x in t["dispositivos"] if x["id"] == ep.get("dispositivoId")), None)
         if d is None or d.get("piso") is None:
@@ -514,23 +531,51 @@ def _grosor_por_seccion(mm2: float) -> float:
     return 0.9 + (mm2 or 1.5) ** 0.5 * 0.45
 
 
-def _dibujar_entrada(pg, g, d, obra):
-    """El cablecito de colores importado de Circuitos (o, en la general, la
-    acometida): más grueso cuanto mayor la sección del conductor."""
-    pols = _polaridades_entrada(d, obra)
-    if not pols:
-        return
-    if d.get("rol") == "general" and d["tipo"] == "termica":
-        sec = 4.0
-    else:
-        c = next((x for x in obra.get("circuitos") or [] if x["id"] == d.get("circuitoId")), None)
-        sec = (c or {}).get("seccionMm2") or 1.5
-    grosor = _grosor_por_seccion(sec)
-    for pol in pols:
-        x, y = _punto_entrada(g, d, pol, obra)
-        color = COLOR_POLARIDAD[pol]
-        pg.draw_line((x, y), (x, y + 9), color=color, width=grosor)
-        pg.draw_circle((x, y), grosor * 0.7, color=None, fill=color)
+def _texto_acotado(texto: str, ancho_max: float, fontsize: float) -> str:
+    if pymupdf.get_text_length(texto, fontsize=fontsize) <= ancho_max:
+        return texto
+    while texto and pymupdf.get_text_length(texto + "…", fontsize=fontsize) > ancho_max:
+        texto = texto[:-1]
+    return (texto + "…") if texto else "…"
+
+
+def _nombre_cano(cano: dict, obra: dict) -> str:
+    if cano["tipo"] == "acometida":
+        return "Acometida"
+    if cano["tipo"] == "tierra":
+        return "Jabalina"
+    c = next((x for x in obra.get("circuitos") or [] if x["id"] == cano.get("circuitoId")), None)
+    return c["nombre"] if c else "Circuito"
+
+
+def _seccion_cano(cano: dict, obra: dict) -> float:
+    c = next((x for x in obra.get("circuitos") or [] if x["id"] == cano.get("circuitoId")), None)
+    return (c or {}).get("seccionMm2") or 4.0
+
+
+def _dibujar_canos_franja(pg, g, t: dict, obra: dict):
+    """Las entradas/salidas de caño: nodos independientes de las térmicas,
+    cableados a mano hasta el pin que corresponda (ver _dibujar_cable en
+    t['conexiones']). Acá sólo se dibuja el cablecito de colores -- más
+    grueso cuanto mayor la sección real del conductor -- y la etiqueta."""
+    for lado in ("arriba", "abajo"):
+        dir_ = 1 if lado == "arriba" else -1
+        for cano in _entradas_de_lado(t, lado):
+            pols = _polaridades_cano(cano)
+            grosor = _grosor_por_seccion(_seccion_cano(cano, obra))
+            xc = g.x((_x_entrada_cano(t, cano) - MARGEN_IZQ_WEB) / CELDA_WEB)
+            yp = g.y_piso(0) - 6 if lado == "arriba" else (
+                g.y_riel(t.get("pisos", 1) - 1) + g.alto_disp + g.banda + 6)
+            for i, pol in enumerate(pols):
+                x = xc + (i - (len(pols) - 1) / 2) * (grosor + 3)
+                color = COLOR_POLARIDAD[pol]
+                pg.draw_line((x, yp - 7 * dir_), (x, yp), color=color, width=grosor)
+                pg.draw_circle((x, yp), grosor * 0.7, color=None, fill=color)
+            etiqueta_y = yp - 10 * dir_
+            pitch_pdf = PITCH_CANO_WEB * g.celda / CELDA_WEB
+            etq = _texto_acotado(_nombre_cano(cano, obra), pitch_pdf - 2, 5.5)
+            ancho_etq = pymupdf.get_text_length(etq, fontsize=5.5)
+            pg.insert_text((xc - ancho_etq / 2, etiqueta_y), etq, fontsize=5.5, color=GRIS)
 
 
 def _dibujar_pines(pg, g, d, vivo_izquierda):
@@ -584,6 +629,8 @@ def _pagina_conexionado(doc, t: dict, obra: dict):
     for p in t.get("peines") or []:
         _dibujar_peine(pg, g, t, p)
 
+    _dibujar_canos_franja(pg, g, t, obra)
+
     # dispositivos, por encima del cableado -- se deja un margen visible a
     # los costados (en vez de ocupar la celda entera) para que una conexión
     # que pasa por atrás asome en el hueco con la térmica de al lado
@@ -595,7 +642,6 @@ def _pagina_conexionado(doc, t: dict, obra: dict):
         y0 = g.y_riel(d["piso"]) + 2
         h = g.alto_disp - 4
         _dibujar_dispositivo(pg, x0, y0, w, h, d, _nombre_circuito(obra, d.get("circuitoId")))
-        _dibujar_entrada(pg, g, d, obra)
         _dibujar_pines(pg, g, d, vivo_izquierda)
 
 

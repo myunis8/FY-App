@@ -3,6 +3,28 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 1.11.0 — Tablero: caños de entrada/salida independientes, ubicación por clic
+
+- **Corrección de diseño**: la "entrada por circuito" de la 1.10.0 (el
+  cablecito de colores dibujado automáticamente arriba de cada térmica)
+  estaba mal pensada -- quedaba pegada a la térmica, no se podía agregar,
+  quitar ni ordenar, y mezclaba el cable del circuito con el tornillo de
+  la térmica como si fueran lo mismo. Se reemplaza por **caños**: nodos
+  independientes, agregados a mano en una franja arriba o abajo del
+  tablero (acometida, jabalina, o un circuito), que después se cablean al
+  tornillo que corresponda con la misma herramienta de conexión -- igual
+  que se cablearía un caño real en una obra. Mismo criterio de colores y
+  grosor por sección (`seccionMm2`) que la versión anterior.
+- **Bug corregido**: un protector o diferencial agregado a mano (sin
+  `circuitoId`) se borraba solo la próxima vez que se sincronizaban los
+  circuitos (al tocar bocas/pisos, o con "Sincronizar circuitos") --
+  `sincronizar_circuitos` sólo protegía a la térmica general y a la
+  bornera de tierra, no a cualquier otro dispositivo agregado aparte.
+  Ahora sólo se podan las térmicas ligadas a un circuito que ya no existe.
+- **Ubicación de protecciones por clic, no arrastre**: se selecciona la
+  protección (en la bandeja o ya puesta en el riel) y después se hace
+  clic en el riel y boca de destino -- sin drag-and-drop.
+
 ## 1.10.0 — Tablero: pines reales, DRC de polaridad, entrada por circuito, peines
 
 - **Convención de polaridad configurable por tablero** (vivo a la izquierda
