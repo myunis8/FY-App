@@ -59,6 +59,14 @@ h2:first-child{margin-top:0}
   border-radius:8px;padding:9px 12px;font-size:.78rem;line-height:1.45;margin-bottom:12px;display:none}
 #hint.on{display:block}
 #hint b{color:#fff}
+.pol-btn{flex:1;text-align:center;padding:6px 4px;border-width:2px;opacity:.55}
+.pol-btn.on{opacity:1;color:#fff}
+.pol-btn[data-pol="fase"]{border-color:#8a5a2b}
+.pol-btn[data-pol="fase"].on{background:#8a5a2b}
+.pol-btn[data-pol="neutro"]{border-color:#2b6ca3}
+.pol-btn[data-pol="neutro"].on{background:#2b6ca3}
+.pol-btn[data-pol="tierra"]{border-color:#2f7d5c}
+.pol-btn[data-pol="tierra"].on{background:#2f7d5c}
 
 /* ---------- escenario (canvas) ---------- */
 #stage{position:relative;background:#e9edec;border:1px solid var(--line);border-radius:10px;
@@ -143,6 +151,14 @@ h2:first-child{margin-top:0}
     <h2>Herramientas</h2>
     <div id="tools"></div>
     <div id="hint"></div>
+    <div id="polaridad-sel" style="display:none">
+      <label class="nota" style="margin:0 0 4px;display:block">Polaridad del cable</label>
+      <div style="display:flex;gap:4px;margin-bottom:12px">
+        <button class="btn sm pol-btn" data-pol="fase">Fase</button>
+        <button class="btn sm pol-btn" data-pol="neutro">Neutro</button>
+        <button class="btn sm pol-btn" data-pol="tierra">Tierra</button>
+      </div>
+    </div>
     <div class="bandeja" id="bandeja-cont"></div>
   </aside>
 
@@ -245,7 +261,7 @@ function yRiel(piso){ return yPiso(piso) + BANDA; }
 
 let obra = null, tableros = [], activo = null, presets = [];
 let seleccion = null;          // {t:'dispositivo'|'conexion', id}
-let herramienta = {tipo: 'select', paso1: null};   // 'select' | 'conectar'
+let herramienta = {tipo: 'select', paso1: null, ruta: [], polaridad: 'fase'};   // 'select' | 'conectar'
 
 const api = async (r,o={}) => {
   const res = await fetch(r,{headers:{'Content-Type':'application/json'},...o});
@@ -287,6 +303,8 @@ function pintarSelector(){
    visual de siempre. Siguen siendo SVG: se cachean como imagen y se dibujan
    sobre el canvas (ver imagenSVG). */
 const TRAZO = '#33506e';
+const COLOR_POLARIDAD = {fase:'#8a5a2b', neutro:'#2b6ca3', tierra:'#2f7d5c'};
+const NOMBRE_POLARIDAD = {fase:'Fase', neutro:'Neutro', tierra:'Tierra'};
 function etiquetaCircuito(d){
   const c = (obra.circuitos||[]).find(x=>x.id===d.circuitoId);
   return c ? c.nombre : null;
@@ -483,27 +501,40 @@ function zoomEn(f, sx, sy){
 /* ============================ herramientas ============================
    Sólo dos: mover dispositivos, o conectar (decir qué alimenta a qué). Ya
    no hay caños, peines ni conectores -- una conexión es un clic en el
-   origen y un clic en el destino, y listo: el dibujo lo hace el sistema. */
+   origen, los puntos intermedios que hagan falta para rutear a mano, y un
+   clic en el destino. El color lo elige el que cablea (fase/neutro/tierra),
+   ver el selector de polaridad en el panel izquierdo. */
 const TOOLS = [
   {id:'select',   n:'Mover',     k:'V'},
   {id:'conectar', n:'Conectar',  k:'C'},
 ];
 const HINTS = {
   select: 'Arrastrá una térmica para moverla de lugar o soltarla en la bandeja. Un clic la selecciona.',
-  conectar: 'Tocá el primero (una térmica, el diferencial, la bornera, o la Acometida), '
-    + 'después el segundo: el primero alimenta al segundo. <b>Esc</b> cancela.',
+  conectar: 'Elegí la polaridad del cable abajo. Tocá el origen (una térmica, el diferencial, '
+    + 'la bornera, o la Acometida), después los puntos por donde quieras que pase, y por último '
+    + 'el destino. <b>Esc</b> cancela.',
 };
 function buildTools(){
   $('tools').innerHTML = TOOLS.map(tl=>`<button class="tool" data-t="${tl.id}">
     <span>${esc(tl.n)}</span><kbd>${tl.k}</kbd></button>`).join('');
   $$('.tool').forEach(b => b.onclick = () => elegirHerramienta(b.dataset.t));
+  $$('.pol-btn').forEach(b => b.onclick = () => {
+    herramienta.polaridad = b.dataset.pol;
+    pintarPolaridadSel();
+  });
+}
+function pintarPolaridadSel(){
+  $$('.pol-btn').forEach(b => b.classList.toggle('on', b.dataset.pol===herramienta.polaridad));
 }
 function elegirHerramienta(tipo){
-  herramienta = {tipo, paso1: null};
+  const polaridad = herramienta.polaridad || 'fase';
+  herramienta = {tipo, paso1: null, ruta: [], polaridad};
   $$('.tool').forEach(b => b.classList.toggle('on', b.dataset.t===tipo));
   const h = $('hint');
   h.innerHTML = HINTS[tipo] || '';
   h.classList.toggle('on', !!HINTS[tipo]);
+  $('polaridad-sel').style.display = tipo==='conectar' ? 'block' : 'none';
+  pintarPolaridadSel();
   $('cv').style.cursor = tipo==='select' ? 'default' : 'crosshair';
   seleccion = null;
   pintarDetalle();
@@ -678,7 +709,8 @@ function construirPuntosConexion(t, con){
   const a = puntoConexionEndpoint(t, con.origen, abajoOrigen);
   const b = puntoConexionEndpoint(t, con.destino, abajoDestino);
   if(!a || !b) return null;
-  return ortogonalizar([[a.x,a.y],[b.x,b.y]]);
+  const ruta = (con.ruta||[]).map(p => [p[0], p[1]]);
+  return ortogonalizar([[a.x,a.y], ...ruta, [b.x,b.y]]);
 }
 
 /* ============================ render ============================ */
@@ -764,30 +796,40 @@ function dibujarConexion(ctx, t, con, saltosDeEste, pts){
   }
   const path = new Path2D(pathConSaltos(pts, saltosDeEste));
   const sel = seleccion && seleccion.t==='conexion' && seleccion.id===con.id;
+  const color = COLOR_POLARIDAD[con.polaridad] || TRAZO;
   ctx.save();
-  ctx.strokeStyle = sel ? '#c9793f' : TRAZO;
-  ctx.lineWidth = sel ? 3.6 : 2.2;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = sel ? 4 : 2.6;
   ctx.lineJoin = 'round'; ctx.lineCap = 'round';
-  if(sel) ctx.setLineDash([6,3]);
+  if(sel){ ctx.setLineDash([6,3]); ctx.shadowColor='#c9793f'; ctx.shadowBlur=4; }
   ctx.stroke(path);
-  ctx.setLineDash([]);
+  ctx.setLineDash([]); ctx.shadowBlur=0;
   const p0 = pts[0], p1 = pts[pts.length-1];
-  ctx.fillStyle = sel ? '#c9793f' : TRAZO;
+  ctx.fillStyle = color;
   ctx.beginPath(); ctx.arc(p0[0],p0[1],3,0,7); ctx.fill();
   ctx.beginPath(); ctx.arc(p1[0],p1[1],3,0,7); ctx.fill();
   ctx.restore();
 }
 function dibujarPendienteHerramienta(ctx, t){
-  if(herramienta.tipo !== 'conectar' || !herramienta.paso1 || !cursorMundo) return;
+  if(herramienta.tipo !== 'conectar' || !herramienta.paso1) return;
   const centro = puntoConexionEndpoint(t, herramienta.paso1, true);
   if(!centro) return;
-  const a = puntoConexionEndpoint(t, herramienta.paso1, cursorMundo.y >= centro.y);
+  const ultimoRuta = herramienta.ruta[herramienta.ruta.length-1];
+  const refY = ultimoRuta ? ultimoRuta[1] : (cursorMundo ? cursorMundo.y : centro.y);
+  const a = puntoConexionEndpoint(t, herramienta.paso1, refY >= centro.y);
+  const color = COLOR_POLARIDAD[herramienta.polaridad] || '#c9793f';
+  const pts = ortogonalizar([[a.x,a.y], ...herramienta.ruta]);
   ctx.save();
-  ctx.strokeStyle = '#c9793f'; ctx.lineWidth = 2; ctx.setLineDash([4,3]);
-  ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(cursorMundo.x,cursorMundo.y); ctx.stroke();
-  ctx.setLineDash([]);
-  ctx.fillStyle = '#c9793f';
-  ctx.beginPath(); ctx.arc(a.x,a.y,4,0,7); ctx.fill();
+  ctx.strokeStyle = color; ctx.lineWidth = 2.6; ctx.lineJoin='round'; ctx.lineCap='round';
+  ctx.beginPath(); pts.forEach((p,i)=> i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1])); ctx.stroke();
+  if(cursorMundo){
+    ctx.setLineDash([4,3]);
+    ctx.beginPath(); ctx.moveTo(pts[pts.length-1][0], pts[pts.length-1][1]);
+    ctx.lineTo(cursorMundo.x, cursorMundo.y); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  ctx.fillStyle = color;
+  pts.forEach(p => { ctx.beginPath(); ctx.arc(p[0],p[1],3.5,0,7); ctx.fill(); });
   ctx.restore();
 }
 
@@ -826,20 +868,23 @@ cv.addEventListener('pointerdown', ev => {
   const w = aMundo(ev);
 
   if(herramienta.tipo === 'conectar'){
-    const punto = hitDispositivo(t, w) ? {tipo:'dispositivo', id: hitDispositivo(t, w).id}
-      : hitAcometida(t, w);
-    if(!punto){ return; }
+    const dHit = hitDispositivo(t, w);
+    const punto = dHit ? {tipo:'dispositivo', id: dHit.id} : hitAcometida(t, w);
     if(!herramienta.paso1){
-      herramienta.paso1 = punto;
+      if(!punto) return;
+      herramienta.paso1 = punto; herramienta.ruta = [];
       $('hint').innerHTML = `Alimenta desde <b>${esc(etiquetaEndpoint(t, punto))}</b>. `
-        + 'Tocá el segundo punto para terminar. <b>Esc</b> cancela.';
+        + 'Tocá puntos intermedios si querés rutear a mano, y el destino para terminar. <b>Esc</b> cancela.';
       render();
       return;
     }
-    const origen = herramienta.paso1;
-    herramienta.paso1 = null;
-    elegirHerramienta('conectar');
-    crearConexion(origen, punto);
+    if(punto && !(punto.tipo===herramienta.paso1.tipo && punto.id===herramienta.paso1.id)){
+      const origen = herramienta.paso1, ruta = herramienta.ruta, polaridad = herramienta.polaridad;
+      elegirHerramienta('conectar');
+      crearConexion(origen, punto, polaridad, ruta);
+      return;
+    }
+    if(!punto){ herramienta.ruta.push([w.x, w.y]); render(); }
     return;
   }
 
@@ -952,13 +997,21 @@ function bloqueDispBandeja(d){
 }
 
 /* ---------------- conexiones: API ---------------- */
-async function crearConexion(origen, destino){
+async function crearConexion(origen, destino, polaridad, ruta){
   const t = tableroActivo();
   try{
     const r = await api(`/api/obras/${OBRA_ID}/tableros/${t.id}/conexiones`,
-      {method:'POST', body:JSON.stringify({origen, destino})});
+      {method:'POST', body:JSON.stringify({origen, destino, polaridad, ruta: ruta||[]})});
     actualizarTablero(r.tablero, null);
     toast('Conectado');
+  }catch(e){ toast(e.message); render(); }
+}
+async function editarPolaridadConexion(id, polaridad){
+  const t = tableroActivo();
+  try{
+    const r = await api(`/api/obras/${OBRA_ID}/tableros/${t.id}/conexiones/${id}`,
+      {method:'POST', body:JSON.stringify({polaridad})});
+    actualizarTablero(r.tablero, null);
   }catch(e){ toast(e.message); render(); }
 }
 async function eliminarConexionAPI(id){
@@ -1026,8 +1079,15 @@ function pintarDetalle(){
         <b>${esc(etiquetaEndpoint(t, con.origen))}</b> alimenta a
         <b>${esc(etiquetaEndpoint(t, con.destino))}</b>
       </div>
+      <div class="campo"><label for="dd-con-pol">Polaridad</label>
+        <select id="dd-con-pol">
+          <option value="fase" ${con.polaridad==='fase'?'selected':''}>Fase</option>
+          <option value="neutro" ${con.polaridad==='neutro'?'selected':''}>Neutro</option>
+          <option value="tierra" ${con.polaridad==='tierra'?'selected':''}>Tierra</option>
+        </select></div>
       <button class="btn sm danger" id="dd-borrar-con" style="width:100%">Eliminar (Delete)</button>
     </div>`;
+    $('dd-con-pol').onchange = () => editarPolaridadConexion(con.id, $('dd-con-pol').value);
     $('dd-borrar-con').onclick = () => eliminarConexionAPI(con.id);
     return;
   }

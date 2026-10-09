@@ -3,6 +3,25 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 1.9.1 — Tablero: ruteo manual de vuelta, y color por polaridad
+
+Ajuste sobre la 1.9.0, después de probarla: la línea recta automática
+resultaba poco práctica, y sin un color por polaridad no se podía saber
+qué cable era fase, neutro o tierra con sólo mirarlo.
+
+- **Se puede volver a rutear el cable a mano**: después de tocar el
+  origen, cada clic en el lienzo agrega un punto intermedio por donde
+  pasa, y el clic en el destino termina la conexión -- el extremo en
+  cada dispositivo lo sigue eligiendo el sistema (arriba o abajo, según
+  corresponda), pero el camino del medio lo elige el que cablea.
+- **Cada conexión tiene una polaridad** (fase, neutro o tierra) elegida
+  con un selector en la herramienta "Conectar", y se dibuja con el color
+  correspondiente -- el mismo criterio de colores que usa el resto de la
+  app (fase marrón, neutro azul, tierra verde). Se puede cambiar después
+  desde el panel de detalle, sin tener que borrar y re-crear la conexión.
+- El PDF de conexionado usa la ruta manual y el color real de cada
+  conexión, en vez de un trazo recto único.
+
 ## 1.9.0 — Tablero: cableado simple, sin rutear nada a mano
 
 Después de varias vueltas tratando de arreglar el ruteo manual de cables

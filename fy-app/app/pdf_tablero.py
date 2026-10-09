@@ -15,6 +15,17 @@ from . import config as cfgmod
 
 ANCHO, ALTO = 1000, 700               # apaisado, se ajusta según el tablero
 MARGEN = 34
+
+# geometría del editor interactivo (web/tablero.html) -- deliberadamente MUCHO
+# más grande que la de esta hoja para que sea cómodo clickear con el mouse.
+# Un punto de ruta trazado a mano se guarda en esos píxeles de pantalla, no
+# en los de esta hoja -- hay que convertirlos, nunca copiarlos directo (ver
+# _ruta_a_pdf). Si cambia la geometría de ese editor, esto se tiene que
+# actualizar junto con ella.
+CELDA_WEB = 72
+MARGEN_IZQ_WEB = 30
+MARGEN_SUP_WEB = 50
+ALTURA_PISO_WEB = 46*2 + 128 + 20      # BANDA*2 + ALTO_DISP + MARGEN_PISO, ahí
 NAVY = (0x16/255, 0x28/255, 0x3f/255)
 TRAZO = (0x33/255, 0x50/255, 0x6e/255)
 GRIS = (0x5b/255, 0x6b/255, 0x7a/255)
@@ -414,6 +425,25 @@ def _punto_conexion(g: _Geom, t: dict, ep: dict, abajo: bool):
     return None
 
 
+def _ruta_a_pdf(g: _Geom, t: dict, ruta: list) -> list:
+    """Los puntos de una ruta trazada a mano en el editor vienen en píxeles
+    de ESE lienzo (ver las constantes _WEB arriba). Se convierten a la
+    posición lógica que representan (boca en X; piso + fracción dentro de
+    la fila en Y) y se reconstruyen con la geometría de ESTA hoja -- nunca
+    se usan directo, porque las dos escalas no tienen nada que ver entre sí."""
+    if not ruta:
+        return []
+    pisos = max(t.get("pisos", 1), 1)
+    out = []
+    for p in ruta:
+        x, y = p[0], p[1]
+        posicion = (x - MARGEN_IZQ_WEB) / CELDA_WEB
+        piso = max(0, min(pisos - 1, int((y - MARGEN_SUP_WEB) // ALTURA_PISO_WEB)))
+        frac = (y - (MARGEN_SUP_WEB + piso * ALTURA_PISO_WEB)) / ALTURA_PISO_WEB
+        out.append((g.x(posicion), g.y_piso(piso) + frac * g.altura_piso))
+    return out
+
+
 # ---------------------------------------------------------------- páginas
 def _fondo(pg, g, t, fondo_riel=FONDO_RIEL):
     pg.draw_rect(pg.rect, color=None, fill=FONDO_HOJA)
@@ -441,7 +471,9 @@ def _pagina_conexionado(doc, t: dict, obra: dict):
 
     # conexiones: qué alimenta a qué, en escuadra (vertical primero),
     # separadas en carriles donde varias comparten corredor, con salto
-    # donde se cruzan -- ni una ruta ni una posición se elige a mano
+    # donde se cruzan, por los puntos intermedios que el que cableó haya
+    # elegido a mano (ver _ruta_a_pdf) -- y coloreadas según su polaridad,
+    # para poder distinguir fase/neutro/tierra de un vistazo
     con_pts = []
     for con in t.get("conexiones") or []:
         p_o, p_d = _piso_de_endpoint(t, con.get("origen")), _piso_de_endpoint(t, con.get("destino"))
@@ -449,12 +481,14 @@ def _pagina_conexionado(doc, t: dict, obra: dict):
         b = _punto_conexion(g, t, con.get("destino"), abajo=(p_d <= p_o))
         if not a or not b:
             continue
-        pts = [list(p) for p in _ortogonalizar([a, b])]
+        ruta = _ruta_a_pdf(g, t, con.get("ruta") or [])
+        pts = [list(p) for p in _ortogonalizar([a, *ruta, b])]
         con_pts.append((con["id"], pts, con))
     _separar_paralelos(con_pts)
     saltos = _calcular_saltos([(cid, pts) for cid, pts, _ in con_pts])
     for cid, pts, con in con_pts:
-        _dibujar_cable(pg, pts, saltos.get(cid), TRAZO)
+        color = COLOR_POLARIDAD.get(con.get("polaridad"), TRAZO)
+        _dibujar_cable(pg, pts, saltos.get(cid), color)
 
     # dispositivos, por encima del cableado -- se deja un margen visible a
     # los costados (en vez de ocupar la celda entera) para que una conexión

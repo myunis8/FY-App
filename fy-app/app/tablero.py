@@ -92,19 +92,46 @@ def _endpoint_valido(tablero: dict, ep: dict) -> bool:
     return False
 
 
-def crear_conexion(tablero: dict, origen: dict, destino: dict) -> tuple[dict | None, str]:
-    """Conexión simple entre dos puntos: la acometida o un dispositivo en el
-    riel. El dibujo (una línea esquemática, automática) lo decide el
-    editor -- acá sólo se guarda QUÉ alimenta a QUÉ."""
+POLARIDADES = ("fase", "neutro", "tierra")
+
+
+def crear_conexion(tablero: dict, origen: dict, destino: dict,
+                   polaridad: str = "fase", ruta: list | None = None) -> tuple[dict | None, str]:
+    """Conexión entre dos puntos: la acometida o un dispositivo en el riel.
+    `polaridad` es sólo para poder pintarla de un color reconocible (fase,
+    neutro o tierra) -- no se valida contra el dispositivo real, porque acá
+    no hay polo ni terminal puntual para comparar. `ruta` son puntos
+    intermedios opcionales (coordenadas del propio lienzo del editor) para
+    que el que cablea elija por dónde pasa, en vez de una línea recta fija."""
     if not _endpoint_valido(tablero, origen):
         return None, "El primer punto no es válido, o el dispositivo no está en el riel."
     if not _endpoint_valido(tablero, destino):
         return None, "El segundo punto no es válido, o el dispositivo no está en el riel."
     if origen == destino:
         return None, "El origen y el destino no pueden ser el mismo punto."
-    con = {"id": _id("con"), "origen": origen, "destino": destino}
+    if polaridad not in POLARIDADES:
+        polaridad = "fase"
+    ruta_limpia = []
+    for p in (ruta or []):
+        if isinstance(p, (list, tuple)) and len(p) == 2:
+            try:
+                ruta_limpia.append([float(p[0]), float(p[1])])
+            except (TypeError, ValueError):
+                pass
+    con = {"id": _id("con"), "origen": origen, "destino": destino,
+          "polaridad": polaridad, "ruta": ruta_limpia}
     tablero.setdefault("conexiones", []).append(con)
     return con, ""
+
+
+def editar_polaridad_conexion(tablero: dict, con_id: str, polaridad: str) -> tuple[bool, str]:
+    con = next((c for c in tablero.get("conexiones") or [] if c["id"] == con_id), None)
+    if con is None:
+        return False, "Esa conexión no existe."
+    if polaridad not in POLARIDADES:
+        return False, "La polaridad tiene que ser fase, neutro o tierra."
+    con["polaridad"] = polaridad
+    return True, ""
 
 
 def eliminar_conexion(tablero: dict, con_id: str) -> bool:
