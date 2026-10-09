@@ -232,13 +232,6 @@ class _Geom:
     def y_riel(self, piso: int) -> float:
         return self.y_piso(piso) + self.banda
 
-    def acometida(self) -> tuple[float, float]:
-        """Posición fija del marcador de acometida -- siempre arriba de
-        todo, centrado, dentro del margen superior ya reservado (la franja
-        antes del primer riel). No hace falta medir nada más: nunca se
-        puede ir de la hoja."""
-        return (self.ancho / 2, MARGEN + self.franja * 0.45)
-
 
 def _nombre_circuito(obra, circuito_id):
     if not circuito_id:
@@ -397,31 +390,94 @@ def _dibujar_cable(pg, pts, saltos, color):
         pg.draw_line(cur, (x1, y1), color=color, width=1.3)
 
 
-def _piso_de_endpoint(t: dict, ep: dict):
-    if not ep:
-        return -999
-    if ep.get("tipo") == "acometida":
-        return -1                   # siempre arriba de todo
-    d = next((x for x in t["dispositivos"] if x["id"] == ep.get("id")), None)
-    return d["piso"] if d and d.get("piso") is not None else -999
+TIPOS_CON_TIERRA = ("TUG", "TUE", "ACU", "OCE")
 
 
-def _punto_conexion(g: _Geom, t: dict, ep: dict, abajo: bool):
-    """Punto de anclaje de un extremo de conexión -- simple a propósito: el
-    centro de arriba o de abajo del dispositivo, o el marcador fijo de
-    acometida. No hay polo ni lado que elegir a mano: la conexión dice QUÉ
-    alimenta a QUÉ, no por qué terminal exacto entra el cable."""
+def _polaridad_de_polo(d: dict, polo: int, vivo_izquierda: bool) -> str:
+    """Mismo criterio que el editor (web/tablero.html::polaridadDePolo):
+    vivo a la izquierda o a la derecha según la convención del tablero; en
+    un tetrapolar el neutro es siempre el último polo, fijo."""
+    if d["tipo"] == "bornera":
+        return "tierra"
+    polos = d.get("polos", 1)
+    if polos == 2:
+        es_primero = polo == 0
+        return "fase" if es_primero == vivo_izquierda else "neutro"
+    if polos == 4:
+        return "fase" if polo < 3 else "neutro"
+    return "fase"
+
+
+def _pines_dispositivo(g: _Geom, d: dict) -> list[dict]:
+    x0, w = g.x(d["posicion"]), d["polos"] * g.celda
+    y0, h = g.y_riel(d["piso"]), g.alto_disp
+    if d["tipo"] == "bornera":
+        return [{"polo": 0, "lado": "arriba", "x": x0 + w / 2, "y": y0 + h * 0.13}]
+    pines = []
+    for i in range(d["polos"]):
+        cx = x0 + (i + 0.5) * w / d["polos"]
+        pines.append({"polo": i, "lado": "arriba", "x": cx, "y": y0 + h * 0.13})
+        pines.append({"polo": i, "lado": "abajo", "x": cx, "y": y0 + h * 0.87})
+    return pines
+
+
+def _polaridades_entrada(d: dict, obra: dict) -> list[str]:
+    if d.get("rol") == "general" and d["tipo"] == "termica":
+        return ["fase", "neutro"]
+    cid = d.get("circuitoId")
+    if cid:
+        c = next((x for x in obra.get("circuitos") or [] if x["id"] == cid), None)
+        if c is None:
+            return []
+        base = ["fase", "neutro"]
+        if c.get("tipo") in TIPOS_CON_TIERRA:
+            base.append("tierra")
+        return base
+    return []
+
+
+def _punto_entrada(g: _Geom, d: dict, polaridad: str, obra: dict) -> tuple[float, float] | None:
+    pols = _polaridades_entrada(d, obra)
+    if polaridad not in pols:
+        return None
+    idx, n, paso = pols.index(polaridad), len(pols), 4.5
+    x0, w = g.x(d["posicion"]), d["polos"] * g.celda
+    cx = x0 + w / 2 + (idx - (n - 1) / 2) * paso
+    return (cx, g.y_riel(d["piso"]) - 8)
+
+
+def _caja_peine(g: _Geom, p: dict) -> dict:
+    return {"x0": g.x(p["desde"]), "x1": g.x(p["hasta"] + 1),
+           "y_fase": g.y_riel(p["piso"]) - 8, "y_neutro": g.y_riel(p["piso"]) - 12}
+
+
+def _punto_peine(g: _Geom, p: dict, polaridad: str) -> tuple[float, float]:
+    c = _caja_peine(g, p)
+    return ((c["x0"] + c["x1"]) / 2, c["y_neutro"] if polaridad == "neutro" else c["y_fase"])
+
+
+def _punto_conexion(g: _Geom, t: dict, obra: dict, ep: dict):
+    """Punto de anclaje de un extremo de conexión: un pin (un tornillo
+    puntual, arriba o abajo, de una térmica/diferencial/bornera), una
+    entrada (el cablecito importado de Circuitos) o un peine."""
     if not ep:
         return None
-    if ep.get("tipo") == "acometida":
-        return g.acometida()
-    if ep.get("tipo") == "dispositivo":
-        d = next((x for x in t["dispositivos"] if x["id"] == ep["id"]), None)
+    tipo = ep.get("tipo")
+    if tipo == "entrada":
+        d = next((x for x in t["dispositivos"] if x["id"] == ep.get("dispositivoId")), None)
         if d is None or d.get("piso") is None:
             return None
-        cx = g.x(d["posicion"] + d["polos"] / 2)
-        cy = g.y_riel(d["piso"]) + (g.alto_disp - 2 if abajo else 2)
-        return (cx, cy)
+        return _punto_entrada(g, d, ep.get("polaridad"), obra)
+    if tipo == "pin":
+        d = next((x for x in t["dispositivos"] if x["id"] == ep.get("dispositivoId")), None)
+        if d is None or d.get("piso") is None:
+            return None
+        pin = next((p for p in _pines_dispositivo(g, d)
+                   if p["polo"] == ep.get("polo") and p["lado"] == ep.get("lado")), None)
+        return (pin["x"], pin["y"]) if pin else None
+    if tipo == "peine":
+        p = next((x for x in t.get("peines") or [] if x["id"] == ep.get("id")), None)
+        return _punto_peine(g, p, ep.get("polaridad")) if p else None
     return None
 
 
@@ -454,11 +510,47 @@ def _fondo(pg, g, t, fondo_riel=FONDO_RIEL):
         pg.insert_text((MARGEN + 2, y0 - 5), f"Piso {piso+1}", fontsize=7, color=GRIS)
 
 
-def _marcador_acometida(pg, g):
-    x, y = g.acometida()
-    pg.draw_circle((x, y), 5, color=COLOR_POLARIDAD["fase"], fill=BLANCO, width=1.3)
-    pg.draw_circle((x, y), 2.2, color=None, fill=COLOR_POLARIDAD["fase"])
-    _texto_centrado(pg, x, y - 8, "Acometida", 6.6, GRIS, negrita=False)
+def _grosor_por_seccion(mm2: float) -> float:
+    return 0.9 + (mm2 or 1.5) ** 0.5 * 0.45
+
+
+def _dibujar_entrada(pg, g, d, obra):
+    """El cablecito de colores importado de Circuitos (o, en la general, la
+    acometida): más grueso cuanto mayor la sección del conductor."""
+    pols = _polaridades_entrada(d, obra)
+    if not pols:
+        return
+    if d.get("rol") == "general" and d["tipo"] == "termica":
+        sec = 4.0
+    else:
+        c = next((x for x in obra.get("circuitos") or [] if x["id"] == d.get("circuitoId")), None)
+        sec = (c or {}).get("seccionMm2") or 1.5
+    grosor = _grosor_por_seccion(sec)
+    for pol in pols:
+        x, y = _punto_entrada(g, d, pol, obra)
+        color = COLOR_POLARIDAD[pol]
+        pg.draw_line((x, y), (x, y + 9), color=color, width=grosor)
+        pg.draw_circle((x, y), grosor * 0.7, color=None, fill=color)
+
+
+def _dibujar_pines(pg, g, d, vivo_izquierda):
+    for p in _pines_dispositivo(g, d):
+        pol = _polaridad_de_polo(d, p["polo"], vivo_izquierda)
+        pg.draw_circle((p["x"], p["y"]), 1.6, color=COLOR_POLARIDAD[pol], fill=BLANCO, width=0.9)
+
+
+def _dibujar_peine(pg, g, t, p):
+    c = _caja_peine(g, p)
+    en_peine = [d for d in t.get("dispositivos") or []
+               if d.get("piso") == p["piso"] and d.get("posicion") is not None
+               and d["posicion"] >= p["desde"] and d["posicion"] + d["polos"] - 1 <= p["hasta"]]
+    vivo_izquierda = t.get("vivoIzquierda", True) is not False
+    for pol, y in (("fase", c["y_fase"]), ("neutro", c["y_neutro"])):
+        pg.draw_line((c["x0"], y), (c["x1"], y), color=COLOR_POLARIDAD[pol], width=1.6)
+        for d in en_peine:
+            for pin in _pines_dispositivo(g, d):
+                if pin["lado"] == "arriba" and _polaridad_de_polo(d, pin["polo"], vivo_izquierda) == pol:
+                    pg.draw_line((pin["x"], y), (pin["x"], pin["y"]), color=COLOR_POLARIDAD[pol], width=1.2)
 
 
 def _pagina_conexionado(doc, t: dict, obra: dict):
@@ -467,7 +559,7 @@ def _pagina_conexionado(doc, t: dict, obra: dict):
     _fondo(pg, g, t)
     pg.insert_text((MARGEN, 20), f"Tablero · {t.get('nombre','')} · conexionado",
                    fontsize=13, fontname="hebo", color=NAVY)
-    _marcador_acometida(pg, g)
+    vivo_izquierda = t.get("vivoIzquierda", True) is not False
 
     # conexiones: qué alimenta a qué, en escuadra (vertical primero),
     # separadas en carriles donde varias comparten corredor, con salto
@@ -476,9 +568,8 @@ def _pagina_conexionado(doc, t: dict, obra: dict):
     # para poder distinguir fase/neutro/tierra de un vistazo
     con_pts = []
     for con in t.get("conexiones") or []:
-        p_o, p_d = _piso_de_endpoint(t, con.get("origen")), _piso_de_endpoint(t, con.get("destino"))
-        a = _punto_conexion(g, t, con.get("origen"), abajo=(p_d >= p_o))
-        b = _punto_conexion(g, t, con.get("destino"), abajo=(p_d <= p_o))
+        a = _punto_conexion(g, t, obra, con.get("origen"))
+        b = _punto_conexion(g, t, obra, con.get("destino"))
         if not a or not b:
             continue
         ruta = _ruta_a_pdf(g, t, con.get("ruta") or [])
@@ -489,6 +580,9 @@ def _pagina_conexionado(doc, t: dict, obra: dict):
     for cid, pts, con in con_pts:
         color = COLOR_POLARIDAD.get(con.get("polaridad"), TRAZO)
         _dibujar_cable(pg, pts, saltos.get(cid), color)
+
+    for p in t.get("peines") or []:
+        _dibujar_peine(pg, g, t, p)
 
     # dispositivos, por encima del cableado -- se deja un margen visible a
     # los costados (en vez de ocupar la celda entera) para que una conexión
@@ -501,6 +595,8 @@ def _pagina_conexionado(doc, t: dict, obra: dict):
         y0 = g.y_riel(d["piso"]) + 2
         h = g.alto_disp - 4
         _dibujar_dispositivo(pg, x0, y0, w, h, d, _nombre_circuito(obra, d.get("circuitoId")))
+        _dibujar_entrada(pg, g, d, obra)
+        _dibujar_pines(pg, g, d, vivo_izquierda)
 
 
 def _pagina_tapa(doc, t: dict, obra: dict):

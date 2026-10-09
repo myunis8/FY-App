@@ -3,6 +3,32 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 1.10.0 — Tablero: pines reales, DRC de polaridad, entrada por circuito, peines
+
+- **Convención de polaridad configurable por tablero** (vivo a la izquierda
+  o a la derecha de cada protección bipolar) -- un tetrapolar sigue
+  teniendo el neutro fijo en el último polo, ahí no hay "izquierda o
+  derecha" que elegir.
+- **El nodo de conexión ahora es el tornillo real**, arriba y abajo de
+  cada térmica/diferencial/bornera -- en el mismo lugar donde el símbolo
+  ya los dibuja, no un punto genérico en el medio del dispositivo.
+- **DRC de cortocircuito**: una conexión sólo se puede crear si los dos
+  extremos son la misma polaridad (fase con fase, neutro con neutro,
+  tierra con tierra). Conectar fase con neutro se rechaza al momento, con
+  el motivo.
+- **Entrada por circuito, importada de Circuitos**: cada térmica que
+  protege un circuito (y la general, con la acometida) muestra un
+  cablecito de colores arriba -- fase y neutro siempre, más tierra si el
+  circuito es de los que la necesitan (TUG, TUE, ACU, OCE) -- con el
+  grosor de línea proporcional a la sección real del conductor
+  (`seccionMm2`). No se agrega ni se ubica a mano: aparece solo en cuanto
+  la térmica está en el riel.
+- **Peines**: nueva herramienta para unir en paralelo (fase con fase,
+  neutro con neutro) varias térmicas contiguas de un mismo riel, en vez
+  de cablear una por una.
+- El PDF de conexionado dibuja lo mismo que el editor: los pines reales,
+  las entradas por circuito con su grosor, y los peines.
+
 ## 1.9.1 — Tablero: ruteo manual de vuelta, y color por polaridad
 
 Ajuste sobre la 1.9.0, después de probarla: la línea recta automática

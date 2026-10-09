@@ -111,8 +111,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._agregar_dispositivo(partes[2], partes[4])
             if len(partes) == 6 and partes[:2] == ["api", "obras"] and partes[3] == "tableros" and partes[5] == "conexiones":
                 return self._crear_conexion(partes[2], partes[4])
-            if len(partes) == 7 and partes[:2] == ["api", "obras"] and partes[3] == "tableros" and partes[5] == "conexiones":
-                return self._editar_conexion(partes[2], partes[4], partes[6])
+            if len(partes) == 6 and partes[:2] == ["api", "obras"] and partes[3] == "tableros" and partes[5] == "peine":
+                return self._crear_peine(partes[2], partes[4])
             if len(partes) == 5 and partes[:2] == ["api", "obras"] and partes[3] == "tableros":
                 return self._sincronizar_tablero(partes[2], partes[4])
             return self._api_post(ruta)
@@ -161,6 +161,17 @@ class Handler(BaseHTTPRequestHandler):
                 return self._error("Ese tablero no existe.", 404)
             t.setdefault("conexiones", [])
             ok = tablero_mod.eliminar_conexion(t, partes[6])
+            almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
+            return self._json({"ok": ok})
+        if len(partes) == 7 and partes[:2] == ["api", "obras"] and partes[3] == "tableros" and partes[5] == "peines":
+            obra = almacen.leer_obra(partes[2])
+            if obra is None:
+                return self._error("Esa obra no está en este equipo.", 404)
+            t = next((x for x in obra.get("tableros") or [] if x["id"] == partes[4]), None)
+            if t is None:
+                return self._error("Ese tablero no existe.", 404)
+            t.setdefault("peines", [])
+            ok = tablero_mod.eliminar_peine(t, partes[6])
             almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
             return self._json({"ok": ok})
         if len(partes) == 5 and partes[:2] == ["api", "obras"] and partes[3] == "tableros":
@@ -679,26 +690,28 @@ class Handler(BaseHTTPRequestHandler):
             return self._error("Ese tablero no existe.", 404)
         t.setdefault("conexiones", [])
         cuerpo = self._cuerpo()
-        con, msg = tablero_mod.crear_conexion(t, cuerpo.get("origen"), cuerpo.get("destino"),
-                                              cuerpo.get("polaridad", "fase"), cuerpo.get("ruta"))
+        con, msg = tablero_mod.crear_conexion(t, obra.get("circuitos") or [],
+                                              cuerpo.get("origen"), cuerpo.get("destino"),
+                                              cuerpo.get("ruta"))
         if con is None:
             return self._error(msg)
         almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
         return self._json({"ok": True, "conexion": con, "tablero": t})
 
-    def _editar_conexion(self, obra_id, tablero_id, con_id):
+    def _crear_peine(self, obra_id, tablero_id):
         obra = almacen.leer_obra(obra_id)
         if obra is None:
             return self._error("Esa obra no está en este equipo.", 404)
         t = next((x for x in obra.get("tableros") or [] if x["id"] == tablero_id), None)
         if t is None:
             return self._error("Ese tablero no existe.", 404)
+        t.setdefault("peines", [])
         cuerpo = self._cuerpo()
-        ok, msg = tablero_mod.editar_polaridad_conexion(t, con_id, cuerpo.get("polaridad"))
-        if not ok:
+        peine, msg = tablero_mod.crear_peine(t, cuerpo.get("piso"), cuerpo.get("desde"), cuerpo.get("hasta"))
+        if peine is None:
             return self._error(msg)
         almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
-        return self._json({"ok": True, "tablero": t})
+        return self._json({"ok": True, "peine": peine, "tablero": t})
 
     def _mover_dispositivo(self, obra_id, tablero_id):
         obra = almacen.leer_obra(obra_id)
