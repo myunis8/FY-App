@@ -46,8 +46,8 @@ h2{font-family:'Space Grotesk',sans-serif;font-size:.82rem;margin:16px 0 8px;
 h2:first-child{margin-top:0}
 .centro{padding:16px;min-width:0}
 
-/* ---------- herramientas (igual criterio que Routeo: siempre visibles,
-   con atajo de teclado, un cartel fijo con la instrucción del paso actual) ---------- */
+/* ---------- herramientas: siempre visibles, atajo de teclado, cartel fijo
+   con la instrucción del paso actual (mismo criterio que Routeo) ---------- */
 .tool{display:flex;align-items:center;gap:8px;width:100%;text-align:left;margin-bottom:4px;
   padding:7px 9px;border-radius:8px;border:1px solid transparent;background:transparent;
   color:var(--ink);font-size:.82rem}
@@ -59,8 +59,6 @@ h2:first-child{margin-top:0}
   border-radius:8px;padding:9px 12px;font-size:.78rem;line-height:1.45;margin-bottom:12px;display:none}
 #hint.on{display:block}
 #hint b{color:#fff}
-.sel-conpe{border:1px solid var(--line);border-radius:8px;padding:5px 7px;font-size:.78rem;
-  background:var(--panel);color:var(--ink);width:100%;margin-top:6px}
 
 /* ---------- escenario (canvas) ---------- */
 #stage{position:relative;background:#e9edec;border:1px solid var(--line);border-radius:10px;
@@ -78,9 +76,7 @@ h2:first-child{margin-top:0}
 .bandeja{margin-top:12px}
 .bandeja-fila{display:flex;gap:10px;flex-wrap:wrap;min-height:90px;background:var(--slate-soft);
   border:2px dashed var(--line);border-radius:10px;padding:10px;align-items:flex-start}
-.bandeja-fila.sobre{border-color:var(--copper);background:var(--copper-soft)}
 .bandeja-item{position:relative;cursor:grab;border-radius:8px}
-.bandeja-item.arrastrando{opacity:.35}
 .bandeja-item.seleccionado{outline:2px solid var(--copper);outline-offset:2px}
 .bandeja-vacia{color:var(--muted);font-size:.8rem;padding:20px;width:100%;text-align:center}
 .agregar-fila{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
@@ -91,10 +87,6 @@ h2:first-child{margin-top:0}
 .campo input,.campo select{width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:7px}
 .fila2{display:grid;grid-template-columns:1fr 1fr;gap:7px}
 .nota{font-size:.72rem;color:var(--muted);line-height:1.45}
-.chip{font-size:.68rem;padding:3px 9px;border-radius:99px;background:var(--slate-soft);
-  color:var(--muted);font-weight:600;display:inline-block}
-.check{display:flex;gap:8px;align-items:center;font-size:.82rem;margin-bottom:10px}
-.check input{width:auto}
 .detalle-disp{border:1px solid var(--copper);background:var(--copper-soft);border-radius:9px;
   padding:11px;margin-bottom:14px}
 .detalle-disp h3{margin:0 0 8px;font-size:.85rem;font-family:'Space Grotesk',sans-serif}
@@ -111,8 +103,6 @@ h2:first-child{margin-top:0}
 .caja{background:var(--panel);border-radius:14px;padding:22px;width:min(420px,100%)}
 .caja h2{margin:0 0 4px}
 .acciones{display:flex;gap:9px;justify-content:flex-end;margin-top:18px}
-.opciones-cano{display:flex;flex-direction:column;gap:6px;max-height:280px;overflow-y:auto}
-.op-cano{width:100%;text-align:left;padding:9px 12px}
 .caja-pdf{background:var(--panel);border-radius:14px;width:min(920px,96vw);height:min(860px,92vh);
   display:flex;flex-direction:column;overflow:hidden}
 .caja-pdf header{padding:10px 14px;border-bottom:1px solid var(--line);display:flex;
@@ -145,9 +135,6 @@ h2:first-child{margin-top:0}
   <button class="btn ghost" id="b-rehacer" title="Ctrl+Y" disabled>↷ Rehacer</button>
   <button class="btn ghost" id="b-sincronizar">Sincronizar circuitos</button>
   <button class="btn ghost" id="b-pdf-tablero">Exportar PDF</button>
-  <!-- unifilar: todavía no se va a implementar, oculto por ahora (ver
-       generar_unifilar en app/pdf_tablero.py, que sigue intacto) -->
-  <button class="btn ghost" id="b-pdf-unifilar" title="Esquema unifilar -- todavía en beta" style="display:none">Unifilar (beta)</button>
   <button class="btn ghost" id="b-volver">Volver</button>
 </header>
 
@@ -156,13 +143,6 @@ h2:first-child{margin-top:0}
     <h2>Herramientas</h2>
     <div id="tools"></div>
     <div id="hint"></div>
-    <div id="conpe-opciones" style="display:none">
-      <label class="nota" style="margin:0 0 2px;display:block">La polaridad sale sola, de qué barra toques</label>
-      <select id="conpe-carga" class="sel-conpe" title="Hacia dónde sale el cable del conector">
-        <option value="superior">Carga superior</option>
-        <option value="lateral">Carga lateral</option>
-      </select>
-    </div>
     <div class="bandeja" id="bandeja-cont"></div>
   </aside>
 
@@ -207,16 +187,6 @@ h2:first-child{margin-top:0}
   </aside>
 </main>
 
-<div class="overlay" id="ov-cano">
-  <div class="caja" style="width:min(340px,100%)">
-    <h2 id="cano-titulo">Boca de caño</h2>
-    <p class="nota" style="margin:0 0 12px">Elegí qué entra por acá.</p>
-    <div id="opciones-cano" class="opciones-cano"></div>
-    <button class="btn danger" id="cano-vaciar" style="width:100%;margin-top:8px">Vaciar esta boca</button>
-    <div class="acciones"><button class="btn" id="cano-cerrar">Cerrar</button></div>
-  </div>
-</div>
-
 <div class="overlay" id="ov-nuevo">
   <div class="caja">
     <h2>Nuevo tablero</h2>
@@ -250,40 +220,32 @@ h2:first-child{margin-top:0}
 <script src="/lock.js"></script>
 <script>
 const $ = id => document.getElementById(id);
+const $$ = sel => document.querySelectorAll(sel);
 const OBRA_ID = new URLSearchParams(location.search).get('obra');
 fyLock.iniciar(OBRA_ID);
-const CELDA = 80;               // ancho de una boca, en px "de mundo" (escala 1) -- más
-                                 // ancha que una boca real, a propósito: ese aire de más es
-                                 // el canal por donde pasan los cables que no se conectan ahí
-const GRID = 8;                 // unidad única de grilla: TODO -- pines, caños, bandas,
-                                 // franjas y tramos de cable -- es múltiplo de esto en los
-                                 // dos ejes (x e y), nunca un porcentaje ni un número suelto
-const ALTO_DISP = 18*GRID;      // alto de la fila de dispositivos (144)
-const BANDA = 10*GRID;          // alto de cada banda de cableado, arriba y abajo del riel (80)
-const MARGEN_PISO = 3*GRID;     // separación visual entre el piso de abajo y el de arriba (24)
-const CANAL = 6*GRID;           // canal lateral reservado para el recorrido de los cables (48)
-const FRANJA_CANO = 8*GRID;     // alto de la franja de entrada/salida de caños (64) -- generosa
-                                 // a propósito, para que entre ícono + etiqueta sin pisarse
-const ALTURA_PISO = BANDA + ALTO_DISP + BANDA + MARGEN_PISO;
-const DISP_PAD = GRID;          // separación entre el borde del riel y el cuerpo de la térmica
-const PIN_INSET = 3*GRID;       // distancia fija (no porcentaje) del borde de la térmica a
-                                 // su fila de pines -- así el pin cae siempre en la grilla
-const MARGEN_DISP = 2*GRID;     // aire a cada lado de una térmica dentro de su rango de bocas
-                                 // (16) -- también en la grilla: el pin de la bornera depende
-                                 // de este margen, así que si no fuera múltiplo de GRID el
-                                 // pin se corre de la grilla igual que antes
-const STUB = 3*GRID;            // tramo fijo y recto que sale de cualquier pin/caño/peine
-                                 // antes de poder doblar -- así el cable nunca sale ladeado
-const PITCH_CANO = 8*GRID;      // separación fija entre una entrada de caño y la siguiente
-                                 // -- tiene que alcanzar para la etiqueta de texto, no sólo
-                                 // para el ícono, si no las etiquetas se superponen igual
-function yPiso(piso){ return FRANJA_CANO + piso * ALTURA_PISO; }
+
+/* ============================ geometría ============================
+   A propósito MUY simple: una térmica ocupa un rango de bocas en un riel,
+   y listo. Ya no hay pines por polo, ni caños con posición exacta, ni
+   peines: una conexión dice sólo QUÉ alimenta a QUÉ (ver más abajo),
+   y se dibuja con una línea esquemática automática entre el centro de
+   arriba/abajo de cada dispositivo (o el marcador fijo de Acometida). */
+const CELDA = 72;            // ancho de una boca, en px "de mundo" (escala 1)
+const ALTO_DISP = 128;       // alto de la fila de dispositivos
+const BANDA = 46;            // aire arriba/abajo del riel, para que una
+                              // conexión no tenga que atravesar el cuerpo
+                              // de otra térmica para llegar a destino
+const MARGEN_PISO = 20;      // separación entre el piso de abajo y el de arriba
+const MARGEN_IZQ = 30;
+const MARGEN_SUP = 50;       // aire arriba de todo, para el marcador de Acometida
+const MARGEN_DISP = 14;      // aire a cada lado de una térmica dentro de su rango de bocas
+const ALTURA_PISO = BANDA*2 + ALTO_DISP + MARGEN_PISO;
+function yPiso(piso){ return MARGEN_SUP + piso * ALTURA_PISO; }
 function yRiel(piso){ return yPiso(piso) + BANDA; }
-function yBandaInf(piso){ return yRiel(piso) + ALTO_DISP; }
+
 let obra = null, tableros = [], activo = null, presets = [];
-let seleccion = null;          // {t:'dispositivo'|'cable'|'conexion'|'cano', id}
-let herramienta = {tipo: 'select', paso1: null, ruta: []};   // 'select'|'peine'|'conectorPeine'|'cable'
-let arrastreCano = null;       // {id, lado, startX, xLive, moved} -- arrastre de una entrada de caño
+let seleccion = null;          // {t:'dispositivo'|'conexion', id}
+let herramienta = {tipo: 'select', paso1: null};   // 'select' | 'conectar'
 
 const api = async (r,o={}) => {
   const res = await fetch(r,{headers:{'Content-Type':'application/json'},...o});
@@ -319,13 +281,11 @@ function pintarSelector(){
   };
 }
 
-/* ---------------- dibujo de un dispositivo (esquemático) ----------------
-   Basado en los cinco esquemas de referencia: térmica y diferencial bipolares
-   con tornillos arriba/abajo, protector con display digital, bornera de
-   terminales a tornillo. Sin marcas de fábrica: sólo el contorno, la
-   corriente y el circuito. Siguen devolviendo un STRING de SVG -- igual que
-   antes -- porque eso es lo que se usa como imagen cacheada en el canvas
-   (ver imagenSVG más abajo): ni una línea de este dibujo cambió. */
+/* ============================ símbolos de protecciones (SIN TOCAR) ========
+   Térmica y diferencial bipolares con tornillos arriba/abajo, protector con
+   display digital, bornera de terminales a tornillo -- el mismo lenguaje
+   visual de siempre. Siguen siendo SVG: se cachean como imagen y se dibujan
+   sobre el canvas (ver imagenSVG). */
 const TRAZO = '#33506e';
 function etiquetaCircuito(d){
   const c = (obra.circuitos||[]).find(x=>x.id===d.circuitoId);
@@ -429,17 +389,14 @@ function svgProtector(w, h, tensionV, circuito){
   </svg>`;
 }
 function svgBornera(w, h){
-  // Mismo offset fijo que yTerminalBornera() usa para el punto de conexión
-  // real (BORNERA_INICIO + i*BORNERA_PASO) -- así el dibujo y el pin
-  // clickeable quedan siempre en el mismo lugar exacto, nunca corridos.
-  const filas = BOCAS_BORNERA, alto = BORNERA_PASO;
+  const filas = 6, alto = h*0.84/filas, x0 = h*0.08;
   let term = '';
   for(let i=0;i<filas;i++){
-    const cy = BORNERA_INICIO + alto*i;
+    const cy = x0 + alto*(i+0.5);
     term += `<rect x="${w*0.28}" y="${cy-alto*0.3}" width="${w*0.44}" height="${alto*0.6}" rx="${alto*0.28}"
       fill="none" stroke="${TRAZO}" stroke-width="0.9"/>
       <circle cx="${w*0.5}" cy="${cy}" r="${alto*0.16}" fill="none" stroke="${TRAZO}" stroke-width=".7"/>`;
-    if(i===1 || i===3) term += `<line x1="4" y1="${cy+alto/2}" x2="${w-4}" y2="${cy+alto/2}"
+    if(i===1 || i===3) term += `<line x1="4" y1="${x0+alto*(i+1)}" x2="${w-4}" y2="${x0+alto*(i+1)}"
       stroke="${TRAZO}" stroke-width=".7" stroke-dasharray="2 2"/>`;
   }
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}">
@@ -458,6 +415,7 @@ function svgDispositivo(d, w, h){
   return svgTermica(w, h, d.polos, d.corriente, color,
     etiquetaCircuito(d) || (d.rol==='general' ? 'General' : ''));
 }
+/* ---------------- riel DIN (SIN TOCAR) ---------------- */
 function svgRielFondo(w, h){
   const n = Math.max(2, Math.round(w / 70));
   let slots = '';
@@ -472,24 +430,11 @@ function svgRielFondo(w, h){
     ${slots}
   </svg>`;
 }
-function svgConectorPeine(w, h, color, sel){
-  color = color || TRAZO;
-  const rTornillo = Math.min(w, h) * 0.24;
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}">
-    ${sel?`<rect x="-3" y="-3" width="${w+6}" height="${h+6}" rx="6" fill="none" stroke="#c9793f" stroke-width="2"/>`:''}
-    <rect x="0.5" y="0.5" width="${w-1}" height="${h-1}" rx="3.5" fill="${color}" stroke="#00000040" stroke-width="1"/>
-    <circle cx="${w/2}" cy="${h/2}" r="${rTornillo}" fill="#fff"/>
-    <line x1="${w/2-rTornillo*0.6}" y1="${h/2}" x2="${w/2+rTornillo*0.6}" y2="${h/2}" stroke="${color}" stroke-width="1.4"/>
-  </svg>`;
-}
 
 /* ---------------- imagen cacheada a partir de un SVG ----------------
    El canvas no puede dibujar un string de SVG directo: se convierte una
-   sola vez a Image (data URI) y se cachea por contenido exacto -- dos
-   dispositivos con los mismos datos (tipo/polos/corriente/circuito/color)
-   comparten la misma imagen. Mientras carga (la primera vez, es async) se
-   dibuja un rectángulo simple de relleno; en cuanto termina de cargar pide
-   un repintado solo. */
+   sola vez a Image (data URI) y se cachea por contenido exacto. Mientras
+   carga se dibuja un rectángulo simple; al terminar pide un repintado. */
 const _cacheImg = new Map();
 function imagenSVG(svgStr){
   let entry = _cacheImg.get(svgStr);
@@ -509,11 +454,8 @@ function dimensionarCanvas(){
   cv.width = Math.max(100, r.width); cv.height = Math.max(100, r.height);
 }
 function anchoAltoMundo(t){
-  if(!t) return [CANAL+CELDA, FRANJA_CANO*2];
-  const nCanos = Math.max(entradasDeLado(t,'arriba').length, entradasDeLado(t,'abajo').length);
-  const anchoCanos = INICIO_CANOS + (nCanos+1)*PITCH_CANO + PITCH_CANO/2;
-  const ancho = Math.max(t.bocasPorPiso*CELDA + CANAL, anchoCanos);
-  return [ancho, 2*FRANJA_CANO + t.pisos*ALTURA_PISO - MARGEN_PISO];
+  if(!t) return [MARGEN_IZQ*2+CELDA, MARGEN_SUP*2];
+  return [MARGEN_IZQ*2 + t.bocasPorPiso*CELDA, MARGEN_SUP + t.pisos*ALTURA_PISO - MARGEN_PISO + 30];
 }
 function ajustarVista(){
   const t = tableroActivo();
@@ -521,7 +463,7 @@ function ajustarVista(){
   if(!t || !cv.width) return;
   const [w, h] = anchoAltoMundo(t);
   const pad = 36;
-  const z = Math.min((cv.width-pad*2)/w, (cv.height-pad*2)/h, 1.6);
+  const z = Math.min((cv.width-pad*2)/w, (cv.height-pad*2)/h, 1.8);
   vista.z = z>0 ? z : 1;
   vista.x = (cv.width - w*vista.z)/2;
   vista.y = (cv.height - h*vista.z)/2;
@@ -538,30 +480,27 @@ function zoomEn(f, sx, sy){
   render();
 }
 
-/* ============================ herramientas ============================ */
+/* ============================ herramientas ============================
+   Sólo dos: mover dispositivos, o conectar (decir qué alimenta a qué). Ya
+   no hay caños, peines ni conectores -- una conexión es un clic en el
+   origen y un clic en el destino, y listo: el dibujo lo hace el sistema. */
 const TOOLS = [
-  {id:'select', n:'Mover', k:'V'},
-  {id:'peine',  n:'Peine', k:'P'},
-  {id:'conpe',  n:'Conector de peine', k:'N'},
-  {id:'cable',  n:'Cable / serie', k:'L'},
+  {id:'select',   n:'Mover',     k:'V'},
+  {id:'conectar', n:'Conectar',  k:'C'},
 ];
 const HINTS = {
-  select:'Arrastrá una térmica para moverla de lugar o soltarla en la bandeja. Un clic la selecciona.',
-  peine:'Tocá una térmica, después la otra punta del tramo a unir en el mismo riel.',
-  conpe:'Elegí la carga, y tocá la barra de fase o de neutro del peine.',
-  cable:'Tocá el primer punto (un caño, un peine, un conector, o el polo de una térmica), '
-    + 'después el segundo. Clic en el lienzo vacío agrega un punto intermedio. <b>Esc</b> cancela.',
+  select: 'Arrastrá una térmica para moverla de lugar o soltarla en la bandeja. Un clic la selecciona.',
+  conectar: 'Tocá el primero (una térmica, el diferencial, la bornera, o la Acometida), '
+    + 'después el segundo: el primero alimenta al segundo. <b>Esc</b> cancela.',
 };
 function buildTools(){
   $('tools').innerHTML = TOOLS.map(tl=>`<button class="tool" data-t="${tl.id}">
     <span>${esc(tl.n)}</span><kbd>${tl.k}</kbd></button>`).join('');
   $$('.tool').forEach(b => b.onclick = () => elegirHerramienta(b.dataset.t));
 }
-const $$ = sel => document.querySelectorAll(sel);
 function elegirHerramienta(tipo){
-  herramienta = {tipo, paso1:null, ruta:[]};
+  herramienta = {tipo, paso1: null};
   $$('.tool').forEach(b => b.classList.toggle('on', b.dataset.t===tipo));
-  $('conpe-opciones').style.display = tipo==='conpe' ? 'block' : 'none';
   const h = $('hint');
   h.innerHTML = HINTS[tipo] || '';
   h.classList.toggle('on', !!HINTS[tipo]);
@@ -571,122 +510,53 @@ function elegirHerramienta(tipo){
   render();
 }
 
-/* ---------------- dibujo de un dispositivo (esquemático) ----------------
-   Basado en los cinco esquemas de referencia: térmica y diferencial bipolares
-   con tornillos arriba/abajo, protector con display digital, bornera de
-   terminales a tornillo. Sin marcas de fábrica: sólo el contorno, la
-   corriente y el circuito. */
-const BOCAS_BORNERA = 6;   // igual que en el motor: terminales laterales de la bornera
-const BORNERA_INICIO = 3*GRID, BORNERA_PASO = 2*GRID;   // separación fija entre terminales
-                                                          // -- también en la grilla, no un %
-function yTerminalBornera(piso, i){
-  return yRiel(piso) + DISP_PAD + BORNERA_INICIO + i*BORNERA_PASO;
+/* ============================ geometría de un dispositivo ============================
+   Única fuente de verdad para dónde se dibuja y dónde se clickea cada
+   térmica -- todas las funciones de abajo (dibujo, hit-test, arrastre,
+   extremos de conexión) parten de este mismo rectángulo. */
+function cajaDispositivo(d){
+  const w = d.polos*CELDA - MARGEN_DISP*2, h = ALTO_DISP - 8;
+  const x = MARGEN_IZQ + d.posicion*CELDA + MARGEN_DISP, y = yRiel(d.piso) + 4;
+  return {x, y, w, h};
 }
-const COLOR_POLARIDAD = {fase:'#8a5a2b', neutro:'#2b6ca3', tierra:'#2f7d5c'};
-function polaridadDePolo(d, polo){
-  if(d.tipo === 'bornera') return 'tierra';
-  const polos = d.polos || 1;
-  if(polos === 2) return polo === 0 ? 'fase' : 'neutro';
-  if(polos === 4) return polo < 3 ? 'fase' : 'neutro';
-  return 'fase';
+function puntoAcometida(t){
+  return {x: MARGEN_IZQ + t.bocasPorPiso*CELDA/2, y: MARGEN_SUP*0.45};
 }
-function polaridadesDeCano(cano){
-  if(cano.tipo === 'tierra') return ['tierra'];
-  const base = ['fase','neutro'];
-  if(cano.tipo === 'circuito' && ['TUG','TUE'].includes(cano.circuitoTipo)) base.push('tierra');
-  return base;
+function puntoDispositivo(d, abajo){
+  const c = cajaDispositivo(d);
+  return {x: c.x + c.w/2, y: abajo ? c.y + c.h - 4 : c.y + 4};
 }
-
-/* ---------------- caños: posiciones ----------------
-   Misma matemática que antes -- de acá no se tocó nada. */
-function etiquetaCano(c){
-  if(c.tipo === 'acometida') return 'Acometida';
-  if(c.tipo === 'tierra') return 'Jabalina';
-  const circ = (obra.circuitos||[]).find(x=>x.id===c.circuitoId);
-  return circ ? circ.nombre : 'Circuito';
-}
-function entradasDeLado(t, lado){
-  return (t.canos||[]).filter(c=>c.lado===lado).sort((a,b)=>a.orden-b.orden);
-}
-const INICIO_CANOS = CANAL + GRID*2;   // separado del canal lateral, no se mezclan
-function xEntradaCano(t, cano){
-  if(arrastreCano && arrastreCano.id === cano.id) return arrastreCano.xLive;
-  const hermanos = entradasDeLado(t, cano.lado);
-  const orden = hermanos.findIndex(c=>c.id===cano.id);
-  return INICIO_CANOS + PITCH_CANO/2 + orden*PITCH_CANO;
-}
-function ordenDesdeX(t, lado, x){
-  const n = entradasDeLado(t, lado).length;
-  const i = Math.round((x - INICIO_CANOS - PITCH_CANO/2) / PITCH_CANO);
-  return Math.max(0, Math.min(n-1, i));
-}
-const ICONO_CANO_R = 2*GRID;     // radio del círculo del caño (16) -- de ahí arranca el stub
-function puntaDeStub(t, cano, polaridad){
-  const pols = polaridadesDeCano(cano);
-  const idx = pols.indexOf(polaridad);
-  if(idx < 0) return null;
-  const dir = cano.lado === 'arriba' ? 1 : -1;
-  const paso = 2*GRID, n = pols.length;   // paso de a 2*GRID -- con n par, (idx-(n-1)/2)
-                                           // da medios pasos; al duplicar el paso, el
-                                           // resultado vuelve a ser múltiplo de GRID
-  const dx = (idx - (n-1)/2) * paso;
-  const y2 = (ICONO_CANO_R + STUB)*dir;
-  const [, altoTotal] = anchoAltoMundo(t);
-  const xBase = xEntradaCano(t, cano);
-  const yBase = cano.lado === 'arriba' ? FRANJA_CANO : altoTotal - FRANJA_CANO;
-  return {x: xBase + dx, y: yBase + y2};
-}
-
-/* ---------------- endpoints: un único cálculo de posición, para dibujar Y
-   para saber dónde agarra un cable -- esto es el corazón geométrico del
-   módulo y no cambió una coma al pasar a canvas. ---------------- */
-function puntoDeEndpoint(t, ep){
+function puntoConexionEndpoint(t, ep, abajo){
   if(!ep) return null;
-  if(ep.tipo === 'cano'){
-    const cano = (t.canos||[]).find(c=>c.id===ep.id);
-    if(!cano) return null;
-    return puntaDeStub(t, cano, ep.polaridad);
-  }
+  if(ep.tipo === 'acometida') return puntoAcometida(t);
   if(ep.tipo === 'dispositivo'){
     const d = t.dispositivos.find(x=>x.id===ep.id);
     if(!d || d.piso===null || d.piso===undefined) return null;
-    const polo = ep.polo || 0;
-    if(d.tipo === 'bornera'){
-      const w = d.polos*CELDA - MARGEN_DISP*2, x = CANAL + d.posicion*CELDA + MARGEN_DISP;
-      return {x: x + w - PIN_INSET, y: yTerminalBornera(d.piso, polo)};
-    }
-    const y = yRiel(d.piso) + DISP_PAD;
-    return {x: CANAL + (d.posicion + polo + 0.5)*CELDA,
-            y: ep.lado==='arriba' ? y + PIN_INSET : y + ALTO_DISP - DISP_PAD*2 - PIN_INSET};
-  }
-  if(ep.tipo === 'peine'){
-    const pe = (t.conexiones||[]).find(c=>c.id===ep.id);
-    if(!pe) return null;
-    return {x: CANAL + (pe.desde+pe.hasta+1)/2*CELDA, y: yRiel(pe.piso)-16};
-  }
-  if(ep.tipo === 'conectorPeine'){
-    const con = (t.conexiones||[]).find(c=>c.id===ep.id);
-    if(!con) return null;
-    const yBarraNeutro = yRiel(con.piso) - 31;
-    const xCuerpo = CANAL + con.posicion*CELDA, yCuerpo = yBarraNeutro - 14;
-    return con.carga === 'lateral' ? {x: xCuerpo+20, y: yCuerpo} : {x: xCuerpo, y: yCuerpo-14};
+    return puntoDispositivo(d, abajo);
   }
   return null;
 }
-function colorDeCable(t, cable){
-  if(cable.polaridad && COLOR_POLARIDAD[cable.polaridad]) return COLOR_POLARIDAD[cable.polaridad];
-  for(const ep of [cable.origen, cable.destino]){
-    if(ep && ep.tipo === 'cano'){
-      const cano = (t.canos||[]).find(c=>c.id===ep.id);
-      if(cano?.tipo === 'tierra') return '#2f7d5c';
-      if(cano?.tipo === 'acometida') return '#8a5a2b';
-    }
-  }
-  return '#5b6b7a';
+function pisoDeEndpoint(t, ep){
+  if(!ep) return -999;
+  if(ep.tipo === 'acometida') return -1;          // siempre arriba de todo
+  const d = t.dispositivos.find(x=>x.id===ep.id);
+  return (d && d.piso !== null && d.piso !== undefined) ? d.piso : -999;
 }
-function ajustarAGrilla(t, x, y){
-  return [Math.round(x/GRID)*GRID, Math.round(y/GRID)*GRID];
+function etiquetaEndpoint(t, ep){
+  if(!ep) return '?';
+  if(ep.tipo === 'acometida') return 'Acometida';
+  const d = t.dispositivos.find(x=>x.id===ep.id);
+  if(!d) return '?';
+  if(d.rol === 'general' && d.tipo === 'termica') return 'General';
+  if(d.tipo === 'diferencial') return 'Diferencial';
+  if(d.tipo === 'bornera') return 'Bornera de tierra';
+  if(d.tipo === 'protector') return 'Protector' + (etiquetaCircuito(d) ? ' · '+etiquetaCircuito(d) : '');
+  return etiquetaCircuito(d) || 'Térmica';
 }
+
+/* ---------------- geometría de cableado esquemático (pura, sin tocar) ----------------
+   Doblar siempre vertical-primero, separar en carriles los tramos que
+   comparten corredor, y saltar donde dos conexiones se cruzan. */
 function ortogonalizar(pts){
   const out = [pts[0]];
   for(let i=1;i<pts.length;i++){
@@ -695,38 +565,6 @@ function ortogonalizar(pts){
     out.push([x1, y1]);
   }
   return out;
-}
-/* ---------------- salida recta y fija desde cualquier extremo ----------------
-   Antes un cable podía salir ladeado de un pin apenas el punto siguiente no
-   coincidía con su grilla -- ahora cada extremo fuerza un tramo recto (STUB)
-   en su dirección natural (hacia arriba/abajo de una térmica, hacia el costado
-   de una bornera, hacia adentro del gabinete desde un caño, hacia arriba de
-   un peine) antes de permitir cualquier doblez. Lo que el usuario rutea a mano
-   son los tramos intermedios, nunca el primer/último segmento. */
-function direccionNatural(t, ep){
-  if(!ep) return [0,-1];
-  if(ep.tipo === 'dispositivo'){
-    if(ep.lado === 'costado') return [1, 0];
-    return ep.lado === 'arriba' ? [0,-1] : [0,1];
-  }
-  if(ep.tipo === 'cano'){
-    const cano = (t.canos||[]).find(c=>c.id===ep.id);
-    return [0, (cano && cano.lado === 'arriba') ? 1 : -1];
-  }
-  if(ep.tipo === 'conectorPeine'){
-    const con = (t.conexiones||[]).find(c=>c.id===ep.id);
-    return (con && con.carga === 'lateral') ? [1, 0] : [0,-1];
-  }
-  return [0,-1];   // peine
-}
-function construirPuntos(t, origenEp, destinoEp, ruta){
-  const a = puntoDeEndpoint(t, origenEp), b = puntoDeEndpoint(t, destinoEp);
-  if(!a || !b) return null;
-  const da = direccionNatural(t, origenEp), db = direccionNatural(t, destinoEp);
-  const aStub = [a.x + da[0]*STUB, a.y + da[1]*STUB];
-  const bStub = [b.x + db[0]*STUB, b.y + db[1]*STUB];
-  const medio = (ruta||[]).map(p => [p[0], p[1]]);
-  return ortogonalizar([[a.x,a.y], aStub, ...medio, bStub, [b.x,b.y]]);
 }
 const LANE_SPACING = 2.6;
 function separarParalelos(listaCables){
@@ -823,6 +661,25 @@ function pathConSaltos(pts, saltos){
   }
   return d;
 }
+function distSeg(p, a, b){
+  const dx=b.x-a.x, dy=b.y-a.y, L=dx*dx+dy*dy;
+  if(L===0) return Math.hypot(p.x-a.x,p.y-a.y);
+  let u=((p.x-a.x)*dx+(p.y-a.y)*dy)/L; u=Math.max(0,Math.min(1,u));
+  return Math.hypot(p.x-(a.x+u*dx), p.y-(a.y+u*dy));
+}
+function construirPuntosConexion(t, con){
+  // El lado de salida/entrada depende de la posición relativa, no siempre
+  // "sale por abajo, entra por arriba" -- si están en el mismo piso (el
+  // caso más común: dos dispositivos del mismo riel) los dos se enganchan
+  // por abajo, como un bus que pasa por debajo de la fila, en vez de una
+  // línea que atraviesa por arriba de las térmicas del medio.
+  const pO = pisoDeEndpoint(t, con.origen), pD = pisoDeEndpoint(t, con.destino);
+  const abajoOrigen = pD >= pO, abajoDestino = pD <= pO;
+  const a = puntoConexionEndpoint(t, con.origen, abajoOrigen);
+  const b = puntoConexionEndpoint(t, con.destino, abajoDestino);
+  if(!a || !b) return null;
+  return ortogonalizar([[a.x,a.y],[b.x,b.y]]);
+}
 
 /* ============================ render ============================ */
 function render(){
@@ -838,57 +695,28 @@ function render(){
   const [anchoTotal, altoTotal] = anchoAltoMundo(t);
   const ancho = t.bocasPorPiso * CELDA;
 
-  // 1) fondo: gabinete, franjas de caño, bandas y rieles
   ctx.fillStyle = '#e9edec'; ctx.fillRect(-16,-16,anchoTotal+32,altoTotal+32);
-  dibujarFranjaCano(ctx, t, 'arriba', anchoTotal);
-  dibujarFranjaCano(ctx, t, 'abajo', anchoTotal);
-  for(let piso=0; piso<t.pisos; piso++){
-    dibujarBanda(ctx, CANAL, yPiso(piso), ancho, BANDA, 'Llegada — piso '+(piso+1));
-    dibujarRiel(ctx, t, piso, ancho);
-    dibujarBanda(ctx, CANAL, yBandaInf(piso), ancho, BANDA, 'Salida hacia el circuito');
-  }
+  for(let piso=0; piso<t.pisos; piso++) dibujarRiel(ctx, t, piso, ancho);
+  dibujarAcometida(ctx, t);
 
-  // 2) cableado: cables primero, peines/conectores encima (mismo criterio
-  // que antes -- el área de clic ancha del cable no debe tapar el punto
-  // exacto del conector)
-  const listaCables = (t.cables||[]).map(cb => {
-    const pts = construirPuntos(t, cb.origen, cb.destino, cb.ruta);
-    return pts ? {id: cb.id, pts: pts.map(p=>p.slice())} : null;
+  const listaConexiones = (t.conexiones||[]).map(con => {
+    const pts = construirPuntosConexion(t, con);
+    return pts ? {id: con.id, pts: pts.map(p=>p.slice())} : null;
   }).filter(Boolean);
-  separarParalelos(listaCables);
-  const saltos = calcularSaltos(listaCables);
-  const ptsPorId = {}; listaCables.forEach(c => { ptsPorId[c.id] = c.pts; });
-  (t.cables||[]).forEach(cb => dibujarCable(ctx, t, cb, saltos[cb.id], ptsPorId[cb.id]));
-  (t.conexiones||[]).forEach(c => dibujarConexion(ctx, t, c));
+  separarParalelos(listaConexiones);
+  const saltos = calcularSaltos(listaConexiones);
+  const ptsPorId = {}; listaConexiones.forEach(c => { ptsPorId[c.id] = c.pts; });
+  (t.conexiones||[]).forEach(con => dibujarConexion(ctx, t, con, saltos[con.id], ptsPorId[con.id]));
 
-  // 3) térmicas: tapan el cableado sólo donde están paradas
   t.dispositivos.filter(d => d.piso !== null && d.piso !== undefined)
     .forEach(d => dibujarDispositivo(ctx, t, d));
 
-  // 4) nodos de conexión: SIEMPRE visibles (no sólo con una herramienta
-  // activa) -- ése era uno de los puntos más confusos del modelo anterior.
-  // Se ven más grandes/resaltados cuando hay una herramienta de cableado
-  // activa, para invitar al click, pero nunca desaparecen del todo.
-  t.dispositivos.filter(d => d.piso !== null && d.piso !== undefined)
-    .forEach(d => dibujarNodosDispositivo(ctx, d));
-
-  // 5) vista previa de la herramienta en curso
   dibujarPendienteHerramienta(ctx, t);
 
   ctx.restore();
 }
-function dibujarBanda(ctx, x, y, w, h, etq){
-  ctx.save();
-  ctx.fillStyle = '#eef1f3'; ctx.strokeStyle = '#c3cbc9'; ctx.lineWidth = 1;
-  ctx.setLineDash([4,3]);
-  ctx.beginPath(); ctx.rect(x,y,w,h); ctx.fill(); ctx.stroke();
-  ctx.setLineDash([]);
-  ctx.fillStyle = '#8896a8'; ctx.font = '600 11px IBM Plex Sans, sans-serif';
-  ctx.fillText(etq, x+8, y+15);
-  ctx.restore();
-}
 function dibujarRiel(ctx, t, piso, ancho){
-  const x = CANAL, y = yRiel(piso);
+  const x = MARGEN_IZQ, y = yRiel(piso);
   ctx.save();
   ctx.fillStyle = '#d7dcda'; ctx.strokeStyle = '#a9b3b0'; ctx.lineWidth = 1; ctx.setLineDash([4,3]);
   ctx.beginPath(); ctx.rect(x,y,ancho,ALTO_DISP); ctx.fill(); ctx.stroke();
@@ -904,70 +732,21 @@ function dibujarRiel(ctx, t, piso, ancho){
   ctx.setLineDash([]);
   ctx.restore();
 }
-function iconoCanoColor(c){
-  return c.tipo==='tierra' ? '#2f7d5c' : c.tipo==='acometida' ? '#8a5a2b' : '#2b6ca3';
-}
-function textoAcotado(ctx, texto, anchoMax){
-  if(ctx.measureText(texto).width <= anchoMax) return texto;
-  let cortado = texto;
-  while(cortado.length > 1 && ctx.measureText(cortado + '…').width > anchoMax)
-    cortado = cortado.slice(0, -1);
-  return cortado + '…';
-}
-function dibujarFranjaCano(ctx, t, lado, anchoTotal){
-  const [, altoTotal] = anchoAltoMundo(t);
-  const y = lado==='arriba' ? FRANJA_CANO : altoTotal - FRANJA_CANO;
+function dibujarAcometida(ctx, t){
+  const p = puntoAcometida(t);
+  const activo = herramienta.tipo === 'conectar';
   ctx.save();
-  ctx.fillStyle = '#e3e7e5'; ctx.strokeStyle = '#a9b3b0'; ctx.lineWidth = 1; ctx.setLineDash([4,3]);
-  ctx.beginPath(); ctx.rect(0, lado==='arriba'?0:y, anchoTotal, FRANJA_CANO); ctx.fill(); ctx.stroke();
-  ctx.setLineDash([]);
-  ctx.fillStyle = '#8896a8'; ctx.font = '600 10px IBM Plex Sans, sans-serif';
-  ctx.fillText(lado==='arriba' ? 'Entradas de caño — arriba de todo' : 'Salidas de caño — abajo de todo', 8, (lado==='arriba'?0:y)+14);
-
-  const entradas = entradasDeLado(t, lado);
-  entradas.forEach((cano, i) => {
-    const x = xEntradaCano(t, cano);
-    const color = iconoCanoColor(cano);
-    const arrastrando = arrastreCano && arrastreCano.id === cano.id;
-    ctx.save(); ctx.translate(x, y);
-    if(arrastrando){
-      ctx.beginPath(); ctx.arc(0,0,ICONO_CANO_R-1,0,7);
-      ctx.strokeStyle='#c9793f'; ctx.lineWidth=2;
-      ctx.setLineDash([3,2]); ctx.stroke(); ctx.setLineDash([]);
-    }
-    ctx.globalAlpha = arrastrando ? 0.55 : 1;
-    ctx.beginPath(); ctx.arc(0,0,ICONO_CANO_R-5,0,7); ctx.fillStyle='#e8ebe9'; ctx.fill();
-    ctx.strokeStyle=color; ctx.lineWidth=2; ctx.stroke();
-    ctx.beginPath(); ctx.arc(0,0,ICONO_CANO_R-10,0,7); ctx.fillStyle=color; ctx.fill();
-    ctx.globalAlpha = 1;
-    ctx.fillStyle = '#33506e'; ctx.font = '8px IBM Plex Sans, sans-serif'; ctx.textAlign='center';
-    const etq = textoAcotado(ctx, etiquetaCano(cano), PITCH_CANO - 10);
-    ctx.fillText(etq, 0, lado==='arriba' ? -(ICONO_CANO_R+6) : (ICONO_CANO_R+15));
-    ctx.textAlign='left';
-    // stubs de polaridad (siempre visibles -- son el extremo "caño" del cable)
-    const pols = polaridadesDeCano(cano);
-    const dir = lado === 'arriba' ? 1 : -1, paso = 2*GRID, n = pols.length;
-    pols.forEach((pol, pi) => {
-      const dx = (pi - (n-1)/2) * paso, y1 = ICONO_CANO_R*dir, y2 = (ICONO_CANO_R+STUB)*dir;
-      ctx.strokeStyle = COLOR_POLARIDAD[pol]; ctx.lineWidth = 3.4; ctx.lineCap='round';
-      ctx.beginPath(); ctx.moveTo(dx,y1); ctx.lineTo(dx,y2); ctx.stroke();
-      ctx.beginPath(); ctx.arc(dx,y2,4.5,0,7); ctx.fillStyle = COLOR_POLARIDAD[pol]; ctx.fill();
-    });
-    ctx.restore();
-  });
-  const xNueva = INICIO_CANOS + PITCH_CANO/2 + entradas.length*PITCH_CANO;
-  ctx.save(); ctx.translate(xNueva, y);
-  ctx.beginPath(); ctx.arc(0,0,11,0,7); ctx.fillStyle='#fff'; ctx.fill();
-  ctx.strokeStyle='#a9b3b0'; ctx.lineWidth=1.6; ctx.setLineDash([3,2]); ctx.stroke(); ctx.setLineDash([]);
-  ctx.fillStyle='#a9b3b0'; ctx.font='13px sans-serif'; ctx.textAlign='center'; ctx.fillText('+',0,4);
-  ctx.fillStyle='#9aa4a1'; ctx.font='7.5px sans-serif'; ctx.fillText('Agregar', 0, lado==='arriba'?-15:24);
+  ctx.beginPath(); ctx.arc(p.x,p.y, activo?9:7, 0, 7);
+  ctx.fillStyle = '#fff'; ctx.fill();
+  ctx.strokeStyle = '#8a5a2b'; ctx.lineWidth = activo?2.4:1.8; ctx.stroke();
+  ctx.beginPath(); ctx.arc(p.x,p.y,3.5,0,7); ctx.fillStyle = '#8a5a2b'; ctx.fill();
+  ctx.fillStyle = '#5b6b7a'; ctx.font = '600 10px IBM Plex Sans, sans-serif'; ctx.textAlign='center';
+  ctx.fillText('Acometida', p.x, p.y-13);
   ctx.textAlign='left';
-  ctx.restore();
   ctx.restore();
 }
 function dibujarDispositivo(ctx, t, d){
-  const w = d.polos*CELDA - MARGEN_DISP*2, h = ALTO_DISP - DISP_PAD*2;
-  const x = CANAL + d.posicion*CELDA + MARGEN_DISP, y = yRiel(d.piso) + DISP_PAD;
+  const {x, y, w, h} = cajaDispositivo(d);
   const entry = imagenSVG(svgDispositivo(d, w, h));
   ctx.save();
   if(seleccion && seleccion.t==='dispositivo' && seleccion.id===d.id){
@@ -976,346 +755,117 @@ function dibujarDispositivo(ctx, t, d){
   }
   if(entry.listo) ctx.drawImage(entry.img, x, y, w, h);
   else { ctx.fillStyle='#fff'; ctx.strokeStyle='#33506e'; ctx.fillRect(x,y,w,h); ctx.strokeRect(x,y,w,h); }
-  // flecha de alimentación (arriba/abajo) -- clic la invierte
-  const fy = d.alimentacion==='arriba' ? y-11 : y+h+11;
-  ctx.beginPath();
-  ctx.moveTo(x+w/2-5, d.alimentacion==='arriba'?fy+9:fy-9);
-  ctx.lineTo(x+w/2+5, d.alimentacion==='arriba'?fy+9:fy-9);
-  ctx.lineTo(x+w/2, fy);
-  ctx.closePath(); ctx.fillStyle = '#c9793f'; ctx.fill();
   ctx.restore();
 }
-function dibujarNodosDispositivo(ctx, d){
-  const w = d.polos*CELDA - MARGEN_DISP*2, h = ALTO_DISP - DISP_PAD*2;
-  const x = CANAL + d.posicion*CELDA + MARGEN_DISP, y = yRiel(d.piso) + DISP_PAD;
-  const activo = herramienta.tipo === 'cable';
-  const r = activo ? 5 : 3.4;
-  ctx.save();
-  if(d.tipo === 'bornera'){
-    for(let i=0;i<BOCAS_BORNERA;i++){
-      dibujarNodo(ctx, x+w-PIN_INSET, yTerminalBornera(d.piso, i), r, COLOR_POLARIDAD.tierra, activo);
-    }
-    ctx.restore(); return;
+function dibujarConexion(ctx, t, con, saltosDeEste, pts){
+  if(!pts){
+    pts = construirPuntosConexion(t, con);
+    if(!pts) return;
   }
-  for(let i=0;i<d.polos;i++){
-    const cx = x + (i+0.5)*w/d.polos;
-    const pol = polaridadDePolo(d, i);
-    dibujarNodo(ctx, cx, y+PIN_INSET, r, COLOR_POLARIDAD[pol], activo);
-    dibujarNodo(ctx, cx, y+h-PIN_INSET, r, COLOR_POLARIDAD[pol], activo);
-  }
-  ctx.restore();
-}
-function dibujarNodo(ctx, cx, cy, r, color, resaltado){
-  ctx.save();
-  ctx.beginPath(); ctx.arc(cx,cy,r,0,7);
-  ctx.fillStyle = '#fff'; ctx.fill();
-  ctx.strokeStyle = color; ctx.lineWidth = resaltado?2.2:1.6; ctx.stroke();
-  ctx.restore();
-}
-function dibujarCable(ctx, t, cable, saltosDeEste, pts){
-  const a = puntoDeEndpoint(t, cable.origen), b = puntoDeEndpoint(t, cable.destino);
-  if(!a || !b) return;
-  const color = colorDeCable(t, cable);
-  if(!pts) pts = construirPuntos(t, cable.origen, cable.destino, cable.ruta);
   const path = new Path2D(pathConSaltos(pts, saltosDeEste));
-  const sel = seleccion && seleccion.t==='cable' && seleccion.id===cable.id;
+  const sel = seleccion && seleccion.t==='conexion' && seleccion.id===con.id;
   ctx.save();
-  ctx.strokeStyle = sel ? '#c9793f' : color;
-  ctx.lineWidth = sel ? 4 : 2.6;
+  ctx.strokeStyle = sel ? '#c9793f' : TRAZO;
+  ctx.lineWidth = sel ? 3.6 : 2.2;
   ctx.lineJoin = 'round'; ctx.lineCap = 'round';
   if(sel) ctx.setLineDash([6,3]);
   ctx.stroke(path);
   ctx.setLineDash([]);
   const p0 = pts[0], p1 = pts[pts.length-1];
-  ctx.fillStyle = color;
-  ctx.beginPath(); ctx.arc(p0[0],p0[1],3.5,0,7); ctx.fill();
-  ctx.beginPath(); ctx.arc(p1[0],p1[1],3.5,0,7); ctx.fill();
-  ctx.restore();
-}
-function dibujarConexion(ctx, t, c){
-  const sel = seleccion && seleccion.t==='conexion' && seleccion.id===c.id;
-  if(c.tipo === 'peine'){
-    const dispEnPeine = t.dispositivos.filter(d=>d.piso===c.piso && d.posicion>=c.desde
-      && d.posicion+d.polos-1<=c.hasta);
-    const faseCols = [], neutroCols = [];
-    dispEnPeine.forEach(d => {
-      const tieneNeutro = d.polos===2 || d.polos===4;
-      for(let i=0;i<d.polos;i++){
-        const cx = CANAL + (d.posicion+i+0.5)*CELDA;
-        (tieneNeutro && i===d.polos-1 ? neutroCols : faseCols).push(cx);
-      }
-    });
-    const yFase = yRiel(c.piso) - 16, yNeutro = yFase - 15;
-    const barra = (cols, y, color, etq, polaridad) => {
-      if(!cols.length) return;
-      const x0 = Math.min(...cols) - 8, x1 = Math.max(...cols) + 8;
-      ctx.save();
-      cols.forEach(cx => {
-        ctx.strokeStyle = color; ctx.lineWidth = 3.4;
-        ctx.beginPath(); ctx.moveTo(cx,y+7); ctx.lineTo(cx, yRiel(c.piso)+6); ctx.stroke();
-      });
-      ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x0,y,x1-x0,12,3.5) : ctx.rect(x0,y,x1-x0,12);
-      ctx.fillStyle = color; ctx.fill();
-      ctx.strokeStyle = sel ? '#c9793f' : '#00000030'; ctx.lineWidth = sel?2.5:1; ctx.stroke();
-      ctx.fillStyle = '#fff'; ctx.font = '7.5px IBM Plex Sans, sans-serif'; ctx.textAlign='center';
-      ctx.fillText(etq, (x0+x1)/2, y+9.5); ctx.textAlign='left';
-      ctx.restore();
-    };
-    barra(faseCols, yFase, '#8a5a2b', 'F', 'fase');
-    barra(neutroCols, yNeutro, '#2b6ca3', 'N', 'neutro');
-    return;
-  }
-  // conectorPeine
-  const yBarra = yRiel(c.piso) - (c.polaridad === 'neutro' ? 31 : 16);
-  const yBarraNeutro = yRiel(c.piso) - 31;
-  const xBarra = CANAL + c.posicion*CELDA;
-  const H_CUERPO = 14;
-  const xCuerpo = xBarra, yCuerpo = yBarraNeutro - H_CUERPO;
-  const lateral = c.carga === 'lateral';
-  const tx = lateral ? xCuerpo + 20 : xCuerpo;
-  const ty = lateral ? yCuerpo : yCuerpo - 14;
-  const color = COLOR_POLARIDAD[c.polaridad || 'fase'];
-  const ancho = 20, alto = 22;
-  ctx.save();
-  ctx.strokeStyle = color; ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.moveTo(xBarra,yBarra); ctx.lineTo(xCuerpo,yCuerpo); ctx.stroke();
-  ctx.lineWidth = 2.4;
-  ctx.beginPath(); ctx.moveTo(xCuerpo,yCuerpo); ctx.lineTo(tx,ty); ctx.stroke();
-  ctx.beginPath(); ctx.arc(tx,ty,2.6,0,7); ctx.fillStyle = color; ctx.fill();
-  const entry = imagenSVG(svgConectorPeine(ancho, alto, color, sel));
-  if(entry.listo) ctx.drawImage(entry.img, xCuerpo-ancho/2, yCuerpo-alto/2, ancho, alto);
+  ctx.fillStyle = sel ? '#c9793f' : TRAZO;
+  ctx.beginPath(); ctx.arc(p0[0],p0[1],3,0,7); ctx.fill();
+  ctx.beginPath(); ctx.arc(p1[0],p1[1],3,0,7); ctx.fill();
   ctx.restore();
 }
 function dibujarPendienteHerramienta(ctx, t){
-  if(herramienta.tipo === 'cable' && herramienta.paso1){
-    const a = puntoDeEndpoint(t, herramienta.paso1);
-    if(!a) return;
-    const da = direccionNatural(t, herramienta.paso1);
-    const aStub = [a.x + da[0]*STUB, a.y + da[1]*STUB];
-    const pts = ortogonalizar([[a.x,a.y], aStub, ...(herramienta.ruta||[])]);
-    ctx.save();
-    ctx.strokeStyle = '#c9793f'; ctx.lineWidth = 2; ctx.setLineDash([4,3]);
-    ctx.beginPath(); pts.forEach((p,i)=> i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1])); ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.fillStyle = '#c9793f';
-    pts.forEach(p => { ctx.beginPath(); ctx.arc(p[0],p[1],4,0,7); ctx.fill(); });
-    if(cursorMundo){
-      const [gx,gy] = ajustarAGrilla(t, cursorMundo.x, cursorMundo.y);
-      const prev = ortogonalizar([pts[pts.length-1], [gx,gy]]);
-      ctx.beginPath(); ctx.setLineDash([4,3]);
-      prev.forEach((p,i)=> i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1])); ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.beginPath(); ctx.arc(gx,gy,3,0,7); ctx.fill();
-    }
-    ctx.restore();
-    return;
-  }
-  if(herramienta.tipo === 'peine' && herramienta.paso1){
-    const p = herramienta.paso1;
-    const cx = CANAL + (p.posicion + p.polos/2)*CELDA, cy = yRiel(p.piso) + ALTO_DISP/2;
-    ctx.save();
-    ctx.strokeStyle = '#c9793f'; ctx.lineWidth = 2.4;
-    ctx.beginPath(); ctx.arc(cx,cy,7,0,7); ctx.stroke();
-    ctx.restore();
-  }
+  if(herramienta.tipo !== 'conectar' || !herramienta.paso1 || !cursorMundo) return;
+  const centro = puntoConexionEndpoint(t, herramienta.paso1, true);
+  if(!centro) return;
+  const a = puntoConexionEndpoint(t, herramienta.paso1, cursorMundo.y >= centro.y);
+  ctx.save();
+  ctx.strokeStyle = '#c9793f'; ctx.lineWidth = 2; ctx.setLineDash([4,3]);
+  ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(cursorMundo.x,cursorMundo.y); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = '#c9793f';
+  ctx.beginPath(); ctx.arc(a.x,a.y,4,0,7); ctx.fill();
+  ctx.restore();
 }
 
 /* ============================ hit-testing ============================ */
 function hitDispositivo(t, w){
   for(const d of t.dispositivos){
     if(d.piso===null || d.piso===undefined) continue;
-    const dw = d.polos*CELDA - MARGEN_DISP*2, dh = ALTO_DISP - DISP_PAD*2;
-    const x = CANAL + d.posicion*CELDA + MARGEN_DISP, y = yRiel(d.piso) + DISP_PAD;
-    if(w.x>=x && w.x<=x+dw && w.y>=y && w.y<=y+dh) return d;
+    const c = cajaDispositivo(d);
+    if(w.x>=c.x && w.x<=c.x+c.w && w.y>=c.y && w.y<=c.y+c.h) return d;
   }
   return null;
 }
-function hitNodoDispositivo(t, w, tol){
-  tol = tol || 12/vista.z;
-  for(const d of t.dispositivos){
-    if(d.piso===null || d.piso===undefined) continue;
-    const dw = d.polos*CELDA - MARGEN_DISP*2, dh = ALTO_DISP - DISP_PAD*2;
-    const x = CANAL + d.posicion*CELDA + MARGEN_DISP, y = yRiel(d.piso) + DISP_PAD;
-    if(d.tipo === 'bornera'){
-      for(let i=0;i<BOCAS_BORNERA;i++){
-        const cy = yTerminalBornera(d.piso, i), cx = x+dw-PIN_INSET;
-        if(Math.hypot(w.x-cx,w.y-cy)<tol) return {tipo:'dispositivo', id:d.id, lado:'costado', polo:i};
-      }
-      continue;
-    }
-    for(let i=0;i<d.polos;i++){
-      const cx = x + (i+0.5)*dw/d.polos;
-      if(Math.hypot(w.x-cx, w.y-(y+PIN_INSET))<tol) return {tipo:'dispositivo', id:d.id, lado:'arriba', polo:i};
-      if(Math.hypot(w.x-cx, w.y-(y+dh-PIN_INSET))<tol) return {tipo:'dispositivo', id:d.id, lado:'abajo', polo:i};
-    }
-  }
-  return null;
-}
-function hitStubCano(t, w, tol){
-  // El click se acepta en TODO el trayecto ícono→punta del cablecito, no sólo
-  // en la puntita -- lo que se ve grande y se clickea naturalmente es el
-  // ícono, así que tiene que "agarrar" desde ahí, no sólo en la cola fina.
-  tol = tol || (ICONO_CANO_R + 6)/vista.z;
-  const [, altoTotal] = anchoAltoMundo(t);
-  let mejor = null, mejorDist = Infinity;
-  for(const lado of ['arriba','abajo']){
-    const yBase = lado==='arriba' ? FRANJA_CANO : altoTotal - FRANJA_CANO;
-    for(const cano of entradasDeLado(t, lado)){
-      const centro = {x: xEntradaCano(t, cano), y: yBase};
-      for(const pol of polaridadesDeCano(cano)){
-        const p = puntaDeStub(t, cano, pol);
-        if(!p) continue;
-        const d = distSeg(w, centro, p);
-        if(d < tol && d < mejorDist){ mejorDist = d; mejor = {tipo:'cano', id:cano.id, polaridad:pol}; }
-      }
-    }
-  }
-  return mejor;
-}
-function hitIconoCano(t, w, tol){
-  tol = tol || ICONO_CANO_R/vista.z;
-  const [, altoTotal] = anchoAltoMundo(t);
-  for(const lado of ['arriba','abajo']){
-    const y = lado==='arriba' ? FRANJA_CANO : altoTotal - FRANJA_CANO;
-    const entradas = entradasDeLado(t, lado);
-    for(let i=0;i<entradas.length;i++){
-      const cano = entradas[i];
-      const x = xEntradaCano(t, cano);
-      if(Math.hypot(w.x-x, w.y-y)<tol) return {cano, lado};
-    }
-    const xNueva = INICIO_CANOS + PITCH_CANO/2 + entradas.length*PITCH_CANO;
-    if(Math.hypot(w.x-xNueva, w.y-y)<13) return {agregar:lado};
-  }
-  return null;
+function hitAcometida(t, w, tol){
+  tol = tol || 14/vista.z;
+  const p = puntoAcometida(t);
+  return Math.hypot(w.x-p.x, w.y-p.y) < tol ? {tipo:'acometida'} : null;
 }
 function hitConexion(t, w, tol){
-  tol = tol || 9/vista.z;
-  for(const c of t.conexiones||[]){
-    if(c.tipo === 'peine'){
-      const dispEnPeine = t.dispositivos.filter(d=>d.piso===c.piso && d.posicion>=c.desde
-        && d.posicion+d.polos-1<=c.hasta);
-      const faseCols = [], neutroCols = [];
-      dispEnPeine.forEach(d => {
-        const tieneNeutro = d.polos===2 || d.polos===4;
-        for(let i=0;i<d.polos;i++){
-          const cx = CANAL + (d.posicion+i+0.5)*CELDA;
-          (tieneNeutro && i===d.polos-1 ? neutroCols : faseCols).push(cx);
-        }
-      });
-      const yFase = yRiel(c.piso) - 16, yNeutro = yFase - 15;
-      for(const [cols,y,pol] of [[faseCols,yFase,'fase'],[neutroCols,yNeutro,'neutro']]){
-        if(!cols.length) continue;
-        const x0 = Math.min(...cols)-8, x1 = Math.max(...cols)+8;
-        if(w.x>=x0 && w.x<=x1 && w.y>=y-3 && w.y<=y+15) return {con:c, polaridad:pol, xPixel:w.x};
-      }
-    } else {
-      const p = puntoDeEndpoint(t, {tipo:'conectorPeine', id:c.id});
-      if(p && Math.hypot(w.x-p.x, w.y-p.y)<tol+6) return {con:c};
-    }
-  }
-  return null;
-}
-function hitCable(t, w, tol){
   tol = tol || 7/vista.z;
-  for(const cb of t.cables||[]){
-    const pts = construirPuntos(t, cb.origen, cb.destino, cb.ruta);
+  for(const con of t.conexiones||[]){
+    const pts = construirPuntosConexion(t, con);
     if(!pts) continue;
     for(let i=1;i<pts.length;i++){
-      if(distSeg(w, {x:pts[i-1][0],y:pts[i-1][1]}, {x:pts[i][0],y:pts[i][1]}) < tol) return cb;
+      if(distSeg(w, {x:pts[i-1][0],y:pts[i-1][1]}, {x:pts[i][0],y:pts[i][1]}) < tol) return con;
     }
   }
   return null;
-}
-function distSeg(p, a, b){
-  const dx=b.x-a.x, dy=b.y-a.y, L=dx*dx+dy*dy;
-  if(L===0) return Math.hypot(p.x-a.x,p.y-a.y);
-  let u=((p.x-a.x)*dx+(p.y-a.y)*dy)/L; u=Math.max(0,Math.min(1,u));
-  return Math.hypot(p.x-(a.x+u*dx), p.y-(a.y+u*dy));
 }
 
 /* ============================ interacción ============================ */
-let cursorMundo = null, arrastre = null;   // arrastre: {id, desdeBandeja, dx, dy}
+let cursorMundo = null, arrastre = null;
 const cv = $('cv');
 cv.addEventListener('pointerdown', ev => {
   const t = tableroActivo(); if(!t) return;
   cv.setPointerCapture(ev.pointerId);
   const w = aMundo(ev);
 
-  if(herramienta.tipo === 'cable'){
-    const nodo = hitNodoDispositivo(t,w) || hitStubCano(t,w);
-    const hitCon = hitConexion(t,w);
-    if(nodo){ manejarEndpointHerramienta(nodo); return; }
-    if(hitCon && hitCon.con){
-      if(hitCon.con.tipo==='peine') manejarEndpointHerramienta({tipo:'peine', id:hitCon.con.id, polaridad:hitCon.polaridad||'fase'});
-      else manejarEndpointHerramienta({tipo:'conectorPeine', id:hitCon.con.id});
+  if(herramienta.tipo === 'conectar'){
+    const punto = hitDispositivo(t, w) ? {tipo:'dispositivo', id: hitDispositivo(t, w).id}
+      : hitAcometida(t, w);
+    if(!punto){ return; }
+    if(!herramienta.paso1){
+      herramienta.paso1 = punto;
+      $('hint').innerHTML = `Alimenta desde <b>${esc(etiquetaEndpoint(t, punto))}</b>. `
+        + 'Tocá el segundo punto para terminar. <b>Esc</b> cancela.';
+      render();
       return;
     }
-    if(herramienta.paso1){ herramienta.ruta.push(ajustarAGrilla(t, w.x, w.y)); render(); }
-    return;
-  }
-  if(herramienta.tipo === 'peine'){
-    const d = hitDispositivo(t, w);
-    if(!d){ toast('Tocá una térmica del riel.'); return; }
-    if(d.tipo === 'bornera'){ toast('La bornera no se une con peine.'); return; }
-    if(!herramienta.paso1){ herramienta.paso1 = {piso:d.piso, posicion:d.posicion, polos:d.polos}; render(); return; }
-    if(d.piso !== herramienta.paso1.piso){
-      toast('Las dos puntas tienen que estar en el mismo riel.');
-      herramienta.paso1 = null; render(); return;
-    }
-    const desde = Math.min(herramienta.paso1.posicion, d.posicion);
-    const hasta = Math.max(herramienta.paso1.posicion + herramienta.paso1.polos - 1, d.posicion + d.polos - 1);
+    const origen = herramienta.paso1;
     herramienta.paso1 = null;
-    crearPeine(d.piso, desde, hasta);
-    return;
-  }
-  if(herramienta.tipo === 'conpe'){
-    const hitCon = hitConexion(t, w);
-    if(!hitCon || !hitCon.con || hitCon.con.tipo!=='peine'){ toast('Tocá un peine, en el lugar donde va el conector.'); return; }
-    const con = hitCon.con;
-    const posicion = Math.max(con.desde, Math.min(con.hasta+1, (hitCon.xPixel - CANAL) / CELDA));
-    crearConectorPeine(con.id, posicion, hitCon.polaridad || 'fase', $('conpe-carga').value);
+    elegirHerramienta('conectar');
+    crearConexion(origen, punto);
     return;
   }
 
-  // select: elegir/arrastrar, o click en caño/peine/cable para seleccionar
-  const canoHit = hitIconoCano(t, w);
-  if(canoHit){
-    if(canoHit.agregar){ abrirAgregarCano(canoHit.agregar); return; }
-    arrastreCano = {id:canoHit.cano.id, lado:canoHit.lado,
-      startClientX:ev.clientX, startX: xEntradaCano(t, canoHit.cano),
-      xLive: xEntradaCano(t, canoHit.cano), moved:false};
-    return;
-  }
+  // select: elegir/arrastrar un dispositivo, o click en una conexión
   const d = hitDispositivo(t, w);
   if(d){
     seleccion = {t:'dispositivo', id:d.id};
-    arrastre = {id:d.id, desdeBandeja:false, dx:w.x-(CANAL+d.posicion*CELDA), dy:0};
+    arrastre = {id:d.id, dx:w.x-(MARGEN_IZQ+d.posicion*CELDA), dy:0};
     pintarDetalle(); render();
     return;
   }
-  const cb = hitCable(t, w);
-  if(cb){ seleccion = {t:'cable', id:cb.id}; pintarDetalle(); render(); return; }
   const con = hitConexion(t, w);
-  if(con && con.con){ seleccion = {t:'conexion', id:con.con.id}; pintarDetalle(); render(); return; }
+  if(con){ seleccion = {t:'conexion', id:con.id}; pintarDetalle(); render(); return; }
   seleccion = null; pintarDetalle(); render();
 });
 window.addEventListener('pointermove', ev => {
   const t = tableroActivo(); if(!t) return;
   cursorMundo = aMundo(ev);
-  if(herramienta.tipo === 'cable' && herramienta.paso1){ render(); return; }
+  if(herramienta.tipo === 'conectar' && herramienta.paso1){ render(); return; }
   if(arrastre){
     const w = cursorMundo;
-    const pos = Math.max(0, Math.round((w.x - CANAL - arrastre.dx) / CELDA));
-    const piso = Math.max(0, Math.min(t.pisos-1, Math.round((w.y - FRANJA_CANO) / ALTURA_PISO)));
+    const pos = Math.max(0, Math.round((w.x - MARGEN_IZQ - arrastre.dx) / CELDA));
+    const piso = Math.max(0, Math.min(t.pisos-1, Math.round((w.y - MARGEN_SUP) / ALTURA_PISO)));
     arrastre.posPreview = pos; arrastre.pisoPreview = piso;
     render();
     dibujarArrastrePreview();
-  }
-  if(arrastreCano){
-    const dx = (ev.clientX - arrastreCano.startClientX) / vista.z;
-    if(Math.abs(dx) > 3) arrastreCano.moved = true;
-    arrastreCano.xLive = arrastreCano.startX + dx;
-    render();
   }
 });
 window.addEventListener('pointerup', async () => {
@@ -1324,14 +874,6 @@ window.addEventListener('pointerup', async () => {
     arrastre = null;
     if(pos!=null && piso!=null) await moverA(id, piso, pos);
     else render();
-  }
-  if(arrastreCano){
-    const {id, lado, xLive, moved} = arrastreCano;
-    arrastreCano = null;
-    const t = tableroActivo();
-    if(!moved){ abrirEditarCano((t.canos||[]).find(c=>c.id===id)); return; }
-    const orden = ordenDesdeX(t, lado, xLive);
-    await reordenarEntradaCanoAPI(id, orden);
   }
 });
 cv.addEventListener('wheel', ev => {
@@ -1348,8 +890,8 @@ function dibujarArrastrePreview(){
   ctx.strokeStyle = '#c9793f'; ctx.lineWidth = 2; ctx.setLineDash([5,3]);
   const t = tableroActivo();
   const d = t.dispositivos.find(x=>x.id===arrastre.id);
-  const w = (d?.polos||1)*CELDA - MARGEN_DISP*2, h = ALTO_DISP - DISP_PAD*2;
-  const x = CANAL + arrastre.posPreview*CELDA + MARGEN_DISP, y = yRiel(arrastre.pisoPreview) + DISP_PAD;
+  const w = (d?.polos||1)*CELDA - MARGEN_DISP*2, h = ALTO_DISP - 8;
+  const x = MARGEN_IZQ + arrastre.posPreview*CELDA + MARGEN_DISP, y = yRiel(arrastre.pisoPreview) + 4;
   ctx.strokeRect(x,y,w,h);
   ctx.restore();
 }
@@ -1358,25 +900,9 @@ $('z-out').onclick = () => zoomEn(1/1.25, cv.width/2, cv.height/2);
 $('z-fit').onclick = () => { ajustarVista(); render(); };
 window.addEventListener('resize', () => { dimensionarCanvas(); render(); });
 
-/* ---------------- selección de los dos extremos de un cable ---------------- */
-function manejarEndpointHerramienta(ep){
-  if(!herramienta.paso1){
-    herramienta.paso1 = ep; herramienta.ruta = [];
-    $('hint').innerHTML = 'Tocá puntos intermedios si querés, y el segundo extremo para terminar. <b>Esc</b> cancela.';
-    render();
-    return;
-  }
-  const origen = herramienta.paso1;
-  const ruta = herramienta.ruta.slice();
-  herramienta.paso1 = null; herramienta.ruta = [];
-  crearCable(origen, ep, ruta);
-}
-
 /* ---------------- bandeja (sin colocar) ----------------
    Lista simple; el arrastre hacia el riel lo maneja el puntero, no el
-   drag-and-drop nativo del navegador -- se inicia aquí y termina en el
-   pointerup del canvas (ver más arriba) si el puntero soltó adentro del
-   escenario. */
+   drag-and-drop nativo del navegador. */
 function pintarBandeja(){
   const t = tableroActivo();
   const cont = $('bandeja-cont');
@@ -1404,14 +930,14 @@ function pintarBandeja(){
       if(!arrastreBandeja || arrastreBandeja.id!==n.dataset.id){ render(); return; }
       const moved = Math.abs(ev.clientX-arrastreBandeja.startX)>4 || Math.abs(ev.clientY-arrastreBandeja.startY)>4;
       arrastreBandeja = null;
-      if(!moved) return;   // fue sólo un click, no un arrastre -- ya quedó seleccionado
+      if(!moved) return;
       const stageRect = $('stage').getBoundingClientRect();
       if(ev.clientX>=stageRect.left && ev.clientX<=stageRect.right &&
          ev.clientY>=stageRect.top && ev.clientY<=stageRect.bottom){
         const w = aMundo(ev);
         const t2 = tableroActivo();
-        const pos = Math.max(0, Math.round((w.x-CANAL)/CELDA));
-        const piso = Math.max(0, Math.min(t2.pisos-1, Math.round((w.y-FRANJA_CANO)/ALTURA_PISO)));
+        const pos = Math.max(0, Math.round((w.x-MARGEN_IZQ)/CELDA));
+        const piso = Math.max(0, Math.min(t2.pisos-1, Math.round((w.y-MARGEN_SUP)/ALTURA_PISO)));
         await moverA(n.dataset.id, piso, pos);
       }
     });
@@ -1425,112 +951,22 @@ function bloqueDispBandeja(d){
   return `<div style="width:${w}px;height:${h}px">${svg}</div>`;
 }
 
-/* ---------------- bocas de caño: asignar qué entra, o usar como extremo ---------------- */
-let canoPendiente = null;
-function abrirAgregarCano(lado){
-  canoPendiente = {modo:'agregar', lado};
-  $('cano-titulo').textContent = `Agregar entrada — ${lado}`;
-  $('cano-vaciar').style.display = 'none';
-  pintarOpcionesCano();
-  $('ov-cano').classList.add('abierto');
-}
-function abrirEditarCano(cano){
-  canoPendiente = {modo:'editar', cano};
-  $('cano-titulo').textContent = 'Editar esta entrada';
-  $('cano-vaciar').style.display = 'block';
-  $('cano-vaciar').textContent = 'Eliminar esta entrada';
-  $('cano-vaciar').onclick = () => { eliminarCano(cano.id); $('ov-cano').classList.remove('abierto'); };
-  pintarOpcionesCano();
-  $('ov-cano').classList.add('abierto');
-}
-function pintarOpcionesCano(){
-  const opciones = [
-    {tipo:'acometida', nombre:'Acometida', circuitoId:null},
-    {tipo:'tierra', nombre:'Jabalina', circuitoId:null},
-    ...(obra.circuitos||[]).map(c => ({tipo:'circuito', nombre:c.nombre, circuitoId:c.id})),
-  ];
-  const cont = $('opciones-cano');
-  cont.innerHTML = opciones.map(o => `<button class="btn op-cano"
-      data-op-tipo="${o.tipo}" data-op-circuito="${o.circuitoId||''}">${esc(o.nombre)}</button>`).join('');
-  cont.querySelectorAll('[data-op-tipo]').forEach(b => b.onclick = () => {
-    const tipo = b.dataset.opTipo, circuitoId = b.dataset.opCircuito || null;
-    if(canoPendiente.modo === 'agregar') agregarEntradaCanoAPI(canoPendiente.lado, tipo, circuitoId);
-    else editarEntradaCanoAPI(canoPendiente.cano.id, tipo, circuitoId);
-    $('ov-cano').classList.remove('abierto');
-  });
-}
-async function agregarEntradaCanoAPI(lado, tipo, circuitoId){
+/* ---------------- conexiones: API ---------------- */
+async function crearConexion(origen, destino){
   const t = tableroActivo();
   try{
-    const r = await api(`/api/obras/${OBRA_ID}/tableros/${t.id}/canos`,
-      {method:'POST', body:JSON.stringify({lado, tipo, circuitoId})});
-    actualizarTablero(r.tablero, null);
-  }catch(e){ toast(e.message); render(); }
-}
-async function editarEntradaCanoAPI(canoId, tipo, circuitoId){
-  const t = tableroActivo();
-  try{
-    const r = await api(`/api/obras/${OBRA_ID}/tableros/${t.id}/canos/${canoId}`,
-      {method:'POST', body:JSON.stringify({tipo, circuitoId})});
-    actualizarTablero(r.tablero, null);
-  }catch(e){ toast(e.message); render(); }
-}
-async function reordenarEntradaCanoAPI(canoId, orden){
-  const t = tableroActivo();
-  try{
-    const r = await api(`/api/obras/${OBRA_ID}/tableros/${t.id}/canos/${canoId}/reordenar`,
-      {method:'POST', body:JSON.stringify({orden})});
-    actualizarTablero(r.tablero, null);
-  }catch(e){ toast(e.message); render(); }
-}
-async function eliminarCano(id){
-  const t = tableroActivo();
-  await api(`/api/obras/${OBRA_ID}/tableros/${t.id}/canos/${id}`, {method:'DELETE'});
-  obra = await api('/api/obras/'+OBRA_ID);
-  obra.tableros = obra.tableros || [];
-  tableros = obra.tableros;
-  pintar();
-}
-
-/* ---------------- cables / peine / conector: API ---------------- */
-async function crearCable(origen, destino, ruta){
-  const t = tableroActivo();
-  try{
-    const r = await api(`/api/obras/${OBRA_ID}/tableros/${t.id}/cables`,
-      {method:'POST', body:JSON.stringify({origen, destino, ruta: ruta||[]})});
+    const r = await api(`/api/obras/${OBRA_ID}/tableros/${t.id}/conexiones`,
+      {method:'POST', body:JSON.stringify({origen, destino})});
     actualizarTablero(r.tablero, null);
     toast('Conectado');
-  }catch(e){ toast(e.message); render(); }
-}
-async function eliminarCableAPI(id){
-  const t = tableroActivo();
-  await api(`/api/obras/${OBRA_ID}/tableros/${t.id}/cables/${id}`, {method:'DELETE'});
-  t.cables = (t.cables||[]).filter(c=>c.id!==id);
-  render();
-}
-async function crearPeine(piso, desde, hasta){
-  const t = tableroActivo();
-  try{
-    const r = await api(`/api/obras/${OBRA_ID}/tableros/${t.id}/peine`,
-      {method:'POST', body:JSON.stringify({piso, desde, hasta})});
-    actualizarTablero(r.tablero, null);
-    toast('Peine creado');
-  }catch(e){ toast(e.message); render(); }
-}
-async function crearConectorPeine(peineId, posicion, polaridad, carga){
-  const t = tableroActivo();
-  try{
-    const r = await api(`/api/obras/${OBRA_ID}/tableros/${t.id}/conector-peine`,
-      {method:'POST', body:JSON.stringify({peineId, posicion, polaridad, carga})});
-    actualizarTablero(r.tablero, null);
-    toast('Conector agregado');
   }catch(e){ toast(e.message); render(); }
 }
 async function eliminarConexionAPI(id){
   const t = tableroActivo();
   await api(`/api/obras/${OBRA_ID}/tableros/${t.id}/conexiones/${id}`, {method:'DELETE'});
   t.conexiones = (t.conexiones||[]).filter(c=>c.id!==id);
-  render();
+  seleccion = null;
+  pintar();
 }
 
 /* ---------------- acciones de dispositivo ---------------- */
@@ -1566,7 +1002,7 @@ async function agregarDispositivo(tipo){
 async function eliminarDispositivo(id){
   const t = tableroActivo(); if(!t) return;
   if(!confirm('¿Sacar este dispositivo del tablero? Si es la térmica de un circuito, '
-    + 'el circuito queda sin protección planificada.')) return;
+    + 'el circuito queda sin protección planificada, y se borran las conexiones que tenía.')) return;
   await api(`/api/obras/${OBRA_ID}/tableros/${t.id}/dispositivos/${id}`, {method:'DELETE'});
   t.dispositivos = t.dispositivos.filter(d=>d.id!==id);
   seleccion = null;
@@ -1576,33 +1012,23 @@ async function persistirObra(){
   await api('/api/obras/'+OBRA_ID, {method:'PUT', body:JSON.stringify(obra)});
 }
 
-/* ---------------- panel de detalle del seleccionado ----------------
-   Ahora cualquier cosa seleccionable (dispositivo, cable, conexión) muestra
-   algo acá -- antes sólo los dispositivos tenían detalle. */
+/* ---------------- panel de detalle del seleccionado ---------------- */
 function pintarDetalle(){
   const t = tableroActivo();
   const cont = $('detalle-disp-cont');
-  if(!t || !seleccion){ cont.innerHTML = '<p class="msg">Nada seleccionado. Hacé clic en una térmica, un cable, un peine o un conector para ver sus datos.</p>'; return; }
-  if(seleccion.t === 'cable'){
-    const cb = (t.cables||[]).find(c=>c.id===seleccion.id);
-    if(!cb){ seleccion=null; return pintarDetalle(); }
-    cont.innerHTML = `<div class="detalle-disp">
-      <h3>Cable</h3>
-      <div class="nota" style="margin-bottom:8px">Polaridad: ${esc(cb.polaridad||'—')}</div>
-      <button class="btn sm danger" id="dd-borrar-cable" style="width:100%">Eliminar (Delete)</button>
-    </div>`;
-    $('dd-borrar-cable').onclick = () => eliminarCableAPI(cb.id);
-    return;
-  }
+  if(!t || !seleccion){ cont.innerHTML = '<p class="msg">Nada seleccionado. Hacé clic en una térmica o en una conexión para ver sus datos.</p>'; return; }
   if(seleccion.t === 'conexion'){
-    const c = (t.conexiones||[]).find(x=>x.id===seleccion.id);
-    if(!c){ seleccion=null; return pintarDetalle(); }
+    const con = (t.conexiones||[]).find(c=>c.id===seleccion.id);
+    if(!con){ seleccion=null; return pintarDetalle(); }
     cont.innerHTML = `<div class="detalle-disp">
-      <h3>${c.tipo==='peine'?'Peine':'Conector de peine'}</h3>
-      ${c.tipo==='conectorPeine' ? `<div class="nota" style="margin-bottom:8px">Polaridad: ${esc(c.polaridad)} · Carga: ${esc(c.carga)}</div>` : ''}
+      <h3>Conexión</h3>
+      <div class="nota" style="margin-bottom:8px">
+        <b>${esc(etiquetaEndpoint(t, con.origen))}</b> alimenta a
+        <b>${esc(etiquetaEndpoint(t, con.destino))}</b>
+      </div>
       <button class="btn sm danger" id="dd-borrar-con" style="width:100%">Eliminar (Delete)</button>
     </div>`;
-    $('dd-borrar-con').onclick = () => eliminarConexionAPI(c.id);
+    $('dd-borrar-con').onclick = () => eliminarConexionAPI(con.id);
     return;
   }
   const d = t.dispositivos.find(x=>x.id===seleccion.id);
@@ -1624,9 +1050,6 @@ function pintarDetalle(){
         : 'Descripción (sale en la guía de tapa)'}</label>
       <input id="dd-desc" value="${esc(descActual)}" placeholder="${circ
         ? 'ej: Iluminación cocina' : 'ej: Térmica general, Puesta a tierra'}"></div>
-    <div class="campo"><label for="dd-alim">Entra por</label>
-      <select id="dd-alim"><option value="arriba" ${d.alimentacion==='arriba'?'selected':''}>Arriba</option>
-        <option value="abajo" ${d.alimentacion==='abajo'?'selected':''}>Abajo</option></select></div>
     ${d.piso!==null ? `<button class="btn sm" id="dd-sacar" style="width:100%;margin-bottom:6px">
       Devolver a la bandeja</button>` : ''}
     <button class="btn sm danger" id="dd-borrar" style="width:100%">Quitar del tablero</button>
@@ -1644,9 +1067,6 @@ function pintarDetalle(){
     if(circ) circ.notas = $('dd-desc').value || null;
     else d.descripcion = $('dd-desc').value || null;
     await persistirObra(); render();
-  };
-  $('dd-alim').onchange = async () => {
-    d.alimentacion = $('dd-alim').value; await persistirObra(); render();
   };
   if($('dd-sacar')) $('dd-sacar').onclick = () => moverA(d.id, null, null);
   $('dd-borrar').onclick = () => eliminarDispositivo(d.id);
@@ -1731,7 +1151,6 @@ function actualizarTablero(t, avisos){
 $('b-nuevo').onclick = () => { $('n-nombre').value=''; $('n-preset').value='12';
   $('n-custom').style.display='none'; $('ov-nuevo').classList.add('abierto'); };
 $('n-cerrar').onclick = () => $('ov-nuevo').classList.remove('abierto');
-$('cano-cerrar').onclick = () => $('ov-cano').classList.remove('abierto');
 $('n-crear').onclick = async () => {
   const cuerpo = {nombre:$('n-nombre').value.trim(), tipo:$('n-tipo').value,
                  fases:+$('n-fases').value, preset:$('n-preset').value};
@@ -1813,12 +1232,6 @@ $('b-pdf-tablero').onclick = () => {
   mostrarVistaPreviaPdf(`/api/obras/${OBRA_ID}/tableros/${t.id}/pdf`,
     (t.nombre || 'tablero').replace(/\s+/g,'_') + '.pdf');
 };
-$('b-pdf-unifilar').onclick = () => {
-  const t = tableroActivo();
-  if(!t){ toast('Elegí un tablero primero.'); return; }
-  mostrarVistaPreviaPdf(`/api/obras/${OBRA_ID}/tableros/${t.id}/unifilar.pdf`,
-    (t.nombre || 'tablero').replace(/\s+/g,'_') + '_unifilar.pdf');
-};
 $('b-deshacer').onclick = deshacer;
 $('b-rehacer').onclick = rehacer;
 
@@ -1827,10 +1240,9 @@ document.addEventListener('keydown', e => {
   if(enCampo) return;
   const tl = TOOLS.find(x=>x.k.toLowerCase()===e.key.toLowerCase());
   if(tl && !(e.ctrlKey||e.metaKey)){ elegirHerramienta(tl.id); return; }
-  if(e.key === 'Escape'){ arrastreCano = null; elegirHerramienta('select'); return; }
+  if(e.key === 'Escape'){ elegirHerramienta('select'); return; }
   if(e.key === 'Delete' || e.key === 'Backspace'){
-    if(seleccion && seleccion.t==='cable'){ e.preventDefault(); eliminarCableAPI(seleccion.id); seleccion=null; }
-    else if(seleccion && seleccion.t==='conexion'){ e.preventDefault(); eliminarConexionAPI(seleccion.id); seleccion=null; }
+    if(seleccion && seleccion.t==='conexion'){ e.preventDefault(); eliminarConexionAPI(seleccion.id); }
   }
   if((e.ctrlKey||e.metaKey) && !e.shiftKey && e.key.toLowerCase()==='z'){ e.preventDefault(); deshacer(); }
   if((e.ctrlKey||e.metaKey) && (e.key.toLowerCase()==='y' || (e.shiftKey && e.key.toLowerCase()==='z'))){

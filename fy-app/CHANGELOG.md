@@ -3,6 +3,36 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 1.9.0 — Tablero: cableado simple, sin rutear nada a mano
+
+Después de varias vueltas tratando de arreglar el ruteo manual de cables
+(caños con posición exacta, peines, conectores, grilla de pines) el
+problema de fondo no eran los bugs puntuales sino el modelo en sí: era
+poco práctico. Se rehace el cableado desde cero, mucho más simple:
+
+- **Una conexión ahora dice sólo "esto alimenta a esto otro"** -- se
+  elige el origen y el destino (una térmica, el diferencial, la bornera,
+  o la Acometida) y el sistema dibuja una línea esquemática automática.
+  Ya no hay que rutear nada a mano, ni elegir por qué pin exacto entra
+  cada cable.
+- **Desaparecen los caños, los peines y los conectores de peine** como
+  conceptos del editor -- no hacía falta ubicar una entrada de caño con
+  posición y orden propios para decir que algo viene de la acometida.
+  Ahora la Acometida es un único punto fijo que siempre existe, sin
+  crearlo ni organizarlo.
+- Dos herramientas nada más: **Mover** y **Conectar**.
+- Se conservan, sin tocar, los símbolos de las protecciones (térmica,
+  diferencial, protector, bornera) y el riel DIN -- lo único que cambió
+  es cómo se conectan entre sí, no cómo se ven ni cómo se colocan.
+- El PDF de conexionado usa el mismo modelo nuevo; la guía de tapa no
+  cambió (nunca dependió del cableado).
+- Compatibilidad: los tableros guardados con el sistema viejo (caños,
+  peines, conectores, cables con ruta manual) abren igual que antes --
+  esos datos quedan en el archivo pero el editor nuevo no los dibuja ni
+  los usa. Si un tablero tenía cableado armado con el sistema anterior,
+  hay que volver a conectarlo con la herramienta "Conectar" (un par de
+  clics por conexión).
+
 ## 1.8.2 — Tablero: la grilla vertical, el zigzag de caños y el punto de clic
 
 Causas reales de lo que seguía mal después de la 1.8.1:

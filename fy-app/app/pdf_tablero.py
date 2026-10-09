@@ -15,17 +15,6 @@ from . import config as cfgmod
 
 ANCHO, ALTO = 1000, 700               # apaisado, se ajusta según el tablero
 MARGEN = 34
-
-# geometría del editor interactivo (web/tablero.html) -- deliberadamente MUCHO
-# más grande que la de esta hoja (celda=34 acá vs. 64 ahí) para que sea cómodo
-# clickear con el mouse. Un punto de "ruta" manual (cuando el usuario endereza
-# un cable a mano) se guarda en esos píxeles de pantalla, no en los puntos de
-# esta hoja -- si se usan tal cual, un cable puede terminar dibujado bien
-# afuera de la página entera. Hay que convertirlos, nunca copiarlos directo.
-CANAL_WEB = 46
-CELDA_WEB = 64
-FRANJA_CANO_WEB = 58
-ALTURA_PISO_WEB = 78 + 150 + 78 + 22   # BANDA + ALTO_DISP + BANDA + MARGEN_PISO, ahí
 NAVY = (0x16/255, 0x28/255, 0x3f/255)
 TRAZO = (0x33/255, 0x50/255, 0x6e/255)
 GRIS = (0x5b/255, 0x6b/255, 0x7a/255)
@@ -202,45 +191,6 @@ def _dibujar_dispositivo(pg, x0, y0, w, h, d, circuito):
         _termica(pg, x0, y0, w, h, d, circuito or ("General" if d.get("rol") == "general" else ""))
 
 
-def _cuerpo_conector_peine(g: "_Geom", con: dict) -> tuple[float, float]:
-    """El cuerpo del conector siempre se apoya a la misma altura, tomando
-    como referencia la barra de arriba (neutro) -- así uno de fase y uno de
-    neutro sobre el mismo peine quedan alineados a la vista, aunque la
-    patita hacia la barra de fase (más abajo) sea un poco más larga."""
-    x = g.x(con["posicion"])
-    y_neutro = g.y_riel(con["piso"]) - 13
-    return (x, y_neutro - 7.5)
-
-
-def _terminal_conector_peine(g: "_Geom", con: dict) -> tuple[float, float]:
-    """Dónde engancha un cable: en la punta de la patita que sale del
-    cuerpo, hacia arriba (carga superior) o hacia el costado (carga
-    lateral) -- el cuerpo en sí siempre está apoyado arriba de la barra."""
-    x, y = _cuerpo_conector_peine(g, con)
-    if con.get("carga") == "lateral":
-        return (x + 11, y)
-    return (x, y - 7.5)
-
-
-def _ruta_a_pdf(g: "_Geom", t: dict, ruta: list) -> list:
-    """Los puntos de una ruta trazada a mano en el editor vienen en píxeles
-    de ESE lienzo (celda=64, franjas más altas). Se convierten a la posición
-    lógica que representan (boca en X; piso + fracción dentro de la fila en
-    Y) y se reconstruyen con la geometría de ESTA hoja -- nunca se usan
-    directo, porque las dos escalas no tienen nada que ver entre sí."""
-    if not ruta:
-        return []
-    pisos = max(t.get("pisos", 1), 1)
-    out = []
-    for p in ruta:
-        x, y = p[0], p[1]
-        posicion = (x - CANAL_WEB) / CELDA_WEB
-        piso = max(0, min(pisos - 1, int((y - FRANJA_CANO_WEB) // ALTURA_PISO_WEB)))
-        frac = (y - (FRANJA_CANO_WEB + piso * ALTURA_PISO_WEB)) / ALTURA_PISO_WEB
-        out.append((g.x(posicion), g.y_piso(piso) + frac * (g.altura_piso - g.franja)))
-    return out
-
-
 # ---------------------------------------------------------------- geometría
 class _Geom:
     def __init__(self, t: dict):
@@ -261,28 +211,6 @@ class _Geom:
                 boca_maxima = max(boca_maxima, d["posicion"] + d["polos"])
         self.ancho = MARGEN * 2 + boca_maxima * self.celda
         self.alto = MARGEN * 2 + t["pisos"] * self.altura_piso - self.margen_piso + self.franja
-        # red de seguridad: además de los dispositivos, se mide TODO lo que
-        # realmente se va a dibujar (peines, puentes, cables -- incluidas sus
-        # rutas a mano) y si algo cae más allá de lo que da boca_maxima, se
-        # agranda la hoja para que entre. Así, aunque en el futuro aparezca
-        # un cálculo de posición con error en algún tipo de conexión que
-        # todavía no se encontró, el resultado es una hoja más grande, nunca
-        # un tablero cortado en el borde.
-        max_x, max_y = self.ancho, self.alto
-        for con in t.get("conexiones") or []:
-            if con["tipo"] == "peine":
-                max_x = max(max_x, self.x(con["hasta"] + 1) + MARGEN)
-            elif con["tipo"] == "conectorPeine":
-                tx, ty = _terminal_conector_peine(self, con)
-                max_x, max_y = max(max_x, tx + MARGEN), max(max_y, ty + MARGEN)
-        for cable in t.get("cables") or []:
-            pts = [p for p in (_punto_endpoint(self, t, cable.get("origen")),
-                               _punto_endpoint(self, t, cable.get("destino"))) if p]
-            pts += _ruta_a_pdf(self, t, cable.get("ruta") or [])
-            for (px, py) in pts:
-                max_x = max(max_x, px + MARGEN)
-                max_y = max(max_y, py + MARGEN)
-        self.ancho, self.alto = max_x, max_y
 
     def x(self, posicion: float) -> float:
         return MARGEN + posicion * self.celda
@@ -292,6 +220,13 @@ class _Geom:
 
     def y_riel(self, piso: int) -> float:
         return self.y_piso(piso) + self.banda
+
+    def acometida(self) -> tuple[float, float]:
+        """Posición fija del marcador de acometida -- siempre arriba de
+        todo, centrado, dentro del margen superior ya reservado (la franja
+        antes del primer riel). No hace falta medir nada más: nunca se
+        puede ir de la hoja."""
+        return (self.ancho / 2, MARGEN + self.franja * 0.45)
 
 
 def _nombre_circuito(obra, circuito_id):
@@ -451,49 +386,31 @@ def _dibujar_cable(pg, pts, saltos, color):
         pg.draw_line(cur, (x1, y1), color=color, width=1.3)
 
 
-def _punto_endpoint(g: _Geom, t: dict, ep: dict):
+def _piso_de_endpoint(t: dict, ep: dict):
+    if not ep:
+        return -999
+    if ep.get("tipo") == "acometida":
+        return -1                   # siempre arriba de todo
+    d = next((x for x in t["dispositivos"] if x["id"] == ep.get("id")), None)
+    return d["piso"] if d and d.get("piso") is not None else -999
+
+
+def _punto_conexion(g: _Geom, t: dict, ep: dict, abajo: bool):
+    """Punto de anclaje de un extremo de conexión -- simple a propósito: el
+    centro de arriba o de abajo del dispositivo, o el marcador fijo de
+    acometida. No hay polo ni lado que elegir a mano: la conexión dice QUÉ
+    alimenta a QUÉ, no por qué terminal exacto entra el cable."""
     if not ep:
         return None
-    if ep["tipo"] == "dispositivo":
+    if ep.get("tipo") == "acometida":
+        return g.acometida()
+    if ep.get("tipo") == "dispositivo":
         d = next((x for x in t["dispositivos"] if x["id"] == ep["id"]), None)
         if d is None or d.get("piso") is None:
             return None
-        if d["tipo"] == "bornera":
-            # la PAT es una bornera vertical de 6 terminales apilados en Y,
-            # todos en el mismo X (ver _bornera) -- no es "arriba/abajo" con
-            # el polo como desplazamiento en X, como sí pasa con las
-            # térmicas. Tratarla igual corría el punto varias celdas afuera
-            # del dispositivo (y a veces afuera de la hoja entera).
-            x0, w = g.x(d["posicion"]), d["polos"] * g.celda - 2
-            y0, h = g.y_riel(d["piso"]) + 2, g.alto_disp - 4
-            filas = 6
-            alto_fila = h * 0.84 / filas
-            polo = ep.get("polo", 0) or 0
-            return (x0 + w / 2, y0 + h * 0.06 + alto_fila * (polo + 0.5))
-        cx = g.x(d["posicion"] + (ep.get("polo", 0) or 0) + 0.5)
-        cy = g.y_riel(d["piso"]) + (2 if ep.get("lado") == "arriba" else g.alto_disp - 2)
+        cx = g.x(d["posicion"] + d["polos"] / 2)
+        cy = g.y_riel(d["piso"]) + (g.alto_disp - 2 if abajo else 2)
         return (cx, cy)
-    if ep["tipo"] == "peine":
-        pe = next((c for c in t.get("conexiones") or [] if c["id"] == ep["id"]), None)
-        if pe is None:
-            return None
-        return (g.x((pe["desde"] + pe["hasta"] + 1) / 2), g.y_riel(pe["piso"]) - 6)
-    if ep["tipo"] == "conectorPeine":
-        con = next((c for c in t.get("conexiones") or [] if c["id"] == ep["id"]), None)
-        if con is None:
-            return None
-        return _terminal_conector_peine(g, con)
-    if ep["tipo"] == "cano":
-        cano = next((c for c in t.get("canos") or [] if c["id"] == ep["id"]), None)
-        if cano is None:
-            return None
-        hermanos = sorted([c for c in t.get("canos") or [] if c["lado"] == cano["lado"]],
-                          key=lambda c: c["orden"])
-        n = max(len(hermanos), 1)
-        orden = next((i for i, c in enumerate(hermanos) if c["id"] == cano["id"]), 0)
-        x = MARGEN + (orden + 0.5) * (g.ancho - 2 * MARGEN) / n
-        y = MARGEN + 10 if cano["lado"] == "arriba" else g.alto - MARGEN - 10
-        return (x, y)
     return None
 
 
@@ -507,65 +424,41 @@ def _fondo(pg, g, t, fondo_riel=FONDO_RIEL):
         pg.insert_text((MARGEN + 2, y0 - 5), f"Piso {piso+1}", fontsize=7, color=GRIS)
 
 
+def _marcador_acometida(pg, g):
+    x, y = g.acometida()
+    pg.draw_circle((x, y), 5, color=COLOR_POLARIDAD["fase"], fill=BLANCO, width=1.3)
+    pg.draw_circle((x, y), 2.2, color=None, fill=COLOR_POLARIDAD["fase"])
+    _texto_centrado(pg, x, y - 8, "Acometida", 6.6, GRIS, negrita=False)
+
+
 def _pagina_conexionado(doc, t: dict, obra: dict):
     g = _Geom(t)
     pg = doc.new_page(width=g.ancho, height=g.alto)
     _fondo(pg, g, t)
     pg.insert_text((MARGEN, 20), f"Tablero · {t.get('nombre','')} · conexionado",
                    fontsize=13, fontname="hebo", color=NAVY)
+    _marcador_acometida(pg, g)
 
-    # peines: dos barras (fase y neutro) si corresponde
-    for con in t.get("conexiones") or []:
-        if con["tipo"] != "peine":
-            continue
-        y = g.y_riel(con["piso"]) - 8
-        x0, x1 = g.x(con["desde"]), g.x(con["hasta"] + 1)
-        pg.draw_line((x0, y), (x1, y), color=COLOR_POLARIDAD["fase"], width=2.6)
-        pg.draw_line((x0, y - 5), (x1, y - 5), color=COLOR_POLARIDAD["neutro"], width=2.6)
-
-    # conectores de peine: el cuerpo SIEMPRE se apoya arriba de la barra del
-    # peine (nunca al costado) -- lo que cambia con la carga es hacia dónde
-    # sale el cable real desde ese cuerpo: derecho hacia arriba (superior) o
-    # hacia el costado (lateral). Ese cable se dibuja aparte, como cualquier
-    # otro (más abajo, en el bloque de "cables").
-    for con in t.get("conexiones") or []:
-        if con["tipo"] != "conectorPeine":
-            continue
-        color = COLOR_POLARIDAD.get(con.get("polaridad"), GRIS)
-        x = g.x(con["posicion"])
-        y_barra = g.y_riel(con["piso"]) - (13 if con.get("polaridad") == "neutro" else 8)
-        xc, yc = _cuerpo_conector_peine(g, con)
-        tx, ty = _terminal_conector_peine(g, con)
-        pg.draw_line((x, y_barra), (xc, yc), color=color, width=2.2)
-        pg.draw_line((xc, yc), (tx, ty), color=color, width=1.9)
-        w, h = 7.2, 7.8
-        pg.draw_rect(pymupdf.Rect(xc - w / 2, yc - h / 2, xc + w / 2, yc + h / 2),
-                    color=(0.6, 0.6, 0.6), fill=color, width=0.7, radius=0.25)
-        r = min(w, h) * 0.24
-        pg.draw_circle((xc, yc), r, color=BLANCO, fill=BLANCO)
-        pg.draw_line((xc - r * 0.6, yc), (xc + r * 0.6, yc), color=color, width=1.1)
-        pg.draw_circle((tx, ty), 1.4, color=color, fill=color)
-
-    # cables: ruteo en escuadra (vertical primero), separados en carriles
-    # donde varios comparten corredor, con salto donde se cruzan
+    # conexiones: qué alimenta a qué, en escuadra (vertical primero),
+    # separadas en carriles donde varias comparten corredor, con salto
+    # donde se cruzan -- ni una ruta ni una posición se elige a mano
     con_pts = []
-    for cable in t.get("cables") or []:
-        a = _punto_endpoint(g, t, cable.get("origen"))
-        b = _punto_endpoint(g, t, cable.get("destino"))
+    for con in t.get("conexiones") or []:
+        p_o, p_d = _piso_de_endpoint(t, con.get("origen")), _piso_de_endpoint(t, con.get("destino"))
+        a = _punto_conexion(g, t, con.get("origen"), abajo=(p_d >= p_o))
+        b = _punto_conexion(g, t, con.get("destino"), abajo=(p_d <= p_o))
         if not a or not b:
             continue
-        ruta = _ruta_a_pdf(g, t, cable.get("ruta") or [])
-        pts = [list(p) for p in _ortogonalizar([a, *ruta, b])]
-        con_pts.append((cable["id"], pts, cable))
+        pts = [list(p) for p in _ortogonalizar([a, b])]
+        con_pts.append((con["id"], pts, con))
     _separar_paralelos(con_pts)
     saltos = _calcular_saltos([(cid, pts) for cid, pts, _ in con_pts])
-    for cid, pts, cable in con_pts:
-        color = COLOR_POLARIDAD.get(cable.get("polaridad"), GRIS)
-        _dibujar_cable(pg, pts, saltos.get(cid), color)
+    for cid, pts, con in con_pts:
+        _dibujar_cable(pg, pts, saltos.get(cid), TRAZO)
 
     # dispositivos, por encima del cableado -- se deja un margen visible a
-    # los costados (en vez de ocupar la celda entera) para que un cable que
-    # pasa por atrás asome en el hueco con la térmica de al lado
+    # los costados (en vez de ocupar la celda entera) para que una conexión
+    # que pasa por atrás asome en el hueco con la térmica de al lado
     for d in t.get("dispositivos") or []:
         if d.get("piso") is None:
             continue
@@ -574,28 +467,6 @@ def _pagina_conexionado(doc, t: dict, obra: dict):
         y0 = g.y_riel(d["piso"]) + 2
         h = g.alto_disp - 4
         _dibujar_dispositivo(pg, x0, y0, w, h, d, _nombre_circuito(obra, d.get("circuitoId")))
-
-    _bocas_de_cano(pg, g, t, obra)
-
-
-def _bocas_de_cano(pg, g, t, obra):
-    for lado in ("arriba", "abajo"):
-        canos = sorted([c for c in t.get("canos") or [] if c["lado"] == lado],
-                       key=lambda c: c["orden"])
-        n = max(len(canos), 1)
-        y = MARGEN + 10 if lado == "arriba" else g.alto - MARGEN - 10
-        for i, cano in enumerate(canos):
-            x = MARGEN + (i + 0.5) * (g.ancho - 2 * MARGEN) / n
-            etiqueta = ("Acometida" if cano["tipo"] == "acometida" else
-                       "Jabalina" if cano["tipo"] == "tierra" else
-                       (_nombre_circuito(obra, cano.get("circuitoId")) or "Circuito"))
-            color = (COLOR_POLARIDAD["tierra"] if cano["tipo"] == "tierra"
-                    else COLOR_POLARIDAD["fase"] if cano["tipo"] == "acometida" else NAVY)
-            pg.draw_circle((x, y), 6, color=color, fill=BLANCO, width=1.4)
-            pg.draw_circle((x, y), 2.6, color=None, fill=color)
-            pg.insert_textbox(pymupdf.Rect(x - 34, y + (10 if lado == "arriba" else -24),
-                                          x + 34, y + (24 if lado == "arriba" else -10)),
-                              etiqueta[:16], fontsize=6.4, color=GRIS, align=1)
 
 
 def _pagina_tapa(doc, t: dict, obra: dict):
