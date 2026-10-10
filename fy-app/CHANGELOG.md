@@ -3,6 +3,35 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 1.12.0 — Tablero: ruteo que evita térmicas, conectores de peine, estética
+
+- **El ruteo manual de un cable no puede pasar por encima de otra térmica**:
+  mientras se traza, la vista previa muestra en rojo el tramo que cruzaría un
+  dispositivo que no es ninguno de los dos extremos, y tanto agregar un punto
+  intermedio ahí como terminar la conexión ahí se rechaza -- hay que rodear la
+  térmica por el espacio libre arriba/abajo del riel (pensado para esto desde
+  siempre, `BANDA`). La vista previa, además, ya se muestra en escuadra
+  (horizontal/vertical) tal cual va a quedar la conexión final, no como una
+  línea libre hasta el cursor.
+- **El tramo final de un cable, el que cae dentro de su propia térmica de
+  destino, se ve**: antes quedaba tapado por el dibujo del dispositivo (que
+  se pinta encima del cableado) y sólo se notaba el puntito del pin. Ahora
+  ese tramo se redibuja por encima, en el editor y en el PDF, para que se vea
+  cómo el cable llega de verdad al tornillo.
+- **Conector de peine**: una patita que se clipa sobre la barra de fase o de
+  neutro de un peine, en el punto exacto donde se toca (no se centra solo) --
+  la polaridad es automática, la de esa barra. Dos formas físicas, sólo
+  visuales: superior (la pata sube) o lateral (sale en diagonal al costado).
+  Es un extremo más para la herramienta de Conectar, igual que un pin o un
+  caño.
+- **El peine se ve como un busbar real**: la barra es mucho más gruesa, con
+  un filo más claro para dar relieve metálico -- antes era una línea fina,
+  difícil de distinguir de un cable cualquiera.
+- **Estética sutil más realista**: degradé metálico en el riel DIN, sombra
+  suave bajo cada dispositivo (para que se note que está montado, no pegado
+  al fondo) y un brillito en cada tornillo -- sin cambiar la claridad del
+  esquema, que sigue siendo la prioridad.
+
 ## 1.11.0 — Tablero: caños de entrada/salida independientes, ubicación por clic
 
 - **Corrección de diseño**: la "entrada por circuito" de la 1.10.0 (el

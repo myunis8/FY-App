@@ -78,7 +78,8 @@ def tablero_nuevo(nombre: str, tipo: str, preset_id: str, fases: int) -> dict:
         "dispositivos": dispositivos,
         "canos": [],                     # entradas de caño (acometida/circuito/tierra), se agregan a mano
         "peines": [],                    # barras que unen varias térmicas de un mismo riel
-        "conexiones": [],                # cables sueltos entre dos pines/caños/peines
+        "conectoresPeine": [],           # patitas clipadas sobre un peine, para cablear a mano
+        "conexiones": [],                # cables sueltos entre dos pines/caños/peines/conectores
         "notas": [],
     }
 
@@ -232,6 +233,9 @@ def _polaridad_endpoint(tablero: dict, circuitos: list[dict], ep: dict) -> str |
             return None
         pol = ep.get("polaridad")
         return pol if pol in ("fase", "neutro") else None
+    if tipo == "conectorPeine":
+        c = next((x for x in tablero.get("conectoresPeine") or [] if x["id"] == ep.get("id")), None)
+        return c["polaridad"] if c else None
     return None
 
 
@@ -304,11 +308,58 @@ def _endpoint_es_peine(ep, peine_id: str) -> bool:
 
 def eliminar_peine(tablero: dict, peine_id: str) -> bool:
     n = len(tablero.get("peines") or [])
+    huerfanos = {c["id"] for c in tablero.get("conectoresPeine") or [] if c["peineId"] == peine_id}
     tablero["peines"] = [p for p in tablero.get("peines") or [] if p["id"] != peine_id]
+    tablero["conectoresPeine"] = [c for c in tablero.get("conectoresPeine") or []
+                                  if c["peineId"] != peine_id]
     tablero["conexiones"] = [c for c in tablero.get("conexiones") or []
                              if not _endpoint_es_peine(c.get("origen"), peine_id)
-                             and not _endpoint_es_peine(c.get("destino"), peine_id)]
+                             and not _endpoint_es_peine(c.get("destino"), peine_id)
+                             and not _endpoint_es_conector_peine(c.get("origen"), huerfanos)
+                             and not _endpoint_es_conector_peine(c.get("destino"), huerfanos)]
     return len(tablero["peines"]) < n
+
+
+TIPOS_CONECTOR_PEINE = ("superior", "lateral")
+
+
+def agregar_conector_peine(tablero: dict, peine_id: str, polaridad: str,
+                           posicion: float, tipo: str) -> tuple[dict | None, str]:
+    """Una patita clipada sobre la barra de un peine, en la posición exacta
+    (en bocas, puede ser fraccionaria) donde el usuario clickeó -- no se
+    centra solo, y dos patitas pueden convivir separadas en la misma barra.
+    La polaridad no se elige a mano: es la de la barra que toca (fase o
+    neutro). `tipo` es sólo la forma física de la patita -- 'superior'
+    (hacia arriba, cable que entra por encima) o 'lateral' (hacia el
+    costado) -- y no afecta la polaridad ni el cableado."""
+    peine = next((p for p in tablero.get("peines") or [] if p["id"] == peine_id), None)
+    if peine is None:
+        return None, "Ese peine no existe."
+    if polaridad not in ("fase", "neutro"):
+        return None, "La polaridad tiene que ser fase o neutro."
+    if tipo not in TIPOS_CONECTOR_PEINE:
+        return None, "Ese tipo de conector no existe."
+    posicion = max(float(peine["desde"]), min(float(peine["hasta"]) + 1, float(posicion)))
+    con = {"id": _id("cpeine"), "peineId": peine_id, "polaridad": polaridad,
+          "posicion": posicion, "tipo": tipo}
+    tablero.setdefault("conectoresPeine", []).append(con)
+    return con, ""
+
+
+def _endpoint_es_conector_peine(ep, conector_ids) -> bool:
+    if isinstance(conector_ids, str):
+        conector_ids = (conector_ids,)
+    return isinstance(ep, dict) and ep.get("tipo") == "conectorPeine" and ep.get("id") in conector_ids
+
+
+def eliminar_conector_peine(tablero: dict, conector_id: str) -> bool:
+    n = len(tablero.get("conectoresPeine") or [])
+    tablero["conectoresPeine"] = [c for c in tablero.get("conectoresPeine") or []
+                                  if c["id"] != conector_id]
+    tablero["conexiones"] = [c for c in tablero.get("conexiones") or []
+                             if not _endpoint_es_conector_peine(c.get("origen"), conector_id)
+                             and not _endpoint_es_conector_peine(c.get("destino"), conector_id)]
+    return len(tablero["conectoresPeine"]) < n
 
 
 def _endpoint_es_dispositivo(ep, disp_id: str) -> bool:

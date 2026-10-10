@@ -390,6 +390,49 @@ def _dibujar_cable(pg, pts, saltos, color):
         pg.draw_line(cur, (x1, y1), color=color, width=1.3)
 
 
+def _clip_segmento_a_caja(p0, p1, caja: dict):
+    """La porción de un segmento (siempre horizontal o vertical --
+    _ortogonalizar ya se encarga) que cae dentro de `caja`, o None si no
+    entra. Mismo criterio que clipSegmentoACaja en el editor web."""
+    if p0[1] == p1[1]:
+        y = p0[1]
+        if y < caja["y"] or y > caja["y"] + caja["h"]:
+            return None
+        xa = max(min(p0[0], p1[0]), caja["x"])
+        xb = min(max(p0[0], p1[0]), caja["x"] + caja["w"])
+        if xa >= xb:
+            return None
+        return ((xa, y), (xb, y)) if p0[0] <= p1[0] else ((xb, y), (xa, y))
+    x = p0[0]
+    if x < caja["x"] or x > caja["x"] + caja["w"]:
+        return None
+    ya = max(min(p0[1], p1[1]), caja["y"])
+    yb = min(max(p0[1], p1[1]), caja["y"] + caja["h"])
+    if ya >= yb:
+        return None
+    return ((x, ya), (x, yb)) if p0[1] <= p1[1] else ((x, yb), (x, ya))
+
+
+def _remate_conexion(pg, g, t, con, pts):
+    """El tramo final de un cable que cae DENTRO de su propia térmica de
+    destino se redibuja encima del cuerpo del dispositivo, que ya se dibujó
+    por arriba del cableado -- así se ve cómo llega al tornillo en vez de
+    desaparecer tapado por el dibujo (mismo criterio que
+    dibujarRemateConexion en el editor web)."""
+    color = COLOR_POLARIDAD.get(con.get("polaridad"), TRAZO)
+    for ep in (con.get("origen"), con.get("destino")):
+        if not isinstance(ep, dict) or ep.get("tipo") != "pin":
+            continue
+        d = next((x for x in t["dispositivos"] if x["id"] == ep.get("dispositivoId")), None)
+        if d is None or d.get("piso") is None:
+            continue
+        caja = _caja_dispositivo(g, d)
+        for i in range(1, len(pts)):
+            seg = _clip_segmento_a_caja(pts[i - 1], pts[i], caja)
+            if seg:
+                pg.draw_line(seg[0], seg[1], color=color, width=1.3)
+
+
 TIPOS_CON_TIERRA = ("TUG", "TUE", "ACU", "OCE")
 
 
@@ -419,6 +462,14 @@ def _pines_dispositivo(g: _Geom, d: dict) -> list[dict]:
         pines.append({"polo": i, "lado": "arriba", "x": cx, "y": y0 + h * 0.13})
         pines.append({"polo": i, "lado": "abajo", "x": cx, "y": y0 + h * 0.87})
     return pines
+
+
+def _caja_dispositivo(g: _Geom, d: dict) -> dict:
+    """Mismo rectángulo con el que se dibuja el cuerpo del dispositivo en
+    _pagina_conexionado -- se reutiliza para recortar el tramo de cable que
+    cae dentro (ver _remate_conexion)."""
+    return {"x": g.x(d["posicion"]) + g.celda * 0.16, "y": g.y_riel(d["piso"]) + 2,
+           "w": d["polos"] * g.celda - g.celda * 0.32, "h": g.alto_disp - 4}
 
 
 PITCH_CANO_WEB = 48
@@ -473,6 +524,24 @@ def _punto_peine(g: _Geom, p: dict, polaridad: str) -> tuple[float, float]:
     return ((c["x0"] + c["x1"]) / 2, c["y_neutro"] if polaridad == "neutro" else c["y_fase"])
 
 
+def _base_conector_peine(g: _Geom, t: dict, c: dict) -> tuple[float, float] | None:
+    peine = next((p for p in t.get("peines") or [] if p["id"] == c["peineId"]), None)
+    if peine is None:
+        return None
+    caja = _caja_peine(g, peine)
+    x = g.x(c["posicion"])
+    y = caja["y_neutro"] if c["polaridad"] == "neutro" else caja["y_fase"]
+    return (x, y)
+
+
+def _punto_conector_peine(g: _Geom, t: dict, c: dict) -> tuple[float, float] | None:
+    base = _base_conector_peine(g, t, c)
+    if base is None:
+        return None
+    x, y = base
+    return (x + 5.5, y + 4.5) if c["tipo"] == "lateral" else (x, y - 6)
+
+
 def _punto_conexion(g: _Geom, t: dict, obra: dict, ep: dict):
     """Punto de anclaje de un extremo de conexión: un pin (un tornillo
     puntual, arriba o abajo, de una térmica/diferencial/bornera), un caño
@@ -495,6 +564,9 @@ def _punto_conexion(g: _Geom, t: dict, obra: dict, ep: dict):
     if tipo == "peine":
         p = next((x for x in t.get("peines") or [] if x["id"] == ep.get("id")), None)
         return _punto_peine(g, p, ep.get("polaridad")) if p else None
+    if tipo == "conectorPeine":
+        c = next((x for x in t.get("conectoresPeine") or [] if x["id"] == ep.get("id")), None)
+        return _punto_conector_peine(g, t, c) if c else None
     return None
 
 
@@ -591,11 +663,30 @@ def _dibujar_peine(pg, g, t, p):
                and d["posicion"] >= p["desde"] and d["posicion"] + d["polos"] - 1 <= p["hasta"]]
     vivo_izquierda = t.get("vivoIzquierda", True) is not False
     for pol, y in (("fase", c["y_fase"]), ("neutro", c["y_neutro"])):
-        pg.draw_line((c["x0"], y), (c["x1"], y), color=COLOR_POLARIDAD[pol], width=1.6)
+        color = COLOR_POLARIDAD[pol]
+        # barra gruesa, como un busbar real -- con un filo más claro arriba
+        # para dar algo de relieve metálico
+        pg.draw_line((c["x0"], y), (c["x1"], y), color=color, width=3.2)
+        pg.draw_line((c["x0"] + 2, y - 0.9), (c["x1"] - 2, y - 0.9), color=BLANCO, width=0.6)
         for d in en_peine:
             for pin in _pines_dispositivo(g, d):
                 if pin["lado"] == "arriba" and _polaridad_de_polo(d, pin["polo"], vivo_izquierda) == pol:
-                    pg.draw_line((pin["x"], y), (pin["x"], pin["y"]), color=COLOR_POLARIDAD[pol], width=1.2)
+                    pg.draw_line((pin["x"], y), (pin["x"], pin["y"]), color=color, width=1.2)
+
+
+def _dibujar_conectores_peine(pg, g, t):
+    for c in t.get("conectoresPeine") or []:
+        base = _base_conector_peine(g, t, c)
+        if base is None:
+            continue
+        punta = _punto_conector_peine(g, t, c)
+        color = COLOR_POLARIDAD[c["polaridad"]]
+        pg.draw_line(base, punta, color=color, width=1.3)
+        pg.draw_circle(base, 2.2, color=None, fill=color)
+        if c["tipo"] == "lateral":
+            pg.draw_line((base[0] - 1.1, base[1]), (base[0] + 1.1, base[1]), color=BLANCO, width=0.6)
+        else:
+            pg.draw_line((base[0], base[1] - 1.1), (base[0], base[1] + 1.1), color=BLANCO, width=0.6)
 
 
 def _pagina_conexionado(doc, t: dict, obra: dict):
@@ -628,6 +719,7 @@ def _pagina_conexionado(doc, t: dict, obra: dict):
 
     for p in t.get("peines") or []:
         _dibujar_peine(pg, g, t, p)
+    _dibujar_conectores_peine(pg, g, t)
 
     _dibujar_canos_franja(pg, g, t, obra)
 
@@ -637,12 +729,15 @@ def _pagina_conexionado(doc, t: dict, obra: dict):
     for d in t.get("dispositivos") or []:
         if d.get("piso") is None:
             continue
-        x0 = g.x(d["posicion"]) + g.celda * 0.16
-        w = d["polos"] * g.celda - g.celda * 0.32
-        y0 = g.y_riel(d["piso"]) + 2
-        h = g.alto_disp - 4
-        _dibujar_dispositivo(pg, x0, y0, w, h, d, _nombre_circuito(obra, d.get("circuitoId")))
+        caja = _caja_dispositivo(g, d)
+        _dibujar_dispositivo(pg, caja["x"], caja["y"], caja["w"], caja["h"], d,
+                             _nombre_circuito(obra, d.get("circuitoId")))
         _dibujar_pines(pg, g, d, vivo_izquierda)
+
+    # el tramo final de cada cable, el que cae dentro de su propia térmica
+    # de destino, se redibuja encima -- así se ve cómo llega al tornillo
+    for cid, pts, con in con_pts:
+        _remate_conexion(pg, g, t, con, pts)
 
 
 def _pagina_tapa(doc, t: dict, obra: dict):

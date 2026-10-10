@@ -113,6 +113,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._crear_conexion(partes[2], partes[4])
             if len(partes) == 6 and partes[:2] == ["api", "obras"] and partes[3] == "tableros" and partes[5] == "peine":
                 return self._crear_peine(partes[2], partes[4])
+            if len(partes) == 6 and partes[:2] == ["api", "obras"] and partes[3] == "tableros" and partes[5] == "conectorPeine":
+                return self._agregar_conector_peine(partes[2], partes[4])
             if len(partes) == 6 and partes[:2] == ["api", "obras"] and partes[3] == "tableros" and partes[5] == "canos":
                 return self._agregar_entrada_cano(partes[2], partes[4])
             if len(partes) == 7 and partes[:2] == ["api", "obras"] and partes[3] == "tableros" and partes[5] == "canos":
@@ -178,6 +180,17 @@ class Handler(BaseHTTPRequestHandler):
                 return self._error("Ese tablero no existe.", 404)
             t.setdefault("peines", [])
             ok = tablero_mod.eliminar_peine(t, partes[6])
+            almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
+            return self._json({"ok": ok})
+        if len(partes) == 7 and partes[:2] == ["api", "obras"] and partes[3] == "tableros" and partes[5] == "conectoresPeine":
+            obra = almacen.leer_obra(partes[2])
+            if obra is None:
+                return self._error("Esa obra no está en este equipo.", 404)
+            t = next((x for x in obra.get("tableros") or [] if x["id"] == partes[4]), None)
+            if t is None:
+                return self._error("Ese tablero no existe.", 404)
+            t.setdefault("conectoresPeine", [])
+            ok = tablero_mod.eliminar_conector_peine(t, partes[6])
             almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
             return self._json({"ok": ok})
         if len(partes) == 7 and partes[:2] == ["api", "obras"] and partes[3] == "tableros" and partes[5] == "canos":
@@ -729,6 +742,22 @@ class Handler(BaseHTTPRequestHandler):
             return self._error(msg)
         almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
         return self._json({"ok": True, "peine": peine, "tablero": t})
+
+    def _agregar_conector_peine(self, obra_id, tablero_id):
+        obra = almacen.leer_obra(obra_id)
+        if obra is None:
+            return self._error("Esa obra no está en este equipo.", 404)
+        t = next((x for x in obra.get("tableros") or [] if x["id"] == tablero_id), None)
+        if t is None:
+            return self._error("Ese tablero no existe.", 404)
+        t.setdefault("conectoresPeine", [])
+        cuerpo = self._cuerpo()
+        con, msg = tablero_mod.agregar_conector_peine(t, cuerpo.get("peineId"), cuerpo.get("polaridad"),
+                                                      cuerpo.get("posicion"), cuerpo.get("tipo"))
+        if con is None:
+            return self._error(msg)
+        almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
+        return self._json({"ok": True, "conector": con, "tablero": t})
 
     def _agregar_entrada_cano(self, obra_id, tablero_id):
         obra = almacen.leer_obra(obra_id)

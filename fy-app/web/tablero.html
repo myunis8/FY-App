@@ -148,6 +148,10 @@ h2:first-child{margin-top:0}
     <h2>Herramientas</h2>
     <div id="tools"></div>
     <div id="hint"></div>
+    <div class="toggle2" id="conector-tipo" style="display:none">
+      <button data-v="superior">Patita arriba</button>
+      <button data-v="lateral">Patita al costado</button>
+    </div>
     <div class="bandeja" id="bandeja-cont"></div>
   </aside>
 
@@ -450,7 +454,14 @@ function svgRielFondo(w, h){
       : `<rect x="${cx-14}" y="${h*0.44}" width="28" height="${h*0.12}" rx="5" fill="none" stroke="#a9b3b0"/>`;
   }
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}">
-    <rect x="1" y="${h*0.14}" width="${w-2}" height="${h*0.72}" fill="#dfe3e1" stroke="#a9b3b0"/>
+    <defs>
+      <linearGradient id="rielMetal" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#eef0ef"/>
+        <stop offset=".45" stop-color="#dfe3e1"/>
+        <stop offset="1" stop-color="#cdd2cf"/>
+      </linearGradient>
+    </defs>
+    <rect x="1" y="${h*0.14}" width="${w-2}" height="${h*0.72}" fill="url(#rielMetal)" stroke="#a9b3b0"/>
     ${slots}
   </svg>`;
 }
@@ -515,19 +526,29 @@ const TOOLS = [
   {id:'select',   n:'Mover',     k:'V'},
   {id:'conectar', n:'Conectar',  k:'C'},
   {id:'peine',    n:'Peine',     k:'P'},
+  {id:'conectorPeine', n:'Conector de peine', k:'X'},
 ];
 const HINTS = {
   select: 'Elegí una térmica (en la bandeja o en el riel) y después tocá el riel donde '
-    + 'querés colocarla. Un clic en un caño, un peine o una conexión los selecciona.',
-  conectar: 'Tocá el primer pin, caño o peine (el color dice la polaridad), después los puntos '
+    + 'querés colocarla. Un clic en un caño, un peine, un conector o una conexión los selecciona.',
+  conectar: 'Tocá el primer pin, caño, conector o peine (el color dice la polaridad), después los puntos '
     + 'por donde quieras que pase el cable, y por último el segundo punto. Sólo se puede conectar '
-    + 'la misma polaridad (fase con fase, neutro con neutro, tierra con tierra). <b>Esc</b> cancela.',
+    + 'la misma polaridad (fase con fase, neutro con neutro, tierra con tierra); y la ruta no puede '
+    + 'pasar por encima de otra térmica. <b>Esc</b> cancela.',
   peine: 'Tocá una térmica, después la otra punta del tramo a unir -- las dos en el mismo riel. <b>Esc</b> cancela.',
+  conectorPeine: 'Tocá la barra de fase o de neutro de un peine, en el punto exacto donde querés la '
+    + 'patita -- la polaridad es automática, la de esa barra. Elegí la forma de la patita al lado.',
 };
+let tipoConectorPeine = 'superior';
 function buildTools(){
   $('tools').innerHTML = TOOLS.map(tl=>`<button class="tool" data-t="${tl.id}">
     <span>${esc(tl.n)}</span><kbd>${tl.k}</kbd></button>`).join('');
   $$('.tool').forEach(b => b.onclick = () => elegirHerramienta(b.dataset.t));
+  $$('#conector-tipo button').forEach(b => b.onclick = () => {
+    tipoConectorPeine = b.dataset.v;
+    $$('#conector-tipo button').forEach(x => x.classList.toggle('on', x.dataset.v===tipoConectorPeine));
+  });
+  $$('#conector-tipo button').forEach(b => b.classList.toggle('on', b.dataset.v===tipoConectorPeine));
 }
 function elegirHerramienta(tipo){
   herramienta = {tipo, paso1: null, ruta: []};
@@ -535,6 +556,7 @@ function elegirHerramienta(tipo){
   const h = $('hint');
   h.innerHTML = HINTS[tipo] || '';
   h.classList.toggle('on', !!HINTS[tipo]);
+  $('conector-tipo').style.display = tipo==='conectorPeine' ? 'flex' : 'none';
   $('cv').style.cursor = tipo==='select' ? 'default' : 'crosshair';
   seleccion = null;
   pintarDetalle();
@@ -666,6 +688,62 @@ function puntoPeine(t, p, polaridad){
   return {x:(c.x0+c.x1)/2, y: polaridad==='neutro' ? c.yNeutro : c.yFase};
 }
 
+/* ---------------- conector de peine: una patita clipada sobre la barra,
+   en la posición exacta donde se clickeó (no se centra solo) -- la
+   polaridad es la de la barra que toca, nunca se elige a mano. Dos formas
+   físicas, sólo visuales: 'superior' (la pata sube, para un cable que
+   entra por encima) o 'lateral' (la pata sale al costado). ---------------- */
+function baseConectorPeine(t, c){
+  const peine = (t.peines||[]).find(p=>p.id===c.peineId);
+  if(!peine) return null;
+  const caja = cajaPeine(t, peine);
+  return {x: MARGEN_IZQ + c.posicion*CELDA, y: c.polaridad==='neutro' ? caja.yNeutro : caja.yFase};
+}
+function puntoConectorPeine(t, c){
+  const base = baseConectorPeine(t, c);
+  if(!base) return null;
+  // la lateral sale en diagonal (nunca al ras de la barra -- ahí se
+  // confundiría con la barra misma) y la superior sube derecho
+  return c.tipo==='lateral' ? {x:base.x+11, y:base.y+9} : {x:base.x, y:base.y-13};
+}
+function dibujarConectorPeine(ctx, t, c){
+  const base = baseConectorPeine(t, c);
+  if(!base) return;
+  const punta = puntoConectorPeine(t, c);
+  const sel = seleccion && seleccion.t==='conectorPeine' && seleccion.id===c.id;
+  const color = COLOR_POLARIDAD[c.polaridad] || TRAZO;
+  ctx.save();
+  ctx.strokeStyle = color; ctx.lineWidth = 2.6; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(base.x, base.y); ctx.lineTo(punta.x, punta.y); ctx.stroke();
+  if(sel){
+    ctx.beginPath(); ctx.arc(base.x, base.y, 8, 0, 7);
+    ctx.strokeStyle = '#c9793f'; ctx.lineWidth = 2; ctx.stroke();
+  }
+  // cuerpo: un solo círculo sólido del color de la polaridad con una ranura
+  // blanca simple -- sin capas transparentes superpuestas (eso se veía
+  // como un "nodo de más" flotando sobre el dibujo).
+  ctx.beginPath(); ctx.arc(base.x, base.y, 5, 0, 7); ctx.fillStyle = color; ctx.fill();
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.3;
+  ctx.beginPath();
+  if(c.tipo==='lateral'){ ctx.moveTo(base.x-2.6, base.y); ctx.lineTo(base.x+2.6, base.y); }
+  else { ctx.moveTo(base.x, base.y-2.6); ctx.lineTo(base.x, base.y+2.6); }
+  ctx.stroke();
+  ctx.restore();
+}
+function hitConectorPeineEndpoint(t, w, tol){
+  tol = tol || 9/vista.z;
+  const candidatos = [];
+  for(const c of t.conectoresPeine||[]){
+    const p = puntoConectorPeine(t, c);
+    if(p) candidatos.push({pt:p, ep:{tipo:'conectorPeine', id:c.id}});
+  }
+  return masCercano(candidatos, w, tol);
+}
+function hitConectorPeine(t, w, tol){
+  const hit = hitConectorPeineEndpoint(t, w, tol);
+  return hit ? (t.conectoresPeine||[]).find(c=>c.id===hit.id) : null;
+}
+
 /* ---------------- resolver cualquier extremo de conexión a un punto, una
    etiqueta y su polaridad -- una sola función para dibujo, hit-test y
    validación, así nunca se desalinean entre sí. ---------------- */
@@ -687,6 +765,10 @@ function puntoConexionEndpoint(t, ep){
     if(!p) return null;
     return puntoPeine(t, p, ep.polaridad);
   }
+  if(ep.tipo === 'conectorPeine'){
+    const c = (t.conectoresPeine||[]).find(x=>x.id===ep.id);
+    return c ? puntoConectorPeine(t, c) : null;
+  }
   return null;
 }
 function polaridadEndpoint(t, ep){
@@ -702,12 +784,17 @@ function polaridadEndpoint(t, ep){
     return polaridadDePolo(d, ep.polo, vivoIzqDe(t));
   }
   if(ep.tipo === 'peine') return (ep.polaridad==='fase'||ep.polaridad==='neutro') ? ep.polaridad : null;
+  if(ep.tipo === 'conectorPeine'){
+    const c = (t.conectoresPeine||[]).find(x=>x.id===ep.id);
+    return c ? c.polaridad : null;
+  }
   return null;
 }
 function mismoEndpoint(a, b){
   if(!a || !b || a.tipo !== b.tipo) return false;
   if(a.tipo === 'peine') return a.id===b.id && a.polaridad===b.polaridad;
   if(a.tipo === 'cano') return a.id===b.id && a.polaridad===b.polaridad;
+  if(a.tipo === 'conectorPeine') return a.id===b.id;
   if(a.tipo === 'pin') return a.dispositivoId===b.dispositivoId && a.polo===b.polo && a.lado===b.lado;
   return false;
 }
@@ -716,6 +803,10 @@ function etiquetaEndpoint(t, ep){
   if(ep.tipo === 'peine'){
     const p = (t.peines||[]).find(x=>x.id===ep.id);
     return p ? `Peine (${NOMBRE_POLARIDAD[ep.polaridad]||ep.polaridad})` : '?';
+  }
+  if(ep.tipo === 'conectorPeine'){
+    const c = (t.conectoresPeine||[]).find(x=>x.id===ep.id);
+    return c ? `Conector de peine (${NOMBRE_POLARIDAD[c.polaridad]||c.polaridad})` : '?';
   }
   if(ep.tipo === 'cano'){
     const c = (t.canos||[]).find(x=>x.id===ep.id);
@@ -744,6 +835,57 @@ function ortogonalizar(pts){
     out.push([x1, y1]);
   }
   return out;
+}
+
+/* ---------------- obstáculos: una térmica (que no sea la propia punta de
+   ESTA conexión) no puede quedar tapada por el recorrido de un cable --
+   si no se puede ver por dónde pasa, tampoco se puede verificar a simple
+   vista. Los segmentos siempre son horizontales o verticales puros
+   (ortogonalizar ya se encarga), así que el cruce es un simple solape de
+   intervalos. ---------------- */
+function idsDispositivoDeEndpoint(ep){
+  return (ep && ep.tipo==='pin') ? [ep.dispositivoId] : [];
+}
+function cajasObstaculo(t, idsExcluir){
+  return (t.dispositivos||[])
+    .filter(d => d.piso!=null && !idsExcluir.includes(d.id))
+    .map(d => cajaDispositivo(d));
+}
+function segmentoCrucaCaja(p0, p1, caja){
+  if(p0[1] === p1[1]){
+    const y = p0[1];
+    if(y <= caja.y || y >= caja.y+caja.h) return false;
+    const xa = Math.min(p0[0],p1[0]), xb = Math.max(p0[0],p1[0]);
+    return xb > caja.x && xa < caja.x+caja.w;
+  }
+  const x = p0[0];
+  if(x <= caja.x || x >= caja.x+caja.w) return false;
+  const ya = Math.min(p0[1],p1[1]), yb = Math.max(p0[1],p1[1]);
+  return yb > caja.y && ya < caja.y+caja.h;
+}
+function rutaObstruida(t, pts, idsExcluir){
+  const obstaculos = cajasObstaculo(t, idsExcluir);
+  for(let i=1;i<pts.length;i++)
+    for(const caja of obstaculos)
+      if(segmentoCrucaCaja(pts[i-1], pts[i], caja)) return true;
+  return false;
+}
+/* el tramo de un cable que cae DENTRO de su propia térmica de destino --
+   eso sí tiene que verse, para que quede claro cómo llega al tornillo --
+   recortado al rectángulo del dispositivo para redibujarlo por encima. */
+function clipSegmentoACaja(p0, p1, caja){
+  if(p0[1] === p1[1]){
+    const y = p0[1];
+    if(y < caja.y || y > caja.y+caja.h) return null;
+    const xa = Math.max(Math.min(p0[0],p1[0]), caja.x), xb = Math.min(Math.max(p0[0],p1[0]), caja.x+caja.w);
+    if(xa >= xb) return null;
+    return p0[0] <= p1[0] ? [[xa,y],[xb,y]] : [[xb,y],[xa,y]];
+  }
+  const x = p0[0];
+  if(x < caja.x || x > caja.x+caja.w) return null;
+  const ya = Math.max(Math.min(p0[1],p1[1]), caja.y), yb = Math.min(Math.max(p0[1],p1[1]), caja.y+caja.h);
+  if(ya >= yb) return null;
+  return p0[1] <= p1[1] ? [[x,ya],[x,yb]] : [[x,yb],[x,ya]];
 }
 const LANE_SPACING = 2.6;
 function separarParalelos(listaCables){
@@ -883,10 +1025,15 @@ function render(){
   (t.conexiones||[]).forEach(con => dibujarConexion(ctx, t, con, saltos[con.id], ptsPorId[con.id]));
 
   (t.peines||[]).forEach(p => dibujarPeine(ctx, t, p));
+  (t.conectoresPeine||[]).forEach(c => dibujarConectorPeine(ctx, t, c));
 
   const colocados = t.dispositivos.filter(d => d.piso !== null && d.piso !== undefined);
   colocados.forEach(d => dibujarDispositivo(ctx, t, d));
   colocados.forEach(d => dibujarPines(ctx, t, d));
+  // el tramo final de cada cable, el que cae DENTRO de su propia térmica
+  // de destino, se redibuja encima del cuerpo del dispositivo -- así se ve
+  // cómo llega al tornillo en vez de desaparecer tapado por el dibujo
+  (t.conexiones||[]).forEach(con => dibujarRemateConexion(ctx, t, con, ptsPorId[con.id]));
 
   dibujarPendienteHerramienta(ctx, t);
 
@@ -917,6 +1064,9 @@ function dibujarDispositivo(ctx, t, d){
     ctx.strokeStyle = '#c9793f'; ctx.lineWidth = 2.4;
     ctx.strokeRect(x-3, y-3, w+6, h+6);
   }
+  // sombra suave: que se note que la pieza está montada sobre el riel, no
+  // pegada al fondo como una estampa plana
+  ctx.shadowColor = 'rgba(20,30,35,.22)'; ctx.shadowBlur = 5; ctx.shadowOffsetY = 2;
   if(entry.listo) ctx.drawImage(entry.img, x, y, w, h);
   else { ctx.fillStyle='#fff'; ctx.strokeStyle='#33506e'; ctx.fillRect(x,y,w,h); ctx.strokeRect(x,y,w,h); }
   ctx.restore();
@@ -932,6 +1082,9 @@ function dibujarPines(ctx, t, d){
     ctx.beginPath(); ctx.arc(p.x, p.y, activo?4.6:3.2, 0, 7);
     ctx.fillStyle = '#fff'; ctx.fill();
     ctx.strokeStyle = color; ctx.lineWidth = activo?2.2:1.6; ctx.stroke();
+    // un brillito de metal, no un círculo de color plano
+    ctx.beginPath(); ctx.arc(p.x-0.9, p.y-0.9, (activo?1.5:1.1), 0, 7);
+    ctx.fillStyle = 'rgba(255,255,255,.75)'; ctx.fill();
   });
   ctx.restore();
 }
@@ -997,9 +1150,14 @@ function dibujarPeine(ctx, t, p){
     && d.posicion>=p.desde && d.posicion+d.polos-1<=p.hasta);
   ctx.save();
   [['fase', c.yFase], ['neutro', c.yNeutro]].forEach(([pol, y]) => {
-    ctx.strokeStyle = sel ? '#c9793f' : COLOR_POLARIDAD[pol];
-    ctx.lineWidth = sel ? 4.4 : 3.2; ctx.lineCap = 'round';
+    const color = sel ? '#c9793f' : COLOR_POLARIDAD[pol];
+    // barra: gruesa de verdad, como un busbar real -- con un filo más
+    // claro arriba para dar algo de relieve metálico
+    ctx.strokeStyle = color; ctx.lineWidth = sel ? 8.5 : 6.5; ctx.lineCap = 'round';
     ctx.beginPath(); ctx.moveTo(c.x0, y); ctx.lineTo(c.x1, y); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,.32)'; ctx.lineWidth = 1.3;
+    ctx.beginPath(); ctx.moveTo(c.x0+4, y-2); ctx.lineTo(c.x1-4, y-2); ctx.stroke();
+    ctx.strokeStyle = color; ctx.lineWidth = 2.2; ctx.lineCap = 'round';
     dispEnPeine.forEach(d => {
       const pines = pinesDispositivo(d).filter(pn => pn.lado==='arriba'
         && polaridadDePolo(d, pn.polo, vivoIzqDe(t))===pol);
@@ -1031,22 +1189,50 @@ function dibujarConexion(ctx, t, con, saltosDeEste, pts){
   ctx.beginPath(); ctx.arc(p1[0],p1[1],3,0,7); ctx.fill();
   ctx.restore();
 }
+function dibujarRemateConexion(ctx, t, con, pts){
+  if(!pts) return;
+  const color = COLOR_POLARIDAD[con.polaridad] || TRAZO;
+  [con.origen, con.destino].forEach(ep => {
+    if(!ep || ep.tipo !== 'pin') return;
+    const d = dispositivoDe(t, ep.dispositivoId);
+    if(!d || d.piso==null) return;
+    const caja = cajaDispositivo(d);
+    for(let i=1;i<pts.length;i++){
+      const seg = clipSegmentoACaja(pts[i-1], pts[i], caja);
+      if(!seg) continue;
+      ctx.save();
+      ctx.strokeStyle = color; ctx.lineWidth = 2.6; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(seg[0][0], seg[0][1]); ctx.lineTo(seg[1][0], seg[1][1]); ctx.stroke();
+      ctx.restore();
+    }
+  });
+}
 function dibujarPendienteHerramienta(ctx, t){
   if(herramienta.tipo === 'conectar' && herramienta.paso1){
     const a = puntoConexionEndpoint(t, herramienta.paso1);
     if(!a) return;
     const color = COLOR_POLARIDAD[polaridadEndpoint(t, herramienta.paso1)] || '#c9793f';
-    const pts = ortogonalizar([[a.x,a.y], ...herramienta.ruta]);
+    // el tramo confirmado (clics ya hechos) y, si hay cursor, el tramo que
+    // falta -- los dos YA ortogonales, para que lo que se ve mientras se
+    // rutea sea exactamente lo que va a quedar al cerrar la conexión, sin
+    // sorpresas de "se veía derecho y salió en escuadra"
+    const reales = [[a.x,a.y], ...herramienta.ruta];
+    const pts = ortogonalizar(reales);
+    const ptsConCursor = cursorMundo ? ortogonalizar([...reales, [cursorMundo.x, cursorMundo.y]]) : pts;
+    const idsExcluir = idsDispositivoDeEndpoint(herramienta.paso1);
+    const obstruida = rutaObstruida(t, ptsConCursor, idsExcluir);
+    const colorTrazo = obstruida ? '#e0685a' : color;
     ctx.save();
-    ctx.strokeStyle = color; ctx.lineWidth = 2.6; ctx.lineJoin='round'; ctx.lineCap='round';
+    ctx.strokeStyle = colorTrazo; ctx.lineWidth = 2.6; ctx.lineJoin='round'; ctx.lineCap='round';
     ctx.beginPath(); pts.forEach((p,i)=> i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1])); ctx.stroke();
     if(cursorMundo){
       ctx.setLineDash([4,3]);
       ctx.beginPath(); ctx.moveTo(pts[pts.length-1][0], pts[pts.length-1][1]);
-      ctx.lineTo(cursorMundo.x, cursorMundo.y); ctx.stroke();
+      for(let i=pts.length;i<ptsConCursor.length;i++) ctx.lineTo(ptsConCursor[i][0], ptsConCursor[i][1]);
+      ctx.stroke();
       ctx.setLineDash([]);
     }
-    ctx.fillStyle = color;
+    ctx.fillStyle = colorTrazo;
     pts.forEach(p => { ctx.beginPath(); ctx.arc(p[0],p[1],3.5,0,7); ctx.fill(); });
     ctx.restore();
     return;
@@ -1164,7 +1350,7 @@ cv.addEventListener('pointerdown', ev => {
   const w = aMundo(ev);
 
   if(herramienta.tipo === 'conectar'){
-    const punto = hitPin(t, w) || hitStubCano(t, w) || hitPeineBarra(t, w);
+    const punto = hitPin(t, w) || hitConectorPeineEndpoint(t, w) || hitStubCano(t, w) || hitPeineBarra(t, w);
     if(!herramienta.paso1){
       if(!punto) return;
       herramienta.paso1 = punto; herramienta.ruta = [];
@@ -1173,13 +1359,36 @@ cv.addEventListener('pointerdown', ev => {
       render();
       return;
     }
+    const a = puntoConexionEndpoint(t, herramienta.paso1);
     if(punto && !mismoEndpoint(punto, herramienta.paso1)){
+      const b = puntoConexionEndpoint(t, punto);
+      const idsExcluir = [...idsDispositivoDeEndpoint(herramienta.paso1), ...idsDispositivoDeEndpoint(punto)];
+      const final = ortogonalizar([[a.x,a.y], ...herramienta.ruta, [b.x,b.y]]);
+      if(rutaObstruida(t, final, idsExcluir)){
+        toast('La ruta pasa por encima de otra térmica -- tocá un punto intermedio para rodearla.');
+        return;
+      }
       const origen = herramienta.paso1, ruta = herramienta.ruta;
       elegirHerramienta('conectar');
       crearConexion(origen, punto, ruta);
       return;
     }
-    if(!punto){ herramienta.ruta.push([w.x, w.y]); render(); }
+    if(!punto){
+      const idsExcluir = idsDispositivoDeEndpoint(herramienta.paso1);
+      const candidata = ortogonalizar([[a.x,a.y], ...herramienta.ruta, [w.x,w.y]]);
+      if(rutaObstruida(t, candidata, idsExcluir)){
+        toast('Ahí hay una térmica en el medio -- probá otro punto para rodearla.');
+        return;
+      }
+      herramienta.ruta.push([w.x, w.y]); render();
+    }
+    return;
+  }
+
+  if(herramienta.tipo === 'conectorPeine'){
+    const hit = hitPeineBarra(t, w);
+    if(!hit) return;
+    agregarConectorPeineAPI(hit.id, hit.polaridad, (w.x-MARGEN_IZQ)/CELDA, tipoConectorPeine);
     return;
   }
 
@@ -1225,6 +1434,8 @@ cv.addEventListener('pointerdown', ev => {
     const slot = calcularSlotRiel(t, w);
     if(slot){ moverA(seleccion.id, slot.piso, slot.posicion); return; }
   }
+  const cp = hitConectorPeine(t, w);
+  if(cp){ seleccion = {t:'conectorPeine', id:cp.id}; pintarDetalle(); render(); return; }
   const pe = hitPeine(t, w);
   if(pe){ seleccion = {t:'peine', id:pe.id}; pintarDetalle(); render(); return; }
   const con = hitConexion(t, w);
@@ -1337,6 +1548,21 @@ async function eliminarPeineAPI(id){
   const t = tableroActivo();
   await api(`/api/obras/${OBRA_ID}/tableros/${t.id}/peines/${id}`, {method:'DELETE'});
   t.peines = (t.peines||[]).filter(p=>p.id!==id);
+  seleccion = null;
+  pintar();
+}
+async function agregarConectorPeineAPI(peineId, polaridad, posicion, tipo){
+  const t = tableroActivo();
+  try{
+    const r = await api(`/api/obras/${OBRA_ID}/tableros/${t.id}/conectorPeine`,
+      {method:'POST', body:JSON.stringify({peineId, polaridad, posicion, tipo})});
+    actualizarTablero(r.tablero, null);
+  }catch(e){ toast(e.message); render(); }
+}
+async function eliminarConectorPeineAPI(id){
+  const t = tableroActivo();
+  await api(`/api/obras/${OBRA_ID}/tableros/${t.id}/conectoresPeine/${id}`, {method:'DELETE'});
+  t.conectoresPeine = (t.conectoresPeine||[]).filter(c=>c.id!==id);
   seleccion = null;
   pintar();
 }
@@ -1479,6 +1705,17 @@ function pintarDetalle(){
       <button class="btn sm danger" id="dd-borrar-peine" style="width:100%">Eliminar (Delete)</button>
     </div>`;
     $('dd-borrar-peine').onclick = () => eliminarPeineAPI(p.id);
+    return;
+  }
+  if(seleccion.t === 'conectorPeine'){
+    const c = (t.conectoresPeine||[]).find(x=>x.id===seleccion.id);
+    if(!c){ seleccion=null; return pintarDetalle(); }
+    cont.innerHTML = `<div class="detalle-disp">
+      <h3>Conector de peine · ${esc(NOMBRE_POLARIDAD[c.polaridad]||c.polaridad)}</h3>
+      <div class="nota" style="margin-bottom:8px">Patita ${c.tipo==='lateral'?'lateral':'superior'}.</div>
+      <button class="btn sm danger" id="dd-borrar-cpeine" style="width:100%">Eliminar (Delete)</button>
+    </div>`;
+    $('dd-borrar-cpeine').onclick = () => eliminarConectorPeineAPI(c.id);
     return;
   }
   const d = t.dispositivos.find(x=>x.id===seleccion.id);
@@ -1703,6 +1940,7 @@ document.addEventListener('keydown', e => {
   if(e.key === 'Delete' || e.key === 'Backspace'){
     if(seleccion && seleccion.t==='conexion'){ e.preventDefault(); eliminarConexionAPI(seleccion.id); }
     if(seleccion && seleccion.t==='peine'){ e.preventDefault(); eliminarPeineAPI(seleccion.id); }
+    if(seleccion && seleccion.t==='conectorPeine'){ e.preventDefault(); eliminarConectorPeineAPI(seleccion.id); }
   }
   if((e.ctrlKey||e.metaKey) && !e.shiftKey && e.key.toLowerCase()==='z'){ e.preventDefault(); deshacer(); }
   if((e.ctrlKey||e.metaKey) && (e.key.toLowerCase()==='y' || (e.shiftKey && e.key.toLowerCase()==='z'))){
