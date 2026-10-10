@@ -3,6 +3,32 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 1.13.0 — Tablero: caños centrados, grilla de ruteo, bornera de 6 bornes
+
+- **Los caños quedan centrados**, arriba y abajo, y se recentran solos cada
+  vez que se agrega, se quita o se reordena uno -- antes quedaban pegados
+  al margen izquierdo. El arrastre para cambiar el orden entre ellos ya
+  existía; sigue andando igual sobre la nueva posición centrada.
+- **Grilla de ruteo**: mientras se traza un cable a mano, se ve una grilla
+  punteada tenue (al paso de la distancia entre los dos pines de una
+  térmica bipolar) y una guía de eje vertical/horizontal gris punteada que
+  sigue al cursor, para ayudar a alinear el trazo a simple vista. Los
+  puntos intermedios que se tocan a mano ajustan a esa grilla; los
+  extremos (pin, caño, peine, conector) siguen siendo exactos.
+- **El bloqueo de "no pasar por encima de otra térmica" ahora cubre todo
+  el riel**, no sólo el cuerpo de cada dispositivo puntual -- ni siquiera
+  el hueco vacío entre dos térmicas sirve de paso; sólo la columna de la
+  propia térmica de origen o destino de esa conexión queda libre. Así el
+  cable siempre se ve, nunca corre "por debajo" del riel.
+- **Bug corregido: a la bornera de tierra le faltaban 5 bornes.** El dibujo
+  siempre mostró 6 terminales a tornillo, pero sólo el primero aceptaba
+  una conexión -- los otros cinco no servían para nada. Ahora los 6 son
+  puntos de conexión válidos, todos del mismo bus de tierra.
+- Renombrado: la franja de caños ya no dice "Entradas de caño"/"Salidas de
+  caño" (un caño de cualquier lado puede ser acometida, circuito o
+  jabalina, no hay una dirección fija) -- ahora dice "Conexiones de caño"
+  en los dos lados.
+
 ## 1.12.0 — Tablero: ruteo que evita térmicas, conectores de peine, estética
 
 - **El ruteo manual de un cable no puede pasar por encima de otra térmica**:

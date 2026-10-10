@@ -92,6 +92,9 @@ TIPOS_CON_TIERRA = ("TUG", "TUE", "ACU", "OCE")
 POLARIDADES = ("fase", "neutro", "tierra")
 
 
+TERMINALES_BORNERA = 6  # bornes a tornillo que dibuja svgBornera/_bornera, todos el mismo bus de tierra
+
+
 def polaridad_de_polo(d: dict, polo: int, vivo_izquierda: bool = True) -> str | None:
     """Fase, neutro o tierra de un polo puntual, según la convención del
     tablero (vivo a la izquierda o a la derecha). La bornera no tiene
@@ -225,7 +228,7 @@ def _polaridad_endpoint(tablero: dict, circuitos: list[dict], ep: dict) -> str |
         if not isinstance(polo, int) or lado not in ("arriba", "abajo"):
             return None
         if d["tipo"] == "bornera":
-            return "tierra" if polo == 0 else None
+            return "tierra" if 0 <= polo < TERMINALES_BORNERA else None
         return polaridad_de_polo(d, polo, tablero.get("vivoIzquierda", True))
     if tipo == "peine":
         pe = next((p for p in tablero.get("peines") or [] if p["id"] == ep.get("id")), None)

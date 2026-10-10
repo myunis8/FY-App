@@ -434,6 +434,7 @@ def _remate_conexion(pg, g, t, con, pts):
 
 
 TIPOS_CON_TIERRA = ("TUG", "TUE", "ACU", "OCE")
+TERMINALES_BORNERA = 6  # mismo valor que tablero.TERMINALES_BORNERA -- bornes a tornillo de _bornera
 
 
 def _polaridad_de_polo(d: dict, polo: int, vivo_izquierda: bool) -> str:
@@ -455,7 +456,11 @@ def _pines_dispositivo(g: _Geom, d: dict) -> list[dict]:
     x0, w = g.x(d["posicion"]), d["polos"] * g.celda
     y0, h = g.y_riel(d["piso"]), g.alto_disp
     if d["tipo"] == "bornera":
-        return [{"polo": 0, "lado": "arriba", "x": x0 + w / 2, "y": y0 + h * 0.13}]
+        # mismo cálculo que _bornera: TERMINALES_BORNERA bornes a tornillo
+        # apilados en una sola columna -- todos el mismo bus de tierra
+        y_ini, alto_fila = y0 + h * 0.06, h * 0.84 / TERMINALES_BORNERA
+        return [{"polo": i, "lado": "arriba", "x": x0 + w / 2, "y": y_ini + alto_fila * (i + 0.5)}
+               for i in range(TERMINALES_BORNERA)]
     pines = []
     for i in range(d["polos"]):
         cx = x0 + (i + 0.5) * w / d["polos"]
@@ -473,7 +478,7 @@ def _caja_dispositivo(g: _Geom, d: dict) -> dict:
 
 
 PITCH_CANO_WEB = 48
-INICIO_CANOS_WEB = MARGEN_IZQ_WEB + 16
+MARGEN_CANOS_WEB = 16
 
 
 def _polaridades_cano(cano: dict) -> list[str]:
@@ -491,10 +496,24 @@ def _entradas_de_lado(t: dict, lado: str) -> list[dict]:
     return sorted([c for c in t.get("canos") or [] if c["lado"] == lado], key=lambda c: c["orden"])
 
 
+def _ancho_total_web(t: dict) -> float:
+    """Replica anchoAltoMundo(t)[0] del editor web -- hace falta para
+    centrar los caños exactamente en la misma posición que ahí."""
+    n_canos = max(len(_entradas_de_lado(t, "arriba")), len(_entradas_de_lado(t, "abajo")))
+    ancho_canos = (n_canos + 1) * PITCH_CANO_WEB + MARGEN_CANOS_WEB * 2
+    ancho_bocas = MARGEN_IZQ_WEB * 2 + t.get("bocasPorPiso", 1) * CELDA_WEB
+    return max(ancho_bocas, ancho_canos)
+
+
+def _inicio_canos_web(t: dict, lado: str) -> float:
+    n = len(_entradas_de_lado(t, lado))
+    return (_ancho_total_web(t) - (n + 1) * PITCH_CANO_WEB) / 2
+
+
 def _x_entrada_cano(t: dict, cano: dict) -> float:
     hermanos = _entradas_de_lado(t, cano["lado"])
     orden = next((i for i, c in enumerate(hermanos) if c["id"] == cano["id"]), 0)
-    return INICIO_CANOS_WEB + PITCH_CANO_WEB / 2 + orden * PITCH_CANO_WEB
+    return _inicio_canos_web(t, cano["lado"]) + PITCH_CANO_WEB / 2 + orden * PITCH_CANO_WEB
 
 
 def _punto_cano_pdf(g: _Geom, t: dict, cano: dict, polaridad: str) -> tuple[float, float] | None:
