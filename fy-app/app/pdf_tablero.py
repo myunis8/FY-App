@@ -24,8 +24,16 @@ MARGEN = 34
 # actualizar junto con ella.
 CELDA_WEB = 72
 MARGEN_IZQ_WEB = 30
-MARGEN_SUP_WEB = 50
-ALTURA_PISO_WEB = 46*2 + 128 + 20      # BANDA*2 + ALTO_DISP + MARGEN_PISO, ahí
+MARGEN_SUP_WEB = 110
+MARGEN_INF_WEB = 110
+ALTO_DISP_WEB = 128
+BANDA_WEB = 46
+MARGEN_PISO_WEB = 20
+MARGEN_DISP_WEB = 14
+ALTURA_PISO_WEB = BANDA_WEB*2 + ALTO_DISP_WEB + MARGEN_PISO_WEB   # igual que ALTURA_PISO ahí
+ESCALA = 0.6          # puntos de esta hoja por píxel del editor: TODO se dibuja con la geometría del editor
+TITULO = 30           # alto reservado arriba para el título de la hoja
+PAD = 14              # margen lateral e inferior de la hoja
 NAVY = (0x16/255, 0x28/255, 0x3f/255)
 TRAZO = (0x33/255, 0x50/255, 0x6e/255)
 GRIS = (0x5b/255, 0x6b/255, 0x7a/255)
@@ -100,6 +108,14 @@ def _color_familia(d):
     return _hex(d.get("color")) if d.get("color") else GRIS
 
 
+def _x_polo(x0, i, polos, w):
+    """x del tornillo del polo i dentro de un dispositivo de ancho w que
+    empieza en x0: el centro de SU boca -- mismo cálculo que xPoloLocal en el
+    editor, para que tornillo y pin coincidan."""
+    polos = max(polos, 1)
+    return x0 + ((i + 0.5) * CELDA_WEB - MARGEN_DISP_WEB) * w / (polos * CELDA_WEB - MARGEN_DISP_WEB * 2)
+
+
 # ---------------------------------------------------------------- tornillos
 def _tornillo(pg, cx, cy, r, cruz):
     pg.draw_circle((cx, cy), r, color=TRAZO, fill=BLANCO, width=0.9)
@@ -119,8 +135,8 @@ def _termica(pg, x0, y0, w, h, d, circuito):
     pg.draw_rect(pymupdf.Rect(x0 + 2, y0, x0 + w - 2, y0 + h), color=color, fill=BLANCO, width=1.4,
                 radius=0.10)
     for i in range(d["polos"]):
-        cx = x0 + (i + 0.5) * w / d["polos"]
-        _tornillo(pg, cx, y0 + h * 0.14, r, cruz=True)
+        cx = _x_polo(x0, i, d["polos"], w)
+        _tornillo(pg, cx, y0 + h * 0.13, r, cruz=True)
         _tornillo(pg, cx, y0 + h * 0.87, r, cruz=False)
     pg.draw_rect(pymupdf.Rect(x0 + w * 0.1, y0 + h * 0.23, x0 + w * 0.9, y0 + h * 0.4),
                 color=TRAZO, fill=None, width=0.8, radius=0.08)
@@ -138,19 +154,19 @@ def _termica(pg, x0, y0, w, h, d, circuito):
 
 
 def _diferencial(pg, x0, y0, w, h, d, circuito):
-    r = min(w / max(d["polos"], 1), h) * 0.12
+    r = min(w / max(d["polos"], 1), h) * 0.15      # mismos tornillos que la térmica
     pg.draw_rect(pymupdf.Rect(x0 + 2, y0, x0 + w - 2, y0 + h), color=COLOR_ROL["diferencial"],
                 fill=BLANCO, width=1.4, radius=0.10)
     for i in range(d["polos"]):
-        cx = x0 + (i + 0.5) * w / d["polos"]
-        _tornillo(pg, cx, y0 + h * 0.1, r, cruz=False)
-        _tornillo(pg, cx, y0 + h * 0.9, r, cruz=False)
+        cx = _x_polo(x0, i, d["polos"], w)
+        _tornillo(pg, cx, y0 + h * 0.13, r, cruz=False)
+        _tornillo(pg, cx, y0 + h * 0.87, r, cruz=False)
     pg.draw_rect(pymupdf.Rect(x0 + w * 0.12, y0 + h * 0.28, x0 + w * 0.42, y0 + h * 0.58),
                 color=TRAZO, width=0.8)
     _texto_centrado(pg, x0 + w*0.27, y0 + h*0.48, "T", min(w*0.2, 12), TRAZO)
     pg.draw_rect(pymupdf.Rect(x0 + w * 0.52, y0 + h * 0.3, x0 + w * 0.86, y0 + h * 0.42),
                 color=None, fill=COLOR_ROL["diferencial"], radius=0.2)
-    tx, ty = x0 + w * 0.14, y0 + h * 0.2
+    tx, ty = x0 + w * 0.5 - 2.6, y0 + h * 0.2
     ts = 7.5
     pg.draw_line((tx + ts * 0.35, ty - ts), (tx, ty), color=TRAZO, width=0.9)
     pg.draw_line((tx + ts * 0.35, ty - ts), (tx + ts * 0.7, ty), color=TRAZO, width=0.9)
@@ -162,11 +178,13 @@ def _diferencial(pg, x0, y0, w, h, d, circuito):
 
 
 def _protector(pg, x0, y0, w, h, d, circuito):
-    r = min(w, h) * 0.1
+    polos = max(d.get("polos", 2), 1)
+    r = min(w / polos, h) * 0.15                    # mismos tornillos que la térmica
     pg.draw_rect(pymupdf.Rect(x0 + 2, y0, x0 + w - 2, y0 + h), color=COLOR_ROL["protector"],
                 fill=BLANCO, width=1.4, radius=0.10)
-    for cx in (x0 + w * 0.28, x0 + w * 0.72):
-        for cy in (y0 + h * 0.1, y0 + h * 0.9):
+    for i in range(polos):
+        cx = _x_polo(x0, i, polos, w)
+        for cy in (y0 + h * 0.13, y0 + h * 0.87):
             _tornillo(pg, cx, cy, r, cruz=False)
     pg.draw_rect(pymupdf.Rect(x0 + w * 0.28, y0 + h * 0.24, x0 + w * 0.86, y0 + h * 0.46),
                 color=TRAZO, fill=(0.93, 0.97, 0.94), width=0.8, radius=0.1)
@@ -182,13 +200,14 @@ def _bornera(pg, x0, y0, w, h, d):
                 fill=BLANCO, width=1.4, radius=0.08)
     filas = 6
     alto_fila = h * 0.84 / filas
-    y_ini = y0 + h * 0.06
+    y_ini = y0 + h * 0.08          # mismos bornes que pinesDispositivo en el editor
     for i in range(filas):
         cy = y_ini + alto_fila * (i + 0.5)
         pg.draw_rect(pymupdf.Rect(x0 + w * 0.26, cy - alto_fila * 0.32, x0 + w * 0.74,
                                  cy + alto_fila * 0.32), color=TRAZO, width=0.6, radius=0.4)
         pg.draw_circle((x0 + w / 2, cy), alto_fila * 0.16, color=TRAZO, width=0.5)
-    pg.insert_text((x0 + w * 0.4, y0 + h - 3), "PAT", fontsize=6, color=TRAZO)
+    # la rotulación va debajo del cuerpo: adentro pisaría el último borne
+    _texto_centrado(pg, x0 + w / 2, y0 + h + 8, "PAT", 6, TRAZO, negrita=False)
 
 
 def _dibujar_dispositivo(pg, x0, y0, w, h, d, circuito):
@@ -204,14 +223,16 @@ def _dibujar_dispositivo(pg, x0, y0, w, h, d, circuito):
 
 # ---------------------------------------------------------------- geometría
 class _Geom:
+    """Geometría del editor (web/tablero.html) multiplicada por ESCALA: el
+    PDF se dibuja con las MISMAS coordenadas que la pantalla -- pines, caños,
+    peines y puntos de ruta trazados a mano coinciden sin conversiones.
+    px()/py() llevan píxeles del editor a puntos de la hoja."""
     def __init__(self, t: dict):
         self.t = t
-        self.celda = 34
-        self.alto_disp = 58
-        self.banda = 30
-        self.franja = 34
-        self.margen_piso = 20
-        self.altura_piso = self.franja + self.banda + self.alto_disp + self.banda + self.margen_piso
+        self.s = ESCALA
+        self.celda = CELDA_WEB * ESCALA
+        self.alto_disp = ALTO_DISP_WEB * ESCALA
+        self.ox, self.oy = PAD, TITULO
         # el ancho nominal (bocasPorPiso) puede quedar chico frente a lo que
         # de verdad está colocado —por ejemplo si el tablero se achicó
         # después de ubicar térmicas—, y eso recortaba la hoja en el borde.
@@ -220,17 +241,20 @@ class _Geom:
         for d in t.get("dispositivos") or []:
             if d.get("piso") is not None and d.get("posicion") is not None:
                 boca_maxima = max(boca_maxima, d["posicion"] + d["polos"])
-        self.ancho = MARGEN * 2 + boca_maxima * self.celda
-        self.alto = MARGEN * 2 + t["pisos"] * self.altura_piso - self.margen_piso + self.franja
+        self.bocas = boca_maxima
+        self.ancho_web = max(_ancho_total_web(t), MARGEN_IZQ_WEB * 2 + boca_maxima * CELDA_WEB)
+        self.alto_web = _alto_total_web(t)
+        self.ancho = self.ancho_web * ESCALA + PAD * 2
+        self.alto = self.alto_web * ESCALA + TITULO + PAD
 
-    def x(self, posicion: float) -> float:
-        return MARGEN + posicion * self.celda
+    def px(self, x_web: float) -> float:
+        return self.ox + x_web * self.s
 
-    def y_piso(self, piso: int) -> float:
-        return MARGEN + self.franja + piso * (self.altura_piso - self.franja)
+    def py(self, y_web: float) -> float:
+        return self.oy + y_web * self.s
 
     def y_riel(self, piso: int) -> float:
-        return self.y_piso(piso) + self.banda
+        return self.py(MARGEN_SUP_WEB + piso * ALTURA_PISO_WEB + BANDA_WEB)
 
 
 def _nombre_circuito(obra, circuito_id):
@@ -282,7 +306,7 @@ def _cruce(a, b):
     return None
 
 
-LANE_SPACING = 2.6   # separación entre cables que comparten corredor, en pt
+LANE_SPACING = 2.2   # separación entre cables que comparten corredor, en pt
 
 
 def _separar_paralelos(cables_con_pts):
@@ -339,11 +363,13 @@ def _separar_paralelos(cables_con_pts):
     for miembros in clusters.values():
         if len(miembros) < 2:
             continue
-        miembros.sort(key=lambda i: cables_con_pts[entradas[i][0]][0])   # orden estable, por id de cable
-        k = len(miembros)
+        # orden de creación: el primero queda donde se trazó y cada nuevo va a
+        # la derecha (o abajo, en un tramo horizontal) del último del grupo,
+        # igual que en el editor
+        miembros.sort(key=lambda i: entradas[i][0])
         for lane, i in enumerate(miembros):
             ci, si, orient = entradas[i][0], entradas[i][1], entradas[i][2]
-            off = (lane - (k - 1) / 2) * LANE_SPACING
+            off = lane * LANE_SPACING
             pts = cables_con_pts[ci][1]
             if orient == "h":
                 pts[si][1] += off
@@ -452,29 +478,36 @@ def _polaridad_de_polo(d: dict, polo: int, vivo_izquierda: bool) -> str:
     return "fase"
 
 
+def _caja_web(d: dict) -> dict:
+    """cajaDispositivo del editor, en píxeles del editor."""
+    return {"x": MARGEN_IZQ_WEB + d["posicion"] * CELDA_WEB + MARGEN_DISP_WEB,
+            "y": MARGEN_SUP_WEB + d["piso"] * ALTURA_PISO_WEB + BANDA_WEB + 4,
+            "w": d["polos"] * CELDA_WEB - MARGEN_DISP_WEB * 2, "h": ALTO_DISP_WEB - 8}
+
+
 def _pines_dispositivo(g: _Geom, d: dict) -> list[dict]:
-    x0, w = g.x(d["posicion"]), d["polos"] * g.celda
-    y0, h = g.y_riel(d["piso"]), g.alto_disp
+    c = _caja_web(d)
     if d["tipo"] == "bornera":
         # mismo cálculo que _bornera: TERMINALES_BORNERA bornes a tornillo
         # apilados en una sola columna -- todos el mismo bus de tierra
-        y_ini, alto_fila = y0 + h * 0.06, h * 0.84 / TERMINALES_BORNERA
-        return [{"polo": i, "lado": "arriba", "x": x0 + w / 2, "y": y_ini + alto_fila * (i + 0.5)}
+        y_ini, alto_fila = c["h"] * 0.08, c["h"] * 0.84 / TERMINALES_BORNERA
+        return [{"polo": i, "lado": "arriba", "x": g.px(c["x"] + c["w"] / 2),
+                 "y": g.py(c["y"] + y_ini + alto_fila * (i + 0.5))}
                for i in range(TERMINALES_BORNERA)]
     pines = []
     for i in range(d["polos"]):
-        cx = x0 + (i + 0.5) * w / d["polos"]
-        pines.append({"polo": i, "lado": "arriba", "x": cx, "y": y0 + h * 0.13})
-        pines.append({"polo": i, "lado": "abajo", "x": cx, "y": y0 + h * 0.87})
+        cx = g.px(_x_polo(c["x"], i, d["polos"], c["w"]))
+        pines.append({"polo": i, "lado": "arriba", "x": cx, "y": g.py(c["y"] + c["h"] * 0.13)})
+        pines.append({"polo": i, "lado": "abajo", "x": cx, "y": g.py(c["y"] + c["h"] * 0.87)})
     return pines
 
 
 def _caja_dispositivo(g: _Geom, d: dict) -> dict:
-    """Mismo rectángulo con el que se dibuja el cuerpo del dispositivo en
-    _pagina_conexionado -- se reutiliza para recortar el tramo de cable que
-    cae dentro (ver _remate_conexion)."""
-    return {"x": g.x(d["posicion"]) + g.celda * 0.16, "y": g.y_riel(d["piso"]) + 2,
-           "w": d["polos"] * g.celda - g.celda * 0.32, "h": g.alto_disp - 4}
+    """El rectángulo con el que se dibuja el cuerpo del dispositivo -- el
+    mismo del editor (cajaDispositivo), escalado. También se usa para
+    recortar el tramo de cable que cae dentro (ver _remate_conexion)."""
+    c = _caja_web(d)
+    return {"x": g.px(c["x"]), "y": g.py(c["y"]), "w": c["w"] * g.s, "h": c["h"] * g.s}
 
 
 PITCH_CANO_WEB = 48
@@ -505,6 +538,10 @@ def _ancho_total_web(t: dict) -> float:
     return max(ancho_bocas, ancho_canos)
 
 
+def _alto_total_web(t: dict) -> float:
+    return MARGEN_SUP_WEB + t.get("pisos", 1) * ALTURA_PISO_WEB - MARGEN_PISO_WEB + MARGEN_INF_WEB
+
+
 def _inicio_canos_web(t: dict, lado: str) -> float:
     n = len(_entradas_de_lado(t, lado))
     return (_ancho_total_web(t) - (n + 1) * PITCH_CANO_WEB) / 2
@@ -516,26 +553,26 @@ def _x_entrada_cano(t: dict, cano: dict) -> float:
     return _inicio_canos_web(t, cano["lado"]) + PITCH_CANO_WEB / 2 + orden * PITCH_CANO_WEB
 
 
+def _y_franja_cano_web(t: dict, lado: str) -> float:
+    return 16 if lado == "arriba" else _alto_total_web(t) - 16
+
+
 def _punto_cano_pdf(g: _Geom, t: dict, cano: dict, polaridad: str) -> tuple[float, float] | None:
-    """Convierte la posición del caño (en píxeles del editor web, donde su
-    franja vive) a la geometría de esta hoja -- mismo criterio que
-    _ruta_a_pdf para cualquier otro punto trazado en ese lienzo."""
+    """Punta del cablecito del caño (puntoCano en el editor)."""
     pols = _polaridades_cano(cano)
     if polaridad not in pols:
         return None
-    x_web = _x_entrada_cano(t, cano) + (pols.index(polaridad) - (len(pols) - 1) / 2) * 8
-    posicion = (x_web - MARGEN_IZQ_WEB) / CELDA_WEB
-    if cano["lado"] == "arriba":
-        y = g.y_piso(0) - 6
-    else:
-        ultimo = t.get("pisos", 1) - 1
-        y = g.y_riel(ultimo) + g.alto_disp + g.banda + 6
-    return (g.x(posicion), y)
+    dir_ = 1 if cano["lado"] == "arriba" else -1
+    x = _x_entrada_cano(t, cano) + (pols.index(polaridad) - (len(pols) - 1) / 2) * 8
+    y = _y_franja_cano_web(t, cano["lado"]) + 22 * dir_
+    return (g.px(x), g.py(y))
 
 
 def _caja_peine(g: _Geom, p: dict) -> dict:
-    return {"x0": g.x(p["desde"]), "x1": g.x(p["hasta"] + 1),
-           "y_fase": g.y_riel(p["piso"]) - 8, "y_neutro": g.y_riel(p["piso"]) - 12}
+    y = MARGEN_SUP_WEB + p["piso"] * ALTURA_PISO_WEB + BANDA_WEB + 4 - 16
+    return {"x0": g.px(MARGEN_IZQ_WEB + p["desde"] * CELDA_WEB + MARGEN_DISP_WEB),
+            "x1": g.px(MARGEN_IZQ_WEB + (p["hasta"] + 1) * CELDA_WEB - MARGEN_DISP_WEB),
+            "y_fase": g.py(y), "y_neutro": g.py(y - 7)}
 
 
 def _punto_peine(g: _Geom, p: dict, polaridad: str) -> tuple[float, float]:
@@ -548,7 +585,7 @@ def _base_conector_peine(g: _Geom, t: dict, c: dict) -> tuple[float, float] | No
     if peine is None:
         return None
     caja = _caja_peine(g, peine)
-    x = g.x(c["posicion"])
+    x = g.px(MARGEN_IZQ_WEB + c["posicion"] * CELDA_WEB)
     y = caja["y_neutro"] if c["polaridad"] == "neutro" else caja["y_fase"]
     return (x, y)
 
@@ -558,7 +595,9 @@ def _punto_conector_peine(g: _Geom, t: dict, c: dict) -> tuple[float, float] | N
     if base is None:
         return None
     x, y = base
-    return (x + 5.5, y + 4.5) if c["tipo"] == "lateral" else (x, y - 6)
+    if c.get("tipo") == "lateral":
+        return (x + 11 * g.s, y + 9 * g.s)       # igual que puntoConectorPeine del editor
+    return (x, y - 13 * g.s)
 
 
 def _punto_conexion(g: _Geom, t: dict, obra: dict, ep: dict):
@@ -591,21 +630,8 @@ def _punto_conexion(g: _Geom, t: dict, obra: dict, ep: dict):
 
 def _ruta_a_pdf(g: _Geom, t: dict, ruta: list) -> list:
     """Los puntos de una ruta trazada a mano en el editor vienen en píxeles
-    de ESE lienzo (ver las constantes _WEB arriba). Se convierten a la
-    posición lógica que representan (boca en X; piso + fracción dentro de
-    la fila en Y) y se reconstruyen con la geometría de ESTA hoja -- nunca
-    se usan directo, porque las dos escalas no tienen nada que ver entre sí."""
-    if not ruta:
-        return []
-    pisos = max(t.get("pisos", 1), 1)
-    out = []
-    for p in ruta:
-        x, y = p[0], p[1]
-        posicion = (x - MARGEN_IZQ_WEB) / CELDA_WEB
-        piso = max(0, min(pisos - 1, int((y - MARGEN_SUP_WEB) // ALTURA_PISO_WEB)))
-        frac = (y - (MARGEN_SUP_WEB + piso * ALTURA_PISO_WEB)) / ALTURA_PISO_WEB
-        out.append((g.x(posicion), g.y_piso(piso) + frac * g.altura_piso))
-    return out
+    del editor, que es la misma geometría que usa esta hoja (sólo escalada)."""
+    return [(g.px(p[0]), g.py(p[1])) for p in ruta or []]
 
 
 # ---------------------------------------------------------------- páginas
@@ -613,9 +639,10 @@ def _fondo(pg, g, t, fondo_riel=FONDO_RIEL):
     pg.draw_rect(pg.rect, color=None, fill=FONDO_HOJA)
     for piso in range(t["pisos"]):
         y0 = g.y_riel(piso)
-        pg.draw_rect(pymupdf.Rect(MARGEN, y0, g.ancho - MARGEN, y0 + g.alto_disp),
+        x0 = g.px(MARGEN_IZQ_WEB)
+        pg.draw_rect(pymupdf.Rect(x0, y0, g.px(MARGEN_IZQ_WEB + g.bocas * CELDA_WEB), y0 + g.alto_disp),
                     color=(0.68, 0.73, 0.73), fill=fondo_riel, width=0.8, radius=0.05)
-        pg.insert_text((MARGEN + 2, y0 - 5), f"Piso {piso+1}", fontsize=7, color=GRIS)
+        pg.insert_text((x0 + 2, y0 - 4), f"Piso {piso+1}", fontsize=7, color=GRIS)
 
 
 def _grosor_por_seccion(mm2: float) -> float:
@@ -647,32 +674,39 @@ def _seccion_cano(cano: dict, obra: dict) -> float:
 def _dibujar_canos_franja(pg, g, t: dict, obra: dict):
     """Las entradas/salidas de caño: nodos independientes de las térmicas,
     cableados a mano hasta el pin que corresponda (ver _dibujar_cable en
-    t['conexiones']). Acá sólo se dibuja el cablecito de colores -- más
-    grueso cuanto mayor la sección real del conductor -- y la etiqueta."""
+    t['conexiones']). Mismo dibujo que dibujarFranjaCano del editor: un
+    círculo con el color del tipo, el nombre, y un cablecito por conductor
+    -- más grueso cuanto mayor la sección real del conductor."""
+    s = g.s
     for lado in ("arriba", "abajo"):
         dir_ = 1 if lado == "arriba" else -1
+        yc = _y_franja_cano_web(t, lado)
         for cano in _entradas_de_lado(t, lado):
             pols = _polaridades_cano(cano)
             grosor = _grosor_por_seccion(_seccion_cano(cano, obra))
-            xc = g.x((_x_entrada_cano(t, cano) - MARGEN_IZQ_WEB) / CELDA_WEB)
-            yp = g.y_piso(0) - 6 if lado == "arriba" else (
-                g.y_riel(t.get("pisos", 1) - 1) + g.alto_disp + g.banda + 6)
+            xc = _x_entrada_cano(t, cano)
+            color_icono = (COLOR_POLARIDAD["tierra"] if cano["tipo"] == "tierra" else
+                           COLOR_POLARIDAD["fase"] if cano["tipo"] == "acometida" else TRAZO)
+            centro = (g.px(xc), g.py(yc))
+            pg.draw_circle(centro, 11 * s, color=color_icono, fill=BLANCO, width=1.0)
+            pg.draw_circle(centro, 6 * s, color=None, fill=color_icono)
             for i, pol in enumerate(pols):
-                x = xc + (i - (len(pols) - 1) / 2) * (grosor + 3)
+                x = g.px(xc + (i - (len(pols) - 1) / 2) * 8)
+                y1, y2 = g.py(yc + 9 * dir_), g.py(yc + 22 * dir_)
                 color = COLOR_POLARIDAD[pol]
-                pg.draw_line((x, yp - 7 * dir_), (x, yp), color=color, width=grosor)
-                pg.draw_circle((x, yp), grosor * 0.7, color=None, fill=color)
-            etiqueta_y = yp - 10 * dir_
-            pitch_pdf = PITCH_CANO_WEB * g.celda / CELDA_WEB
-            etq = _texto_acotado(_nombre_cano(cano, obra), pitch_pdf - 2, 5.5)
+                pg.draw_line((x, y1), (x, y2), color=color, width=grosor)
+                pg.draw_circle((x, y2), grosor * 0.7, color=None, fill=color)
+            pitch_pdf = (PITCH_CANO_WEB - 2) * s
+            etq = _texto_acotado(_nombre_cano(cano, obra), pitch_pdf, 5.5)
             ancho_etq = pymupdf.get_text_length(etq, fontsize=5.5)
-            pg.insert_text((xc - ancho_etq / 2, etiqueta_y), etq, fontsize=5.5, color=GRIS)
+            y_etq = g.py(yc - 16) if lado == "arriba" else g.py(yc + 28)
+            pg.insert_text((centro[0] - ancho_etq / 2, y_etq), etq, fontsize=5.5, color=GRIS)
 
 
 def _dibujar_pines(pg, g, d, vivo_izquierda):
     for p in _pines_dispositivo(g, d):
         pol = _polaridad_de_polo(d, p["polo"], vivo_izquierda)
-        pg.draw_circle((p["x"], p["y"]), 1.6, color=COLOR_POLARIDAD[pol], fill=BLANCO, width=0.9)
+        pg.draw_circle((p["x"], p["y"]), 1.7, color=COLOR_POLARIDAD[pol], fill=BLANCO, width=1.0)
 
 
 def _dibujar_peine(pg, g, t, p):
@@ -686,7 +720,7 @@ def _dibujar_peine(pg, g, t, p):
         # barra gruesa, como un busbar real -- con un filo más claro arriba
         # para dar algo de relieve metálico
         pg.draw_line((c["x0"], y), (c["x1"], y), color=color, width=3.2)
-        pg.draw_line((c["x0"] + 2, y - 0.9), (c["x1"] - 2, y - 0.9), color=BLANCO, width=0.6)
+        pg.draw_line((c["x0"] + 2, y - 1.0), (c["x1"] - 2, y - 1.0), color=BLANCO, width=0.5)
         for d in en_peine:
             for pin in _pines_dispositivo(g, d):
                 if pin["lado"] == "arriba" and _polaridad_de_polo(d, pin["polo"], vivo_izquierda) == pol:
@@ -712,7 +746,7 @@ def _pagina_conexionado(doc, t: dict, obra: dict):
     g = _Geom(t)
     pg = doc.new_page(width=g.ancho, height=g.alto)
     _fondo(pg, g, t)
-    pg.insert_text((MARGEN, 20), f"Tablero · {t.get('nombre','')} · conexionado",
+    pg.insert_text((PAD, 20), f"Tablero · {t.get('nombre','')} · conexionado",
                    fontsize=13, fontname="hebo", color=NAVY)
     vivo_izquierda = t.get("vivoIzquierda", True) is not False
 
@@ -735,6 +769,8 @@ def _pagina_conexionado(doc, t: dict, obra: dict):
     for cid, pts, con in con_pts:
         color = COLOR_POLARIDAD.get(con.get("polaridad"), TRAZO)
         _dibujar_cable(pg, pts, saltos.get(cid), color)
+        for extremo in (pts[0], pts[-1]):
+            pg.draw_circle(tuple(extremo), 1.5, color=None, fill=color)
 
     for p in t.get("peines") or []:
         _dibujar_peine(pg, g, t, p)
@@ -779,7 +815,8 @@ def _pagina_tapa(doc, t: dict, obra: dict):
 
     ancho_disp = MARGEN * 2 + boca_max * g.celda * ESCALA_X
     MARCO = 16
-    ancho, alto = ancho_disp + MARCO * 2, g.alto + MARCO * 2 + 8
+    alto_gab = g.alto - g.oy          # el alto del gabinete, sin el título de la hoja de conexionado
+    ancho, alto = ancho_disp + MARCO * 2, alto_gab + MARCO * 2 + 8
     pg = doc.new_page(width=ancho, height=alto)
     pg.draw_rect(pg.rect, color=None, fill=(0.93, 0.94, 0.95))
     pg.insert_text((MARCO, 20), f"Tablero · {t.get('nombre','')} · guía de tapa",
@@ -787,14 +824,14 @@ def _pagina_tapa(doc, t: dict, obra: dict):
     # el gabinete en sí: un marco grueso con tornillos en las esquinas,
     # como para que se sienta la tapa real del tablero
     y_gabinete = 30
-    marco_rect = pymupdf.Rect(MARCO, y_gabinete, ancho - MARCO, y_gabinete + g.alto)
+    marco_rect = pymupdf.Rect(MARCO, y_gabinete, ancho - MARCO, y_gabinete + alto_gab)
     pg.draw_rect(marco_rect, color=(0.35, 0.38, 0.42), fill=(0.99, 0.99, 0.98), width=2.4, radius=0.02)
     for esq_x in (marco_rect.x0 + 9, marco_rect.x1 - 9):
         for esq_y in (marco_rect.y0 + 9, marco_rect.y1 - 9):
             _tornillo(pg, esq_x, esq_y, 3.4, cruz=True)
     dx, dy = MARCO, y_gabinete
     for piso in range(t["pisos"]):
-        y0 = g.y_riel(piso) + dy
+        y0 = g.y_riel(piso) - g.oy + dy
         pg.draw_rect(pymupdf.Rect(dx + MARGEN, y0, dx + ancho_disp - MARGEN, y0 + g.alto_disp),
                     color=(0.88, 0.88, 0.88), fill=(0.97, 0.97, 0.97), width=0.7, radius=0.05)
     for d in t.get("dispositivos") or []:
@@ -803,7 +840,7 @@ def _pagina_tapa(doc, t: dict, obra: dict):
         margen_disp = g.celda * ESCALA_X * 0.11
         x0 = dx + xt(d["posicion"]) + margen_disp
         w = d["polos"] * g.celda * ESCALA_X - margen_disp * 2
-        y0 = dy + g.y_riel(d["piso"]) + 2
+        y0 = dy + g.y_riel(d["piso"]) - g.oy + 2
         h = g.alto_disp - 4
         _dibujar_dispositivo(pg, x0, y0, w, h, d, _nombre_circuito(obra, d.get("circuitoId")))
         # con circuito: circuito.notas es la única fuente (la misma que se
