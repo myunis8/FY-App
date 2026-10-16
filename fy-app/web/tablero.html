@@ -385,12 +385,13 @@ function svgTermica(w, h, polos, corriente, colorFamilia, circuito){
   </svg>`;
 }
 function svgDiferencial(w, h, polos, corriente, mA){
-  const r = Math.min(w/polos, h)*0.13;
+  // mismos tornillos (posición y tamaño) que la térmica: ahí caen los pines
+  const r = Math.min(w/polos, h)*0.15;
   let tTop='', tBot='';
   for(let i=0;i<polos;i++){
     const cx = xPoloLocal(i, polos, w);
-    tTop += tornilloMas(cx, h*0.11, r*0.85);
-    tBot += tornilloMas(cx, h*0.89, r*0.85);
+    tTop += tornilloMas(cx, h*0.13, r);
+    tBot += tornilloMas(cx, h*0.87, r);
   }
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}">
     <rect class="cuerpo-disp" x="3" y="1" width="${w-6}" height="${h-2}" rx="5"
@@ -404,30 +405,35 @@ function svgDiferencial(w, h, polos, corriente, mA){
       fill="${TRAZO}" opacity=".85"/>
     <rect x="${w*0.6}" y="${h*0.46}" width="${w*0.2}" height="${h*0.08}" fill="none"
       stroke="${TRAZO}" stroke-width="0.9"/>
-    <text x="${w*0.28}" y="${h*0.14}" font-size="8" fill="${TRAZO}">Δ</text>
+    <text x="${w/2}" y="${h*0.18}" text-anchor="middle" font-size="8" fill="${TRAZO}">Δ</text>
     <text x="${w/2}" y="${h*0.72}" text-anchor="middle" class="etiqueta-corriente"
       font-size="${Math.min(w*0.18,11)}" fill="${TRAZO}">${corriente??''}A</text>
     <text x="${w/2}" y="${h*0.82}" text-anchor="middle" font-size="8.5"
       fill="${TRAZO}">${mA??''}mA</text>
   </svg>`;
 }
-function svgProtector(w, h, tensionV, circuito){
+function svgProtector(w, h, tensionV, circuito, polos){
   const v = tensionV ?? 220;
+  polos = polos || 2;
+  // mismos tornillos (posición y tamaño) que la térmica: ahí caen los pines
+  const r = Math.min(w/polos, h)*0.15;
+  let tornillos = '';
+  for(let i=0;i<polos;i++){
+    const cx = xPoloLocal(i, polos, w);
+    tornillos += tornilloMas(cx, h*0.13, r) + tornilloMas(cx, h*0.87, r);
+  }
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}">
     <rect class="cuerpo-disp" x="3" y="1" width="${w-6}" height="${h-2}" rx="5"
       fill="#fff" stroke="${TRAZO}" stroke-width="1.6"/>
-    ${tornilloMas(w*0.28, h*0.11, Math.min(w,h)*0.11)}
-    ${tornilloMas(w*0.72, h*0.11, Math.min(w,h)*0.11)}
-    ${tornilloMas(w*0.28, h*0.89, Math.min(w,h)*0.11)}
-    ${tornilloMas(w*0.72, h*0.89, Math.min(w,h)*0.11)}
+    ${tornillos}
     <circle cx="${w*0.22}" cy="${h*0.3}" r="2.4" fill="none" stroke="${TRAZO}" stroke-width=".8"/>
     <circle cx="${w*0.22}" cy="${h*0.4}" r="2.4" fill="none" stroke="${TRAZO}" stroke-width=".8"/>
     <rect x="${w*0.3}" y="${h*0.22}" width="${w*0.58}" height="${h*0.22}" rx="1.5"
       fill="#eef3ef" stroke="${TRAZO}" stroke-width="0.9"/>
-    <text x="${w*0.59}" y="${h*0.395}" text-anchor="middle" font-weight="700"
+    <text x="${w*0.59}" y="${h*0.34}" text-anchor="middle" font-weight="700"
       font-family="'IBM Plex Mono',monospace" letter-spacing="1"
       font-size="${Math.min(w*0.17,12)}" fill="#1c6b3a">${v}</text>
-    <text x="${w*0.59}" y="${h*0.46}" text-anchor="middle" font-size="6.5" fill="${TRAZO}">V</text>
+     <text x="${w*0.59}" y="${h*0.415}" text-anchor="middle" font-size="6.5" fill="${TRAZO}">V</text>
     <rect x="${w*0.16}" y="${h*0.54}" width="${w*0.15}" height="${h*0.1}" rx="1.5"
       fill="none" stroke="${TRAZO}" stroke-width=".8"/>
     <rect x="${w*0.34}" y="${h*0.54}" width="${w*0.15}" height="${h*0.1}" rx="1.5"
@@ -463,7 +469,7 @@ function svgDispositivo(d, w, h){
   w = w||64; h = h||96;
   if(d.tipo === 'diferencial') return svgDiferencial(w, h, d.polos, d.corriente, d.sensibilidadMa);
   if(d.tipo === 'bornera') return svgBornera(w, h);
-  if(d.tipo === 'protector') return svgProtector(w, h, d.tensionV, etiquetaCircuito(d));
+  if(d.tipo === 'protector') return svgProtector(w, h, d.tensionV, etiquetaCircuito(d), d.polos);
   const color = d.rol==='general' ? '#16283f' : (d.color || null);
   return svgTermica(w, h, d.polos, d.corriente, color,
     etiquetaCircuito(d) || (d.rol==='general' ? 'General' : ''));
