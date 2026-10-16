@@ -275,8 +275,21 @@ function yRiel(piso){ return yPiso(piso) + BANDA; }
 // del esquema -- sólo para los puntos intermedios que se tocan a mano, los
 // extremos (pin/caño/peine/conector) siguen siendo exactos, nunca se
 // mueven al punto de grilla más cercano.
-const PASO_GRILLA = CELDA - MARGEN_DISP;
-function snapGrilla(v){ return Math.round(v/PASO_GRILLA)*PASO_GRILLA; }
+// Los pines están en el centro de cada boca (ver xPoloLocal), así que la
+// grilla arranca en ese centro y su paso divide la boca en partes iguales:
+// todo pin cae exactamente sobre un punto de grilla, sea cual sea el paso.
+const PASO_GRILLA = CELDA / 2;
+const GRILLA_X0 = MARGEN_IZQ + CELDA / 2;
+const GRILLA_Y0 = yRiel(0) + 4 + (ALTO_DISP - 8) * 0.13;   // tornillos de arriba del primer riel
+function snapGrilla(v, origen){ return origen + Math.round((v-origen)/PASO_GRILLA)*PASO_GRILLA; }
+function snapGrillaX(v){ return snapGrilla(v, GRILLA_X0); }
+function snapGrillaY(v){ return snapGrilla(v, GRILLA_Y0); }
+// x (dentro de la caja del dispositivo, ancho w) del tornillo del polo i:
+// el centro de SU boca, no el de una fracción de la caja -- así los polos
+// de cualquier térmica quedan en la misma retícula de CELDA px.
+function xPoloLocal(i, polos, w){
+  return ((i+0.5)*CELDA - MARGEN_DISP) * w / (polos*CELDA - MARGEN_DISP*2);
+}
 
 let obra = null, tableros = [], activo = null, presets = [];
 let seleccion = null;          // {t:'dispositivo'|'conexion', id}
@@ -344,7 +357,7 @@ function svgTermica(w, h, polos, corriente, colorFamilia, circuito){
   const r = Math.min(w/polos, h)*0.15;
   let tornillosTop = '', tornillosBot = '';
   for(let i=0;i<polos;i++){
-    const cx = (i+0.5)*w/polos;
+    const cx = xPoloLocal(i, polos, w);
     tornillosTop += tornilloX(cx, h*0.13, r);
     tornillosBot += tornilloMas(cx, h*0.87, r);
   }
@@ -372,7 +385,7 @@ function svgDiferencial(w, h, polos, corriente, mA){
   const r = Math.min(w/polos, h)*0.13;
   let tTop='', tBot='';
   for(let i=0;i<polos;i++){
-    const cx = (i+0.5)*w/polos;
+    const cx = xPoloLocal(i, polos, w);
     tTop += tornilloMas(cx, h*0.11, r*0.85);
     tBot += tornilloMas(cx, h*0.89, r*0.85);
   }
@@ -618,7 +631,7 @@ function pinesDispositivo(d){
   }
   const polos = d.polos||1, pines = [];
   for(let i=0;i<polos;i++){
-    const cx = c.x+(i+0.5)*c.w/polos;
+    const cx = c.x + xPoloLocal(i, polos, c.w);
     pines.push({polo:i, lado:'arriba', x:cx, y:c.y+c.h*0.13});
     pines.push({polo:i, lado:'abajo', x:cx, y:c.y+c.h*0.87});
   }
@@ -1088,8 +1101,8 @@ function dibujarGrilla(ctx, anchoTotal, altoTotal){
   // PASO_GRILLA, para que el cable quede prolijo sin tapar nada de abajo
   ctx.save();
   ctx.fillStyle = 'rgba(90,110,120,.22)';
-  for(let x=0; x<=anchoTotal; x+=PASO_GRILLA)
-    for(let y=0; y<=altoTotal; y+=PASO_GRILLA){
+  for(let x=GRILLA_X0 - Math.floor(GRILLA_X0/PASO_GRILLA)*PASO_GRILLA; x<=anchoTotal; x+=PASO_GRILLA)
+    for(let y=GRILLA_Y0 - Math.floor(GRILLA_Y0/PASO_GRILLA)*PASO_GRILLA; y<=altoTotal; y+=PASO_GRILLA){
       ctx.beginPath(); ctx.arc(x, y, 1, 0, 7); ctx.fill();
     }
   ctx.restore();
@@ -1273,7 +1286,7 @@ function dibujarPendienteHerramienta(ctx, t){
     // sorpresas de "se veía derecho y salió en escuadra"
     const reales = [[a.x,a.y], ...herramienta.ruta];
     const pts = ortogonalizar(reales);
-    const cursorSnap = cursorMundo ? [snapGrilla(cursorMundo.x), snapGrilla(cursorMundo.y)] : null;
+    const cursorSnap = cursorMundo ? [snapGrillaX(cursorMundo.x), snapGrillaY(cursorMundo.y)] : null;
     const ptsConCursor = cursorSnap ? ortogonalizar([...reales, cursorSnap]) : pts;
     const idsExcluir = idsDispositivoDeEndpoint(herramienta.paso1);
     const obstruida = rutaObstruida(t, ptsConCursor, idsExcluir);
@@ -1439,7 +1452,7 @@ cv.addEventListener('pointerdown', ev => {
       return;
     }
     if(!punto){
-      const wp = [snapGrilla(w.x), snapGrilla(w.y)];
+      const wp = [snapGrillaX(w.x), snapGrillaY(w.y)];
       const idsExcluir = idsDispositivoDeEndpoint(herramienta.paso1);
       const candidata = ortogonalizar([[a.x,a.y], ...herramienta.ruta, wp]);
       if(rutaObstruida(t, candidata, idsExcluir)){
