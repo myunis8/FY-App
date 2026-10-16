@@ -278,12 +278,15 @@ function yRiel(piso){ return yPiso(piso) + BANDA; }
 // Los pines están en el centro de cada boca (ver xPoloLocal), así que la
 // grilla arranca en ese centro y su paso divide la boca en partes iguales:
 // todo pin cae exactamente sobre un punto de grilla, sea cual sea el paso.
-const PASO_GRILLA = CELDA / 2;
+const PASO_GRILLA = CELDA / 4;
 const GRILLA_X0 = MARGEN_IZQ + CELDA / 2;
 const GRILLA_Y0 = yRiel(0) + 4 + (ALTO_DISP - 8) * 0.13;   // tornillos de arriba del primer riel
-function snapGrilla(v, origen){ return origen + Math.round((v-origen)/PASO_GRILLA)*PASO_GRILLA; }
-function snapGrillaX(v){ return snapGrilla(v, GRILLA_X0); }
-function snapGrillaY(v){ return snapGrilla(v, GRILLA_Y0); }
+// en vertical el paso divide en 5 la distancia entre los tornillos de arriba
+// y de abajo (0.74 del alto), así los dos caen sobre la grilla
+const PASO_GRILLA_Y = (ALTO_DISP - 8) * 0.74 / 5;
+function snapGrilla(v, origen, paso){ return origen + Math.round((v-origen)/paso)*paso; }
+function snapGrillaX(v){ return snapGrilla(v, GRILLA_X0, PASO_GRILLA); }
+function snapGrillaY(v){ return snapGrilla(v, GRILLA_Y0, PASO_GRILLA_Y); }
 // x (dentro de la caja del dispositivo, ancho w) del tornillo del polo i:
 // el centro de SU boca, no el de una fracción de la caja -- así los polos
 // de cualquier térmica quedan en la misma retícula de CELDA px.
@@ -943,7 +946,7 @@ function clipSegmentoACaja(p0, p1, caja){
   if(ya >= yb) return null;
   return p0[1] <= p1[1] ? [[x,ya],[x,yb]] : [[x,yb],[x,ya]];
 }
-const LANE_SPACING = 2.6;
+const LANE_SPACING = 3.6;
 function separarParalelos(listaCables){
   const entradas = [];
   listaCables.forEach((c, ci) => {
@@ -969,10 +972,11 @@ function separarParalelos(listaCables){
   entradas.forEach((_,i) => { (clusters[raiz(i)] ||= []).push(i); });
   Object.values(clusters).forEach(miembros => {
     if(miembros.length < 2) return;
-    miembros.sort((i,j) => listaCables[entradas[i].ci].id < listaCables[entradas[j].ci].id ? -1 : 1);
-    const k = miembros.length;
+    // orden de creación: el primero queda donde se trazó y cada nuevo va a
+    // la derecha (o abajo, si el tramo es horizontal) del último del grupo
+    miembros.sort((i,j) => entradas[i].ci - entradas[j].ci);
     miembros.forEach((i, lane) => {
-      const e = entradas[i], off = (lane - (k-1)/2) * LANE_SPACING;
+      const e = entradas[i], off = lane * LANE_SPACING;
       const pts = listaCables[e.ci].pts;
       if(e.orient==='h'){ pts[e.si][1] += off; pts[e.si+1][1] += off; }
       else { pts[e.si][0] += off; pts[e.si+1][0] += off; }
@@ -1102,7 +1106,7 @@ function dibujarGrilla(ctx, anchoTotal, altoTotal){
   ctx.save();
   ctx.fillStyle = 'rgba(90,110,120,.22)';
   for(let x=GRILLA_X0 - Math.floor(GRILLA_X0/PASO_GRILLA)*PASO_GRILLA; x<=anchoTotal; x+=PASO_GRILLA)
-    for(let y=GRILLA_Y0 - Math.floor(GRILLA_Y0/PASO_GRILLA)*PASO_GRILLA; y<=altoTotal; y+=PASO_GRILLA){
+    for(let y=GRILLA_Y0 - Math.floor(GRILLA_Y0/PASO_GRILLA_Y)*PASO_GRILLA_Y; y<=altoTotal; y+=PASO_GRILLA_Y){
       ctx.beginPath(); ctx.arc(x, y, 1, 0, 7); ctx.fill();
     }
   ctx.restore();
@@ -1286,9 +1290,14 @@ function dibujarPendienteHerramienta(ctx, t){
     // sorpresas de "se veía derecho y salió en escuadra"
     const reales = [[a.x,a.y], ...herramienta.ruta];
     const pts = ortogonalizar(reales);
-    const cursorSnap = cursorMundo ? [snapGrillaX(cursorMundo.x), snapGrillaY(cursorMundo.y)] : null;
+    // si el cursor está sobre un pin, el tramo termina en el pin (igual que
+    // al hacer clic) y su propia térmica no cuenta como obstáculo
+    const pinBajoCursor = cursorMundo ? hitPin(t, cursorMundo) : null;
+    const pinPt = pinBajoCursor ? puntoConexionEndpoint(t, pinBajoCursor) : null;
+    const cursorSnap = pinPt ? [pinPt.x, pinPt.y]
+      : cursorMundo ? [snapGrillaX(cursorMundo.x), snapGrillaY(cursorMundo.y)] : null;
     const ptsConCursor = cursorSnap ? ortogonalizar([...reales, cursorSnap]) : pts;
-    const idsExcluir = idsDispositivoDeEndpoint(herramienta.paso1);
+    const idsExcluir = [...idsDispositivoDeEndpoint(herramienta.paso1), ...idsDispositivoDeEndpoint(pinBajoCursor)];
     const obstruida = rutaObstruida(t, ptsConCursor, idsExcluir);
     const colorTrazo = obstruida ? '#e0685a' : color;
     ctx.save();
