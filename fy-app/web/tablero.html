@@ -263,8 +263,8 @@ const BANDA = 46;            // aire arriba/abajo del riel, para que una
                               // de otra térmica para llegar a destino
 const MARGEN_PISO = 20;      // separación entre el piso de abajo y el de arriba
 const MARGEN_IZQ = 30;
-const MARGEN_SUP = 50;       // aire arriba de todo, para la franja de entradas de caño
-const MARGEN_INF = 50;       // aire abajo de todo, para la franja de salidas de caño
+const MARGEN_SUP = 110;      // aire arriba de todo, para la franja de entradas de caño
+const MARGEN_INF = 110;      // aire abajo de todo, para la franja de salidas de caño
 const MARGEN_DISP = 14;      // aire a cada lado de una térmica dentro de su rango de bocas
 const ALTURA_PISO = BANDA*2 + ALTO_DISP + MARGEN_PISO;
 function yPiso(piso){ return MARGEN_SUP + piso * ALTURA_PISO; }
@@ -278,12 +278,12 @@ function yRiel(piso){ return yPiso(piso) + BANDA; }
 // Los pines están en el centro de cada boca (ver xPoloLocal), así que la
 // grilla arranca en ese centro y su paso divide la boca en partes iguales:
 // todo pin cae exactamente sobre un punto de grilla, sea cual sea el paso.
-const PASO_GRILLA = CELDA / 4;
+const PASO_GRILLA = CELDA / 12;
 const GRILLA_X0 = MARGEN_IZQ + CELDA / 2;
 const GRILLA_Y0 = yRiel(0) + 4 + (ALTO_DISP - 8) * 0.13;   // tornillos de arriba del primer riel
-// en vertical el paso divide en 5 la distancia entre los tornillos de arriba
+// en vertical el paso divide en 15 la distancia entre los tornillos de arriba
 // y de abajo (0.74 del alto), así los dos caen sobre la grilla
-const PASO_GRILLA_Y = (ALTO_DISP - 8) * 0.74 / 5;
+const PASO_GRILLA_Y = (ALTO_DISP - 8) * 0.74 / 15;
 function snapGrilla(v, origen, paso){ return origen + Math.round((v-origen)/paso)*paso; }
 function snapGrillaX(v){ return snapGrilla(v, GRILLA_X0, PASO_GRILLA); }
 function snapGrillaY(v){ return snapGrilla(v, GRILLA_Y0, PASO_GRILLA_Y); }
@@ -889,26 +889,13 @@ function idsDispositivoDeEndpoint(ep){
   return (ep && ep.tipo==='pin') ? [ep.dispositivoId] : [];
 }
 function cajasObstaculo(t, idsExcluir){
-  const out = [];
-  for(let piso=0; piso<t.pisos; piso++){
-    const y = yRiel(piso), h = ALTO_DISP;
-    const xIzq = MARGEN_IZQ, xDer = MARGEN_IZQ + t.bocasPorPiso*CELDA;
-    // el agujero se ensancha medio paso de grilla de cada lado: un punto
-    // intermedio ya viene ajustado a la grilla (snapGrilla), y si el
-    // dispositivo es angosto (p.ej. la bornera, de una sola boca) ningún
-    // múltiplo de la grilla cae exactamente dentro de su columna real
-    const agujeros = (t.dispositivos||[])
-      .filter(d => d.piso===piso && idsExcluir.includes(d.id))
-      .map(d => { const c = cajaDispositivo(d); return [c.x - PASO_GRILLA/2, c.x+c.w + PASO_GRILLA/2]; })
-      .sort((a,b) => a[0]-b[0]);
-    let x = xIzq;
-    for(const [ax, bx] of agujeros){
-      if(ax > x) out.push({x, y, w:ax-x, h});
-      x = Math.max(x, bx);
-    }
-    if(x < xDer) out.push({x, y, w:xDer-x, h});
-  }
-  return out;
+  // sólo el cuerpo de cada térmica: por el hueco entre dos térmicas SÍ se
+  // puede pasar (y la grilla es lo bastante fina como para pasar varios
+  // cables por ahí). Las térmicas de origen/destino de esta conexión no
+  // cuentan: por su columna entra o sale su propio pin.
+  return (t.dispositivos||[])
+    .filter(d => d.piso!=null && !idsExcluir.includes(d.id))
+    .map(cajaDispositivo);
 }
 function segmentoCrucaCaja(p0, p1, caja){
   if(p0[1] === p1[1]){
@@ -1107,7 +1094,7 @@ function dibujarGrilla(ctx, anchoTotal, altoTotal){
   ctx.fillStyle = 'rgba(90,110,120,.22)';
   for(let x=GRILLA_X0 - Math.floor(GRILLA_X0/PASO_GRILLA)*PASO_GRILLA; x<=anchoTotal; x+=PASO_GRILLA)
     for(let y=GRILLA_Y0 - Math.floor(GRILLA_Y0/PASO_GRILLA_Y)*PASO_GRILLA_Y; y<=altoTotal; y+=PASO_GRILLA_Y){
-      ctx.beginPath(); ctx.arc(x, y, 1, 0, 7); ctx.fill();
+      ctx.fillRect(x-.6, y-.6, 1.2, 1.2);
     }
   ctx.restore();
 }
