@@ -293,6 +293,14 @@ function toast(m){const t=$('toast');t.textContent=m;t.style.display='block';
 const esc = s => (s==null?'':String(s)).replace(/[&<>"]/g,
   c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
+// todas las teclas de la caja de `id` (o sólo ese elemento si no es una llave con caja)
+function grupoDe(id){
+  const e = (obra.elementos||[]).find(x=>x.id===id);
+  if(!e) return [];
+  if(e.tipo==='llave' && e.cajaId)
+    return (obra.elementos||[]).filter(x => x.tipo==='llave' && x.cajaId===e.cajaId);
+  return [e];
+}
 const circuitoDe = id => (obra.circuitos||[]).find(c => (c.elementos||[]).includes(id));
 const colorDe = c => COLORES[(obra.circuitos||[]).findIndex(x=>x.id===c.id) % COLORES.length];
 function rotulo(e){
@@ -356,40 +364,32 @@ function pintarPlano(){
   if(!conPlano) return;
   dimensionar();
   let html = '';
-  // varias teclas de una misma caja (cajaId) se dibujan todas en el eje de la
-  // llave -- misma posicionPdfPt para todas -- y sus círculos quedan
-  // exactamente superpuestos: sólo se puede clickear la de más arriba y las
-  // demás quedan "sin asignar" para siempre. Se abren en un pequeño abanico
-  // para que cada tecla siga siendo clickeable por separado (el punto real,
-  // posicionPdfPt, no cambia -- sólo el dibujo).
-  const porCaja = new Map();
-  (obra.elementos||[]).forEach(e=>{
-    if(e.tipo==='llave' && e.cajaId){
-      if(!porCaja.has(e.cajaId)) porCaja.set(e.cajaId, []);
-      porCaja.get(e.cajaId).push(e);
-    }
-  });
-  const abanico = new Map();
-  porCaja.forEach(lista=>{
-    if(lista.length<2) return;
-    const R = 6;
-    lista.forEach((e,i)=>{
-      const ang = (i/lista.length)*Math.PI*2 - Math.PI/2;
-      abanico.set(e.id, {dx:Math.cos(ang)*R, dy:Math.sin(ang)*R});
-    });
-  });
+  // varias teclas de una misma caja (cajaId) son UNA sola caja: se dibuja un
+  // único marcador (con las letras al lado) y un clic opera sobre todas sus
+  // teclas juntas -- cada tecla sigue siendo un elemento aparte en los datos
+  const vistas = new Set();
   (obra.elementos||[]).forEach(e=>{
     if(!e.posicionPdfPt) return;
+    const grupo = grupoDe(e.id);
+    if(e.tipo==='llave' && e.cajaId){
+      if(vistas.has(e.cajaId)) return;
+      vistas.add(e.cajaId);
+    }
     const c = circuitoDe(e.id);
     const ok = elegible(e);
     const clase = c ? '' : (ok ? 'libre' : 'fuera');
     const relleno = c ? ` style="fill:${colorDe(c)};stroke:${colorDe(c)}"` : '';
-    const off = abanico.get(e.id);
-    const cx = e.posicionPdfPt.x + (off?off.dx:0), cy = e.posicionPdfPt.y + (off?off.dy:0);
-    html += `<circle class="el ${clase} ${marcados.has(e.id)?'marcado':''}"${relleno}
-      ${ok?'':'opacity="0.5"'} cx="${cx}" cy="${cy}"
-      r="${ok?3.6:2.4}" data-id="${e.id}"><title>${esc(rotulo(e))}${
+    const marcada = grupo.every(x => marcados.has(x.id));
+    const titulo = grupo.length > 1
+      ? `llave de ${grupo.length} teclas: ${grupo.map(x=>x.letra||'?').join(', ')}` : rotulo(e);
+    html += `<circle class="el ${clase} ${marcada?'marcado':''}"${relleno}
+      ${ok?'':'opacity="0.5"'} cx="${e.posicionPdfPt.x}" cy="${e.posicionPdfPt.y}"
+      r="${ok?3.6:2.4}" data-id="${e.id}"><title>${esc(titulo)}${
         c?' · '+esc(c.nombre):''}</title></circle>`;
+    if(grupo.length > 1)
+      html += `<text x="${e.posicionPdfPt.x+5}" y="${e.posicionPdfPt.y-4}"
+        style="font:600 7px 'IBM Plex Mono',monospace;fill:#7a4a06;pointer-events:none;paint-order:stroke;stroke:#fff;stroke-width:1.6px">${
+        esc(grupo.map(x=>x.letra||'?').join(','))}</text>`;
   });
   if(zona)
     html += `<rect class="zona" x="${Math.min(zona.x0,zona.x1)}" y="${Math.min(zona.y0,zona.y1)}"
@@ -410,19 +410,22 @@ async function clicElemento(id){
     if(!selCir){ toast('Elegí primero un circuito.'); return; }
     snapshot();
     const c = obra.circuitos.find(x=>x.id===selCir);
+    const ids = grupoDe(id).map(x=>x.id);
     if((c.elementos||[]).includes(id)){
-      c.elementos = c.elementos.filter(i=>i!==id);
+      c.elementos = c.elementos.filter(i=>!ids.includes(i));
       await actualizar(); toast('Sacado del circuito');
     } else {
-      obra.circuitos.forEach(o => o.elementos = (o.elementos||[]).filter(i=>i!==id));
-      c.elementos = [...(c.elementos||[]), id];
+      obra.circuitos.forEach(o => o.elementos = (o.elementos||[]).filter(i=>!ids.includes(i)));
+      c.elementos = [...(c.elementos||[]), ...ids];
       await actualizar();
       toast(elegible(e) ? 'Agregado a '+c.nombre
                          : 'Agregado a '+c.nombre+' (no es el tipo habitual -- queda marcado con ⚠ en la lista)');
     }
     return;
   }
-  marcados.has(id) ? marcados.delete(id) : marcados.add(id);
+  const ids = grupoDe(id).map(x=>x.id);
+  if(ids.every(i => marcados.has(i))) ids.forEach(i => marcados.delete(i));
+  else ids.forEach(i => marcados.add(i));
   pintarPlano(); pintarLista(); pintarAccion();
 }
 
