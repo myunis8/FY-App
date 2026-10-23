@@ -390,7 +390,7 @@ function pintarPlano(){
     const titulo = grupo.length > 1
       ? `llave de ${grupo.length} teclas: ${grupo.map(x=>{
           const cx_ = circuitoDe(x.id); return (x.letra||'?') + (cx_ ? ' ('+cx_.nombre+')' : ' (sin circuito)');
-        }).join(', ')}` + (mixta ? ' -- CAJA COMPARTIDA ENTRE CIRCUITOS' : '') : rotulo(e);
+        }).join(', ')}` + (mixta ? ' -- CAJA COMPARTIDA ENTRE CIRCUITOS' : '') + ' · tocá para elegir tecla por tecla' : rotulo(e);
     html += `<circle class="el ${clase} ${marcada?'marcado':''}"${relleno}${mixta?' stroke-dasharray="1.6 1.2"':''}
       ${ok?'':'opacity="0.5"'} cx="${e.posicionPdfPt.x}" cy="${e.posicionPdfPt.y}"
       r="${ok?3.6:2.4}" data-id="${e.id}"><title>${esc(titulo)}${
@@ -422,27 +422,37 @@ function pintarPlano(){
 function menuTeclas(id, ev){
   cerrarMenuTeclas();
   const grupo = grupoDe(id);
+  const individual = modo === 'individual';
   const m = document.createElement('div');
   m.id = 'menu-teclas';
-  m.style.cssText = `position:fixed;z-index:50;left:${Math.min(ev.clientX, innerWidth-230)}px;`
-    + `top:${Math.min(ev.clientY, innerHeight-40-grupo.length*34)}px;background:#fff;`
+  m.style.cssText = `position:fixed;z-index:50;left:${Math.min(ev.clientX, innerWidth-250)}px;`
+    + `top:${Math.max(8, Math.min(ev.clientY, innerHeight-70-grupo.length*34))}px;background:var(--panel);color:var(--ink);`
     + 'border:1px solid var(--line);border-radius:9px;box-shadow:0 6px 20px rgba(0,0,0,.18);'
-    + 'padding:6px;min-width:210px;font-size:.78rem';
+    + 'padding:6px;min-width:230px;font-size:.78rem';
   const c = obra.circuitos.find(x=>x.id===selCir);
   m.innerHTML = `<div style="color:var(--muted);font-size:.68rem;padding:2px 6px 5px">
-      Caja de ${grupo.length} teclas → ${esc(c ? c.nombre : '—')}</div>`
+      Caja de ${grupo.length} teclas · ${individual
+        ? 'tocá una para ponerla en <b>'+esc(c ? c.nombre : '—')+'</b>'
+        : 'tocá las que quieras marcar'}</div>`
     + grupo.map(x => {
         const cx_ = circuitoDe(x.id);
         return `<button class="btn sm" data-t="${x.id}" style="display:flex;width:100%;gap:8px;
-          margin-bottom:3px;justify-content:space-between"><b>Tecla ${esc(x.letra||'?')}</b>
+          margin-bottom:3px;justify-content:space-between${marcados.has(x.id)?';background:var(--green-soft)':''}">
+          <b>${marcados.has(x.id)?'✓ ':''}Tecla ${esc(x.letra||'?')}</b>
           <span style="color:${cx_?colorDe(cx_):'var(--muted)'}">${cx_?esc(cx_.nombre):'sin circuito'}</span></button>`;
       }).join('')
     + `<button class="btn sm primary" data-t="*" style="width:100%;margin-top:2px">Toda la caja</button>`;
   document.body.appendChild(m);
+  m.onclick = ev2 => ev2.stopPropagation();
   m.querySelectorAll('[data-t]').forEach(b => b.onclick = async ev2 => {
     ev2.stopPropagation();
     cerrarMenuTeclas();
-    await alternarEnCircuito(b.dataset.t === '*' ? grupo.map(x=>x.id) : [b.dataset.t], b.dataset.t === '*' ? id : b.dataset.t);
+    const todas = b.dataset.t === '*';
+    const ids = todas ? grupo.map(x=>x.id) : [b.dataset.t];
+    if(individual){ await alternarEnCircuito(ids, todas ? id : b.dataset.t); return; }
+    if(ids.every(i => marcados.has(i))) ids.forEach(i => marcados.delete(i));
+    else ids.forEach(i => marcados.add(i));
+    pintarPlano(); pintarLista(); pintarAccion();
   });
   setTimeout(() => document.addEventListener('click', cerrarMenuTeclas, {once:true}), 0);
 }
@@ -465,13 +475,12 @@ async function alternarEnCircuito(ids, refId){
   }
 }
 async function clicElemento(id, ev){
-  if(modo === 'individual'){
-    if(ev && grupoDe(id).length > 1){
-      if(!selCir){ toast('Elegí primero un circuito.'); return; }
-      return menuTeclas(id, ev);
-    }
-    return alternarEnCircuito(grupoDe(id).map(x=>x.id), id);
+  // una caja con varias teclas siempre abre el menú, para elegir tecla por tecla
+  if(ev && grupoDe(id).length > 1){
+    if(modo === 'individual' && !selCir){ toast('Elegí primero un circuito.'); return; }
+    return menuTeclas(id, ev);
   }
+  if(modo === 'individual') return alternarEnCircuito(grupoDe(id).map(x=>x.id), id);
   const ids = grupoDe(id).map(x=>x.id);
   if(ids.every(i => marcados.has(i))) ids.forEach(i => marcados.delete(i));
   else ids.forEach(i => marcados.add(i));
