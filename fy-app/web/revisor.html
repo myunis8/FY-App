@@ -221,9 +221,14 @@ function pintarCapa(){
   if(!obra.plano || !obra.plano.referencia) return;
   const capa = $('capa');
   let html = '';
+  // varias teclas de una misma caja (cajaId) comparten posicionPdfPt: se
+  // abren en un abanico al dibujarlas para que cada una se vea y se pueda
+  // tocar por separado (el punto real no cambia, sólo el dibujo)
+  const abanico = abanicoDeTeclas();
   (obra.elementos||[]).forEach(e=>{
     if(!visibles.has(e.tipo)) return;
-    const x = e.posicionPdfPt.x, y = e.posicionPdfPt.y;
+    const off = abanico.get(e.id);
+    const x = e.posicionPdfPt.x + (off?off.dx:0), y = e.posicionPdfPt.y + (off?off.dy:0);
     const dudoso = (Math.min(...Object.values(e.confianza||{simbolo:1}))||1) < 0.6;
     html += `<circle class="el ${e.tipo}${sel===e.id?' sel':''}${dudoso?' dudoso':''}"
       cx="${x}" cy="${y}" r="3.4" data-el="${e.id}"><title>${esc(rotulo(e))}</title></circle>`;
@@ -245,6 +250,57 @@ function pintarCapa(){
   capa.innerHTML = html;
   capa.querySelectorAll('[data-el]').forEach(n =>
     n.onclick = ev => { if(modo) return; ev.stopPropagation(); sel = n.dataset.el; pintarTodo(); });
+}
+
+function teclasDeCaja(caja){
+  return (obra.elementos||[]).filter(e => e.tipo==='llave' && caja && e.cajaId===caja);
+}
+function abanicoDeTeclas(){
+  const porCaja = new Map(), out = new Map();
+  (obra.elementos||[]).forEach(e => {
+    if(e.tipo==='llave' && e.cajaId){
+      if(!porCaja.has(e.cajaId)) porCaja.set(e.cajaId, []);
+      porCaja.get(e.cajaId).push(e);
+    }
+  });
+  porCaja.forEach(lista => {
+    if(lista.length < 2) return;
+    const R = 5;
+    lista.forEach((e,i) => {
+      const ang = (i/lista.length)*Math.PI*2 - Math.PI/2;
+      out.set(e.id, {dx: Math.cos(ang)*R, dy: Math.sin(ang)*R});
+    });
+  });
+  return out;
+}
+// "a,b" · "a-b" · "a b c" -> ['a','b','c'] (una letra minúscula por tecla)
+function parsearTeclas(txt){
+  return (txt||'').split(/[\s,\-–—]+/).map(x=>x.trim().toLowerCase()).filter(x=>/^[a-z]$/.test(x));
+}
+// Deja en la caja de `e` exactamente estas teclas: reusa las existentes en
+// orden, agrega las que faltan (en el mismo punto, misma caja) y quita las
+// que sobran. Así una caja de 2 o 3 teclas se carga de una sola vez.
+function aplicarTeclas(e, letras){
+  if(!e.cajaId) e.cajaId = e.id;
+  const caja = e.cajaId;
+  let lista = teclasDeCaja(caja);
+  lista = [e, ...lista.filter(x => x.id !== e.id)];
+  lista.forEach((x,i) => {
+    if(i < letras.length){ x.letra = letras[i]; x.revisadoPorUsuario = true; }
+  });
+  const sobran = lista.slice(letras.length);
+  if(letras.length){
+    obra.elementos = obra.elementos.filter(x => !sobran.includes(x));
+  }
+  for(let i = lista.length; i < letras.length; i++){
+    let n = i + 1, id;
+    do { id = `${e.id}-t${n++}`; } while(obra.elementos.some(x => x.id === id));
+    obra.elementos.push({
+      ...e, id, letra: letras[i], cajaId: caja, origen: 'manual',
+      revisadoPorUsuario: true, notas: ['Tecla agregada a mano en una caja con varias'],
+      confianza: {simbolo: 1, etiqueta: 1},
+    });
+  }
 }
 
 /* ---------- coordenadas del clic sobre el plano ---------- */
@@ -351,8 +407,9 @@ function pintarEditor(){
         <input id="e-alt" type="number" step="0.05" value="${e.alturaM??''}"></div>` : ''}
       ${e.tipo==='artefacto' ? `<div class="campo"><label for="e-nom">Letra</label>
         <input id="e-nom" maxlength="2" value="${esc(e.nombre??'')}"></div>` : ''}
-      ${e.tipo==='llave' ? `<div class="campo"><label for="e-let">Tecla</label>
-        <input id="e-let" maxlength="2" value="${esc(e.letra??'')}"></div>` : ''}
+      ${e.tipo==='llave' ? `<div class="campo"><label for="e-let">Teclas de la caja</label>
+        <input id="e-let" placeholder="a  ·  a,b  ·  a-b-c"
+          value="${esc(teclasDeCaja(e.cajaId).length ? teclasDeCaja(e.cajaId).map(x=>x.letra||'').join(', ') : (e.letra??''))}"></div>` : ''}
     </div>
     <div style="font-size:.74rem;color:var(--muted);margin-bottom:9px">
       ${e.tipoComando?`<span class="pastilla">${esc(e.tipoComando)}</span>`:''}
@@ -378,7 +435,9 @@ function pintarEditor(){
     e.nombre = ev.target.value.trim().toUpperCase() || null;
     e.interruptor = e.nombre ? e.nombre.toLowerCase() : null; tocado(); };
   if($('e-let')) $('e-let').onchange = ev => {
-    e.letra = ev.target.value.trim().toLowerCase() || null; tocado(); };
+    const letras = parsearTeclas(ev.target.value);
+    if(letras.length) aplicarTeclas(e, letras); else e.letra = null;
+    tocado(); };
   $('e-rev').onclick = () => { e.revisadoPorUsuario = !e.revisadoPorUsuario; pintarTodo(); revalidar(); };
   if($('e-borrar')) $('e-borrar').onclick = () => {
     obra.elementos = obra.elementos.filter(x => x.id !== e.id);
@@ -423,9 +482,11 @@ function colocarEn(xpt, ypt){
   let letra = null;
   if((pendiente.tipo||'toma') === 'artefacto' || (pendiente.tipo||'') === 'llave'){
     const t = prompt((pendiente.tipo==='llave'
-      ? 'Letra de la tecla (minúscula)' : 'Letra del artefacto (mayúscula)'), '');
+      ? 'Letra de la tecla (minúscula). Si la caja tiene varias, separalas con , o -  (ej: a,b)'
+      : 'Letra del artefacto (mayúscula)'), '');
     letra = (t||'').trim();
     if(!letra){ salirDeModo(); return; }
+    if(pendiente.tipo === 'llave' && !parsearTeclas(letra).length){ salirDeModo(); return; }
   }
   const nuevo = {
     id,
@@ -435,7 +496,7 @@ function colocarEn(xpt, ypt){
     etiquetaTexto: pendiente.etiquetaTexto || null,
     ...(pendiente.tipo === 'artefacto' ? {nombre: letra.toUpperCase(),
                                           interruptor: letra.toLowerCase()} : {}),
-    ...(pendiente.tipo === 'llave' ? {letra: letra.toLowerCase()} : {}),
+    ...(pendiente.tipo === 'llave' ? {letra: parsearTeclas(letra)[0], cajaId: id} : {}),
     posicionM: {x: +xm.toFixed(3), y: +ym.toFixed(3)},
     posicionPdfPt: {x: +xpt.toFixed(2), y: +ypt.toFixed(2)},
     origen: 'manual',
@@ -445,6 +506,10 @@ function colocarEn(xpt, ypt){
     notas: ['Puesta a mano: el plano no tiene el símbolo dibujado'],
   };
   obra.elementos.push(nuevo);
+  if(pendiente.tipo === 'llave'){
+    const todas = parsearTeclas(letra);
+    if(todas.length > 1) aplicarTeclas(nuevo, todas);
+  }
   // el aviso deja de tener sentido una vez colocada la caja
   const av = pendiente.aviso;
   if(av && obra.validacion)
