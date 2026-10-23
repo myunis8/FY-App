@@ -53,6 +53,7 @@ header .sub{font-size:.72rem;color:#9db2c7}
 .el.sel{stroke:#0e1c2e;stroke-width:2.4}
 .el.dudoso{stroke-dasharray:2 1.4}
 .marca-rev{fill:#fff;pointer-events:none}
+.letras-caja{font:600 7px 'IBM Plex Mono',monospace;fill:#7a4a06;pointer-events:none;paint-order:stroke;stroke:#fff;stroke-width:1.6px}
 .origen{stroke:#b3432f;stroke-width:1.6}
 
 aside{background:var(--panel);border-left:1px solid var(--line);overflow-y:auto;padding:16px}
@@ -221,17 +222,24 @@ function pintarCapa(){
   if(!obra.plano || !obra.plano.referencia) return;
   const capa = $('capa');
   let html = '';
-  // varias teclas de una misma caja (cajaId) comparten posicionPdfPt: se
-  // abren en un abanico al dibujarlas para que cada una se vea y se pueda
-  // tocar por separado (el punto real no cambia, sólo el dibujo)
-  const abanico = abanicoDeTeclas();
+  // una caja con varias teclas (mismo cajaId, mismo punto) es UNA sola caja:
+  // se dibuja un único marcador con las letras al lado, no uno por tecla
+  const vistas = new Set();
   (obra.elementos||[]).forEach(e=>{
     if(!visibles.has(e.tipo)) return;
-    const off = abanico.get(e.id);
-    const x = e.posicionPdfPt.x + (off?off.dx:0), y = e.posicionPdfPt.y + (off?off.dy:0);
+    let teclas = null;
+    if(e.tipo==='llave' && e.cajaId){
+      if(vistas.has(e.cajaId)) return;
+      vistas.add(e.cajaId);
+      teclas = teclasDeCaja(e.cajaId);
+    }
+    const x = e.posicionPdfPt.x, y = e.posicionPdfPt.y;
     const dudoso = (Math.min(...Object.values(e.confianza||{simbolo:1}))||1) < 0.6;
-    html += `<circle class="el ${e.tipo}${sel===e.id?' sel':''}${dudoso?' dudoso':''}"
-      cx="${x}" cy="${y}" r="3.4" data-el="${e.id}"><title>${esc(rotulo(e))}</title></circle>`;
+    const esSel = sel===e.id || (teclas && teclas.some(t => t.id===sel));
+    html += `<circle class="el ${e.tipo}${esSel?' sel':''}${dudoso?' dudoso':''}"
+      cx="${x}" cy="${y}" r="3.4" data-el="${e.id}"><title>${esc(rotulo(e, teclas))}</title></circle>`;
+    if(teclas && teclas.length > 1)
+      html += `<text class="letras-caja" x="${x+5}" y="${y-4}">${esc(teclas.map(t=>t.letra||'?').join(','))}</text>`;
     if(e.revisadoPorUsuario || e.origen==='manual')
       html += `<circle class="marca-rev" cx="${x}" cy="${y}" r="1.1"/>`;
   });
@@ -254,24 +262,6 @@ function pintarCapa(){
 
 function teclasDeCaja(caja){
   return (obra.elementos||[]).filter(e => e.tipo==='llave' && caja && e.cajaId===caja);
-}
-function abanicoDeTeclas(){
-  const porCaja = new Map(), out = new Map();
-  (obra.elementos||[]).forEach(e => {
-    if(e.tipo==='llave' && e.cajaId){
-      if(!porCaja.has(e.cajaId)) porCaja.set(e.cajaId, []);
-      porCaja.get(e.cajaId).push(e);
-    }
-  });
-  porCaja.forEach(lista => {
-    if(lista.length < 2) return;
-    const R = 5;
-    lista.forEach((e,i) => {
-      const ang = (i/lista.length)*Math.PI*2 - Math.PI/2;
-      out.set(e.id, {dx: Math.cos(ang)*R, dy: Math.sin(ang)*R});
-    });
-  });
-  return out;
 }
 // "a,b" · "a-b" · "a b c" -> ['a','b','c'] (una letra minúscula por tecla)
 function parsearTeclas(txt){
@@ -315,7 +305,9 @@ function aMetros(xpt, ypt){
   return [(xpt - r.origenPdfPt.x)/k, (r.origenPdfPt.y - ypt)/k];
 }
 
-function rotulo(e){
+function rotulo(e, teclas){
+  if(teclas && teclas.length > 1)
+    return `llave de ${teclas.length} teclas: ${teclas.map(t=>t.letra||'?').join(', ')}`;
   const p = [e.subtipo||e.tipo];
   if(e.nombre) p.push('“'+e.nombre+'”');
   if(e.letra) p.push('tecla '+e.letra);
@@ -438,9 +430,15 @@ function pintarEditor(){
     const letras = parsearTeclas(ev.target.value);
     if(letras.length) aplicarTeclas(e, letras); else e.letra = null;
     tocado(); };
-  $('e-rev').onclick = () => { e.revisadoPorUsuario = !e.revisadoPorUsuario; pintarTodo(); revalidar(); };
+  // una caja de varias teclas se revisa y se borra entera
+  const delCajaDe = x => (x.tipo==='llave' && x.cajaId) ? teclasDeCaja(x.cajaId) : [x];
+  $('e-rev').onclick = () => {
+    const nuevo = !e.revisadoPorUsuario;
+    delCajaDe(e).forEach(x => { x.revisadoPorUsuario = nuevo; });
+    pintarTodo(); revalidar(); };
   if($('e-borrar')) $('e-borrar').onclick = () => {
-    obra.elementos = obra.elementos.filter(x => x.id !== e.id);
+    const ids = new Set(delCajaDe(e).map(x => x.id));
+    obra.elementos = obra.elementos.filter(x => !ids.has(x.id));
     sel = null; pintarTodo(); revalidar(); toast('Caja borrada');
   };
 }
