@@ -226,6 +226,11 @@ const TIPOS = {
   ACU:{n:'Aire acondicionado', fam:'tomas_aa', sec:2.5, prot:20, max:6},
   OCE:{n:'Otros circuitos específicos', fam:'tomas_otro', sec:2.5, prot:20, max:12},
 };
+// Descripción con la que arranca cada circuito nuevo (es el rótulo de la
+// protección en el tablero y en la guía de tapa): el usuario sólo le agrega
+// de qué ambiente/artefacto es ("Iluminación" -> "Iluminación cocina")
+const DESCRIPCION_BASE = {IUG:'Iluminación', TUG:'Tomacorrientes', TUE:'Tomas de Uso Especial',
+  IUE:'Iluminación de Uso Especial', ACU:'Aire Acondicionado'};
 const SUB_ESPECIALES = ['toma_heladera','toma_horno','toma_microondas','toma_anafe',
   'toma_lavarropas','toma_lavavajillas','toma_termotanque'];
 function familiaDe(e){
@@ -380,16 +385,23 @@ function pintarPlano(){
     const clase = c ? '' : (ok ? 'libre' : 'fuera');
     const relleno = c ? ` style="fill:${colorDe(c)};stroke:${colorDe(c)}"` : '';
     const marcada = grupo.every(x => marcados.has(x.id));
+    const circs = new Set(grupo.map(x => (circuitoDe(x.id)||{}).id || ''));
+    const mixta = grupo.length > 1 && circs.size > 1;   // teclas de la caja repartidas en circuitos distintos
     const titulo = grupo.length > 1
-      ? `llave de ${grupo.length} teclas: ${grupo.map(x=>x.letra||'?').join(', ')}` : rotulo(e);
-    html += `<circle class="el ${clase} ${marcada?'marcado':''}"${relleno}
+      ? `llave de ${grupo.length} teclas: ${grupo.map(x=>{
+          const cx_ = circuitoDe(x.id); return (x.letra||'?') + (cx_ ? ' ('+cx_.nombre+')' : ' (sin circuito)');
+        }).join(', ')}` + (mixta ? ' -- CAJA COMPARTIDA ENTRE CIRCUITOS' : '') : rotulo(e);
+    html += `<circle class="el ${clase} ${marcada?'marcado':''}"${relleno}${mixta?' stroke-dasharray="1.6 1.2"':''}
       ${ok?'':'opacity="0.5"'} cx="${e.posicionPdfPt.x}" cy="${e.posicionPdfPt.y}"
       r="${ok?3.6:2.4}" data-id="${e.id}"><title>${esc(titulo)}${
         c?' · '+esc(c.nombre):''}</title></circle>`;
     if(grupo.length > 1)
       html += `<text x="${e.posicionPdfPt.x+5}" y="${e.posicionPdfPt.y-4}"
         style="font:600 7px 'IBM Plex Mono',monospace;fill:#7a4a06;pointer-events:none;paint-order:stroke;stroke:#fff;stroke-width:1.6px">${
-        esc(grupo.map(x=>x.letra||'?').join(','))}</text>`;
+        grupo.map((x,i)=>{
+          const cx_ = circuitoDe(x.id);
+          return `<tspan${cx_?` style="fill:${colorDe(cx_)}"`:''}>${esc(x.letra||'?')}</tspan>${i<grupo.length-1?',':''}`;
+        }).join('')}${mixta?' ⚡':''}</text>`;
   });
   if(zona)
     html += `<rect class="zona" x="${Math.min(zona.x0,zona.x1)}" y="${Math.min(zona.y0,zona.y1)}"
@@ -399,29 +411,66 @@ function pintarPlano(){
   $('capa').innerHTML = html;
   $('capa').querySelectorAll('[data-id]').forEach(n => n.onclick = ev => {
     ev.stopPropagation();
-    clicElemento(n.dataset.id);
+    clicElemento(n.dataset.id, ev);
   });
 }
 /* modo individual: un clic agrega o saca del circuito activo, al toque.
    modo zona: un clic marca/desmarca para el lote (se confirma con el botón). */
-async function clicElemento(id){
-  const e = (obra.elementos||[]).find(x=>x.id===id);
+/* caja con varias teclas en modo individual: un menú deja elegir tecla por
+   tecla (así una misma caja puede quedar repartida entre circuitos) o toda
+   la caja de una vez */
+function menuTeclas(id, ev){
+  cerrarMenuTeclas();
+  const grupo = grupoDe(id);
+  const m = document.createElement('div');
+  m.id = 'menu-teclas';
+  m.style.cssText = `position:fixed;z-index:50;left:${Math.min(ev.clientX, innerWidth-230)}px;`
+    + `top:${Math.min(ev.clientY, innerHeight-40-grupo.length*34)}px;background:#fff;`
+    + 'border:1px solid var(--line);border-radius:9px;box-shadow:0 6px 20px rgba(0,0,0,.18);'
+    + 'padding:6px;min-width:210px;font-size:.78rem';
+  const c = obra.circuitos.find(x=>x.id===selCir);
+  m.innerHTML = `<div style="color:var(--muted);font-size:.68rem;padding:2px 6px 5px">
+      Caja de ${grupo.length} teclas → ${esc(c ? c.nombre : '—')}</div>`
+    + grupo.map(x => {
+        const cx_ = circuitoDe(x.id);
+        return `<button class="btn sm" data-t="${x.id}" style="display:flex;width:100%;gap:8px;
+          margin-bottom:3px;justify-content:space-between"><b>Tecla ${esc(x.letra||'?')}</b>
+          <span style="color:${cx_?colorDe(cx_):'var(--muted)'}">${cx_?esc(cx_.nombre):'sin circuito'}</span></button>`;
+      }).join('')
+    + `<button class="btn sm primary" data-t="*" style="width:100%;margin-top:2px">Toda la caja</button>`;
+  document.body.appendChild(m);
+  m.querySelectorAll('[data-t]').forEach(b => b.onclick = async ev2 => {
+    ev2.stopPropagation();
+    cerrarMenuTeclas();
+    await alternarEnCircuito(b.dataset.t === '*' ? grupo.map(x=>x.id) : [b.dataset.t], b.dataset.t === '*' ? id : b.dataset.t);
+  });
+  setTimeout(() => document.addEventListener('click', cerrarMenuTeclas, {once:true}), 0);
+}
+function cerrarMenuTeclas(){ const m = $('menu-teclas'); if(m) m.remove(); }
+
+async function alternarEnCircuito(ids, refId){
+  if(!selCir){ toast('Elegí primero un circuito.'); return; }
+  snapshot();
+  const c = obra.circuitos.find(x=>x.id===selCir);
+  const e = (obra.elementos||[]).find(x=>x.id===refId);
+  if((c.elementos||[]).includes(refId)){
+    c.elementos = c.elementos.filter(i=>!ids.includes(i));
+    await actualizar(); toast('Sacado del circuito');
+  } else {
+    obra.circuitos.forEach(o => o.elementos = (o.elementos||[]).filter(i=>!ids.includes(i)));
+    c.elementos = [...(c.elementos||[]), ...ids];
+    await actualizar();
+    toast(elegible(e) ? 'Agregado a '+c.nombre
+                       : 'Agregado a '+c.nombre+' (no es el tipo habitual -- queda marcado con ⚠ en la lista)');
+  }
+}
+async function clicElemento(id, ev){
   if(modo === 'individual'){
-    if(!selCir){ toast('Elegí primero un circuito.'); return; }
-    snapshot();
-    const c = obra.circuitos.find(x=>x.id===selCir);
-    const ids = grupoDe(id).map(x=>x.id);
-    if((c.elementos||[]).includes(id)){
-      c.elementos = c.elementos.filter(i=>!ids.includes(i));
-      await actualizar(); toast('Sacado del circuito');
-    } else {
-      obra.circuitos.forEach(o => o.elementos = (o.elementos||[]).filter(i=>!ids.includes(i)));
-      c.elementos = [...(c.elementos||[]), ...ids];
-      await actualizar();
-      toast(elegible(e) ? 'Agregado a '+c.nombre
-                         : 'Agregado a '+c.nombre+' (no es el tipo habitual -- queda marcado con ⚠ en la lista)');
+    if(ev && grupoDe(id).length > 1){
+      if(!selCir){ toast('Elegí primero un circuito.'); return; }
+      return menuTeclas(id, ev);
     }
-    return;
+    return alternarEnCircuito(grupoDe(id).map(x=>x.id), id);
   }
   const ids = grupoDe(id).map(x=>x.id);
   if(ids.every(i => marcados.has(i))) ids.forEach(i => marcados.delete(i));
@@ -520,7 +569,7 @@ function pintarCircuitos(){
           esc(noHabituales.map(e=>rotulo(e)).join(', '))}">⚠ ${noHabituales.length} elemento(s) no son del
           tipo habitual para ${esc(regla.n||c.tipo)} -- revisá si corresponde armar un circuito aparte.</div>` : ''}
       <div class="rejilla">
-        <div><label>Tipo</label><select data-campo="tipo" data-cir="${c.id}">
+        <div><label>Tipo</label><select data-campo="tipo" data-cir="${c.id}" data-anterior="${c.tipo}">
           ${Object.keys(TIPOS).map(t=>`<option ${t===c.tipo?'selected':''}>${t}</option>`).join('')}
         </select></div>
         <div><label>mm²</label><select data-campo="seccionMm2" data-cir="${c.id}">
@@ -565,6 +614,10 @@ function pintarCircuitos(){
       if(campo === 'tipo'){
         const r = TIPOS[c.tipo];
         c.seccionMm2 = r.sec; c.proteccionA = r.prot;
+        // si la descripción todavía es la de base del tipo anterior (o está
+        // vacía) se actualiza; si el usuario ya la completó, no se toca
+        const viejaBase = DESCRIPCION_BASE[n.dataset.anterior] || '';
+        if(!c.notas || c.notas === viejaBase) c.notas = DESCRIPCION_BASE[c.tipo] || '';
       }
       actualizar();
     };
@@ -690,7 +743,8 @@ document.querySelectorAll('[data-nuevo]').forEach(b => b.onclick = () => {
   const n = obra.circuitos.filter(c=>c.tipo===tipo).length + 1;
   const r = TIPOS[tipo];
   const c = {id:'cir_'+Date.now().toString(36), nombre:tipo+n, tipo,
-             seccionMm2:r.sec, proteccionA:r.prot, elementos:[], tableroId:null, notas:''};
+             seccionMm2:r.sec, proteccionA:r.prot, elementos:[], tableroId:null,
+             notas:DESCRIPCION_BASE[tipo]||''};
   obra.circuitos.push(c); selCir = c.id; marcados.clear();
   actualizar();
 });

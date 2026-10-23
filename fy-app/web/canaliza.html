@@ -432,6 +432,16 @@ function mergeCircuitosExtraidos(proyecto, circuitosExtraidos){
 // propósito. Devuelve cuántas cajas nuevas sumó.
 function mergeCajasExtraidas(proyecto, nodosExtraidos){
   const existentes = new Set((proyecto.nodes||[]).map(n=>n.id));
+  // la señal de "caja compartida entre circuitos" se mantiene al día en las
+  // cajas ya guardadas, sin pisar una nota que el usuario haya escrito
+  const MARCA = '⚠ Caja compartida:';
+  for(const ext of nodosExtraidos||[]){
+    const ya = (proyecto.nodes||[]).find(n=>n.id===ext.id);
+    if(!ya) continue;
+    const nota = ya.note || '';
+    if(ext.circuitIds){ ya.circuitIds = ext.circuitIds; if(!nota || nota.startsWith(MARCA)) ya.note = ext.note; }
+    else if(ya.circuitIds){ delete ya.circuitIds; if(nota.startsWith(MARCA)) ya.note = ''; }
+  }
   const nuevas = (nodosExtraidos||[]).filter(n=>!existentes.has(n.id));
   if(nuevas.length) proyecto.nodes = [...(proyecto.nodes||[]), ...nuevas];
   return nuevas.length;

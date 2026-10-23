@@ -203,6 +203,30 @@ def eventos_ganancia(obra: dict) -> list[dict]:
     return [{"el": e["el"], "monto": round(e["monto"], 2)} for e in eventos if round(e["monto"], 2)]
 
 
+def actualizar_precios(obra: dict) -> list[dict]:
+    """Vuelve a tomar de la lista de precios de hoy el precio unitario de
+    cada línea que viene de ella (las que tienen `precioId`): trabajos,
+    extras y adicional. Las líneas cargadas a mano sin ítem de lista no se
+    tocan. Devuelve las que cambiaron, con el precio anterior y el nuevo,
+    para poder informar qué se movió."""
+    pres = obra.setdefault("presupuesto", {})
+    hoy = precios_mod.vigente_por_id()
+    cambios = []
+    for seccion in ("items", "extras", "diferencia"):
+        for it in pres.get(seccion) or []:
+            ref = hoy.get(it.get("precioId"))
+            if ref is None:
+                continue
+            nuevo = float(ref.get("precio") or 0)
+            viejo = float(it.get("precioUnitario") or 0)
+            if abs(nuevo - viejo) > 0.005:
+                cambios.append({"item": it.get("item"), "antes": viejo, "ahora": nuevo})
+                it["precioUnitario"] = nuevo
+            it.pop("congelado", None)      # vuelve a seguir la lista
+    pres["listaPreciosEl"] = precios_mod.leer().get("actualizadoEl")
+    return cambios
+
+
 def congelar(obra: dict, usuario: str = "") -> dict:
     """Deja constancia de con qué lista de precios se armó."""
     pres = obra.setdefault("presupuesto", {})

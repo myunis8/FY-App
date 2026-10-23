@@ -407,21 +407,34 @@ class Handler(BaseHTTPRequestHandler):
                                    if i.get("origen") != "computo_extra"]
                 obra["presupuesto"]["extras"] = extras_manuales + sug_extra
                 obra["presupuesto"]["avisosPreciosExtra"] = avisos_extra
+            cambios_precios = None
+            if cuerpo.get("actualizarPrecios"):
+                cambios_precios = pres_mod.actualizar_precios(obra)
+                if obra["presupuesto"].get("congeladoEl"):
+                    # estaba congelado: se vuelve a congelar, ahora con los precios de hoy
+                    pres_mod.congelar(obra, cfg.get("usuario", ""))
+                    for seccion in ("items", "extras", "diferencia"):
+                        for it in obra["presupuesto"].get(seccion) or []:
+                            it["congelado"] = True
             if cuerpo.get("congelar"):
                 pres_mod.congelar(obra, cfg.get("usuario", ""))
                 for it in obra["presupuesto"].get("items") or []:
                     it["congelado"] = True
             if cuerpo.get("guardar"):
                 almacen.guardar_obra(obra, cfg.get("usuario", ""), modulo="Presupuesto",
-                                     resumen="Congeló precios" if cuerpo.get("congelar") else "Guardó cambios")
+                                     resumen="Congeló precios" if cuerpo.get("congelar") else
+                                     "Actualizó precios a la lista de hoy" if cuerpo.get("actualizarPrecios")
+                                     else "Guardó cambios")
             return self._json({
                 "ok": True,
+                "preciosActualizados": cambios_precios,
                 "presupuesto": obra.get("presupuesto") or {},
                 "cantidades": pres_mod.cantidades(obra),
                 "cantidadesExtra": pres_mod.cantidades(obra, extra=True),
                 "totales": pres_mod.totales(obra.get("presupuesto") or {}, obra.get("red")),
                 "comparacion": precios_mod.comparar(
-                    (obra.get("presupuesto") or {}).get("items") or []),
+                    [i for sec in ("items", "extras", "diferencia")
+                     for i in (obra.get("presupuesto") or {}).get(sec) or []]),
             })
 
         if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "materiales":
