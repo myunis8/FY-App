@@ -344,7 +344,7 @@ table.t input:focus{outline:none;border-color:var(--accent);background:var(--pan
 
   <h2 style="margin-top:20px;font-size:13px">Límites y cómputo</h2>
   <div class="f3" style="margin-top:8px">
-    <div><label class="f" for="rOct">Caños máx. por caja octogonal</label><input class="f mono" id="rOct" type="number" min="1" value="4"></div>
+    <div><label class="f" for="rOct">Caños máx. por caja octogonal</label><input class="f mono" id="rOct" type="number" min="1" value="8"></div>
     <div><label class="f" for="rRec">Caños máx. por caja rectangular</label><input class="f mono" id="rRec" type="number" min="1" value="3"></div>
     <div><label class="f" for="rLen">Aviso de tramo largo (m)</label><input class="f mono" id="rLen" type="number" min="1" value="25"></div>
   </div>
@@ -832,7 +832,7 @@ const S = {
   tool:"select",
   view:{x:0,y:0,z:1},
   draft:null, calib:null,
-  rules:{cap:JSON.parse(JSON.stringify(CAP0)), maxOct:4, maxRect:3, longRun:25, boxRun:5, waste:10, spare:15},
+  rules:{cap:JSON.parse(JSON.stringify(CAP0)), maxOct:8, maxRect:3, longRun:25, boxRun:5, waste:10, spare:15},
   z:Object.assign({}, Z0),
   show:{labels:true, lens:true, z:false},
   hiddenCircuits:new Set(),                  // ids de circuitos ocultos en el plano
@@ -1492,6 +1492,87 @@ function offsetPoly(pts, d){
   return out;
 }
 
+/* ---- caja octogonal: 8 lados = 8 puntos de conexión (uno por caño) ----
+   Un caño que llega a una octogonal se engancha al LADO que mira hacia donde
+   va (ángulos de 45°: 0 = derecha, 1 = abajo-derecha, 2 = abajo ... 7 =
+   arriba-derecha). Dos caños no comparten lado mientras haya uno libre. Los
+   datos de los tramos siguen terminando en el centro de la caja -- el lado se
+   calcula al dibujar (la caja se dibuja de tamaño fijo en pantalla, así que
+   su tamaño en el plano depende del zoom) o se fija a mano con r.portA/portB. */
+const OCT_LADOS = ["Derecha","Abajo-derecha","Abajo","Abajo-izquierda","Izquierda","Arriba-izquierda","Arriba","Arriba-derecha"];
+function octApotema(z){ return (7/z)*1.15*Math.cos(Math.PI/8); }
+function octLadoPunto(n, k, z){
+  const a = k*Math.PI/4, ap = octApotema(z);
+  return {x:n.x+Math.cos(a)*ap, y:n.y+Math.sin(a)*ap};
+}
+function difAngulo(a, b){
+  let d = (a-b) % (2*Math.PI);
+  if(d > Math.PI) d -= 2*Math.PI;
+  if(d < -Math.PI) d += 2*Math.PI;
+  return Math.abs(d);
+}
+// extremos de un caño físico (grupo) que terminan en una octogonal
+function extremosOct(grp){
+  const r0 = grp.runs[0], p = r0.pts, out = [];
+  if(p.length<2) return out;
+  [[r0.a,0],[r0.b,1]].forEach(([nid,end])=>{
+    const n = nid ? nodeById(nid) : null;
+    if(!n || n.kind!=="oct") return;
+    const adj = end===0 ? p[1] : p[p.length-2];
+    let manual = null;
+    for(const x of grp.runs){
+      const v = x.a===nid ? x.portA : (x.b===nid ? x.portB : null);
+      if(v!=null){ manual = v; break; }
+    }
+    out.push({key:grp.key+"|"+end, nid, end, ang:Math.atan2(adj.y-n.y, adj.x-n.x), manual});
+  });
+  return out;
+}
+function asignarPuertos(groups){
+  const porNodo = new Map();
+  for(const grp of groups.values())
+    for(const e of extremosOct(grp)){
+      if(!porNodo.has(e.nid)) porNodo.set(e.nid, []);
+      porNodo.get(e.nid).push(e);
+    }
+  const out = new Map();
+  for(const lista of porNodo.values()){
+    const libres = new Set([0,1,2,3,4,5,6,7]);
+    for(const e of lista) if(e.manual!=null){ out.set(e.key, e.manual); libres.delete(e.manual); }
+    const pend = lista.filter(e=>e.manual==null);
+    const pares = [];
+    pend.forEach((e,i)=>{ for(let k=0;k<8;k++) pares.push({d:difAngulo(e.ang, k*Math.PI/4), i, k}); });
+    pares.sort((a,b)=> a.d-b.d || a.i-b.i || a.k-b.k);
+    const hecho = new Set();
+    for(const q of pares){
+      if(hecho.has(q.i) || !libres.has(q.k)) continue;
+      hecho.add(q.i); libres.delete(q.k); out.set(pend[q.i].key, q.k);
+    }
+    // más de 8 caños en una misma caja: los que sobran comparten el lado más cercano
+    pend.forEach((e,i)=>{
+      if(hecho.has(i)) return;
+      let mk=0, md=Infinity;
+      for(let k=0;k<8;k++){ const d=difAngulo(e.ang,k*Math.PI/4); if(d<md){ md=d; mk=k; } }
+      out.set(e.key, mk);
+    });
+  }
+  return out;
+}
+// trazado de un caño físico tal como se DIBUJA: sus extremos en octogonales
+// salen del lado que les toca, no del centro de la caja
+function puntosDeDibujo(grp, puertos, z){
+  const r0 = grp.runs[0], p = r0.pts.map(q=>({x:q.x, y:q.y}));
+  if(p.length<2 || !puertos) return p;
+  [[r0.a,0],[r0.b,1]].forEach(([nid,end])=>{
+    const n = nid ? nodeById(nid) : null;
+    if(!n || n.kind!=="oct") return;
+    const k = puertos.get(grp.key+"|"+end);
+    if(k==null) return;
+    p[end ? p.length-1 : 0] = octLadoPunto(n, k, z);
+  });
+  return p;
+}
+
 function condWidth(section){
   if(section>=10) return 4.4;
   if(section>=6)  return 3.7;
@@ -1500,8 +1581,8 @@ function condWidth(section){
   return 1.4;
 }
 
-function drawConduit(g, grp, bad, z, vis, detailed){
-  let base = grp.runs[0].pts;
+function drawConduit(g, grp, bad, z, vis, detailed, puertos){
+  let base = puntosDeDibujo(grp, puertos, z);
   let items, n0, pipeW;
   if(detailed){
     items = conduitConductors(vis);
@@ -1581,6 +1662,7 @@ function drawScene(g, opt){
 
   // --- caños (agrupados) y cables
   const groups = conduitGroups();
+  const puertos = asignarPuertos(groups);
   for(const grp of groups.values()){
     // en las hojas detalladas por circuito, si el caño es compartido con otros
     // circuitos mostramos también SUS conductores (son los tramos más congestionados)
@@ -1590,7 +1672,7 @@ function drawScene(g, opt){
       : grp.runs.filter(r=> only ? r.circuit===only : isCiVisible(r.circuit));
     if(!vis.length) continue;
     const bad = vis.some(r=>problems.has(r.id)) || problems.has(grp.key);
-    drawConduit(g, grp, bad, z, vis, detailed);
+    drawConduit(g, grp, bad, z, vis, detailed, puertos);
   }
 
   // --- etiquetas sobre el caño
@@ -1653,7 +1735,7 @@ function drawScene(g, opt){
   }
 
   // --- nodos
-  const enRuteo = S.tool==="run" ? activeCi() : null;
+  const enRuteo = (S.tool==="run" || S.tool==="directo") ? activeCi() : null;
   for(const n of S.nodes){
     if(!nodeVisible(n, only)) continue;
     const bad = problems.has(n.id);
@@ -1705,6 +1787,16 @@ function drawScene(g, opt){
       }
       g.closePath(); g.fill(); g.stroke();
       drawDevice(g, n.device, R, z);
+      // los 8 lados son los 8 puntos de conexión: se marcan mientras se rutea
+      // o con la caja seleccionada (no en las hojas exportadas)
+      if(opt.z==null && (S.tool==="run" || S.tool==="directo" || (S.sel && S.sel.t==="node" && S.sel.id===n.id))){
+        const ap = octApotema(z);
+        g.save(); g.fillStyle = "#a9552a";
+        for(let k=0;k<8;k++){
+          g.beginPath(); g.arc(Math.cos(k*Math.PI/4)*ap, Math.sin(k*Math.PI/4)*ap, 1.8/z, 0, 7); g.fill();
+        }
+        g.restore();
+      }
     } else {
       g.beginPath(); g.rect(-R,-R*.78,R*2,R*1.56); g.fill(); g.stroke();
       drawDevice(g, n.device, R, z);
@@ -1898,7 +1990,7 @@ function render(){
   }
 
   // snap highlight
-  if((S.tool==="run") && S.hoverNode){
+  if((S.tool==="run" || S.tool==="directo") && S.hoverNode){
     ctx.save(); ctx.strokeStyle="#a9552a"; ctx.lineWidth=2/S.view.z;
     ctx.beginPath(); ctx.arc(S.hoverNode.x,S.hoverNode.y,14/S.view.z,0,7); ctx.stroke(); ctx.restore();
   }
@@ -1918,6 +2010,7 @@ const TOOLS = [
   {id:"insp",   n:"Caja de inspección", k:"I", g:'<svg width="14" height="14" viewBox="0 0 16 16"><rect x="2" y="2" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>'},
   {id:"automatico",n:"Automático de tanque", k:"A", g:'<svg width="14" height="14" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 4.5v3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M8 7.5l-2 3.5h4z" fill="currentColor"/></svg>'},
   {id:"run",    n:"Tramo de caño", k:"C", g:'<svg width="14" height="14" viewBox="0 0 16 16"><path d="M2 12h5V4h7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>'},
+  {id:"directo", n:"Tramo directo (recto)", k:"D", g:'<svg width="14" height="14" viewBox="0 0 16 16"><path d="M2.5 13.5L13.5 2.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="2.5" cy="13.5" r="1.6" fill="currentColor"/><circle cx="13.5" cy="2.5" r="1.6" fill="currentColor"/></svg>'},
   {id:"calib",  n:"Calibrar escala", k:"K", g:'<svg width="14" height="14" viewBox="0 0 16 16"><path d="M2 8h12M2 5.5v5M14 5.5v5M6 6.5v3M10 6.5v3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>'}
 ];
 
@@ -1931,6 +2024,7 @@ const HINTS = {
   insp:"Clic para ubicar una <b>caja de inspección</b>, para derivaciones grandes donde conviene dejar tapa accesible. Elegí el tamaño desde el panel derecho.",
   automatico:"Clic para ubicar el <b>automático</b> (flotante) del tanque. Elegí qué tanque y qué contacto (NC/NA) usa desde el panel derecho, y conectalo con un tramo de un circuito BOM.",
   run:"Clic en una caja para arrancar, clic para cada quiebre (siempre en escuadra), y clic en otra caja para cerrar. <b>Esc</b> cancela · <b>Enter</b> corta suelto.",
+  directo:"Clic en una caja para arrancar y clic en otra para cerrar: el caño va <b>en línea recta</b> (en diagonal si hace falta), sin codos a 90°. Clics en el vacío agregan quiebres libres. En una octogonal se engancha al lado que mira hacia el otro extremo. <b>Esc</b> cancela · <b>Enter</b> corta suelto.",
   calib:"Marcá los <b>dos extremos de una cota conocida</b> del plano. Después ingresás cuánto mide en la realidad."
 };
 
@@ -2029,18 +2123,19 @@ cv.addEventListener("pointerdown", e=>{
     refreshAll(); return;
   }
 
-  if(S.tool==="run"){
+  if(S.tool==="run" || S.tool==="directo"){
+    const libre = S.tool==="directo";
     const c = activeCi();
     if(!c){ alert("Creá al menos un circuito antes de dibujar."); return; }
     const hit = findNode(w);
     if(!S.draft){
-      const p = hit ? {x:hit.x,y:hit.y} : orthoPoint(w);
-      S.draft = {circuit:c.id, pts:[p], a:hit?hit.id:null, cursor:null};
+      const p = hit ? {x:hit.x,y:hit.y} : (libre ? snapToGrid(w) : orthoPoint(w));
+      S.draft = {circuit:c.id, pts:[p], a:hit?hit.id:null, cursor:null, libre};
     } else if(hit){
-      S.draft.pts.push(...draftHopTo({x:hit.x,y:hit.y}));
+      S.draft.pts.push(...(libre ? [{x:hit.x,y:hit.y}] : draftHopTo({x:hit.x,y:hit.y})));
       finishRun(hit.id); return;
     } else {
-      S.draft.pts.push(orthoPoint(w));
+      S.draft.pts.push(libre ? snapToGrid(w) : orthoPoint(w));
     }
     render(); return;
   }
@@ -2122,10 +2217,14 @@ cv.addEventListener("pointermove", e=>{
     }
     render(); scheduleRefresh(); return;
   }
-  if(S.tool==="run"){
+  if(S.tool==="run" || S.tool==="directo"){
     const hit = findNode(w);
     S.hoverNode = hit;
-    if(S.draft) S.draft.cursor = hit ? draftHopTo({x:hit.x,y:hit.y}) : [orthoPoint(w)];
+    if(S.draft){
+      S.draft.cursor = S.tool==="directo"
+        ? [hit ? {x:hit.x,y:hit.y} : snapToGrid(w)]
+        : (hit ? draftHopTo({x:hit.x,y:hit.y}) : [orthoPoint(w)]);
+    }
     render(); return;
   }
   if(S.tool==="calib" && S.calib && S.calib.a && !S.calib.b){
@@ -2177,7 +2276,7 @@ function finishRun(bId){
   pushUndo();
   const c = ciById(d.circuit);
   const r = {id:uid("r"), circuit:d.circuit, pts:d.pts.map(p=>({x:p.x,y:p.y})),
-    a:d.a, b:bId, route:"techo", share:true, dia:DEF_DIA,
+    a:d.a, b:bId, route:"techo", share:true, dia:DEF_DIA, ...(d.libre ? {libre:true} : {}),
     cables: KINDS_CON_TRAZADO.has(c.kind) ? 0 : c.cables, note:""};
   S.runs.push(r);
   // si se suma a un caño existente, adopta su medida actual -- pero no la
@@ -2655,6 +2754,14 @@ function paintProp(){
       <div><label class="f">Circuito</label><select class="f" id="pCi">${
         S.circuits.map(x=>`<option value="${x.id}"${x.id===r.circuit?" selected":""}>${esc(x.name)}</option>`).join("")}</select></div>
     </div>
+    ${[["a", r.a, "portA"],["b", r.b, "portB"]].map(([ext, nid, campo])=>{
+      const nn = nid ? nodeById(nid) : null;
+      if(!nn || nn.kind!=="oct") return "";
+      const auto = g ? asignarPuertos(conduitGroups()).get(g.key+"|"+(g.runs[0].a===nid ? 0 : 1)) : null;
+      return `<div style="margin-top:6px"><label class="f">Lado de la caja ${esc(nn.label)}</label>
+        <select class="f" data-lado="${campo}"><option value="">Automático (${OCT_LADOS[auto!=null?auto:0].toLowerCase()})</option>${
+          OCT_LADOS.map((l,k)=>`<option value="${k}"${r[campo]===k?" selected":""}>${l}</option>`).join("")}</select></div>`;
+    }).join("")}
     ${(r.route||"techo")==="altura"?`<div style="margin-top:6px"><label class="f">Altura del caño (m)</label>
       <input class="f mono" id="pAltura" type="text" inputmode="decimal" value="${fmt(r.alturaM!=null?r.alturaM:ALTURA_DEFAULT_M,2)}"></div>`:""}
     <label class="chk" style="margin-top:8px"><input type="checkbox" id="pSh"${r.share!==false?" checked":""}>
@@ -2687,6 +2794,18 @@ function paintProp(){
     };
     $("#pCab").onblur = refreshAll;
   }
+  el.querySelectorAll("[data-lado]").forEach(sel=> sel.onchange = e=>{
+    // el lado vale para todo el caño físico (todos los tramos que comparten caño)
+    const campo = e.target.dataset.lado, v = e.target.value==="" ? null : parseInt(e.target.value,10);
+    const nid = campo==="portA" ? r.a : r.b;
+    pushUndo();
+    for(const x of (g ? g.runs : [r])){
+      const c2 = x.a===nid ? "portA" : (x.b===nid ? "portB" : null);
+      if(!c2) continue;
+      if(v==null) delete x[c2]; else x[c2] = v;
+    }
+    refreshAll();
+  });
   $("#pRt").onchange  = e=>{ r.route=e.target.value; if(r.route==="altura" && r.alturaM==null) r.alturaM=ALTURA_DEFAULT_M; refreshAll(); };
   if($("#pAltura")){
     // acepta "2.7" y "2,7" (coma decimal); mismo motivo que #pCab arriba
@@ -3354,7 +3473,7 @@ Object.keys(ZMAP).forEach(id=>{
 });
 $("#rulesReset").onclick=()=>{
   S.rules.cap=JSON.parse(JSON.stringify(CAP0));
-  S.rules.maxOct=4; S.rules.maxRect=3; S.rules.longRun=25; S.rules.boxRun=5; S.rules.waste=10; S.rules.spare=15;
+  S.rules.maxOct=8; S.rules.maxRect=3; S.rules.longRun=25; S.rules.boxRun=5; S.rules.waste=10; S.rules.spare=15;
   S.z=Object.assign({}, Z0);
   S.nodes.forEach(n=>{ if(n.zAuto) n.z = defaultZ(n.kind, n.device); });
   buildCapTable(); refreshAll();
@@ -3372,6 +3491,8 @@ function buildProjectData(){
 async function applyProjectData(d){
   S.circuits=d.circuits||[]; S.nodes=d.nodes||[]; S.runs=d.runs||[];
   S.pxPerM=d.pxPerM||null; S.rules=Object.assign(S.rules,d.rules||{});
+  // el tope viejo (4) era el valor por defecto de antes: la caja octogonal tiene 8 lados, uno por caño
+  if(d.rules && d.rules.maxOct===4) S.rules.maxOct = 8;
   S.z=Object.assign({}, Z0, d.z||{});
   S.runs.forEach(r=>{ if(r.route==null) r.route="techo"; if(r.share==null) r.share=true;
     if(!DIAS.some(x=>x.id===r.dia)) r.dia=DEF_DIA; });

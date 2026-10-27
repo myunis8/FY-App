@@ -36,7 +36,7 @@ ALTURA_DEFAULT_M = 1.2  # media altura por defecto para route == "altura" (ver c
 Z0 = {"ceiling": 2.60, "tablero": 1.80, "luminaria": 2.60, "interruptor": 1.20,
       "toma": 0.30, "especial": 1.20, "paso": 2.60, "medidor": 1.50, "jabalina": 0}
 
-RULES0 = {"maxOct": 4, "maxRect": 3, "longRun": 25, "waste": 10, "spare": 15}
+RULES0 = {"maxOct": 8, "maxRect": 3, "longRun": 25, "waste": 10, "spare": 15}
 INSP_MAX_DEFAULT = 10                       # caños en una caja de inspección (== INSP_SIZES 20x20)
 
 CROSS_CLEARANCE_M = 0.08                    # separación mínima para "resuelto en altura"

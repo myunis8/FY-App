@@ -3,6 +3,17 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## Sin publicar (rama dev)
+
+- **Routeo: herramienta "Tramo directo (recto)"** (tecla D): une un punto A con
+  un punto B en línea recta, sin codos a 90°; los clics en el vacío agregan
+  quiebres libres. La herramienta "Tramo de caño" sigue siendo en escuadra.
+- **Caja octogonal: 8 caños, uno por cada lado.** Cada caño se engancha al
+  lado que mira hacia donde va (pasos de 45°), sin repetir lado mientras haya
+  uno libre; se puede fijar a mano desde el panel del tramo. El tope por
+  defecto de caños por octogonal pasa de 4 a 8 (los proyectos guardados que
+  tenían el 4 de antes se actualizan a 8; se puede cambiar en Reglas).
+
 ## 1.13.0 — Tablero: caños centrados, grilla de ruteo, bornera de 6 bornes
 
 - **Los caños quedan centrados**, arriba y abajo, y se recentran solos cada
