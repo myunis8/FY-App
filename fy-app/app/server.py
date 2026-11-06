@@ -5,8 +5,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
-from . import (almacen, config as cfgmod, contrato as C, canalizacion as canal_mod, extraccion, github as gh,
-               materiales as mat_mod, pdf_informe, pdf_materiales, pdf_presupuesto, pdf_routeo, pdf_tablero,
+from . import (almacen, automatizaciones as aut_mod, config as cfgmod, contrato as C, canalizacion as canal_mod, extraccion, github as gh,
+               materiales as mat_mod, pdf_automatizacion, pdf_informe, pdf_materiales, pdf_presupuesto, pdf_routeo, pdf_tablero,
                precios as precios_mod, presupuesto as pres_mod, red as red_mod, sync, tablero as tablero_mod,
                vinculos)
 
@@ -62,6 +62,7 @@ class Handler(BaseHTTPRequestHandler):
     _MODULOS_POR_PAGINA = {
         "circuitos.html": "Circuitos", "revisor.html": "Revisor", "tablero.html": "Tablero",
         "canaliza.html": "Routeo", "presupuesto.html": "Presupuesto", "materiales.html": "Materiales",
+        "automatizaciones.html": "Automatizaciones",
     }
 
     def _modulo_origen(self) -> str:
@@ -321,6 +322,14 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(sync.estado_lock(cfgmod.leer_config(), partes[2]))
         if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "plano.png":
             return self._render_plano(partes[2], urlparse(self.path).query)
+        if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "automatizaciones":
+            obra = almacen.leer_obra(partes[2])
+            if obra is None:
+                return self._error("Esa obra no está en este equipo.", 404)
+            return self._json(self._respuesta_automatizaciones(obra))
+        if (len(partes) == 5 and partes[:2] == ["api", "obras"] and partes[3] == "automatizaciones"
+                and partes[4].endswith(".pdf")):
+            return self._pdf_automatizacion(partes[2], partes[4][:-4])
         if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "presupuesto.pdf":
             return self._pdf_presupuesto(partes[2], urlparse(self.path).query)
         if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "informe.pdf":
@@ -478,6 +487,21 @@ class Handler(BaseHTTPRequestHandler):
                 "totalesOferta": red_mod.totales_oferta((obra.get("red") or {}).get("ofertas") or []),
                 "verificaciones": red_mod.verificar(obra, px_por_m),
             })
+
+        if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "automatizaciones":
+            obra = almacen.leer_obra(partes[2])
+            if obra is None:
+                return self._error("Esa obra no está en este equipo.", 404)
+            lista = cuerpo.get("automatizaciones")
+            if lista is not None:
+                obra["automatizaciones"] = [
+                    {**{k: v for k, v in a.items() if k != "resultado"}, "tipo": a.get("tipo", "bomba_agua"),
+                     "params": aut_mod.normalizar_params(a.get("tipo", "bomba_agua"), a.get("params"))}
+                    for a in lista if a.get("tipo", "bomba_agua") in aut_mod.CATALOGO]
+            if cuerpo.get("guardar"):
+                almacen.guardar_obra(obra, cfg.get("usuario", ""), modulo="Automatizaciones",
+                                     resumen="Guardó cambios")
+            return self._json({"ok": True, **self._respuesta_automatizaciones(obra)})
 
         if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "routeo.pdf":
             return self._pdf_routeo(partes[2], cuerpo)
@@ -836,6 +860,34 @@ class Handler(BaseHTTPRequestHandler):
         avisos = tablero_mod.validar(t, obra.get("circuitos") or [])
         almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
         return self._json({"ok": True, "tablero": t, "avisos": avisos})
+
+    @staticmethod
+    def _respuesta_automatizaciones(obra):
+        """Lista guardada + todo lo derivado de cada una (se recalcula siempre)."""
+        lista = obra.get("automatizaciones") or []
+        return {
+            "catalogo": aut_mod.CATALOGO,
+            "automatizaciones": [{**a, "resultado": aut_mod.resultado(a)} for a in lista],
+        }
+
+    def _pdf_automatizacion(self, obra_id, auto_id):
+        obra = almacen.leer_obra(obra_id)
+        if obra is None:
+            return self._error("Esa obra no está en este equipo.", 404)
+        a = next((x for x in obra.get("automatizaciones") or [] if x.get("id") == auto_id), None)
+        if a is None:
+            return self._error("Esa automatización no existe.", 404)
+        try:
+            datos = pdf_automatizacion.generar(a, obra)
+        except Exception as e:
+            return self._error(f"No pude generar el PDF: {e}", 500)
+        nombre = ((a.get("params") or {}).get("nombre") or "automatizacion").replace(" ", "_")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/pdf")
+        self.send_header("Content-Length", str(len(datos)))
+        self.send_header("Content-Disposition", f'inline; filename="{nombre}.pdf"')
+        self.end_headers()
+        self.wfile.write(datos)
 
     def _pdf_tablero(self, obra_id, tablero_id):
         obra = almacen.leer_obra(obra_id)

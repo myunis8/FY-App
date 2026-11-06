@@ -34,6 +34,9 @@ def obra_vacia(nombre: str = "", cliente: str = "", usuario: str = "") -> dict:
                  "creadoEl": t, "actualizadoEl": t, "actualizadoPor": usuario},
         "plano": None,
         "ambientes": [], "elementos": [], "circuitos": [], "tableros": [],
+        # circuitos de automatización (bomba de agua, etc.): sólo los parámetros;
+        # lo derivado se recalcula siempre -- ver app/automatizaciones.py
+        "automatizaciones": [],
         "canalizacion": None,   # el proyecto tal cual lo produce buildProjectData() de Canaliza
         "computo": None,
         "materiales": {"extras": [], "cables": []},

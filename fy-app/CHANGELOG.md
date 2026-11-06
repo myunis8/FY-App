@@ -5,6 +5,17 @@ El formato es una línea por cambio, agrupadas por versión.
 
 ## Sin publicar (rama dev)
 
+- **Módulo nuevo: Automatizaciones** (primera versión: bomba de agua monofásica con
+  tanque y cisterna). Se cargan sólo parámetros (corriente de chapa, tensión de
+  comando 24/220 V, con o sin cisterna, selector MAN-0-AUTO, pilotos, térmico o
+  guardamotor, distancias) y el programa deriva: esquemas de potencia y de
+  comando, lista de componentes (con el criterio de cada uno: requisito
+  normativo / buena práctica / decisión de diseño), cables y caída de tensión,
+  notas de conexión, pruebas y un informe PDF. Nada derivado se guarda: se
+  recalcula con las tablas de selección de `app/automatizaciones.py`, que son
+  reglas de diseño del programa y hay que revisarlas antes de usarlas en obra.
+  `obra.json` suma la clave `automatizaciones` (vacía por defecto; las obras
+  viejas no se tocan). Todavía no entra a Presupuesto/Materiales/Routeo.
 - **Routeo: herramienta "Tramo directo (recto)"** (tecla D): une un punto A con
   un punto B en línea recta, sin codos a 90°; los clics en el vacío agregan
   quiebres libres. La herramienta "Tramo de caño" sigue siendo en escuadra.
