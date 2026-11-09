@@ -40,6 +40,15 @@ h2:first-child{margin-top:0}
 .campo label{display:block;font-size:.7rem;color:var(--muted);margin-bottom:3px}
 .campo input,.campo select{width:100%;border-radius:7px;padding:7px 9px;font-size:.86rem}
 .campo .ayuda{font-size:.7rem;color:var(--muted);margin-top:3px;line-height:1.35;min-height:1em}
+.combo{position:relative}
+.combo .lista{display:none;position:absolute;left:0;right:0;top:100%;margin-top:3px;z-index:30;max-height:300px;
+  overflow-y:auto;background:var(--panel);border:1px solid var(--muted);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.45)}
+.combo.abierto .lista{display:block}
+.combo .grupo{font-size:.66rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:7px 10px 3px;background:var(--slate-soft);position:sticky;top:0}
+.combo .op{display:flex;justify-content:space-between;gap:10px;padding:8px 10px;font-size:.84rem;cursor:pointer;border-top:1px solid var(--line)}
+.combo .op:hover,.combo .op.sel{background:rgba(226,163,61,.16)}
+.combo .op small{color:var(--muted);white-space:nowrap}
+.combo .vacio-lista{padding:12px 10px;font-size:.8rem;color:var(--muted);line-height:1.5}
 .fila2{display:grid;grid-template-columns:1fr 2fr;gap:12px;margin-top:10px}
 .chk{display:flex;gap:8px;align-items:center;font-size:.83rem;margin-top:10px}
 table{width:100%;border-collapse:collapse;background:var(--panel);border-radius:8px;overflow:hidden;border:1px solid var(--line)}
@@ -75,9 +84,11 @@ td input.precio{width:110px;border-radius:6px;padding:3px 6px;font-size:.8rem;te
       <button class="cons" data-t="consumo">Consumo</button>
     </div>
     <div class="grid">
-      <div class="campo"><label for="f-item">Ítem de la lista de materiales</label>
-        <input id="f-item" list="dl-items" placeholder="Escribí para buscar…" autocomplete="off">
-        <datalist id="dl-items"></datalist>
+      <div class="campo"><label for="f-item">Ítem de Materiales típicos</label>
+        <div class="combo">
+          <input id="f-item" placeholder="Tocá para elegir, o escribí para buscar…" autocomplete="off">
+          <div class="lista" id="lista-items"></div>
+        </div>
         <div class="ayuda" id="a-item"></div></div>
       <div class="campo"><label for="f-cant" id="l-cant">Cantidad</label>
         <input id="f-cant" type="text" inputmode="decimal" placeholder="ej. 0,5">
@@ -151,12 +162,55 @@ async function cargar(){
 }
 
 /* ---------- formulario ---------- */
-function itemElegido(){
-  const t = $('f-item').value.trim().toLowerCase();
-  return datos.items.find(i => etiqueta(i).toLowerCase() === t)
-      || datos.items.filter(i => i.item.toLowerCase() === t)[0] || null;
-}
+// el ítem elegido es SIEMPRE uno de Materiales típicos: se toca en la lista
+// desplegable (que también se filtra escribiendo), no se tipea entero
+let itemSel = null, resaltado = -1;
+function itemElegido(){ return itemSel; }
 const etiqueta = i => `${i.item} (${i.unidad})`;
+const norm = t => String(t||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+function filtrados(){
+  const q = norm($('f-item').value).split(/\s+/).filter(Boolean);
+  if(itemSel && norm(etiqueta(itemSel)) === norm($('f-item').value)) return datos.items;   // recién elegido: lista completa
+  return datos.items.filter(i => { const h = norm(i.item + ' ' + (i.categoria||'')); return q.every(w => h.includes(w)); });
+}
+function pintarLista(){
+  const lista = filtrados();
+  let html = '', cat = null;
+  lista.forEach((i, k) => {
+    if(i.categoria !== cat){ cat = i.categoria; html += `<div class="grupo">${esc(cat||'Sin categoría')}</div>`; }
+    const stk = datos.resumen.find(r => r.itemId === i.id);
+    html += `<div class="op ${k===resaltado?'sel':''}" data-id="${esc(i.id)}"><span>${esc(i.item)}</span>
+      <small>${stk ? cant(stk.cantidad) + ' ' + esc(i.unidad) + ' en stock' : esc(i.unidad)}</small></div>`;
+  });
+  $('lista-items').innerHTML = html || `<div class="vacio-lista">${datos.items.length
+    ? 'Ningún ítem de Materiales típicos coincide con lo que escribiste.'
+    : 'Todavía no hay ítems en Materiales típicos.'}<br>Si falta, agregalo en
+    <a href="/materiales_catalogo.html" style="color:var(--amber)">Materiales típicos</a>.</div>`;
+  $('lista-items').querySelectorAll('.op').forEach(o => o.onmousedown = ev => { ev.preventDefault(); elegir(o.dataset.id); });
+  return lista;
+}
+function abrirLista(){ resaltado = -1; $('f-item').closest('.combo').classList.add('abierto'); pintarLista(); }
+function cerrarLista(){ $('f-item').closest('.combo').classList.remove('abierto'); }
+function elegir(id){
+  itemSel = datos.items.find(i => i.id === id) || null;
+  $('f-item').value = itemSel ? etiqueta(itemSel) : '';
+  cerrarLista(); pintarForm();
+  if(itemSel) $('f-cant').focus();
+}
+$('f-item').addEventListener('focus', ev => { ev.target.select(); abrirLista(); });
+$('f-item').addEventListener('input', () => {
+  itemSel = null; resaltado = -1;                 // lo escrito sólo filtra: hay que tocar un ítem de la lista
+  $('f-item').closest('.combo').classList.add('abierto'); pintarLista(); pintarForm();
+});
+$('f-item').addEventListener('blur', () => { cerrarLista();
+  if(!itemSel) $('f-item').value = ''; });         // no queda texto suelto que parezca un ítem elegido
+$('f-item').addEventListener('keydown', ev => {
+  const lista = filtrados();
+  if(ev.key === 'ArrowDown'){ ev.preventDefault(); abrirLista(); resaltado = Math.min(lista.length-1, resaltado+1); pintarLista(); }
+  else if(ev.key === 'ArrowUp'){ ev.preventDefault(); resaltado = Math.max(0, resaltado-1); pintarLista(); }
+  else if(ev.key === 'Enter'){ ev.preventDefault(); const it = lista[resaltado >= 0 ? resaltado : 0]; if(it) elegir(it.id); }
+  else if(ev.key === 'Escape'){ cerrarLista(); }
+});
 function pintarForm(){
   const rep = tipo === 'reposicion';
   document.querySelectorAll('#tipo button').forEach(b => b.classList.toggle('on', b.dataset.t === tipo));
@@ -177,12 +231,12 @@ function pintarForm(){
   if($('f-precio').disabled) $('f-precio').value = '';
 }
 document.querySelectorAll('#tipo button').forEach(b => b.onclick = () => { tipo = b.dataset.t; pintarForm(); });
-['f-item','f-sobrante'].forEach(id => $(id).addEventListener('input', pintarForm));
+$('f-sobrante').addEventListener('input', pintarForm);
 $('f-fecha').value = new Date().toISOString().slice(0,10);
 
 $('b-registrar').onclick = async () => {
   const it = itemElegido();
-  if(!it){ toast('Elegí un ítem de la lista (si no está, agregalo en "Materiales típicos").'); return; }
+  if(!it){ toast('Elegí un ítem de la lista desplegable (si no está, agregalo en "Materiales típicos").'); return; }
   const c = num($('f-cant').value);
   if(c == null || c <= 0){ toast('Poné una cantidad mayor que cero.'); return; }
   const opt = $('f-obra').selectedOptions[0];
@@ -197,13 +251,14 @@ $('b-registrar').onclick = async () => {
     toast((tipo === 'consumo' ? 'Consumo' : 'Reposición') + ' registrado' +
       (m && m.estadoPrecio === 'falta' ? ' -- falta cargar el precio de este ítem' : ''));
     $('f-cant').value = ''; $('f-precio').value = ''; $('f-nota').value = ''; $('f-sobrante').checked = false;
+    itemSel = null; $('f-item').value = '';
     pintarForm();
   }catch(e){ toast(e.message); }
 };
 
 /* ---------- listados ---------- */
 function pintar(){
-  $('dl-items').innerHTML = datos.items.map(i => `<option value="${esc(etiqueta(i))}">${esc(i.categoria||'')}</option>`).join('');
+  if(itemSel) itemSel = datos.items.find(i => i.id === itemSel.id) || null;    // refresca último precio
   pintarForm();
   $('stock').innerHTML = datos.resumen.length ? `<table><thead><tr><th>Ítem</th><th class="num">Cantidad</th>
     <th class="num">Último precio</th><th class="num">Valor</th><th></th></tr></thead><tbody>${
