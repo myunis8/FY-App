@@ -259,8 +259,8 @@ table.t input:focus{outline:none;border-color:var(--accent);background:var(--pan
     </div>
     <div class="sect">
       <h3>Vista</h3>
-      <label class="chk"><input type="checkbox" id="vLbl" checked> Etiquetas de cajas y bocas</label>
-      <label class="chk"><input type="checkbox" id="vLen" checked> Longitud sobre cada caño</label>
+      <label class="chk"><input type="checkbox" id="vLbl"> Etiquetas de cajas y bocas</label>
+      <label class="chk"><input type="checkbox" id="vLen"> Longitud sobre cada caño</label>
       <label class="chk"><input type="checkbox" id="vZ"> Altura de cada caja</label>
       <label class="chk"><input type="checkbox" id="vCodeEdit"> Editar etiquetas de código (arrastrar, 2 clics = girar 90°)</label>
       <label class="chk"><input type="checkbox" id="vGrid" checked> Grilla (tecla G)</label>
@@ -834,7 +834,7 @@ const S = {
   draft:null, calib:null,
   rules:{cap:JSON.parse(JSON.stringify(CAP0)), maxOct:8, maxRect:3, longRun:25, boxRun:5, waste:10, spare:15},
   z:Object.assign({}, Z0),
-  show:{labels:true, lens:true, z:false},
+  show:{labels:false, lens:false, z:false},
   hiddenCircuits:new Set(),                  // ids de circuitos ocultos en el plano
   viewGroups:[],                             // [{id,name,circuits:[ids]}]
   grid:{on:true, size:40, snap:true},        // grilla de alineación (tamaño en px del plano)
