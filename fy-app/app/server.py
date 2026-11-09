@@ -7,7 +7,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 from . import (almacen, automatizaciones as aut_mod, config as cfgmod, contrato as C, canalizacion as canal_mod, extraccion, github as gh,
                materiales as mat_mod, pdf_automatizacion, pdf_informe, pdf_materiales, pdf_presupuesto, pdf_routeo, pdf_tablero,
-               precios as precios_mod, presupuesto as pres_mod, red as red_mod, sync, tablero as tablero_mod,
+               precios as precios_mod, presupuesto as pres_mod, red as red_mod, stock as stock_mod, sync, tablero as tablero_mod,
                vinculos)
 
 if getattr(sys, "frozen", False):
@@ -149,6 +149,11 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_DELETE(self):
         partes = [p for p in urlparse(self.path).path.split("/") if p]
+        if len(partes) == 4 and partes[:3] == ["api", "stock", "movimientos"]:
+            datos = stock_mod.leer()
+            ok = stock_mod.borrar(datos, partes[3])
+            stock_mod.guardar(datos)
+            return self._json({"ok": ok, **stock_mod.payload(datos)})
         if len(partes) == 3 and partes[:2] == ["api", "obras"]:
             return self._json({"ok": almacen.borrar_obra(partes[2])})
         if len(partes) == 7 and partes[:2] == ["api", "obras"] and partes[3] == "tableros" and partes[5] == "dispositivos":
@@ -241,6 +246,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(precios_mod.leer())
         if ruta == "/api/materiales":
             return self._json(mat_mod.leer())
+        if ruta == "/api/stock":
+            return self._json(stock_mod.payload())
         if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "canalizacion":
             obra = almacen.leer_obra(partes[2])
             if obra is None:
@@ -376,6 +383,17 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(precios_mod.guardar(cuerpo))
         if ruta == "/api/materiales":
             return self._json(mat_mod.guardar(cuerpo))
+        if ruta == "/api/stock/movimientos" or (len(partes) == 4 and partes[:3] == ["api", "stock", "movimientos"]):
+            datos = stock_mod.leer()
+            try:
+                if ruta == "/api/stock/movimientos":
+                    stock_mod.agregar(datos, cuerpo, cfg.get("usuario", ""))
+                else:
+                    stock_mod.actualizar(datos, partes[3], cuerpo)
+            except ValueError as e:
+                return self._error(str(e))
+            stock_mod.guardar(datos)
+            return self._json({"ok": True, **stock_mod.payload(datos)})
 
         if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "presupuesto":
             obra = almacen.leer_obra(partes[2])

@@ -5,6 +5,18 @@ El formato es una línea por cambio, agrupadas por versión.
 
 ## Sin publicar (rama dev)
 
+- **Stock propio** (módulo global, no por obra; botón "Movimiento de stock" en el
+  inicio): material guardado para imprevistos de obra. Se cargan movimientos de
+  *reposición* (compra o sobrante) y de *consumo*, sobre los ítems de la lista de
+  materiales, con fecha, cantidad (con decimales: media bobina, 12,5 m), precio,
+  obra y nota opcionales. El stock se calcula siempre de los movimientos. Costo =
+  último precio de reposición: sin precio cargado se usa el último, y si no hay
+  ninguno queda marcado "falta precio" (nunca es un error; se completa después
+  desde la tabla). Un sobrante no cambia el último precio. La lista de materiales
+  de las obras NO toca el stock. Se guarda en `stock.json` (junto a `precios.json`).
+- **Routeo:** el clic derecho con cualquier herramienta activa vuelve a
+  "Seleccionar" (arrastrar con el derecho sigue desplazando el plano); las
+  etiquetas de cajas y la longitud de los caños arrancan desmarcadas.
 - **Módulo nuevo: Automatizaciones** (primera versión: bomba de agua monofásica con
   tanque y cisterna). Se cargan sólo parámetros (corriente de chapa, tensión de
   comando 24/220 V, con o sin cisterna, selector MAN-0-AUTO, pilotos, térmico o

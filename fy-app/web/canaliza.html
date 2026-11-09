@@ -2051,9 +2051,15 @@ function buildTools(){
 
 let panning=null, dragging=null;
 
+// clic derecho con una herramienta activa = volver a "Seleccionar" (si había un
+// tramo a medio trazar se corta suelto, como siempre). Arrastrar con el botón
+// derecho sigue siendo desplazar el plano y no cambia de herramienta.
+let derechoArrastro = false;
 cv.addEventListener("contextmenu", e=>{
   e.preventDefault();
+  if(derechoArrastro){ derechoArrastro = false; return; }
   if(S.draft) finishRun(null);
+  if(S.tool!=="select") setTool("select");
 });
 
 cv.addEventListener("wheel", e=>{
@@ -2068,7 +2074,8 @@ cv.addEventListener("pointerdown", e=>{
   const w = mouse(e);
 
   if(e.button===1 || e.button===2 || (e.button===0 && e.altKey)){
-    panning={x:e.clientX,y:e.clientY,vx:S.view.x,vy:S.view.y}; return;
+    if(e.button===2) derechoArrastro = false;
+    panning={x:e.clientX,y:e.clientY,vx:S.view.x,vy:S.view.y,boton:e.button}; return;
   }
   if(e.button!==0) return;
 
@@ -2191,6 +2198,7 @@ cv.addEventListener("pointermove", e=>{
   const w = mouse(e);
 
   if(panning){
+    if(panning.boton===2 && Math.hypot(e.clientX-panning.x, e.clientY-panning.y) > 4) derechoArrastro = true;
     S.view.x = panning.vx + (e.clientX-panning.x);
     S.view.y = panning.vy + (e.clientY-panning.y);
     render(); return;
