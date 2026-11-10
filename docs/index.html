@@ -74,6 +74,7 @@ h2{font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;color:var(--mu
 <body>
 <header>
   <h1>FY Manager</h1>
+  <button class="btn sm oculto" id="b-usuario" title="Quién sos: queda en los movimientos de stock"></button>
   <button class="btn sm" id="b-actualizar">Actualizar</button>
   <button class="btn sm danger oculto" id="b-salir">Salir</button>
 </header>
@@ -89,6 +90,8 @@ h2{font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;color:var(--mu
       <input id="l-repo" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="usuario/repositorio-de-obras"></div>
     <div class="campo"><label for="l-rama">Rama</label>
       <input id="l-rama" autocapitalize="off" autocorrect="off" spellcheck="false" value="main"></div>
+    <div class="campo"><label for="l-usuario">Tu nombre (queda en los movimientos de stock que cargues)</label>
+      <input id="l-usuario" autocapitalize="words" placeholder="ej. Martín"></div>
     <div class="campo"><label for="l-token">Token</label>
       <input id="l-token" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="github_pat_…"></div>
     <button class="btn primary block" id="b-conectar">Conectar</button>
@@ -131,6 +134,17 @@ h2{font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;color:var(--mu
   </section>
 </main>
 
+<div id="p-usuario" class="oculto" style="position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:40;display:flex;align-items:flex-end">
+  <div class="card" style="width:100%;margin:0;border-radius:16px 16px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom))">
+    <b>¿Quién sos?</b>
+    <div class="muted" style="margin:4px 0 12px">Tu nombre queda en cada movimiento de stock que cargues desde este celular.</div>
+    <div class="campo"><select id="u-sel"></select></div>
+    <div class="campo oculto" id="u-otro-c"><input id="u-otro" autocapitalize="words" placeholder="Escribí tu nombre"></div>
+    <div style="display:flex;gap:8px"><button class="btn block" id="u-cancelar">Cancelar</button>
+      <button class="btn primary block" id="u-guardar">Guardar</button></div>
+  </div>
+</div>
+
 <nav id="nav" class="oculto">
   <button data-p="obras" class="on">Obras</button>
   <button data-p="stock">Stock</button>
@@ -171,7 +185,8 @@ async function gh(ruta, {raw=false, metodo='GET', cuerpo=null, listar=false} = {
 const aBase64 = txt => btoa(unescape(encodeURIComponent(txt)));
 
 $('b-conectar').onclick = async () => {
-  const c = {repo:$('l-repo').value.trim(), rama:$('l-rama').value.trim() || 'main', token:$('l-token').value.trim()};
+  const c = {repo:$('l-repo').value.trim(), rama:$('l-rama').value.trim() || 'main', token:$('l-token').value.trim(),
+    usuario:$('l-usuario').value.trim()};
   if(!/^[\w.-]+\/[\w.-]+$/.test(c.repo) || !c.token){ toast('Completá repositorio (usuario/nombre) y token.'); return; }
   cfg = c;
   try{
@@ -196,8 +211,37 @@ function ir(p){
 document.querySelectorAll('nav button').forEach(b => b.onclick = () => ir(b.dataset.p));
 $('b-actualizar').onclick = async () => { await cargarObras(); await cargarStock(); toast('Actualizado'); };
 
+// nombres que ya se usan (movimientos de stock y últimas ediciones de obras) para elegir sin tipear
+function nombresConocidos(){
+  const set = new Set();
+  const sumar = n => { n = (n || '').trim(); if(n && norm(n) !== 'celular') set.add(n); };
+  todos().forEach(m => sumar(m.creadoPor)); obras.forEach(o => sumar(o.actualizadoPor)); sumar(cfg && cfg.usuario);
+  return [...set].sort((a, b) => a.localeCompare(b, 'es'));
+}
+function pintarUsuario(){
+  const b = $('b-usuario'); b.classList.remove('oculto');
+  b.textContent = (cfg.usuario ? '👤 ' + cfg.usuario : '👤 ¿Quién sos?');
+}
+function elegirUsuario(){
+  const nombres = nombresConocidos();
+  $('u-sel').innerHTML = nombres.map(n => `<option ${n === cfg.usuario ? 'selected' : ''}>${esc(n)}</option>`).join('')
+    + '<option value="__otro">Otro…</option>';
+  if(!nombres.length) $('u-sel').value = '__otro';
+  const otro = () => $('u-otro-c').classList.toggle('oculto', $('u-sel').value !== '__otro');
+  $('u-sel').onchange = otro; otro(); $('u-otro').value = '';
+  $('p-usuario').classList.remove('oculto');
+}
+$('b-usuario').onclick = elegirUsuario;
+$('u-cancelar').onclick = () => $('p-usuario').classList.add('oculto');
+$('u-guardar').onclick = () => {
+  const n = ($('u-sel').value === '__otro' ? $('u-otro').value : $('u-sel').value).trim();
+  if(!n){ toast('Elegí o escribí tu nombre.'); return; }
+  cfg.usuario = n; localStorage.setItem('fy_movil', JSON.stringify(cfg));
+  $('p-usuario').classList.add('oculto'); pintarUsuario(); toast('Usuario: ' + n);
+};
+
 async function iniciar(){
-  $('login').classList.add('oculto');
+  $('login').classList.add('oculto'); pintarUsuario();
   $('nav').classList.remove('oculto'); $('b-salir').classList.remove('oculto');
   ir('obras');
   await cargarObras();
@@ -320,9 +364,12 @@ function pintarStock(){
   const ult = [...movs].sort((a,b) => mayor(a,b) ? -1 : 1).slice(0, 30);
   $('s-movs').innerHTML = ult.length ? ult.map(m => `<div class="card"><div class="fila"><span><b style="color:${m.tipo==='reposicion'?'var(--green)':'var(--amber)'}">${m.tipo==='reposicion'?'Reposición':'Consumo'}</b>
       · ${esc(m.item)}${m.pendiente ? '<span class="tag pend">pendiente en la PC</span>' : ''}</span><b>${cant(m.cantidad)} ${esc(m.unidad||'')}</b></div>
-      <div class="muted">${esc(m.fecha)} · ${m.precioUnitario != null ? plata(m.precioUnitario) + (m.precioOrigen==='ultimo' ? ' (último)' : '') : 'falta precio'}${m.obraNombre ? ' · ' + esc(m.obraNombre) : ''}${m.nota ? ' · ' + esc(m.nota) : ''}</div></div>`).join('')
+      <div class="muted">${esc(m.fecha)} · ${m.precioUnitario != null ? plata(m.precioUnitario) + (m.precioOrigen==='ultimo' ? ' (último)' : '') : 'falta precio'}${m.obraNombre ? ' · ' + esc(m.obraNombre) : ''}${m.nota ? ' · ' + esc(m.nota) : ''}
+      ${quien(m) ? '<div class="muted">' + esc(quien(m)) + '</div>' : ''}</div>`).join('')
     : '';
 }
+
+const quien = m => [m.creadoPor && norm(m.creadoPor) !== 'celular' ? 'por ' + m.creadoPor : '', m.origen === 'celular' || norm(m.creadoPor) === 'celular' ? 'desde el celular' : ''].filter(Boolean).join(' · ');
 
 /* formulario */
 $('b-nuevo-mov').onclick = () => { $('s-form').classList.toggle('oculto'); if(!$('f-fecha').value) $('f-fecha').value = hoy(); };
@@ -364,6 +411,7 @@ $('f-item').addEventListener('input', () => { itemSel = null; $('f-lista').class
 $('f-item').addEventListener('blur', () => { $('f-lista').classList.add('oculto'); if(!itemSel) $('f-item').value = ''; });
 
 $('b-registrar').onclick = async () => {
+  if(!cfg.usuario){ toast('Primero elegí quién sos.'); elegirUsuario(); return; }
   if(!itemSel){ toast('Elegí un ítem de la lista.'); return; }
   const c = num($('f-cant').value);
   if(c == null || c <= 0){ toast('Poné una cantidad mayor que cero.'); return; }
@@ -376,7 +424,7 @@ $('b-registrar').onclick = async () => {
     unidad:itemSel.unidad, cantidad:c, precioUnitario:precio, precioOrigen:origen,
     sobrante: tipo === 'reposicion' && $('f-sobrante').checked && origen !== 'cargado',
     obraId:$('f-obra').value || null, obraNombre: op && op.value ? op.dataset.n : null,
-    nota:$('f-nota').value.trim(), creadoEl:Date.now(), creadoPor:'celular'};
+    nota:$('f-nota').value.trim(), creadoEl:Date.now(), creadoPor:cfg.usuario, origen:'celular'};
   const b = $('b-registrar'); b.disabled = true; b.textContent = 'Guardando…';
   try{
     await gh('stock/movil/' + id + '.json', {metodo:'PUT', cuerpo:{message:'Movimiento de stock desde el celular',

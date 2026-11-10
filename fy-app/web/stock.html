@@ -286,7 +286,8 @@ function pintarMovs(){
         <td>${esc(m.item)}</td><td class="num">${cant(m.cantidad)} ${esc(m.unidad)}</td>
         <td class="num"><input class="precio" value="${m.precioUnitario!=null?String(m.precioUnitario).replace('.',','):''}"
           placeholder="${m.precioEfectivo!=null?String(m.precioEfectivo).replace('.',','):'cargar'}" title="Completar o corregir el precio">${est}</td>
-        <td class="nota">${esc([m.obraNombre, m.nota].filter(Boolean).join(' · '))}</td>
+        <td class="nota">${esc([m.obraNombre, m.nota].filter(Boolean).join(' · '))}
+          <div>${esc([m.creadoPor && m.creadoPor !== 'celular' ? 'por ' + m.creadoPor : '', m.origen === 'celular' ? 'desde el celular' : ''].filter(Boolean).join(' · '))}</div></td>
         <td><button class="btn sm" data-del="${esc(m.id)}" style="color:var(--danger)">×</button></td></tr>`;}).join('')}</tbody></table>`
     : '<div class="vacio">Sin movimientos para mostrar.</div>';
   $('movs').querySelectorAll('input.precio').forEach(inp => inp.onchange = async () => {
