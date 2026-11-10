@@ -403,6 +403,8 @@ async function sincronizar(){
       toast(`Bajadas ${r.nuevas} nuevas y ${r.actualizadas} actualizadas`);
     else
       toast('No había nada nuevo');
+    if(r.stock && r.stock.nuevosDelCelular)
+      setTimeout(() => toast(`Stock: ingresados ${r.stock.nuevosDelCelular} movimiento(s) cargados desde el celular`), 3300);
   }catch(e){
     pintarSync('mal', e.message);
     toast(e.message);

@@ -72,6 +72,7 @@ td input.precio{width:110px;border-radius:6px;padding:3px 6px;font-size:.8rem;te
 <header>
   <div><h1>Stock propio</h1><div class="sub">Material guardado para imprevistos de obra</div></div>
   <div class="spacer"></div>
+  <button class="btn ghost" id="b-sync">Sincronizar con el celular</button>
   <button class="btn ghost" onclick="location.href='/materiales_catalogo.html'">Materiales típicos</button>
   <button class="btn ghost" onclick="location.href='/'">Inicio</button>
 </header>
@@ -136,6 +137,7 @@ const api = async (ruta, opts={}) => {
   if(!r.ok) throw new Error(d.error || 'Error inesperado');
   return d;
 };
+const hoy = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); };
 function toast(m){ const t=$('toast'); t.textContent=m; t.style.display='block';
   clearTimeout(t._t); t._t=setTimeout(()=>t.style.display='none',3200); }
 const plata = n => n==null ? '—' : '$ ' + Number(n).toLocaleString('es-AR', {maximumFractionDigits:2});
@@ -232,7 +234,7 @@ function pintarForm(){
 }
 document.querySelectorAll('#tipo button').forEach(b => b.onclick = () => { tipo = b.dataset.t; pintarForm(); });
 $('f-sobrante').addEventListener('input', pintarForm);
-$('f-fecha').value = new Date().toISOString().slice(0,10);
+$('f-fecha').value = hoy();
 
 $('b-registrar').onclick = async () => {
   const it = itemElegido();
@@ -299,6 +301,16 @@ function pintarMovs(){
     catch(e){ toast(e.message); }
   });
 }
+// la PC ingresa lo que se cargó desde el celular y publica el estado del stock para que el celular lo lea
+$('b-sync').onclick = async () => {
+  const b = $('b-sync'); b.disabled = true; b.textContent = 'Sincronizando…';
+  try{
+    const r = await api('/api/stock/sync', {method:'POST', body:'{}'});
+    aplicar(r);
+    toast(r.nuevosDelCelular ? `Ingresados ${r.nuevosDelCelular} movimiento(s) del celular` : 'Sincronizado: no había movimientos nuevos del celular');
+  }catch(e){ toast(e.message); }
+  b.disabled = false; b.textContent = 'Sincronizar con el celular';
+};
 $('q').oninput = pintarMovs; $('q-tipo').onchange = pintarMovs;
 
 cargar().catch(e => toast('No se pudo cargar: ' + e.message));

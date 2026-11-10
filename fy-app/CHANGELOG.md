@@ -5,6 +5,21 @@ El formato es una línea por cambio, agrupadas por versión.
 
 ## Sin publicar (rama dev)
 
+- **Celular (página `docs/index.html`)**: una página estática, sin datos ni claves, que se
+  abre desde GitHub Pages y lee/escribe directo en el repositorio privado de obras con un
+  token que se pega una vez en el celular (queda en ese navegador). *Obras*: sólo
+  consulta y descarga de PDF (resumen, plano y PDF publicados). *Stock*: se ven los
+  saldos y se pueden agregar movimientos. Cada movimiento del celular va a su propio
+  archivo `stock/movil/<id>.json` (nunca chocan con la PC); al sincronizar, la PC los
+  ingresa a su stock, los borra de esa bandeja y publica `stock/estado.json` (catálogo +
+  movimientos) para que el celular lo lea. Botón "Sincronizar con el celular" en Stock;
+  "Sincronizar" del inicio también lo hace.
+- Al **subir una obra** se publican además sus PDF de consulta (`obras/<id>/pdf/`:
+  presupuesto, informe general, lista de materiales y tableros), compactados (pasan de
+  ~19 MB a ~1,5 MB) y sólo si su contenido cambió.
+- Stock: el ítem se elige de una lista desplegable de Materiales típicos (también se
+  filtra escribiendo), sin tipearlo entero.
+
 - **Stock propio** (módulo global, no por obra; botón "Movimiento de stock" en el
   inicio): material guardado para imprevistos de obra. Se cargan movimientos de
   *reposición* (compra o sobrante) y de *consumo*, sobre los ítems de la lista de

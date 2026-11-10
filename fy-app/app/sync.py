@@ -139,9 +139,88 @@ def subir_obra(cfg: dict, obra_id: str, forzar: bool = False) -> dict:
                              f"Sube el plano de {nombre}", gh.sha_de(cfg, ruta_plano_repo))
             plano_hash_subido = plano.get("hash")
 
-    almacen.guardar_sync(obra_id, {**est, "shaObra": sha_nuevo, "subidaEl": C.ahora(),
-                                   "planoSubidoHash": plano_hash_subido})
-    return {"ok": True, "sha": sha_nuevo}
+    est2 = {**est, "shaObra": sha_nuevo, "subidaEl": C.ahora(), "planoSubidoHash": plano_hash_subido}
+    # los PDF de consulta para el celular: si falla alguno, la obra igual quedó subida
+    try:
+        est2["pdfHashes"], pdfs = publicar_pdfs(cfg, obra_id, obra, est.get("pdfHashes") or {})
+    except Exception:
+        pdfs = []
+    almacen.guardar_sync(obra_id, est2)
+    return {"ok": True, "sha": sha_nuevo, "pdfs": pdfs}
+
+
+# ------------------------------------------------ PDF y stock para el celular
+def publicar_pdfs(cfg: dict, obra_id: str, obra: dict, hashes_previos: dict) -> tuple[dict, list[str]]:
+    """Genera los PDF principales de la obra y los sube a obras/<id>/pdf/ --
+    así el celular (que no tiene cómo generarlos) puede consultarlos y
+    descargarlos. Un PDF que no cambió (mismo hash) no se vuelve a subir, y
+    uno que no se puede generar (obra todavía incompleta) se omite sin
+    error. Devuelve (hashes nuevos, nombres subidos)."""
+    import hashlib
+    import pymupdf
+    from . import pdf_informe, pdf_materiales, pdf_presupuesto, pdf_tablero
+    nombre = obra["obra"].get("nombre") or obra_id
+    generadores = [
+        ("presupuesto.pdf", lambda: pdf_presupuesto.generar(obra, modo="con")),
+        ("informe.pdf", lambda: pdf_informe.generar(obra, pdf_informe.MODULOS_POR_DEFECTO)),
+        ("materiales.pdf", lambda: pdf_materiales.generar(obra, mostrar_precio=True)),
+        ("tableros.pdf", lambda: pdf_tablero.generar_todos(obra) if obra.get("tableros") else None),
+    ]
+    hashes, subidos = dict(hashes_previos), []
+    for archivo, gen in generadores:
+        try:
+            datos = gen()
+        except Exception:
+            continue
+        if not datos:
+            continue
+        # compactado (los PDF salen sin comprimir: 19 MB -> ~1,5 MB) y huella por TEXTO,
+        # no por bytes: cada generación cambia el id interno del PDF aunque el contenido sea
+        # el mismo, y no tiene sentido resubir lo que no cambió
+        doc = pymupdf.open(stream=datos, filetype="pdf")
+        huella = hashlib.sha256(chr(10).join(pg.get_text() for pg in doc).encode("utf-8")).hexdigest()
+        if hashes.get(archivo) == huella:
+            doc.close()
+            continue
+        datos = doc.tobytes(garbage=4, deflate=True, clean=True)
+        doc.close()
+        h = huella
+        ruta = f"obras/{obra_id}/pdf/{archivo}"
+        gh.subir_archivo(cfg, ruta, datos, f"PDF {archivo} de {nombre}", gh.sha_de(cfg, ruta))
+        hashes[archivo] = h
+        subidos.append(archivo)
+    return hashes, subidos
+
+
+def sincronizar_stock(cfg: dict) -> dict:
+    """Stock propio <-> celular. La PC es la dueña de los datos: el celular
+    sólo AGREGA movimientos, cada uno en su propio archivo (stock/movil/<id>.json,
+    así nunca chocan entre sí ni con la PC). Acá se (1) ingresan al stock local
+    y se borran del repo, y (2) se publica stock/estado.json -- el catálogo y
+    todos los movimientos -- para que el celular lo lea."""
+    from . import stock as stock_mod
+    datos = stock_mod.leer()
+    nuevos = 0
+    try:
+        items = gh._contenido(cfg, "stock/movil")
+    except gh.ErrorSync as e:
+        if e.codigo != 404:
+            raise
+        items = []
+    for it in items if isinstance(items, list) else []:
+        if it.get("type") != "file" or not it.get("name", "").endswith(".json"):
+            continue
+        mov, sha = gh.bajar_archivo(cfg, it["path"])
+        if mov is not None and stock_mod.ingerir(datos, mov):
+            nuevos += 1
+        if sha:                                   # ya entró (o no sirve): sale de la bandeja
+            gh.borrar_archivo(cfg, it["path"], sha, "Movimiento de stock ya ingresado en la PC")
+    if nuevos:
+        stock_mod.guardar(datos)
+    ruta = "stock/estado.json"
+    gh.subir_archivo(cfg, ruta, json.dumps(stock_mod.estado_publico(datos), ensure_ascii=False).encode("utf-8"),
+                     "Estado del stock propio", gh.sha_de(cfg, ruta))
+    return {"nuevosDelCelular": nuevos, "movimientos": len(datos["movimientos"])}
 
 
 def borrar_obra_remota(cfg: dict, obra_id: str) -> dict:

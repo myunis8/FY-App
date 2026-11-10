@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#16283f">
+<title>FY Manager · celular</title>
+<!--
+  Página del celular de FY Manager. Es UNA sola página estática: no trae datos ni
+  claves. Lee y escribe directo en el repositorio privado de obras (API de GitHub)
+  con un token que se pega UNA vez en el celular y queda en este navegador
+  (localStorage) -- nunca en el código ni en el repositorio.
+
+  - Obras: SOLO consulta y descarga de PDF (los PDF los genera la PC al "Subir").
+  - Stock propio: se pueden agregar movimientos. Cada uno va a su propio archivo
+    stock/movil/<id>.json; la PC los ingresa la próxima vez que sincroniza.
+-->
+<style>
+:root{
+  color-scheme:dark;
+  --navy:#16283f; --navy-deep:#0a121d; --paper:#10161e; --panel:#1a2330; --line:#2c3846;
+  --ink:#dde3ea; --muted:#8896a8; --amber:#e2a33d; --amber-deep:#c07f1f; --slate:#212c39;
+  --green:#4caf82; --danger:#e0685a; --blue:#5b9bd1;
+  font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--paper);color:var(--ink);padding-bottom:calc(70px + env(safe-area-inset-bottom))}
+button,input,select{font:inherit}
+input,select{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:12px;width:100%;font-size:1rem}
+button{cursor:pointer}
+header{background:var(--navy);padding:calc(12px + env(safe-area-inset-top)) 16px 12px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:20}
+header h1{font-size:1.05rem;margin:0;flex:1}
+.btn{border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:11px 16px;border-radius:10px;font-weight:600;font-size:.95rem}
+.btn.primary{background:var(--amber);border-color:var(--amber-deep);color:#2a1e07}
+.btn.sm{padding:7px 12px;font-size:.82rem}
+.btn.block{width:100%}
+.btn.danger{color:var(--danger)}
+main{padding:14px 14px 20px;max-width:640px;margin:0 auto}
+nav{position:fixed;left:0;right:0;bottom:0;background:var(--navy-deep);border-top:1px solid var(--line);display:flex;
+  padding-bottom:env(safe-area-inset-bottom);z-index:20}
+nav button{flex:1;background:none;border:none;color:var(--muted);padding:14px 0;font-weight:600;font-size:.95rem}
+nav button.on{color:var(--amber)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:10px}
+.card.tap{cursor:pointer}
+.card b{font-size:1rem}
+.muted{color:var(--muted);font-size:.84rem}
+.fila{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+h2{font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:20px 0 8px}
+.campo{margin-bottom:12px}
+.campo label{display:block;font-size:.78rem;color:var(--muted);margin-bottom:4px}
+.tipo{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-bottom:12px}
+.tipo button{flex:1;border:none;background:transparent;color:var(--muted);padding:12px;font-weight:700}
+.tipo button.on.repo{background:var(--green);color:#0b2417}
+.tipo button.on.cons{background:var(--amber);color:#2a1e07}
+.tag{display:inline-block;font-size:.68rem;font-weight:700;padding:2px 8px;border-radius:99px;margin-left:6px}
+.tag.falta{background:rgba(224,104,90,.16);color:var(--danger)}
+.tag.ok{background:rgba(76,175,130,.16);color:var(--green)}
+.tag.pend{background:rgba(226,163,61,.18);color:var(--amber)}
+.lista-op{border:1px solid var(--line);border-radius:10px;max-height:46vh;overflow-y:auto;margin-top:6px;background:var(--panel)}
+.lista-op .g{font-size:.68rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:8px 12px 4px;background:var(--slate);position:sticky;top:0}
+.lista-op .op{padding:13px 12px;border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:8px}
+.lista-op .op small{color:var(--muted)}
+.aviso{background:rgba(226,163,61,.14);color:var(--amber);padding:11px 13px;border-radius:10px;font-size:.88rem;margin-bottom:12px;line-height:1.4}
+.aviso.error{background:rgba(224,104,90,.16);color:var(--danger)}
+.chk{display:flex;gap:10px;align-items:center;margin:4px 0 12px;font-size:.95rem}
+.chk input{width:22px;height:22px}
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom));background:#000;color:#fff;
+  padding:11px 18px;border-radius:10px;font-size:.9rem;display:none;z-index:50;max-width:90vw;text-align:center}
+.oculto{display:none!important}
+.volver{background:none;border:none;color:var(--blue);font-weight:600;padding:4px 0;margin-bottom:8px;font-size:.95rem}
+</style>
+</head>
+<body>
+<header>
+  <h1>FY Manager</h1>
+  <button class="btn sm" id="b-actualizar">Actualizar</button>
+  <button class="btn sm danger oculto" id="b-salir">Salir</button>
+</header>
+
+<main>
+  <!-- primer uso: conectar con el repositorio -->
+  <section id="login" class="oculto">
+    <h2 style="margin-top:6px">Conectar con el repositorio de obras</h2>
+    <div class="aviso">Pegá el token una sola vez. Queda guardado sólo en este celular y se puede revocar desde GitHub
+      si lo perdés. Creá uno nuevo (fine-grained) limitado al repositorio de obras, con permiso
+      <b>Contents: Read and write</b>.</div>
+    <div class="campo"><label for="l-repo">Repositorio de obras (usuario/nombre)</label>
+      <input id="l-repo" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="usuario/repositorio-de-obras"></div>
+    <div class="campo"><label for="l-rama">Rama</label>
+      <input id="l-rama" autocapitalize="off" autocorrect="off" spellcheck="false" value="main"></div>
+    <div class="campo"><label for="l-token">Token</label>
+      <input id="l-token" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="github_pat_…"></div>
+    <button class="btn primary block" id="b-conectar">Conectar</button>
+  </section>
+
+  <!-- Obras: sólo consulta -->
+  <section id="p-obras" class="oculto">
+    <div id="obras-lista">
+      <div class="campo"><input id="o-buscar" type="search" placeholder="Buscar obra o cliente…"></div>
+      <div id="o-cards"></div>
+    </div>
+    <div id="obra-detalle" class="oculto"></div>
+  </section>
+
+  <!-- Stock propio -->
+  <section id="p-stock" class="oculto">
+    <div id="s-aviso"></div>
+    <button class="btn primary block" id="b-nuevo-mov">+ Nuevo movimiento</button>
+    <div id="s-form" class="card oculto" style="margin-top:12px">
+      <div class="tipo" id="tipo"><button class="repo on" data-t="reposicion">Reposición</button>
+        <button class="cons" data-t="consumo">Consumo</button></div>
+      <div class="campo"><label for="f-item">Ítem (de Materiales típicos)</label>
+        <input id="f-item" placeholder="Tocá para elegir o escribí para buscar…" autocomplete="off">
+        <div id="f-lista" class="lista-op oculto"></div>
+        <div class="muted" id="a-item" style="margin-top:4px"></div></div>
+      <div class="campo"><label for="f-cant" id="l-cant">Cantidad</label>
+        <input id="f-cant" inputmode="decimal" placeholder="ej. 0,5"></div>
+      <div class="campo"><label for="f-precio">Precio unitario ($)</label>
+        <input id="f-precio" inputmode="decimal">
+        <div class="muted" id="a-precio" style="margin-top:4px"></div></div>
+      <label class="chk" id="c-sobrante"><input type="checkbox" id="f-sobrante"> Es un sobrante de obra (sin precio de compra)</label>
+      <div class="campo"><label for="f-obra">Obra (opcional)</label>
+        <select id="f-obra"><option value="">—</option></select></div>
+      <div class="campo"><label for="f-nota">Nota (opcional)</label><input id="f-nota"></div>
+      <div class="campo"><label for="f-fecha">Fecha</label><input id="f-fecha" type="date"></div>
+      <button class="btn primary block" id="b-registrar">Registrar</button>
+    </div>
+    <h2>Stock actual</h2><div id="s-resumen"></div>
+    <h2>Últimos movimientos</h2><div id="s-movs"></div>
+  </section>
+</main>
+
+<nav id="nav" class="oculto">
+  <button data-p="obras" class="on">Obras</button>
+  <button data-p="stock">Stock</button>
+</nav>
+<div id="toast"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => (s==null?'':String(s)).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const plata = n => n==null ? '—' : '$ ' + Number(n).toLocaleString('es-AR', {maximumFractionDigits:2});
+const cant = n => Number(n).toLocaleString('es-AR', {maximumFractionDigits:3});
+const norm = t => String(t||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+const hoy = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); };
+function toast(m){ const t=$('toast'); t.textContent=m; t.style.display='block'; clearTimeout(t._t); t._t=setTimeout(()=>t.style.display='none',3200); }
+// "12,5" -> 12.5 · "1.500" -> 1500 (punto de miles) · "0.5" y "2.5" -> decimales
+const num = v => { let t=String(v).trim(); if(t==='') return null;
+  if(t.includes(',')) t=t.replace(/\./g,'').replace(',','.');
+  else if(/^[1-9]\d{0,2}(\.\d{3})+$/.test(t)) t=t.replace(/\./g,'');
+  const n=parseFloat(t); return isFinite(n)?n:null; };
+
+/* ------------------------------------------------------------ conexión */
+let cfg = null;
+try{ cfg = JSON.parse(localStorage.getItem('fy_movil') || 'null'); }catch(e){}
+const encRuta = r => r.split('/').map(encodeURIComponent).join('/');
+async function gh(ruta, {raw=false, metodo='GET', cuerpo=null, listar=false} = {}){
+  const url = `https://api.github.com/repos/${cfg.repo}/contents/${encRuta(ruta)}` + (metodo==='GET' ? `?ref=${encodeURIComponent(cfg.rama)}` : '');
+  const r = await fetch(url, {method:metodo, headers:{
+    'Authorization':'Bearer '+cfg.token,
+    'Accept': raw ? 'application/vnd.github.raw+json' : 'application/vnd.github+json',
+    'X-GitHub-Api-Version':'2022-11-28', ...(cuerpo ? {'Content-Type':'application/json'} : {})},
+    body: cuerpo ? JSON.stringify(cuerpo) : undefined});
+  if(r.status === 404) return null;
+  if(r.status === 401) throw new Error('El token no es válido o venció.');
+  if(r.status === 403) throw new Error('El token no tiene permiso (o se agotó el cupo de GitHub; probá en unos minutos).');
+  if(!r.ok) throw new Error('GitHub respondió ' + r.status);
+  return raw && !listar ? r : r.json();
+}
+const aBase64 = txt => btoa(unescape(encodeURIComponent(txt)));
+
+$('b-conectar').onclick = async () => {
+  const c = {repo:$('l-repo').value.trim(), rama:$('l-rama').value.trim() || 'main', token:$('l-token').value.trim()};
+  if(!/^[\w.-]+\/[\w.-]+$/.test(c.repo) || !c.token){ toast('Completá repositorio (usuario/nombre) y token.'); return; }
+  cfg = c;
+  try{
+    const r = await fetch(`https://api.github.com/repos/${c.repo}`, {headers:{Authorization:'Bearer '+c.token}});
+    if(!r.ok) throw new Error(r.status===404 ? 'No encuentro ese repositorio con ese token.' : 'El token no es válido.');
+    localStorage.setItem('fy_movil', JSON.stringify(c));
+    $('l-token').value = '';
+    iniciar();
+  }catch(e){ cfg = null; toast(e.message); }
+};
+$('b-salir').onclick = () => { if(confirm('¿Desconectar este celular? Se borra el token guardado.')){
+  localStorage.removeItem('fy_movil'); location.reload(); } };
+
+/* ------------------------------------------------------------ pestañas */
+function ir(p){
+  ['obras','stock'].forEach(x => $('p-'+x).classList.toggle('oculto', x !== p));
+  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.p === p));
+  if(p === 'stock' && !stockCargado) cargarStock();
+}
+document.querySelectorAll('nav button').forEach(b => b.onclick = () => ir(b.dataset.p));
+$('b-actualizar').onclick = async () => { await cargarObras(); await cargarStock(); toast('Actualizado'); };
+
+async function iniciar(){
+  $('login').classList.add('oculto');
+  $('nav').classList.remove('oculto'); $('b-salir').classList.remove('oculto');
+  ir('obras');
+  await cargarObras();
+}
+
+/* ------------------------------------------------------------ obras (sólo consulta) */
+let obras = [];
+async function cargarObras(){
+  $('o-cards').innerHTML = '<div class="muted">Cargando…</div>';
+  try{
+    const dirs = await gh('obras');
+    const ids = (dirs || []).filter(d => d.type === 'dir').map(d => d.name);
+    const res = await Promise.all(ids.map(async id => {
+      const r = await gh(`obras/${id}/resumen.json`, {raw:true});
+      return r ? await r.json().catch(() => null) : null;
+    }));
+    obras = res.filter(Boolean).sort((a,b) => (b.actualizadoEl||0) - (a.actualizadoEl||0));
+    $('f-obra').innerHTML = '<option value="">—</option>' + obras.map(o =>
+      `<option value="${esc(o.id)}" data-n="${esc(o.nombre)}">${esc(o.nombre)}</option>`).join('');
+    pintarObras();
+  }catch(e){ $('o-cards').innerHTML = `<div class="aviso error">${esc(e.message)}</div>`; }
+}
+const ESTADOS = {preliminar:'Presupuesto preliminar', aprobado:'Presupuesto aprobado', en_curso:'En curso', realizado:'Realizado'};
+function pintarObras(){
+  const q = norm($('o-buscar').value);
+  const lista = obras.filter(o => !q || norm(o.nombre + ' ' + o.cliente).includes(q));
+  $('o-cards').innerHTML = lista.length ? lista.map(o => `<div class="card tap" data-id="${esc(o.id)}">
+      <div class="fila"><b>${esc(o.nombre)}</b><span class="muted">${esc(ESTADOS[o.estado] || o.estado || '')}</span></div>
+      <div class="muted">${esc(o.cliente || 'Sin cliente')}</div></div>`).join('')
+    : '<div class="muted">No hay obras en el repositorio.</div>';
+  $('o-cards').querySelectorAll('.card').forEach(c => c.onclick = () => abrirObra(c.dataset.id));
+}
+$('o-buscar').oninput = pintarObras;
+
+const NOMBRES_PDF = {'presupuesto.pdf':'Presupuesto','informe.pdf':'Informe general','materiales.pdf':'Lista de materiales','tableros.pdf':'Tableros'};
+async function abrirObra(id){
+  const o = obras.find(x => x.id === id); if(!o) return;
+  $('obras-lista').classList.add('oculto'); $('obra-detalle').classList.remove('oculto');
+  $('obra-detalle').innerHTML = `<button class="volver" id="b-volver">‹ Obras</button>
+    <div class="card"><b>${esc(o.nombre)}</b><div class="muted">${esc(o.cliente || 'Sin cliente')}</div>
+    <div class="muted" style="margin-top:6px">${esc(ESTADOS[o.estado] || o.estado || '')}
+      · Pago: ${esc((o.pago||{}).estado || '—')}${(o.pago||{}).estado==='parcial' ? ' ('+(o.pago.porcentaje||0)+'%)' : ''}</div>
+    ${o.total ? `<div style="margin-top:6px">Presupuesto: <b>${plata(o.total)}</b></div>` : ''}
+    <div class="muted" style="margin-top:6px">Última edición: ${o.actualizadoEl ? new Date(o.actualizadoEl).toLocaleDateString('es-AR') : '—'}${o.actualizadoPor ? ' · ' + esc(o.actualizadoPor) : ''}</div></div>
+    <h2>Documentos (PDF)</h2><div id="pdfs"><div class="muted">Buscando…</div></div>
+    <div class="muted" style="margin-top:10px">Esta pantalla es sólo de consulta. Los PDF los genera la PC cuando sube la obra.</div>`;
+  $('b-volver').onclick = () => { $('obra-detalle').classList.add('oculto'); $('obras-lista').classList.remove('oculto'); };
+  const docs = [];
+  try{
+    const raiz = await gh(`obras/${id}`) || [];
+    raiz.filter(f => f.type === 'file' && /\.pdf$/i.test(f.name)).forEach(f => docs.push({ruta:f.path, nombre:'Plano · ' + f.name, archivo:f.name}));
+    const pdf = await gh(`obras/${id}/pdf`) || [];
+    pdf.filter(f => f.type === 'file').forEach(f => docs.push({ruta:f.path, nombre:NOMBRES_PDF[f.name] || f.name, archivo:(o.nombre||'obra').replace(/\s+/g,'_') + '_' + f.name}));
+  }catch(e){ $('pdfs').innerHTML = `<div class="aviso error">${esc(e.message)}</div>`; return; }
+  $('pdfs').innerHTML = docs.length ? docs.map((d,i) => `<div class="card"><div class="fila"><b>${esc(d.nombre)}</b></div>
+      <div style="display:flex;gap:8px;margin-top:10px"><button class="btn sm" data-ver="${i}">Ver</button>
+      <button class="btn sm" data-des="${i}">Descargar</button></div></div>`).join('')
+    : '<div class="muted">Esta obra todavía no tiene PDF publicados (se publican al subirla desde la PC).</div>';
+  const traer = async (d, descargar, btn) => {
+    const txt = btn.textContent; btn.textContent = 'Descargando…'; btn.disabled = true;
+    // se abre la pestaña ya (en el toque), si no el navegador bloquea el popup después del await
+    const w = descargar ? null : window.open('', '_blank');
+    try{
+      const r = await gh(d.ruta, {raw:true});
+      const url = URL.createObjectURL(new Blob([await r.arrayBuffer()], {type:'application/pdf'}));
+      if(descargar){ const a = document.createElement('a'); a.href = url; a.download = d.archivo; document.body.appendChild(a); a.click(); a.remove(); }
+      else if(w) w.location = url; else location.href = url;
+    }catch(e){ if(w) w.close(); toast(e.message); }
+    btn.textContent = txt; btn.disabled = false;
+  };
+  $('pdfs').querySelectorAll('[data-ver]').forEach(b => b.onclick = () => traer(docs[+b.dataset.ver], false, b));
+  $('pdfs').querySelectorAll('[data-des]').forEach(b => b.onclick = () => traer(docs[+b.dataset.des], true, b));
+}
+
+/* ------------------------------------------------------------ stock propio */
+let stockCargado = false, estado = null, bandeja = [], itemSel = null, tipo = 'reposicion';
+const clave = m => [m.fecha || '', m.creadoEl || 0, m.id || ''];
+const mayor = (a, b) => { const x = clave(a), y = clave(b); for(let i=0;i<3;i++){ if(x[i] > y[i]) return true; if(x[i] < y[i]) return false; } return false; };
+const todos = () => { const ids = new Set((estado ? estado.movimientos : []).map(m => m.id));
+  return [...(estado ? estado.movimientos : []), ...bandeja.filter(m => !ids.has(m.id))]; };
+function ultimoPrecio(itemId){
+  let mejor = null;
+  for(const m of todos()) if(m.itemId === itemId && m.tipo === 'reposicion' && m.precioOrigen === 'cargado' && m.precioUnitario != null)
+    if(!mejor || mayor(m, mejor)) mejor = m;
+  return mejor ? mejor.precioUnitario : null;
+}
+async function cargarStock(){
+  try{
+    const r = await gh('stock/estado.json', {raw:true});
+    estado = r ? await r.json() : null;
+    const lista = await gh('stock/movil') || [];
+    bandeja = (await Promise.all(lista.filter(f => f.type === 'file' && /\.json$/.test(f.name)).map(async f => {
+      const rr = await gh(f.path, {raw:true}); return rr ? await rr.json().catch(() => null) : null; }))).filter(Boolean)
+      .map(m => ({...m, pendiente:true}));
+    stockCargado = true;
+    pintarStock();
+  }catch(e){ $('s-aviso').innerHTML = `<div class="aviso error">${esc(e.message)}</div>`; }
+}
+function pintarStock(){
+  $('s-aviso').innerHTML = estado ? '' : `<div class="aviso">Todavía no hay datos de stock publicados. En la PC, abrí
+    <b>Stock</b> y tocá <b>Sincronizar</b> (o usá Sincronizar del inicio) para publicar la lista de ítems.</div>`;
+  $('b-nuevo-mov').classList.toggle('oculto', !estado);
+  const movs = todos(), porItem = new Map();
+  for(const m of movs){
+    const f = porItem.get(m.itemId) || {itemId:m.itemId, item:m.item, unidad:m.unidad || 'u', cantidad:0};
+    f.cantidad += m.tipo === 'reposicion' ? m.cantidad : -m.cantidad; porItem.set(m.itemId, f);
+  }
+  const res = [...porItem.values()].sort((a,b) => (a.item||'').localeCompare(b.item||'', 'es'));
+  $('s-resumen').innerHTML = res.length ? res.map(r => { const up = ultimoPrecio(r.itemId);
+    return `<div class="card"><div class="fila"><b>${esc(r.item)}</b><b>${cant(r.cantidad)} ${esc(r.unidad)}</b></div>
+      <div class="muted">Último precio: ${plata(up)}${up == null && r.cantidad > 0 ? '<span class="tag falta">falta precio</span>' : ''}${r.cantidad < 0 ? '<span class="tag falta">stock negativo</span>' : ''}</div></div>`; }).join('')
+    : '<div class="muted">Sin movimientos todavía.</div>';
+  const ult = [...movs].sort((a,b) => mayor(a,b) ? -1 : 1).slice(0, 30);
+  $('s-movs').innerHTML = ult.length ? ult.map(m => `<div class="card"><div class="fila"><span><b style="color:${m.tipo==='reposicion'?'var(--green)':'var(--amber)'}">${m.tipo==='reposicion'?'Reposición':'Consumo'}</b>
+      · ${esc(m.item)}${m.pendiente ? '<span class="tag pend">pendiente en la PC</span>' : ''}</span><b>${cant(m.cantidad)} ${esc(m.unidad||'')}</b></div>
+      <div class="muted">${esc(m.fecha)} · ${m.precioUnitario != null ? plata(m.precioUnitario) + (m.precioOrigen==='ultimo' ? ' (último)' : '') : 'falta precio'}${m.obraNombre ? ' · ' + esc(m.obraNombre) : ''}${m.nota ? ' · ' + esc(m.nota) : ''}</div></div>`).join('')
+    : '';
+}
+
+/* formulario */
+$('b-nuevo-mov').onclick = () => { $('s-form').classList.toggle('oculto'); if(!$('f-fecha').value) $('f-fecha').value = hoy(); };
+document.querySelectorAll('#tipo button').forEach(b => b.onclick = () => { tipo = b.dataset.t; pintarForm(); });
+function pintarForm(){
+  const rep = tipo === 'reposicion';
+  document.querySelectorAll('#tipo button').forEach(b => b.classList.toggle('on', b.dataset.t === tipo));
+  $('c-sobrante').classList.toggle('oculto', !rep); if(!rep) $('f-sobrante').checked = false;
+  $('l-cant').textContent = 'Cantidad' + (itemSel ? ' (' + itemSel.unidad + ')' : '');
+  const up = itemSel ? ultimoPrecio(itemSel.id) : null;
+  const stk = itemSel ? todos().filter(m => m.itemId === itemSel.id).reduce((s,m) => s + (m.tipo==='reposicion' ? m.cantidad : -m.cantidad), 0) : 0;
+  $('a-item').textContent = itemSel ? `En stock: ${cant(stk)} ${itemSel.unidad}` : '';
+  $('a-precio').textContent = $('f-sobrante').checked ? 'Un sobrante no tiene precio de compra: se usa el último y no lo cambia.'
+    : itemSel ? (up != null ? `Último precio: ${plata(up)}. Vacío = se usa ese.` : 'Todavía no hay precio de este ítem: vacío = queda "falta precio".')
+    : 'Vacío = se usa el último precio (o queda "falta precio").';
+  $('f-precio').disabled = rep && $('f-sobrante').checked; if($('f-precio').disabled) $('f-precio').value = '';
+}
+$('f-sobrante').addEventListener('input', pintarForm);
+function filtrados(){
+  const cat = estado ? estado.catalogo : [];
+  if(itemSel && norm($('f-item').value) === norm(itemSel.item + ' (' + itemSel.unidad + ')')) return cat;
+  const q = norm($('f-item').value).split(/\s+/).filter(Boolean);
+  return cat.filter(i => { const h = norm(i.item + ' ' + (i.categoria || '')); return q.every(w => h.includes(w)); });
+}
+function pintarLista(){
+  const l = filtrados(); let html = '', c = null;
+  l.forEach(i => { if(i.categoria !== c){ c = i.categoria; html += `<div class="g">${esc(c || 'Sin categoría')}</div>`; }
+    html += `<div class="op" data-id="${esc(i.id)}"><span>${esc(i.item)}</span><small>${esc(i.unidad)}</small></div>`; });
+  $('f-lista').innerHTML = html || '<div class="op"><small>Ningún ítem coincide. Se agregan desde "Materiales típicos" en la PC.</small></div>';
+  $('f-lista').querySelectorAll('.op[data-id]').forEach(o => o.onpointerdown = ev => { ev.preventDefault(); elegir(o.dataset.id); });
+}
+function elegir(id){
+  itemSel = (estado.catalogo.find(i => i.id === id)) || null;
+  $('f-item').value = itemSel ? itemSel.item + ' (' + itemSel.unidad + ')' : '';
+  $('f-lista').classList.add('oculto'); pintarForm(); if(itemSel) $('f-cant').focus();
+}
+$('f-item').addEventListener('focus', e => { e.target.select(); $('f-lista').classList.remove('oculto'); pintarLista(); });
+$('f-item').addEventListener('input', () => { itemSel = null; $('f-lista').classList.remove('oculto'); pintarLista(); pintarForm(); });
+$('f-item').addEventListener('blur', () => { $('f-lista').classList.add('oculto'); if(!itemSel) $('f-item').value = ''; });
+
+$('b-registrar').onclick = async () => {
+  if(!itemSel){ toast('Elegí un ítem de la lista.'); return; }
+  const c = num($('f-cant').value);
+  if(c == null || c <= 0){ toast('Poné una cantidad mayor que cero.'); return; }
+  let precio = $('f-precio').disabled ? null : num($('f-precio').value), origen = null;
+  if(precio != null){ if(precio < 0){ toast('El precio no puede ser negativo.'); return; } origen = 'cargado'; }
+  else { const up = ultimoPrecio(itemSel.id); if(up != null){ precio = up; origen = 'ultimo'; } }
+  const op = $('f-obra').selectedOptions[0];
+  const id = 'mv_' + Date.now().toString(16) + '_m' + Math.random().toString(16).slice(2, 6);
+  const mov = {id, fecha:$('f-fecha').value || hoy(), tipo, itemId:itemSel.id, item:itemSel.item,
+    unidad:itemSel.unidad, cantidad:c, precioUnitario:precio, precioOrigen:origen,
+    sobrante: tipo === 'reposicion' && $('f-sobrante').checked && origen !== 'cargado',
+    obraId:$('f-obra').value || null, obraNombre: op && op.value ? op.dataset.n : null,
+    nota:$('f-nota').value.trim(), creadoEl:Date.now(), creadoPor:'celular'};
+  const b = $('b-registrar'); b.disabled = true; b.textContent = 'Guardando…';
+  try{
+    await gh('stock/movil/' + id + '.json', {metodo:'PUT', cuerpo:{message:'Movimiento de stock desde el celular',
+      content:aBase64(JSON.stringify(mov)), branch:cfg.rama}});
+    bandeja.push({...mov, pendiente:true});
+    toast((tipo === 'consumo' ? 'Consumo' : 'Reposición') + ' registrado' + (precio == null ? ' -- falta cargar el precio' : ''));
+    $('f-cant').value = $('f-precio').value = $('f-nota').value = ''; $('f-sobrante').checked = false;
+    itemSel = null; $('f-item').value = ''; pintarForm(); pintarStock();
+  }catch(e){ toast('No se pudo guardar: ' + e.message); }
+  b.disabled = false; b.textContent = 'Registrar';
+};
+
+/* arranque */
+if(cfg && cfg.repo && cfg.token) iniciar();
+else $('login').classList.remove('oculto');
+pintarForm();
+</script>
+</body>
+</html>

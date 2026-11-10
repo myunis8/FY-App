@@ -203,3 +203,44 @@ def payload(datos: dict | None = None) -> dict:
         items.append({"id": i["id"], "item": i["item"], "unidad": i.get("unidad") or "u",
                       "categoria": i.get("categoria"), "ultimoPrecio": ultimo_precio(movs, i["id"])})
     return {"items": items, "resumen": resumen(datos), "movimientos": listado(datos)}
+
+
+# -------------------------------------------------- otros dispositivos (celular)
+def ingerir(datos: dict, mov: dict) -> bool:
+    """Suma un movimiento cargado en otro dispositivo (el celular, ver
+    docs/index.html), tal cual vino: ya trae su propio id y el precio que
+    tenía a la vista cuando lo cargó. Si el id ya existe no se duplica.
+    Devuelve True si se agregó. Un movimiento ilegible se descarta (no frena
+    al resto)."""
+    if not isinstance(mov, dict) or not mov.get("id") or mov.get("tipo") not in TIPOS:
+        return False
+    if any(m.get("id") == mov["id"] for m in datos["movimientos"]):
+        return False
+    cantidad = _num(mov.get("cantidad"))
+    if cantidad is None or cantidad <= 0 or not mov.get("itemId"):
+        return False
+    item = next((i for i in mat_mod.leer().get("items") or [] if i.get("id") == mov["itemId"]), None)
+    precio = _num(mov.get("precioUnitario"))
+    datos["movimientos"].append({
+        "id": mov["id"], "fecha": _fecha(mov.get("fecha")), "tipo": mov["tipo"], "itemId": mov["itemId"],
+        "item": (item or {}).get("item") or mov.get("item") or "(ítem borrado)",
+        "unidad": (item or {}).get("unidad") or mov.get("unidad") or "u",
+        "cantidad": cantidad, "precioUnitario": precio,
+        "precioOrigen": mov.get("precioOrigen") if precio is not None else None,
+        "sobrante": bool(mov.get("sobrante")) and mov["tipo"] == "reposicion",
+        "obraId": mov.get("obraId") or None, "obraNombre": (mov.get("obraNombre") or "").strip() or None,
+        "nota": (mov.get("nota") or "").strip(),
+        "creadoEl": int(mov.get("creadoEl") or time.time() * 1000), "creadoPor": mov.get("creadoPor") or "celular",
+        "origen": "celular",
+    })
+    return True
+
+
+def estado_publico(datos: dict | None = None) -> dict:
+    """Lo que la PC publica en el repositorio para que el celular lo lea:
+    el catálogo de ítems posibles y todos los movimientos (el celular calcula
+    stock y último precio con ellos). Sólo la PC escribe este archivo."""
+    datos = datos if datos is not None else leer()
+    catalogo = [{"id": i["id"], "item": i["item"], "unidad": i.get("unidad") or "u", "categoria": i.get("categoria")}
+                for i in sorted(mat_mod.leer().get("items") or [], key=lambda i: (i.get("categoria") or "", i.get("item") or ""))]
+    return {"generadoEl": int(time.time() * 1000), "catalogo": catalogo, "movimientos": datos["movimientos"]}

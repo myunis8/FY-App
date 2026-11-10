@@ -547,7 +547,18 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"ok": True, "obra": obra})
 
         if ruta == "/api/sync/bajar":
-            return self._json(sync.bajar_todo(cfg))
+            res = sync.bajar_todo(cfg)
+            try:                                        # el stock con el celular no debe frenar la bajada de obras
+                res["stock"] = sync.sincronizar_stock(cfg)
+            except Exception as e:
+                res["stockError"] = str(e)
+            return self._json(res)
+
+        if ruta == "/api/stock/sync":
+            try:
+                return self._json({"ok": True, **sync.sincronizar_stock(cfg), **stock_mod.payload()})
+            except gh.ErrorSync as e:
+                return self._error(e.mensaje)
 
         if len(partes) == 4 and partes[:3] == ["api", "sync", "traer"]:
             return self._json({"ok": True, "obra": sync.traer_obra(cfg, partes[3])})
