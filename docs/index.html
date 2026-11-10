@@ -6,7 +6,7 @@
 <meta name="robots" content="noindex, nofollow">
 <meta name="theme-color" content="#16283f">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" href="icon-192.png">
+<link rel="icon" type="image/png" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-180.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -91,7 +91,8 @@ h2{font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;color:var(--mu
 <main>
   <!-- primer uso: conectar con el repositorio -->
   <section id="login" class="oculto">
-    <h2 style="margin-top:6px">FY Manager Lite · Conectar con el repositorio de obras</h2>
+    <img src="logo.png" alt="FY Manager Lite" style="display:block;width:58%;max-width:230px;margin:6px auto 16px">
+    <h2 style="margin-top:6px">Conectar con el repositorio de obras</h2>
     <div class="aviso">Pegá el token una sola vez. Queda guardado sólo en este celular y se puede revocar desde GitHub
       si lo perdés. Creá uno nuevo (fine-grained) limitado al repositorio de obras, con permiso
       <b>Contents: Read and write</b>.</div>
@@ -163,7 +164,8 @@ h2{font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;color:var(--mu
     </div>
 
     <h2>Acerca de</h2>
-    <div class="card"><b>FY Manager Lite</b> <span class="tag ok" id="c-version"></span>
+    <div class="card"><img src="logo.png" alt="FY Manager Lite" style="display:block;width:120px;margin:4px auto 12px">
+      <div style="text-align:center"><b>FY Manager Lite</b> <span class="tag ok" id="c-version"></span></div>
       <div class="muted" style="margin-top:6px">Versión del celular de FY Manager, independiente de la del programa de la PC.
         Si no ves un cambio nuevo, cerrá la página y abrila de nuevo (o actualizá desde el navegador).</div></div>
 
@@ -221,7 +223,7 @@ const num = v => { let t=String(v).trim(); if(t==='') return null;
   const n=parseFloat(t); return isFinite(n)?n:null; };
 
 /* ------------------------------------------------------------ conexión */
-const VERSION_LITE = '1.0.0';        // versión de FY Manager Lite (sube con los cambios de esta página)
+const VERSION_LITE = '1.0.1';        // versión de FY Manager Lite (sube con los cambios de esta página)
 let cfg = null;
 try{ cfg = JSON.parse(localStorage.getItem('fy_movil') || 'null'); }catch(e){}
 const encRuta = r => r.split('/').map(encodeURIComponent).join('/');
