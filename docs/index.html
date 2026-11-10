@@ -10,8 +10,8 @@
 <link rel="apple-touch-icon" href="icon-180.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="FY Manager">
-<title>FY Manager · celular</title>
+<meta name="apple-mobile-web-app-title" content="FY Manager Lite">
+<title>FY Manager Lite</title>
 <!--
   Página del celular de FY Manager. Es UNA sola página estática: no trae datos ni
   claves. Lee y escribe directo en el repositorio privado de obras (API de GitHub)
@@ -81,7 +81,7 @@ h2{font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;color:var(--mu
 </head>
 <body>
 <header>
-  <div style="flex:1;min-width:0"><h1 style="line-height:1.1">FY Manager</h1>
+  <div style="flex:1;min-width:0"><h1 style="line-height:1.1">FY Manager Lite</h1>
     <div class="muted oculto" id="h-usuario" style="font-size:.75rem;color:#9db2c7"></div></div>
   <button class="btn sm" id="b-actualizar">Actualizar</button>
   <button class="btn sm oculto" id="b-config" aria-label="Configuración" title="Configuración" style="padding:7px 9px;display:flex">
@@ -91,7 +91,7 @@ h2{font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;color:var(--mu
 <main>
   <!-- primer uso: conectar con el repositorio -->
   <section id="login" class="oculto">
-    <h2 style="margin-top:6px">Conectar con el repositorio de obras</h2>
+    <h2 style="margin-top:6px">FY Manager Lite · Conectar con el repositorio de obras</h2>
     <div class="aviso">Pegá el token una sola vez. Queda guardado sólo en este celular y se puede revocar desde GitHub
       si lo perdés. Creá uno nuevo (fine-grained) limitado al repositorio de obras, con permiso
       <b>Contents: Read and write</b>.</div>
@@ -136,14 +136,14 @@ h2{font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;color:var(--mu
           <li>Tocá el menú <b>⋮</b> (tres puntos, arriba a la derecha).</li>
           <li>Elegí <b>Agregar a la pantalla principal</b> (o <b>Instalar app</b>).</li>
           <li>Confirmá el nombre y tocá <b>Agregar</b> / <b>Instalar</b>.</li>
-          <li>Buscá el ícono <b>FY Manager</b> en la pantalla y abrila desde ahí.</li></ol>
+          <li>Buscá el ícono <b>FY Manager Lite</b> en la pantalla y abrila desde ahí.</li></ol>
       </details>
       <details><summary>iPhone (Safari)</summary>
         <ol><li>Abrí esta página en <b>Safari</b> (no en Chrome).</li>
           <li>Tocá el botón <b>Compartir</b> (el cuadrado con una flecha hacia arriba, abajo en el centro).</li>
           <li>Deslizá el menú y elegí <b>Agregar a pantalla de inicio</b>.</li>
           <li>Tocá <b>Agregar</b> (arriba a la derecha).</li>
-          <li>Abrila desde el ícono <b>FY Manager</b>.</li></ol>
+          <li>Abrila desde el ícono <b>FY Manager Lite</b>.</li></ol>
         <div class="aviso" style="margin-top:8px">En iPhone, la app de la pantalla de inicio guarda sus datos aparte de Safari:
           la primera vez que la abras desde el ícono vas a tener que <b>conectar de nuevo</b> (repositorio, token y tu nombre).
           A cambio, ahí el token no se borra por falta de uso.</div>
@@ -161,6 +161,11 @@ h2{font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;color:var(--mu
       <div class="muted" style="margin-top:8px">Desconectar borra el token y el nombre guardados en este celular. Guardá el token en otro lugar
         (GitHub no lo vuelve a mostrar).</div>
     </div>
+
+    <h2>Acerca de</h2>
+    <div class="card"><b>FY Manager Lite</b> <span class="tag ok" id="c-version"></span>
+      <div class="muted" style="margin-top:6px">Versión del celular de FY Manager, independiente de la del programa de la PC.
+        Si no ves un cambio nuevo, cerrá la página y abrila de nuevo (o actualizá desde el navegador).</div></div>
 
     <h2>Qué se puede hacer desde acá</h2>
     <div class="card muted">Obras: sólo consulta y descarga de PDF. Stock propio: ver saldos y cargar movimientos de reposición
@@ -216,6 +221,7 @@ const num = v => { let t=String(v).trim(); if(t==='') return null;
   const n=parseFloat(t); return isFinite(n)?n:null; };
 
 /* ------------------------------------------------------------ conexión */
+const VERSION_LITE = '1.0.0';        // versión de FY Manager Lite (sube con los cambios de esta página)
 let cfg = null;
 try{ cfg = JSON.parse(localStorage.getItem('fy_movil') || 'null'); }catch(e){}
 const encRuta = r => r.split('/').map(encodeURIComponent).join('/');
@@ -297,6 +303,7 @@ function bloqueoStock(){
   if(sin) $('s-form').classList.add('oculto');
 }
 function pintarConfig(){
+  $('c-version').textContent = 'v' + VERSION_LITE;
   $('c-repo').textContent = cfg.repo; $('c-rama').textContent = cfg.rama;
   $('c-aviso').innerHTML = cfg.usuario ? '' : '<div class="aviso error">Todavía no elegiste tu nombre. Mientras tanto no se puede cargar nada.</div>';
   const nombres = nombresConocidos();

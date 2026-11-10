@@ -1,6 +1,6 @@
 {
-  "name": "FY Manager",
-  "short_name": "FY Manager",
+  "name": "FY Manager Lite",
+  "short_name": "FY Lite",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#10161e",

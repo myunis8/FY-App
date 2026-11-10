@@ -3,9 +3,29 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
-## Sin publicar (rama dev)
+## 1.14.0 — Automatizaciones, Stock propio, FY Manager Lite (celular), Tablero y Routeo
 
-- **Celular (página `docs/index.html`)**: una página estática, sin datos ni claves, que se
+`contrato`: sin cambios incompatibles; `obra.json` suma la clave opcional `automatizaciones`
+(vacía por defecto). El stock propio es global (`stock.json`), no va dentro de las obras.
+
+- **Tablero:** la grilla de ruteo es mucho más fina y está alineada con los pines de cada
+  térmica; los cables que comparten tramo se escalonan por orden de creación; ahora sólo el
+  cuerpo de cada térmica bloquea el ruteo (el hueco entre dos térmicas sí se puede usar --
+  corrige lo dicho en 1.13.0 sobre el riel completo); más espacio para rutear arriba y abajo
+  de los rieles; el diferencial y el protector de tensión usan los mismos tornillos que la
+  térmica y la lectura del protector queda dentro de su recuadro.
+- **PDF del tablero:** se dibuja con la misma geometría del editor, así que pines, caños,
+  peines, conectores y cables van donde corresponde.
+- **Circuitos:** una caja con varias llaves es un solo marcador, con un menú para asignar cada
+  tecla a su circuito (una caja puede quedar repartida entre circuitos); las descripciones de
+  los circuitos nuevos arrancan con la base del tipo (IUG "Iluminación", TUG
+  "Tomacorrientes", TUE "Tomas de Uso Especial"...). Revisor: se cargan varias teclas por caja
+  escribiéndolas separadas por `,` o `-`; el extractor también separa las rotuladas así.
+- **Presupuesto:** botón "Actualizar a precios de hoy" (vuelve a tomar de la lista de precios
+  las líneas que vienen de ella).
+- **Routeo:** una caja compartida entre circuitos lleva una nota que avisa que tienen que
+  llegar los caños de todos.
+- **Celular -- FY Manager Lite 1.0.0 (página `docs/index.html`)**: una página estática, sin datos ni claves, que se
   abre desde GitHub Pages y lee/escribe directo en el repositorio privado de obras con un
   token que se pega una vez en el celular (queda en ese navegador). *Obras*: sólo
   consulta y descarga de PDF (resumen, plano y PDF publicados). *Stock*: se ven los
@@ -20,12 +40,13 @@ El formato es una línea por cambio, agrupadas por versión.
   y una sesión sin nombre arranca en Configuración con el botón de nuevo movimiento bloqueado).
 - En el celular se elige **quién sos** (lista con los nombres ya usados, o uno nuevo): queda en
   cada movimiento de stock (`creadoPor`) y la PC lo muestra con "desde el celular".
+- La página del celular se llama **FY Manager Lite** y tiene versión propia (1.0.0, visible en
+  Configuración), independiente de la del programa.
 - Al **subir una obra** se publican además sus PDF de consulta (`obras/<id>/pdf/`:
   presupuesto, informe general, lista de materiales y tableros), compactados (pasan de
   ~19 MB a ~1,5 MB) y sólo si su contenido cambió.
 - Stock: el ítem se elige de una lista desplegable de Materiales típicos (también se
   filtra escribiendo), sin tipearlo entero.
-
 - **Stock propio** (módulo global, no por obra; botón "Movimiento de stock" en el
   inicio): material guardado para imprevistos de obra. Se cargan movimientos de
   *reposición* (compra o sobrante) y de *consumo*, sobre los ítems de la lista de
