@@ -14,6 +14,10 @@ El formato es una línea por cambio, agrupadas por versión.
   ingresa a su stock, los borra de esa bandeja y publica `stock/estado.json` (catálogo +
   movimientos) para que el celular lo lea. Botón "Sincronizar con el celular" en Stock;
   "Sincronizar" del inicio también lo hace.
+- Celular: apartado **Configuración** (engranaje): nombre de usuario, instrucciones para ponerla
+  en la pantalla de inicio (Android e iPhone), cambiar el token y desconectar. Con ícono y manifiesto
+  para instalarla como app. **Sin nombre no se puede cargar nada** (el nombre es obligatorio al conectar,
+  y una sesión sin nombre arranca en Configuración con el botón de nuevo movimiento bloqueado).
 - En el celular se elige **quién sos** (lista con los nombres ya usados, o uno nuevo): queda en
   cada movimiento de stock (`creadoPor`) y la PC lo muestra con "desde el celular".
 - Al **subir una obra** se publican además sus PDF de consulta (`obras/<id>/pdf/`:

@@ -5,6 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
 <meta name="theme-color" content="#16283f">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="FY Manager">
 <title>FY Manager · celular</title>
 <!--
   Página del celular de FY Manager. Es UNA sola página estática: no trae datos ni
@@ -30,7 +36,9 @@ button,input,select{font:inherit}
 input,select{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:12px;width:100%;font-size:1rem}
 button{cursor:pointer}
 header{background:var(--navy);padding:calc(12px + env(safe-area-inset-top)) 16px 12px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:20}
-header h1{font-size:1.05rem;margin:0;flex:1}
+header h1{font-size:1.05rem;margin:0}
+details{margin-bottom:8px} summary{font-weight:700;padding:8px 0;cursor:pointer}
+ol{margin:6px 0 4px;padding-left:22px} ol li{margin-bottom:7px;font-size:.92rem;line-height:1.4}
 .btn{border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:11px 16px;border-radius:10px;font-weight:600;font-size:.95rem}
 .btn.primary{background:var(--amber);border-color:var(--amber-deep);color:#2a1e07}
 .btn.sm{padding:7px 12px;font-size:.82rem}
@@ -73,10 +81,11 @@ h2{font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;color:var(--mu
 </head>
 <body>
 <header>
-  <h1>FY Manager</h1>
-  <button class="btn sm oculto" id="b-usuario" title="Quién sos: queda en los movimientos de stock"></button>
+  <div style="flex:1;min-width:0"><h1 style="line-height:1.1">FY Manager</h1>
+    <div class="muted oculto" id="h-usuario" style="font-size:.75rem;color:#9db2c7"></div></div>
   <button class="btn sm" id="b-actualizar">Actualizar</button>
-  <button class="btn sm danger oculto" id="b-salir">Salir</button>
+  <button class="btn sm oculto" id="b-config" aria-label="Configuración" title="Configuración" style="padding:7px 9px;display:flex">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.11-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.65 8.9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34h.01A1.7 1.7 0 0 0 10 3.09V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v.01A1.7 1.7 0 0 0 20.91 10H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.56 1z"/></svg></button>
 </header>
 
 <main>
@@ -106,6 +115,58 @@ h2{font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;color:var(--mu
     <div id="obra-detalle" class="oculto"></div>
   </section>
 
+  <!-- Configuración -->
+  <section id="p-config" class="oculto">
+    <button class="volver" id="c-volver">‹ Volver</button>
+    <div id="c-aviso"></div>
+    <h2 style="margin-top:4px">Usuario</h2>
+    <div class="card">
+      <div class="muted" style="margin-bottom:10px">Tu nombre queda en cada movimiento de stock que cargues desde este celular.
+        <b>Sin nombre no se puede cargar ni modificar nada.</b></div>
+      <div class="campo"><label for="u-sel">Quién sos</label><select id="u-sel"></select></div>
+      <div class="campo oculto" id="u-otro-c"><input id="u-otro" autocapitalize="words" placeholder="Escribí tu nombre"></div>
+      <button class="btn primary block" id="u-guardar">Guardar nombre</button>
+    </div>
+
+    <h2>Poner en la pantalla de inicio</h2>
+    <div class="card">
+      <div class="muted" style="margin-bottom:8px">Así se abre como una app, sin escribir la dirección.</div>
+      <details open><summary>Android (Chrome)</summary>
+        <ol><li>Abrí esta página en <b>Chrome</b>.</li>
+          <li>Tocá el menú <b>⋮</b> (tres puntos, arriba a la derecha).</li>
+          <li>Elegí <b>Agregar a la pantalla principal</b> (o <b>Instalar app</b>).</li>
+          <li>Confirmá el nombre y tocá <b>Agregar</b> / <b>Instalar</b>.</li>
+          <li>Buscá el ícono <b>FY Manager</b> en la pantalla y abrila desde ahí.</li></ol>
+      </details>
+      <details><summary>iPhone (Safari)</summary>
+        <ol><li>Abrí esta página en <b>Safari</b> (no en Chrome).</li>
+          <li>Tocá el botón <b>Compartir</b> (el cuadrado con una flecha hacia arriba, abajo en el centro).</li>
+          <li>Deslizá el menú y elegí <b>Agregar a pantalla de inicio</b>.</li>
+          <li>Tocá <b>Agregar</b> (arriba a la derecha).</li>
+          <li>Abrila desde el ícono <b>FY Manager</b>.</li></ol>
+        <div class="aviso" style="margin-top:8px">En iPhone, la app de la pantalla de inicio guarda sus datos aparte de Safari:
+          la primera vez que la abras desde el ícono vas a tener que <b>conectar de nuevo</b> (repositorio, token y tu nombre).
+          A cambio, ahí el token no se borra por falta de uso.</div>
+      </details>
+    </div>
+
+    <h2>Conexión</h2>
+    <div class="card">
+      <div class="muted">Repositorio</div><div><b id="c-repo"></b></div>
+      <div class="muted" style="margin-top:6px">Rama</div><div><b id="c-rama"></b></div>
+      <div class="campo" style="margin-top:14px"><label for="c-token">Cambiar token (si venció o lo reemplazaste)</label>
+        <input id="c-token" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Pegá el token nuevo"></div>
+      <button class="btn block" id="c-guardar-token">Guardar token nuevo</button>
+      <button class="btn block danger" id="b-salir" style="margin-top:12px">Desconectar este celular</button>
+      <div class="muted" style="margin-top:8px">Desconectar borra el token y el nombre guardados en este celular. Guardá el token en otro lugar
+        (GitHub no lo vuelve a mostrar).</div>
+    </div>
+
+    <h2>Qué se puede hacer desde acá</h2>
+    <div class="card muted">Obras: sólo consulta y descarga de PDF. Stock propio: ver saldos y cargar movimientos de reposición
+      o consumo, que la PC ingresa cuando sincroniza. Todo lo demás se hace en la PC.</div>
+  </section>
+
   <!-- Stock propio -->
   <section id="p-stock" class="oculto">
     <div id="s-aviso"></div>
@@ -133,17 +194,6 @@ h2{font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;color:var(--mu
     <h2>Últimos movimientos</h2><div id="s-movs"></div>
   </section>
 </main>
-
-<div id="p-usuario" class="oculto" style="position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:40;display:flex;align-items:flex-end">
-  <div class="card" style="width:100%;margin:0;border-radius:16px 16px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom))">
-    <b>¿Quién sos?</b>
-    <div class="muted" style="margin:4px 0 12px">Tu nombre queda en cada movimiento de stock que cargues desde este celular.</div>
-    <div class="campo"><select id="u-sel"></select></div>
-    <div class="campo oculto" id="u-otro-c"><input id="u-otro" autocapitalize="words" placeholder="Escribí tu nombre"></div>
-    <div style="display:flex;gap:8px"><button class="btn block" id="u-cancelar">Cancelar</button>
-      <button class="btn primary block" id="u-guardar">Guardar</button></div>
-  </div>
-</div>
 
 <nav id="nav" class="oculto">
   <button data-p="obras" class="on">Obras</button>
@@ -187,6 +237,7 @@ const aBase64 = txt => btoa(unescape(encodeURIComponent(txt)));
 $('b-conectar').onclick = async () => {
   const c = {repo:$('l-repo').value.trim(), rama:$('l-rama').value.trim() || 'main', token:$('l-token').value.trim(),
     usuario:$('l-usuario').value.trim()};
+  if(!c.usuario){ toast('Poné tu nombre: sin nombre no se puede cargar nada.'); return; }
   if(!/^[\w.-]+\/[\w.-]+$/.test(c.repo) || !c.token){ toast('Completá repositorio (usuario/nombre) y token.'); return; }
   cfg = c;
   try{
@@ -199,18 +250,32 @@ $('b-conectar').onclick = async () => {
     iniciar();
   }catch(e){ cfg = null; toast(e.message); }
 };
-$('b-salir').onclick = () => { if(confirm('¿Desconectar este celular? Se borra el token guardado.')){
+$('b-salir').onclick = () => { if(confirm('¿Desconectar este celular? Se borran el token y el nombre guardados.')){
   localStorage.removeItem('fy_movil'); location.reload(); } };
 
 /* ------------------------------------------------------------ pestañas */
+let ultimaPestana = 'obras';
 function ir(p){
-  ['obras','stock'].forEach(x => $('p-'+x).classList.toggle('oculto', x !== p));
+  ['obras','stock','config'].forEach(x => $('p-'+x).classList.toggle('oculto', x !== p));
   document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.p === p));
+  if(p !== 'config') ultimaPestana = p;
   if(p === 'stock' && !stockCargado) cargarStock();
+  if(p === 'config') pintarConfig();
 }
 document.querySelectorAll('nav button').forEach(b => b.onclick = () => ir(b.dataset.p));
 $('b-actualizar').onclick = async () => { await cargarObras(); await cargarStock(); toast('Actualizado'); };
 
+$('b-config').onclick = () => ir('config');
+$('c-volver').onclick = () => { if(!cfg.usuario){ toast('Elegí tu nombre para poder cargar movimientos.'); } ir(ultimaPestana); };
+$('c-guardar-token').onclick = async () => {
+  const t = $('c-token').value.trim(); if(!t){ toast('Pegá el token nuevo.'); return; }
+  try{
+    const r = await fetch(`https://api.github.com/repos/${cfg.repo}`, {headers:{Authorization:'Bearer '+t}});
+    if(!r.ok) throw new Error('Ese token no sirve para este repositorio.');
+    cfg.token = t; localStorage.setItem('fy_movil', JSON.stringify(cfg)); $('c-token').value = '';
+    toast('Token actualizado');
+  }catch(e){ toast(e.message); }
+};
 // nombres que ya se usan (movimientos de stock y últimas ediciones de obras) para elegir sin tipear
 function nombresConocidos(){
   const set = new Set();
@@ -219,32 +284,41 @@ function nombresConocidos(){
   return [...set].sort((a, b) => a.localeCompare(b, 'es'));
 }
 function pintarUsuario(){
-  const b = $('b-usuario'); b.classList.remove('oculto');
-  b.textContent = (cfg.usuario ? '👤 ' + cfg.usuario : '👤 ¿Quién sos?');
+  const h = $('h-usuario');
+  h.classList.toggle('oculto', !cfg.usuario);
+  h.textContent = cfg.usuario ? '👤 ' + cfg.usuario : '';
+  bloqueoStock();
 }
-function elegirUsuario(){
+// sin nombre no se puede cargar nada: el botón de nuevo movimiento queda bloqueado
+function bloqueoStock(){
+  const sin = !cfg || !cfg.usuario;
+  $('b-nuevo-mov').textContent = sin ? 'Elegí tu nombre en ⚙ Configuración para cargar movimientos' : '+ Nuevo movimiento';
+  $('b-nuevo-mov').classList.toggle('danger', sin);
+  if(sin) $('s-form').classList.add('oculto');
+}
+function pintarConfig(){
+  $('c-repo').textContent = cfg.repo; $('c-rama').textContent = cfg.rama;
+  $('c-aviso').innerHTML = cfg.usuario ? '' : '<div class="aviso error">Todavía no elegiste tu nombre. Mientras tanto no se puede cargar nada.</div>';
   const nombres = nombresConocidos();
   $('u-sel').innerHTML = nombres.map(n => `<option ${n === cfg.usuario ? 'selected' : ''}>${esc(n)}</option>`).join('')
     + '<option value="__otro">Otro…</option>';
-  if(!nombres.length) $('u-sel').value = '__otro';
+  if(!nombres.length || !cfg.usuario && !nombres.length) $('u-sel').value = '__otro';
   const otro = () => $('u-otro-c').classList.toggle('oculto', $('u-sel').value !== '__otro');
-  $('u-sel').onchange = otro; otro(); $('u-otro').value = '';
-  $('p-usuario').classList.remove('oculto');
+  $('u-sel').onchange = otro; otro();
 }
-$('b-usuario').onclick = elegirUsuario;
-$('u-cancelar').onclick = () => $('p-usuario').classList.add('oculto');
 $('u-guardar').onclick = () => {
   const n = ($('u-sel').value === '__otro' ? $('u-otro').value : $('u-sel').value).trim();
   if(!n){ toast('Elegí o escribí tu nombre.'); return; }
   cfg.usuario = n; localStorage.setItem('fy_movil', JSON.stringify(cfg));
-  $('p-usuario').classList.add('oculto'); pintarUsuario(); toast('Usuario: ' + n);
+  $('u-otro').value = ''; pintarUsuario(); pintarConfig(); toast('Usuario: ' + n);
 };
 
 async function iniciar(){
   $('login').classList.add('oculto'); pintarUsuario();
-  $('nav').classList.remove('oculto'); $('b-salir').classList.remove('oculto');
-  ir('obras');
+  $('nav').classList.remove('oculto'); $('b-config').classList.remove('oculto');
+  ir(cfg.usuario ? 'obras' : 'config');          // sin nombre se arranca en Configuración
   await cargarObras();
+  if(!cfg.usuario) pintarConfig();                // ya con los nombres conocidos de las obras
 }
 
 /* ------------------------------------------------------------ obras (sólo consulta) */
@@ -351,6 +425,7 @@ function pintarStock(){
   $('s-aviso').innerHTML = estado ? '' : `<div class="aviso">Todavía no hay datos de stock publicados. En la PC, abrí
     <b>Stock</b> y tocá <b>Sincronizar</b> (o usá Sincronizar del inicio) para publicar la lista de ítems.</div>`;
   $('b-nuevo-mov').classList.toggle('oculto', !estado);
+  bloqueoStock();
   const movs = todos(), porItem = new Map();
   for(const m of movs){
     const f = porItem.get(m.itemId) || {itemId:m.itemId, item:m.item, unidad:m.unidad || 'u', cantidad:0};
@@ -372,7 +447,9 @@ function pintarStock(){
 const quien = m => [m.creadoPor && norm(m.creadoPor) !== 'celular' ? 'por ' + m.creadoPor : '', m.origen === 'celular' || norm(m.creadoPor) === 'celular' ? 'desde el celular' : ''].filter(Boolean).join(' · ');
 
 /* formulario */
-$('b-nuevo-mov').onclick = () => { $('s-form').classList.toggle('oculto'); if(!$('f-fecha').value) $('f-fecha').value = hoy(); };
+$('b-nuevo-mov').onclick = () => {
+  if(!cfg.usuario){ toast('Primero elegí tu nombre.'); ir('config'); return; }
+  $('s-form').classList.toggle('oculto'); if(!$('f-fecha').value) $('f-fecha').value = hoy(); };
 document.querySelectorAll('#tipo button').forEach(b => b.onclick = () => { tipo = b.dataset.t; pintarForm(); });
 function pintarForm(){
   const rep = tipo === 'reposicion';
@@ -411,7 +488,7 @@ $('f-item').addEventListener('input', () => { itemSel = null; $('f-lista').class
 $('f-item').addEventListener('blur', () => { $('f-lista').classList.add('oculto'); if(!itemSel) $('f-item').value = ''; });
 
 $('b-registrar').onclick = async () => {
-  if(!cfg.usuario){ toast('Primero elegí quién sos.'); elegirUsuario(); return; }
+  if(!cfg.usuario){ toast('Primero elegí tu nombre.'); ir('config'); return; }
   if(!itemSel){ toast('Elegí un ítem de la lista.'); return; }
   const c = num($('f-cant').value);
   if(c == null || c <= 0){ toast('Poné una cantidad mayor que cero.'); return; }
