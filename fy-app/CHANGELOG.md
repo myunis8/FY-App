@@ -3,8 +3,10 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
-## Sin publicar (rama dev)
+## Sin publicar
 
+- **FY Manager Lite 1.0.2:** en una obra, tocar el cuadro de un documento lo abre (ya no hay botón "Ver");
+  a la derecha queda un botón con el símbolo de descarga.
 - **FY Manager Lite 1.0.1:** logo nuevo (sin fondo, PNG transparente) en la pantalla de conexión y en
   Configuración, y como ícono de la app (sobre el fondo oscuro, con margen para el recorte circular de
   Android; los íconos pasan a servir también como "maskable"). Si ya la tenías en la pantalla de inicio,

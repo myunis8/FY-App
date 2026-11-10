@@ -51,6 +51,10 @@ nav button{flex:1;background:none;border:none;color:var(--muted);padding:14px 0;
 nav button.on{color:var(--amber)}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:10px}
 .card.tap{cursor:pointer}
+.card.doc{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 10px 10px 14px}
+.card.doc:active{border-color:var(--amber)}
+.card.doc.cargando{opacity:.5;pointer-events:none}
+.card.doc .des{padding:9px 11px;display:flex;flex:none}
 .card b{font-size:1rem}
 .muted{color:var(--muted);font-size:.84rem}
 .fila{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
@@ -223,7 +227,7 @@ const num = v => { let t=String(v).trim(); if(t==='') return null;
   const n=parseFloat(t); return isFinite(n)?n:null; };
 
 /* ------------------------------------------------------------ conexión */
-const VERSION_LITE = '1.0.1';        // versión de FY Manager Lite (sube con los cambios de esta página)
+const VERSION_LITE = '1.0.2';        // versión de FY Manager Lite (sube con los cambios de esta página)
 let cfg = null;
 try{ cfg = JSON.parse(localStorage.getItem('fy_movil') || 'null'); }catch(e){}
 const encRuta = r => r.split('/').map(encodeURIComponent).join('/');
@@ -386,12 +390,15 @@ async function abrirObra(id){
     const pdf = await gh(`obras/${id}/pdf`) || [];
     pdf.filter(f => f.type === 'file').forEach(f => docs.push({ruta:f.path, nombre:NOMBRES_PDF[f.name] || f.name, archivo:(o.nombre||'obra').replace(/\s+/g,'_') + '_' + f.name}));
   }catch(e){ $('pdfs').innerHTML = `<div class="aviso error">${esc(e.message)}</div>`; return; }
-  $('pdfs').innerHTML = docs.length ? docs.map((d,i) => `<div class="card"><div class="fila"><b>${esc(d.nombre)}</b></div>
-      <div style="display:flex;gap:8px;margin-top:10px"><button class="btn sm" data-ver="${i}">Ver</button>
-      <button class="btn sm" data-des="${i}">Descargar</button></div></div>`).join('')
+  // tocar el cuadro abre el PDF; el botón de la derecha (flecha hacia abajo) lo descarga
+  $('pdfs').innerHTML = docs.length ? docs.map((d,i) => `<div class="card tap doc" data-ver="${i}">
+      <b>${esc(d.nombre)}</b>
+      <button class="btn des" data-des="${i}" aria-label="Descargar ${esc(d.nombre)}" title="Descargar">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11"/><path d="M7 11l5 5 5-5"/><path d="M5 20h14"/></svg></button></div>`).join('')
     : '<div class="muted">Esta obra todavía no tiene PDF publicados (se publican al subirla desde la PC).</div>';
-  const traer = async (d, descargar, btn) => {
-    const txt = btn.textContent; btn.textContent = 'Descargando…'; btn.disabled = true;
+  const traer = async (d, descargar, el) => {
+    if(el.classList.contains('cargando')) return;
+    el.classList.add('cargando');                   // atenuado mientras baja el archivo
     // se abre la pestaña ya (en el toque), si no el navegador bloquea el popup después del await
     const w = descargar ? null : window.open('', '_blank');
     try{
@@ -400,10 +407,13 @@ async function abrirObra(id){
       if(descargar){ const a = document.createElement('a'); a.href = url; a.download = d.archivo; document.body.appendChild(a); a.click(); a.remove(); }
       else if(w) w.location = url; else location.href = url;
     }catch(e){ if(w) w.close(); toast(e.message); }
-    btn.textContent = txt; btn.disabled = false;
+    el.classList.remove('cargando');
   };
-  $('pdfs').querySelectorAll('[data-ver]').forEach(b => b.onclick = () => traer(docs[+b.dataset.ver], false, b));
-  $('pdfs').querySelectorAll('[data-des]').forEach(b => b.onclick = () => traer(docs[+b.dataset.des], true, b));
+  $('pdfs').querySelectorAll('.doc').forEach(c => {
+    c.onclick = () => traer(docs[+c.dataset.ver], false, c);
+    const b = c.querySelector('.des');
+    b.onclick = ev => { ev.stopPropagation(); traer(docs[+b.dataset.des], true, c); };   // no dispara el "abrir" del cuadro
+  });
 }
 
 /* ------------------------------------------------------------ stock propio */
