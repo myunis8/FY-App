@@ -174,8 +174,9 @@ h2{font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;color:var(--mu
         Si no ves un cambio nuevo, cerrá la página y abrila de nuevo (o actualizá desde el navegador).</div></div>
 
     <h2>Qué se puede hacer desde acá</h2>
-    <div class="card muted">Obras: sólo consulta y descarga de PDF. Stock propio: ver saldos y cargar movimientos de reposición
-      o consumo, que la PC ingresa cuando sincroniza. Todo lo demás se hace en la PC.</div>
+    <div class="card muted">Obras: consulta y descarga de PDF, y carga de <b>jornadas</b> (personas, horas y gastos).
+      Stock propio: ver saldos y cargar movimientos de reposición o consumo. Lo que cargues acá lo ingresa la PC cuando
+      sincroniza. Todo lo demás (circuitos, tablero, presupuesto, rollos de cable...) se hace en la PC.</div>
   </section>
 
   <!-- Stock propio -->
@@ -227,7 +228,7 @@ const num = v => { let t=String(v).trim(); if(t==='') return null;
   const n=parseFloat(t); return isFinite(n)?n:null; };
 
 /* ------------------------------------------------------------ conexión */
-const VERSION_LITE = '1.0.2';        // versión de FY Manager Lite (sube con los cambios de esta página)
+const VERSION_LITE = '1.1.0';        // versión de FY Manager Lite (sube con los cambios de esta página)
 let cfg = null;
 try{ cfg = JSON.parse(localStorage.getItem('fy_movil') || 'null'); }catch(e){}
 const encRuta = r => r.split('/').map(encodeURIComponent).join('/');
@@ -381,7 +382,26 @@ async function abrirObra(id){
     ${o.total ? `<div style="margin-top:6px">Presupuesto: <b>${plata(o.total)}</b></div>` : ''}
     <div class="muted" style="margin-top:6px">Última edición: ${o.actualizadoEl ? new Date(o.actualizadoEl).toLocaleDateString('es-AR') : '—'}${o.actualizadoPor ? ' · ' + esc(o.actualizadoPor) : ''}</div></div>
     <h2>Documentos (PDF)</h2><div id="pdfs"><div class="muted">Buscando…</div></div>
-    <div class="muted" style="margin-top:10px">Esta pantalla es sólo de consulta. Los PDF los genera la PC cuando sube la obra.</div>`;
+    <div class="muted" style="margin-top:6px">Los PDF los genera la PC cuando sube la obra.</div>
+
+    <h2>Jornadas</h2>
+    <div id="jor-resumen"></div>
+    <button class="btn primary block" id="b-nueva-jor">+ Nueva jornada</button>
+    <div id="jor-form" class="card oculto" style="margin-top:12px">
+      <div class="campo"><label for="j-fecha">Fecha</label><input id="j-fecha" type="date"></div>
+      <div class="campo"><label for="j-personas">Personas</label><input id="j-personas" type="number" inputmode="numeric" min="1" max="30" value="2"></div>
+      <label class="chk"><input type="checkbox" id="j-iguales" checked> Todos trabajaron las mismas horas</label>
+      <div class="campo" id="j-cada-c"><label for="j-cada">Horas por persona</label><input id="j-cada" inputmode="decimal" placeholder="ej. 5"></div>
+      <div id="j-horas"></div>
+      <div class="muted" style="margin:6px 0 8px"><b>Gastos de la jornada</b> (monto total de cada uno)</div>
+      <div id="j-gastos"></div>
+      <button class="btn sm" id="j-add-gasto">+ Agregar gasto</button>
+      <div class="campo" style="margin-top:14px"><label for="j-nota">Nota (opcional)</label><input id="j-nota" placeholder="ej. llovió, hasta las 14"></div>
+      <button class="btn primary block" id="j-registrar">Registrar jornada</button>
+    </div>
+    <div id="jor-lista" style="margin-top:12px"></div>
+    <div class="muted" style="margin-top:10px">Lo que cargues acá lo ingresa la PC cuando sincroniza. Los rollos de cable y la estadística se ven en la PC.</div>`;
+  iniciarJornadas(id);
   $('b-volver').onclick = () => { $('obra-detalle').classList.add('oculto'); $('obras-lista').classList.remove('oculto'); };
   const docs = [];
   try{
@@ -414,6 +434,91 @@ async function abrirObra(id){
     const b = c.querySelector('.des');
     b.onclick = ev => { ev.stopPropagation(); traer(docs[+b.dataset.des], true, c); };   // no dispara el "abrir" del cuadro
   });
+}
+
+/* ------------------------------------------------------------ jornadas */
+// mismas categorías que app/jornadas.py (CATEGORIAS_GASTO): si cambian allá, cambiarlas acá
+const CATEGORIAS_GASTO = ['Almuerzo','Combustible','Yerba y mate','Peajes y estacionamiento','Insumos y herramientas','Otro'];
+let jorObra = null, jorPublicadas = [], jorPendientes = [], gastosJ = [];
+const horasHombre = j => (j.horas || []).reduce((a, b) => a + b, 0);
+const gastoJ = j => (j.gastos || []).reduce((a, g) => a + (g.monto || 0), 0);
+async function iniciarJornadas(id){
+  jorObra = id; jorPublicadas = []; jorPendientes = []; gastosJ = [];
+  $('j-fecha').value = hoy();
+  const pintaForm = () => pintarFormJornada();
+  $('b-nueva-jor').onclick = () => {
+    if(!cfg.usuario){ toast('Primero elegí tu nombre.'); ir('config'); return; }
+    $('jor-form').classList.toggle('oculto');
+  };
+  $('j-personas').oninput = pintaForm; $('j-iguales').onchange = pintaForm;
+  $('j-add-gasto').onclick = () => { gastosJ.push({categoria:CATEGORIAS_GASTO[0], monto:'', entre:'', nota:''}); pintaForm(); };
+  $('j-registrar').onclick = registrarJornada;
+  pintaForm();
+  try{
+    const rj = await gh(`obras/${id}/jornadas.json`, {raw:true});
+    jorPublicadas = rj ? (await rj.json().catch(() => [])) : [];
+    const lista = await gh(`obras/${id}/jornadas_movil`) || [];
+    jorPendientes = (await Promise.all(lista.filter(f => f.type === 'file' && /\.json$/.test(f.name)).map(async f => {
+      const rr = await gh(f.path, {raw:true}); return rr ? await rr.json().catch(() => null) : null; }))).filter(Boolean);
+  }catch(e){ $('jor-resumen').innerHTML = `<div class="aviso error">${esc(e.message)}</div>`; }
+  pintarJornadas();
+}
+function todasJornadas(){
+  const ids = new Set(jorPublicadas.map(j => j.id));
+  return [...jorPublicadas, ...jorPendientes.filter(j => !ids.has(j.id)).map(j => ({...j, pendiente:true}))]
+    .sort((a, b) => (b.fecha || '').localeCompare(a.fecha || '') || (b.creadoEl || 0) - (a.creadoEl || 0));
+}
+function pintarJornadas(){
+  const L = todasJornadas();
+  const hh = L.reduce((a, j) => a + horasHombre(j), 0), g = L.reduce((a, j) => a + gastoJ(j), 0);
+  $('jor-resumen').innerHTML = L.length ? `<div class="card"><div class="fila"><span class="muted">Jornadas</span><b>${L.length}</b></div>
+      <div class="fila"><span class="muted">Horas-hombre</span><b>${cant(hh)}</b></div>
+      <div class="fila"><span class="muted">Gastos</span><b>${plata(g)}</b></div></div>` : '<div class="muted" style="margin-bottom:8px">Todavía no hay jornadas cargadas en esta obra.</div>';
+  $('jor-lista').innerHTML = L.slice(0, 30).map(j => `<div class="card"><div class="fila"><b>${esc(j.fecha)}${j.pendiente ? '<span class="tag pend">pendiente en la PC</span>' : ''}</b>
+      <b>${cant(horasHombre(j))} h-h</b></div>
+      <div class="muted">${j.personas} persona(s) · ${j.horasIguales ? cant(j.horasCada) + ' h c/u' : (j.horas || []).map(h => cant(h)).join(' · ') + ' h'}
+        · gastos ${plata(gastoJ(j))}${j.creadoPor ? ' · por ' + esc(j.creadoPor) : ''}</div>
+      ${(j.gastos || []).length ? `<div class="muted">${(j.gastos || []).map(x => esc(x.categoria) + ' ' + plata(x.monto) + (x.entre ? ' ÷' + x.entre : '')).join(' · ')}</div>` : ''}
+      ${j.nota ? `<div class="muted">${esc(j.nota)}</div>` : ''}</div>`).join('');
+}
+function pintarFormJornada(){
+  const n = Math.max(1, Math.min(30, parseInt($('j-personas').value) || 1));
+  const iguales = $('j-iguales').checked;
+  $('j-cada-c').classList.toggle('oculto', !iguales);
+  const previas = [...document.querySelectorAll('#j-horas input')].map(i => i.value);
+  $('j-horas').innerHTML = iguales ? '' : Array.from({length:n}, (_, i) =>
+    `<div class="campo"><label>Persona ${i+1} (horas)</label><input data-h="${i}" inputmode="decimal" value="${esc(previas[i] || '')}"></div>`).join('');
+  $('j-gastos').innerHTML = gastosJ.map((g, i) => `<div class="card" style="padding:10px;margin-bottom:8px">
+      <div class="campo"><label>Gasto</label><select data-g="${i}" data-c="categoria">${CATEGORIAS_GASTO.map(c => `<option ${c === g.categoria ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></div>
+      <div class="campo"><label>Monto ($)</label><input data-g="${i}" data-c="monto" inputmode="decimal" value="${esc(g.monto)}"></div>
+      <div class="campo"><label>Dividir entre</label><select data-g="${i}" data-c="entre"><option value="">Todos (${n})</option>${
+        Array.from({length:n}, (_, k) => k + 1).map(k => `<option value="${k}" ${String(g.entre) === String(k) ? 'selected' : ''}>${k}</option>`).join('')}</select></div>
+      <div class="campo"><label>Nota (opcional)</label><input data-g="${i}" data-c="nota" value="${esc(g.nota)}"></div>
+      <button class="btn sm danger" data-del="${i}">Quitar gasto</button></div>`).join('');
+  $('j-gastos').querySelectorAll('[data-g]').forEach(el => el.onchange = () => { gastosJ[+el.dataset.g][el.dataset.c] = el.value; });
+  $('j-gastos').querySelectorAll('[data-del]').forEach(b => b.onclick = () => { gastosJ.splice(+b.dataset.del, 1); pintarFormJornada(); });
+}
+async function registrarJornada(){
+  if(!cfg.usuario){ toast('Primero elegí tu nombre.'); ir('config'); return; }
+  const personas = Math.max(1, Math.min(30, parseInt($('j-personas').value) || 1));
+  const iguales = $('j-iguales').checked;
+  const j = {id:'jn_' + Date.now().toString(16) + '_m' + Math.random().toString(16).slice(2, 6), fecha:$('j-fecha').value || hoy(),
+    personas, horasIguales:iguales,
+    gastos: gastosJ.filter(g => num(g.monto) != null).map(g => ({categoria:g.categoria, monto:num(g.monto), entre:g.entre ? parseInt(g.entre) : null, nota:(g.nota || '').trim()})),
+    nota:$('j-nota').value.trim(), creadoPor:cfg.usuario, creadoEl:Date.now(), origen:'celular'};
+  if(iguales) j.horasCada = num($('j-cada').value) ?? 0; else j.horas = [...document.querySelectorAll('#j-horas input')].map(i => num(i.value) ?? 0);
+  if(iguales ? !(j.horasCada > 0) : !j.horas.some(h => h > 0)){ toast('Poné las horas trabajadas.'); return; }
+  j.horas = iguales ? Array(personas).fill(j.horasCada) : j.horas;
+  const b = $('j-registrar'); b.disabled = true; b.textContent = 'Guardando…';
+  try{
+    await gh(`obras/${jorObra}/jornadas_movil/${j.id}.json`, {metodo:'PUT', cuerpo:{message:'Jornada cargada desde el celular',
+      content:aBase64(JSON.stringify(j)), branch:cfg.rama}});
+    jorPendientes.push(j);
+    toast('Jornada registrada');
+    $('j-cada').value = ''; $('j-nota').value = ''; $('j-iguales').checked = true; gastosJ = [];
+    $('jor-form').classList.add('oculto'); pintarFormJornada(); pintarJornadas();
+  }catch(e){ toast('No se pudo guardar: ' + e.message); }
+  b.disabled = false; b.textContent = 'Registrar jornada';
 }
 
 /* ------------------------------------------------------------ stock propio */

@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Estadísticas de obras</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
+:root{
+  color-scheme:dark;
+  --navy:#16283f; --navy-deep:#0a121d; --paper:#10161e; --panel:#1a2330; --line:#2c3846;
+  --ink:#dde3ea; --muted:#8896a8; --amber:#e2a33d; --amber-deep:#c07f1f; --slate-soft:#212c39;
+  --green:#4caf82; --danger:#e0685a; --radius:10px; font-family:'IBM Plex Sans',system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink)}
+button,select{font:inherit;cursor:pointer}
+header{background:var(--navy);color:#fff;padding:14px 22px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+header h1{font-size:1.05rem;margin:0;font-weight:600;font-family:'Space Grotesk',sans-serif}
+header .sub{font-size:.72rem;color:#9db2c7;margin-top:2px}
+.spacer{flex:1}
+.btn{border:1px solid #33506e;background:transparent;color:#cfe0f0;padding:8px 14px;border-radius:var(--radius);font-size:.83rem;font-weight:500}
+main{max-width:1050px;margin:0 auto;padding:20px 22px 60px}
+.nota{font-size:.78rem;color:var(--muted);line-height:1.45}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px;margin-bottom:16px}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.tile b{display:block;font-size:.68rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:600;margin-bottom:4px}
+.tile .v{font-size:1.4rem;font-weight:700;font-family:'Space Grotesk',sans-serif}
+table{width:100%;border-collapse:collapse;background:var(--panel);border-radius:8px;overflow:hidden;border:1px solid var(--line)}
+th{background:var(--slate-soft);text-align:left;font-size:.68rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);padding:8px 10px;font-weight:600}
+td{padding:9px 10px;font-size:.84rem;border-top:1px solid var(--line);vertical-align:middle}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+tr.fila{cursor:pointer} tr.fila:hover td{background:rgba(255,255,255,.03)}
+tr.prov td{opacity:.7}
+.tag{display:inline-block;font-size:.66rem;font-weight:600;padding:1px 7px;border-radius:99px;margin-left:5px;background:rgba(226,163,61,.18);color:var(--amber)}
+.tag.ok{background:rgba(76,175,130,.16);color:var(--green)}
+.barra{height:8px;border-radius:4px;background:var(--amber);min-width:2px}
+.vacio{padding:30px;text-align:center;color:var(--muted)}
+.fila-ctl{display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
+select{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:6px 9px}
+</style>
+</head>
+<body>
+<header>
+  <div><h1>Estadísticas de obras</h1><div class="sub">Cuánto quedó por hora trabajada en cada obra</div></div>
+  <div class="spacer"></div>
+  <button class="btn" onclick="location.href='/'">Inicio</button>
+</header>
+<main>
+  <div class="tiles" id="tiles"></div>
+  <div class="fila-ctl"><span class="nota">Ordenar por</span>
+    <select id="orden"><option value="pph">Pesos por hora (mayor a menor)</option><option value="horas">Horas-hombre</option>
+      <option value="gastos">Gastos</option><option value="nombre">Nombre</option></select></div>
+  <div id="tabla"></div>
+  <div class="nota" style="margin-top:12px">Pesos por hora = (cobrado − gastos) ÷ horas-hombre. Sólo las obras <b>pagadas</b> cuentan para el promedio;
+    las demás se muestran atenuadas con el valor provisorio (lo cobrado hasta ahora). No se usa ningún costo por hora cargado a mano.</div>
+</main>
+<script src="/latido.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => (s==null?'':String(s)).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const plata = n => n==null ? '—' : '$ ' + Math.round(n).toLocaleString('es-AR');
+const dec = (n, d=1) => Number(n).toLocaleString('es-AR', {maximumFractionDigits:d});
+let datos = {obras:[]};
+async function cargar(){
+  const r = await fetch('/api/estadisticas'); datos = await r.json(); pintar();
+}
+function pintar(){
+  const o = datos.obras.slice();
+  const ord = $('orden').value;
+  o.sort((a, b) => ord === 'horas' ? b.horasHombre - a.horasHombre : ord === 'gastos' ? b.gastos - a.gastos
+    : ord === 'nombre' ? (a.nombre||'').localeCompare(b.nombre||'', 'es') : (b.pesosPorHora ?? -1e12) - (a.pesosPorHora ?? -1e12));
+  const mejor = Math.max(1, ...o.map(x => x.pesosPorHora || 0));
+  $('tiles').innerHTML = `
+    <div class="tile"><b>Obras con datos</b><div class="v">${o.length}</div></div>
+    <div class="tile"><b>Obras pagadas</b><div class="v">${datos.nPagadas || 0}</div></div>
+    <div class="tile"><b>Promedio de las pagadas</b><div class="v">${datos.promedioPagadas==null ? '—' : plata(datos.promedioPagadas) + ' / h'}</div>
+      <div class="nota">ponderado por horas trabajadas</div></div>`;
+  $('tabla').innerHTML = o.length ? `<table><thead><tr><th>Obra</th><th class="num">Horas-hombre</th><th class="num">Cobrado</th>
+    <th class="num">Gastos</th><th class="num">Neto</th><th class="num">$ por hora</th><th style="width:16%"></th></tr></thead><tbody>${
+    o.map(f => `<tr class="fila ${f.pagada?'':'prov'}" data-id="${esc(f.id)}"><td><b>${esc(f.nombre)}</b>
+      ${f.pagada ? '<span class="tag ok">pagada</span>' : '<span class="tag">provisorio</span>'}<div class="nota">${esc(f.cliente||'')} · ${f.jornadas} jornada(s)</div></td>
+      <td class="num">${dec(f.horasHombre)}</td><td class="num">${plata(f.cobrado)}</td><td class="num">${plata(f.gastos)}</td>
+      <td class="num">${plata(f.neto)}</td><td class="num"><b>${f.pesosPorHora==null ? '—' : plata(f.pesosPorHora)}</b></td>
+      <td>${f.pesosPorHora ? `<div class="barra" style="width:${Math.max(2, 100 * f.pesosPorHora / mejor)}%"></div>` : ''}</td></tr>`).join('')}</tbody></table>`
+    : '<div class="vacio">Todavía no hay obras con jornadas o gastos cargados.<br>Se cargan en cada obra, en "Jornadas y gastos".</div>';
+  $('tabla').querySelectorAll('tr.fila').forEach(tr => tr.onclick = () => location.href = '/jornadas.html?obra=' + tr.dataset.id);
+}
+$('orden').onchange = pintar;
+cargar();
+</script>
+</body>
+</html>

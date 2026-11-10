@@ -140,6 +140,10 @@ def subir_obra(cfg: dict, obra_id: str, forzar: bool = False) -> dict:
             plano_hash_subido = plano.get("hash")
 
     est2 = {**est, "shaObra": sha_nuevo, "subidaEl": C.ahora(), "planoSubidoHash": plano_hash_subido}
+    try:
+        est2["jornadasHash"] = publicar_jornadas(cfg, obra_id, obra, est.get("jornadasHash"))
+    except Exception:
+        pass
     # los PDF de consulta para el celular: si falla alguno, la obra igual quedó subida
     try:
         est2["pdfHashes"], pdfs = publicar_pdfs(cfg, obra_id, obra, est.get("pdfHashes") or {})
@@ -190,6 +194,59 @@ def publicar_pdfs(cfg: dict, obra_id: str, obra: dict, hashes_previos: dict) -> 
         hashes[archivo] = h
         subidos.append(archivo)
     return hashes, subidos
+
+
+def publicar_jornadas(cfg: dict, obra_id: str, obra: dict, hash_previo: str | None) -> str:
+    """Publica obras/<id>/jornadas.json (la lista de jornadas de la obra) para que el
+    celular la lea. Es chica y sólo se sube si cambió. Devuelve la huella vigente."""
+    import hashlib
+    cuerpo = json.dumps(obra.get("jornadas") or [], ensure_ascii=False, sort_keys=True)
+    h = hashlib.sha256(cuerpo.encode("utf-8")).hexdigest()
+    if h != hash_previo:
+        ruta = f"obras/{obra_id}/jornadas.json"
+        gh.subir_archivo(cfg, ruta, cuerpo.encode("utf-8"), "Jornadas de la obra", gh.sha_de(cfg, ruta))
+    return h
+
+
+def sincronizar_jornadas(cfg: dict) -> dict:
+    """Jornadas cargadas desde el celular: cada una llega en su propio archivo
+    (obras/<id>/jornadas_movil/<id>.json, así nunca chocan). Se ingresan a la
+    obra de esta PC y se borran de la bandeja; además se publica jornadas.json
+    de cada obra para que el celular vea la lista al día. Una obra que esta PC
+    no tiene completa (sólo el resumen) se deja como está: sus jornadas esperan
+    en la bandeja hasta que se baje."""
+    from . import config as cfgmod, jornadas as jor_mod
+    ids, _ = gh.listar_obras(cfg)
+    nuevas = 0
+    for oid in ids:
+        obra = almacen.leer_obra(oid)
+        if obra is None:
+            continue
+        try:
+            items = gh._contenido(cfg, f"obras/{oid}/jornadas_movil")
+        except gh.ErrorSync as e:
+            if e.codigo != 404:
+                raise
+            items = []
+        entradas = []
+        for it in items if isinstance(items, list) else []:
+            if it.get("type") != "file" or not it.get("name", "").endswith(".json"):
+                continue
+            j, sha = gh.bajar_archivo(cfg, it["path"])
+            if j is not None and jor_mod.ingerir(obra, j):
+                nuevas += 1
+            entradas.append((it["path"], sha))
+        if entradas:
+            usuario = cfgmod.leer_config().get("usuario", "")
+            almacen.guardar_obra(obra, usuario, modulo="Jornadas", resumen="Ingresó jornadas cargadas desde el celular")
+            for ruta, sha in entradas:                # ya están en la obra: salen de la bandeja
+                if sha:
+                    gh.borrar_archivo(cfg, ruta, sha, "Jornada ya ingresada en la PC")
+        est = almacen.leer_sync(oid)
+        h = publicar_jornadas(cfg, oid, obra, est.get("jornadasHash"))
+        if h != est.get("jornadasHash"):
+            almacen.guardar_sync(oid, {**est, "jornadasHash": h})
+    return {"jornadasNuevas": nuevas}
 
 
 def sincronizar_stock(cfg: dict) -> dict:
