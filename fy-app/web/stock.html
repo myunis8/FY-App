@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stock propio</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+:root{
+  color-scheme:dark;
+  --navy:#16283f; --navy-deep:#0a121d; --paper:#10161e; --panel:#1a2330; --line:#2c3846;
+  --ink:#dde3ea; --muted:#8896a8; --amber:#e2a33d; --amber-deep:#c07f1f;
+  --slate-soft:#212c39; --green:#4caf82; --green-soft:rgba(76,175,130,.16);
+  --danger:#e0685a; --danger-soft:rgba(224,104,90,.16); --blue:#5b9bd1;
+  --radius:10px; font-family:'IBM Plex Sans',system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink)}
+button{font:inherit;cursor:pointer} input,select,textarea{font:inherit;background:var(--panel);color:var(--ink);border:1px solid var(--line)}
+header{background:var(--navy);color:#fff;padding:14px 22px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+header h1{font-size:1.05rem;margin:0;font-weight:600;font-family:'Space Grotesk',sans-serif}
+header .sub{font-size:.72rem;color:#9db2c7;margin-top:2px}
+.spacer{flex:1}
+.btn{border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:8px 14px;border-radius:var(--radius);font-size:.83rem;font-weight:500}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--amber);border-color:var(--amber-deep);color:#2a1e07;font-weight:600}
+.btn.ghost{background:transparent;border-color:#33506e;color:#cfe0f0}
+.btn.sm{padding:4px 9px;font-size:.74rem}
+main{max-width:1100px;margin:0 auto;padding:20px 22px 60px}
+h2{font-family:'Space Grotesk',sans-serif;font-size:.78rem;margin:26px 0 10px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+h2:first-child{margin-top:0}
+.nota{font-size:.78rem;color:var(--muted)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px}
+.tipo{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;margin-bottom:14px}
+.tipo button{border:none;background:transparent;color:var(--muted);padding:9px 20px;font-weight:600;font-size:.86rem}
+.tipo button.on.repo{background:var(--green);color:#0b2417}
+.tipo button.on.cons{background:var(--amber);color:#2a1e07}
+.grid{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:12px}
+@media(max-width:800px){.grid{grid-template-columns:1fr 1fr}}
+.campo label{display:block;font-size:.7rem;color:var(--muted);margin-bottom:3px}
+.campo input,.campo select{width:100%;border-radius:7px;padding:7px 9px;font-size:.86rem}
+.campo .ayuda{font-size:.7rem;color:var(--muted);margin-top:3px;line-height:1.35;min-height:1em}
+.combo{position:relative}
+.combo .lista{display:none;position:absolute;left:0;right:0;top:100%;margin-top:3px;z-index:30;max-height:300px;
+  overflow-y:auto;background:var(--panel);border:1px solid var(--muted);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.45)}
+.combo.abierto .lista{display:block}
+.combo .grupo{font-size:.66rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:7px 10px 3px;background:var(--slate-soft);position:sticky;top:0}
+.combo .op{display:flex;justify-content:space-between;gap:10px;padding:8px 10px;font-size:.84rem;cursor:pointer;border-top:1px solid var(--line)}
+.combo .op:hover,.combo .op.sel{background:rgba(226,163,61,.16)}
+.combo .op small{color:var(--muted);white-space:nowrap}
+.combo .vacio-lista{padding:12px 10px;font-size:.8rem;color:var(--muted);line-height:1.5}
+.fila2{display:grid;grid-template-columns:1fr 2fr;gap:12px;margin-top:10px}
+.chk{display:flex;gap:8px;align-items:center;font-size:.83rem;margin-top:10px}
+table{width:100%;border-collapse:collapse;background:var(--panel);border-radius:8px;overflow:hidden;border:1px solid var(--line)}
+th{background:var(--slate-soft);text-align:left;font-size:.68rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);padding:7px 9px;font-weight:600}
+td{padding:7px 9px;font-size:.83rem;border-top:1px solid var(--line);vertical-align:middle}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+.tag{display:inline-block;font-size:.66rem;font-weight:600;padding:1px 7px;border-radius:99px;margin-left:5px;white-space:nowrap}
+.tag.falta{background:var(--danger-soft);color:var(--danger)}
+.tag.ok{background:var(--green-soft);color:var(--green)}
+.tag.est{background:rgba(226,163,61,.16);color:var(--amber)}
+.tag.neg{background:var(--danger-soft);color:var(--danger)}
+.rep{color:var(--green);font-weight:600}.con{color:var(--amber);font-weight:600}
+.vacio{padding:22px;text-align:center;color:var(--muted);font-size:.84rem}
+.filtros{display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+.filtros input,.filtros select{border-radius:7px;padding:6px 9px;font-size:.82rem}
+td input.precio{width:110px;border-radius:6px;padding:3px 6px;font-size:.8rem;text-align:right}
+#toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--navy-deep);color:#fff;padding:11px 18px;border-radius:var(--radius);font-size:.83rem;display:none;z-index:60}
+</style>
+</head>
+<body>
+<header>
+  <div><h1>Stock propio</h1><div class="sub">Material guardado para imprevistos de obra</div></div>
+  <div class="spacer"></div>
+  <button class="btn ghost" id="b-sync">Sincronizar con el celular</button>
+  <button class="btn ghost" onclick="location.href='/materiales_catalogo.html'">Materiales típicos</button>
+  <button class="btn ghost" onclick="location.href='/'">Inicio</button>
+</header>
+
+<main>
+  <h2>Nuevo movimiento</h2>
+  <div class="panel">
+    <div class="tipo" id="tipo">
+      <button class="repo on" data-t="reposicion">Reposición</button>
+      <button class="cons" data-t="consumo">Consumo</button>
+    </div>
+    <div class="grid">
+      <div class="campo"><label for="f-item">Ítem de Materiales típicos</label>
+        <div class="combo">
+          <input id="f-item" placeholder="Tocá para elegir, o escribí para buscar…" autocomplete="off">
+          <div class="lista" id="lista-items"></div>
+        </div>
+        <div class="ayuda" id="a-item"></div></div>
+      <div class="campo"><label for="f-cant" id="l-cant">Cantidad</label>
+        <input id="f-cant" type="text" inputmode="decimal" placeholder="ej. 0,5">
+        <div class="ayuda" id="a-cant">Puede tener decimales (media bobina, 12,5 m…).</div></div>
+      <div class="campo"><label for="f-precio">Precio unitario ($)</label>
+        <input id="f-precio" type="text" inputmode="decimal">
+        <div class="ayuda" id="a-precio"></div></div>
+      <div class="campo"><label for="f-fecha">Fecha</label>
+        <input id="f-fecha" type="date"></div>
+    </div>
+    <div class="fila2">
+      <div class="campo"><label for="f-obra">Obra (opcional)</label>
+        <select id="f-obra"><option value="">—</option></select></div>
+      <div class="campo"><label for="f-nota">Nota (opcional)</label>
+        <input id="f-nota" placeholder="Proveedor, factura, de qué obra sobró…"></div>
+    </div>
+    <label class="chk" id="c-sobrante"><input type="checkbox" id="f-sobrante">
+      Es un sobrante de obra (no tiene precio de compra)</label>
+    <div style="margin-top:14px;display:flex;gap:10px;align-items:center">
+      <button class="btn primary" id="b-registrar">Registrar</button>
+      <span class="nota" id="n-form"></span>
+    </div>
+  </div>
+
+  <h2>Stock actual</h2>
+  <div id="stock"></div>
+
+  <h2>Movimientos</h2>
+  <div class="filtros">
+    <input id="q" placeholder="Buscar ítem, obra o nota…" style="flex:1;min-width:200px">
+    <select id="q-tipo"><option value="">Todos</option><option value="reposicion">Reposiciones</option>
+      <option value="consumo">Consumos</option></select>
+  </div>
+  <div id="movs"></div>
+</main>
+
+<div id="toast"></div>
+<script src="/latido.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => (s==null?'':String(s)).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const api = async (ruta, opts={}) => {
+  const r = await fetch(ruta, {headers:{'Content-Type':'application/json'}, ...opts});
+  const d = await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error(d.error || 'Error inesperado');
+  return d;
+};
+const hoy = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); };
+function toast(m){ const t=$('toast'); t.textContent=m; t.style.display='block';
+  clearTimeout(t._t); t._t=setTimeout(()=>t.style.display='none',3200); }
+const plata = n => n==null ? '—' : '$ ' + Number(n).toLocaleString('es-AR', {maximumFractionDigits:2});
+const cant = n => Number(n).toLocaleString('es-AR', {maximumFractionDigits:3});
+// "12,5" -> 12.5 · "1.500" -> 1500 (punto de miles) · "0.5" y "2.5" -> decimales
+const num = v => {
+  let t = String(v).trim();
+  if(t === '') return null;
+  if(t.includes(',')) t = t.replace(/\./g,'').replace(',','.');
+  else if(/^[1-9]\d{0,2}(\.\d{3})+$/.test(t)) t = t.replace(/\./g,'');
+  const n = parseFloat(t); return isFinite(n) ? n : null;
+};
+
+let datos = {items:[], resumen:[], movimientos:[]}, tipo = 'reposicion';
+
+function aplicar(d){ datos = {items:d.items, resumen:d.resumen, movimientos:d.movimientos}; pintar(); }
+async function cargar(){
+  aplicar(await api('/api/stock'));
+  try{
+    const o = await api('/api/obras');
+    $('f-obra').innerHTML = '<option value="">—</option>' + (o.obras||[]).map(x =>
+      `<option value="${esc(x.id)}" data-n="${esc(x.nombre)}">${esc(x.nombre)}</option>`).join('');
+  }catch(e){}
+}
+
+/* ---------- formulario ---------- */
+// el ítem elegido es SIEMPRE uno de Materiales típicos: se toca en la lista
+// desplegable (que también se filtra escribiendo), no se tipea entero
+let itemSel = null, resaltado = -1;
+function itemElegido(){ return itemSel; }
+const etiqueta = i => `${i.item} (${i.unidad})`;
+const norm = t => String(t||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+function filtrados(){
+  const q = norm($('f-item').value).split(/\s+/).filter(Boolean);
+  if(itemSel && norm(etiqueta(itemSel)) === norm($('f-item').value)) return datos.items;   // recién elegido: lista completa
+  return datos.items.filter(i => { const h = norm(i.item + ' ' + (i.categoria||'')); return q.every(w => h.includes(w)); });
+}
+function pintarLista(){
+  const lista = filtrados();
+  let html = '', cat = null;
+  lista.forEach((i, k) => {
+    if(i.categoria !== cat){ cat = i.categoria; html += `<div class="grupo">${esc(cat||'Sin categoría')}</div>`; }
+    const stk = datos.resumen.find(r => r.itemId === i.id);
+    html += `<div class="op ${k===resaltado?'sel':''}" data-id="${esc(i.id)}"><span>${esc(i.item)}</span>
+      <small>${stk ? cant(stk.cantidad) + ' ' + esc(i.unidad) + ' en stock' : esc(i.unidad)}</small></div>`;
+  });
+  $('lista-items').innerHTML = html || `<div class="vacio-lista">${datos.items.length
+    ? 'Ningún ítem de Materiales típicos coincide con lo que escribiste.'
+    : 'Todavía no hay ítems en Materiales típicos.'}<br>Si falta, agregalo en
+    <a href="/materiales_catalogo.html" style="color:var(--amber)">Materiales típicos</a>.</div>`;
+  $('lista-items').querySelectorAll('.op').forEach(o => o.onmousedown = ev => { ev.preventDefault(); elegir(o.dataset.id); });
+  return lista;
+}
+function abrirLista(){ resaltado = -1; $('f-item').closest('.combo').classList.add('abierto'); pintarLista(); }
+function cerrarLista(){ $('f-item').closest('.combo').classList.remove('abierto'); }
+function elegir(id){
+  itemSel = datos.items.find(i => i.id === id) || null;
+  $('f-item').value = itemSel ? etiqueta(itemSel) : '';
+  cerrarLista(); pintarForm();
+  if(itemSel) $('f-cant').focus();
+}
+$('f-item').addEventListener('focus', ev => { ev.target.select(); abrirLista(); });
+$('f-item').addEventListener('input', () => {
+  itemSel = null; resaltado = -1;                 // lo escrito sólo filtra: hay que tocar un ítem de la lista
+  $('f-item').closest('.combo').classList.add('abierto'); pintarLista(); pintarForm();
+});
+$('f-item').addEventListener('blur', () => { cerrarLista();
+  if(!itemSel) $('f-item').value = ''; });         // no queda texto suelto que parezca un ítem elegido
+$('f-item').addEventListener('keydown', ev => {
+  const lista = filtrados();
+  if(ev.key === 'ArrowDown'){ ev.preventDefault(); abrirLista(); resaltado = Math.min(lista.length-1, resaltado+1); pintarLista(); }
+  else if(ev.key === 'ArrowUp'){ ev.preventDefault(); resaltado = Math.max(0, resaltado-1); pintarLista(); }
+  else if(ev.key === 'Enter'){ ev.preventDefault(); const it = lista[resaltado >= 0 ? resaltado : 0]; if(it) elegir(it.id); }
+  else if(ev.key === 'Escape'){ cerrarLista(); }
+});
+function pintarForm(){
+  const rep = tipo === 'reposicion';
+  document.querySelectorAll('#tipo button').forEach(b => b.classList.toggle('on', b.dataset.t === tipo));
+  $('c-sobrante').style.display = rep ? '' : 'none';
+  if(!rep) $('f-sobrante').checked = false;
+  const it = itemElegido();
+  $('l-cant').textContent = 'Cantidad' + (it ? ' (' + it.unidad + ')' : '');
+  const stk = it && datos.resumen.find(r => r.itemId === it.id);
+  $('a-item').textContent = it ? `En stock: ${stk ? cant(stk.cantidad) : 0} ${it.unidad}` : '';
+  let ayuda;
+  if(it && it.ultimoPrecio != null)
+    ayuda = `Último precio de reposición: ${plata(it.ultimoPrecio)}. Si lo dejás vacío se usa ese.`;
+  else if(it) ayuda = 'Todavía no hay precio para este ítem: si lo dejás vacío se anota que falta cargarlo.';
+  else ayuda = rep ? 'Precio de compra. Vacío = se usa el último (o queda "falta precio").' : '';
+  if(rep && $('f-sobrante').checked) ayuda = 'Un sobrante no tiene precio de compra: se usa el último y no lo cambia.';
+  $('a-precio').textContent = ayuda;
+  $('f-precio').disabled = rep && $('f-sobrante').checked;
+  if($('f-precio').disabled) $('f-precio').value = '';
+}
+document.querySelectorAll('#tipo button').forEach(b => b.onclick = () => { tipo = b.dataset.t; pintarForm(); });
+$('f-sobrante').addEventListener('input', pintarForm);
+$('f-fecha').value = hoy();
+
+$('b-registrar').onclick = async () => {
+  const it = itemElegido();
+  if(!it){ toast('Elegí un ítem de la lista desplegable (si no está, agregalo en "Materiales típicos").'); return; }
+  const c = num($('f-cant').value);
+  if(c == null || c <= 0){ toast('Poné una cantidad mayor que cero.'); return; }
+  const opt = $('f-obra').selectedOptions[0];
+  try{
+    const r = await api('/api/stock/movimientos', {method:'POST', body: JSON.stringify({
+      tipo, itemId: it.id, cantidad: c, precioUnitario: $('f-precio').disabled ? null : num($('f-precio').value),
+      fecha: $('f-fecha').value, sobrante: $('f-sobrante').checked,
+      obraId: $('f-obra').value || null, obraNombre: opt && opt.value ? opt.dataset.n : null,
+      nota: $('f-nota').value})});
+    aplicar(r);
+    const m = r.movimientos.find(x => x.itemId === it.id);
+    toast((tipo === 'consumo' ? 'Consumo' : 'Reposición') + ' registrado' +
+      (m && m.estadoPrecio === 'falta' ? ' -- falta cargar el precio de este ítem' : ''));
+    $('f-cant').value = ''; $('f-precio').value = ''; $('f-nota').value = ''; $('f-sobrante').checked = false;
+    itemSel = null; $('f-item').value = '';
+    pintarForm();
+  }catch(e){ toast(e.message); }
+};
+
+/* ---------- listados ---------- */
+function pintar(){
+  if(itemSel) itemSel = datos.items.find(i => i.id === itemSel.id) || null;    // refresca último precio
+  pintarForm();
+  $('stock').innerHTML = datos.resumen.length ? `<table><thead><tr><th>Ítem</th><th class="num">Cantidad</th>
+    <th class="num">Último precio</th><th class="num">Valor</th><th></th></tr></thead><tbody>${
+    datos.resumen.map(r => `<tr><td><b>${esc(r.item)}</b><div class="nota">${esc(r.categoria||'')}</div></td>
+      <td class="num">${cant(r.cantidad)} ${esc(r.unidad)}${r.negativo ? '<span class="tag neg">stock negativo</span>' : ''}</td>
+      <td class="num">${plata(r.ultimoPrecio)}</td><td class="num">${plata(r.valor)}</td>
+      <td>${r.faltaPrecio ? '<span class="tag falta">falta precio</span>' : ''}</td></tr>`).join('')}</tbody></table>
+    <div class="nota" style="margin-top:6px">Valor = cantidad × último precio de reposición.</div>`
+    : '<div class="vacio">Todavía no hay movimientos de stock.</div>';
+  pintarMovs();
+}
+function pintarMovs(){
+  const q = $('q').value.trim().toLowerCase(), t = $('q-tipo').value;
+  const lista = datos.movimientos.filter(m => (!t || m.tipo === t) &&
+    (!q || [m.item, m.obraNombre, m.nota].some(x => (x||'').toLowerCase().includes(q))));
+  $('movs').innerHTML = lista.length ? `<table><thead><tr><th>Fecha</th><th>Movimiento</th><th>Ítem</th>
+    <th class="num">Cantidad</th><th class="num">Precio unit.</th><th>Obra / nota</th><th></th></tr></thead><tbody>${
+    lista.map(m => {
+      const est = {cargado:'', ultimo:'<span class="tag ok">último</span>', estimado:'<span class="tag est">último actual</span>',
+                   falta:'<span class="tag falta">falta precio</span>'}[m.estadoPrecio] || '';
+      return `<tr data-id="${esc(m.id)}"><td>${esc(m.fecha)}</td>
+        <td class="${m.tipo==='reposicion'?'rep':'con'}">${m.tipo==='reposicion'?'Reposición':'Consumo'}${m.sobrante?'<span class="tag est">sobrante</span>':''}</td>
+        <td>${esc(m.item)}</td><td class="num">${cant(m.cantidad)} ${esc(m.unidad)}</td>
+        <td class="num"><input class="precio" value="${m.precioUnitario!=null?String(m.precioUnitario).replace('.',','):''}"
+          placeholder="${m.precioEfectivo!=null?String(m.precioEfectivo).replace('.',','):'cargar'}" title="Completar o corregir el precio">${est}</td>
+        <td class="nota">${esc([m.obraNombre, m.nota].filter(Boolean).join(' · '))}
+          <div>${esc([m.creadoPor && m.creadoPor !== 'celular' ? 'por ' + m.creadoPor : '', m.origen === 'celular' ? 'desde el celular' : ''].filter(Boolean).join(' · '))}</div></td>
+        <td><button class="btn sm" data-del="${esc(m.id)}" style="color:var(--danger)">×</button></td></tr>`;}).join('')}</tbody></table>`
+    : '<div class="vacio">Sin movimientos para mostrar.</div>';
+  $('movs').querySelectorAll('input.precio').forEach(inp => inp.onchange = async () => {
+    const id = inp.closest('tr').dataset.id;
+    try{ aplicar(await api('/api/stock/movimientos/' + id, {method:'POST',
+      body: JSON.stringify({precioUnitario: inp.value.trim() === '' ? null : num(inp.value)})})); toast('Precio actualizado'); }
+    catch(e){ toast(e.message); }
+  });
+  $('movs').querySelectorAll('[data-del]').forEach(b => b.onclick = async () => {
+    if(!confirm('¿Borrar este movimiento? El stock se recalcula sin él.')) return;
+    try{ aplicar(await api('/api/stock/movimientos/' + b.dataset.del, {method:'DELETE'})); toast('Movimiento borrado'); }
+    catch(e){ toast(e.message); }
+  });
+}
+// la PC ingresa lo que se cargó desde el celular y publica el estado del stock para que el celular lo lea
+$('b-sync').onclick = async () => {
+  const b = $('b-sync'); b.disabled = true; b.textContent = 'Sincronizando…';
+  try{
+    const r = await api('/api/stock/sync', {method:'POST', body:'{}'});
+    aplicar(r);
+    toast(r.nuevosDelCelular ? `Ingresados ${r.nuevosDelCelular} movimiento(s) del celular` : 'Sincronizado: no había movimientos nuevos del celular');
+  }catch(e){ toast(e.message); }
+  b.disabled = false; b.textContent = 'Sincronizar con el celular';
+};
+$('q').oninput = pintarMovs; $('q-tipo').onchange = pintarMovs;
+
+cargar().catch(e => toast('No se pudo cargar: ' + e.message));
+</script>
+</body>
+</html>

@@ -9,6 +9,8 @@ from .geometria import Texto
 RE_ALTURA = re.compile(r"h\s*[:=]?\s*(\d{1,2}[.,]\d{1,2})\s*m?", re.I)
 RE_MULT = re.compile(r"\(?\s*x\s*(\d)\s*\)?", re.I)
 RE_COTA = re.compile(r"^\d{1,2}[,.]\d{2}$")
+# varias teclas rotuladas juntas en una misma caja: "a,b", "a-b", "a - b - c"
+RE_TECLAS = re.compile(r"^[A-Za-z](?:\s*[,\-–—]\s*[A-Za-z])+$")
 
 
 def _norm(s: str) -> str:
@@ -86,6 +88,16 @@ def interpretar(textos: List[Texto], area_plano=None) -> Tuple[List[Etiqueta], L
         if len(s) == 1 and s.isalpha():
             cx, cy = t.centro
             letras.append(LetraCircuito(s, s.isupper(), cx, cy))
+        elif RE_TECLAS.match(s):
+            # una letra por tecla, repartidas a lo largo del texto para que
+            # cada una caiga sobre su propia palanca/caja
+            ls = re.findall(r"[A-Za-z]", s)
+            for k, ch in enumerate(ls):
+                f = (k + 0.5) / len(ls)
+                if t.vertical:
+                    letras.append(LetraCircuito(ch, ch.isupper(), (t.x0 + t.x1) / 2, t.y0 + f * (t.y1 - t.y0)))
+                else:
+                    letras.append(LetraCircuito(ch, ch.isupper(), t.x0 + f * (t.x1 - t.x0), (t.y0 + t.y1) / 2))
         elif RE_COTA.match(s):
             resto.append(t)
         else:

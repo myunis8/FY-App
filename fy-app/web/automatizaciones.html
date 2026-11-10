@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Automatizaciones</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+:root{
+  color-scheme:dark;
+  --navy:#16283f; --navy-deep:#0a121d; --paper:#10161e; --panel:#1a2330; --line:#2c3846;
+  --ink:#dde3ea; --muted:#8896a8; --amber:#e2a33d; --amber-deep:#c07f1f;
+  --copper:#c9793f; --slate-soft:#212c39;
+  --green:#4caf82; --green-soft:rgba(76,175,130,.16); --danger:#e0685a; --danger-soft:rgba(224,104,90,.16);
+  --blue:#5b9bd1; --radius:10px; font-family:'IBM Plex Sans',system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink)}
+button{font:inherit;cursor:pointer} input,select{font:inherit;background:var(--panel);color:var(--ink);border:1px solid var(--line)}
+header{background:var(--navy);color:#fff;padding:14px 22px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+header h1{font-size:1.05rem;margin:0;font-weight:600;font-family:'Space Grotesk',sans-serif}
+header .sub{font-size:.72rem;color:#9db2c7;margin-top:2px}
+#autosaveTag{font-size:.72rem;color:#9db2c7;white-space:nowrap}
+.spacer{flex:1}
+.btn{border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:8px 14px;
+  border-radius:var(--radius);font-size:.83rem;font-weight:500}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--amber);border-color:var(--amber-deep);color:#2a1e07;font-weight:600}
+.btn.ghost{background:transparent;border-color:#33506e;color:#cfe0f0}
+.btn.sm{padding:5px 10px;font-size:.76rem}
+.btn.danger{color:var(--danger)}
+main{max-width:1180px;margin:0 auto;padding:20px 22px 60px}
+.barra{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+.chip{border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:7px 13px;border-radius:99px;
+  font-size:.82rem;font-weight:500}
+.chip.on{background:var(--amber);border-color:var(--amber-deep);color:#2a1e07;font-weight:600}
+.layout{display:grid;grid-template-columns:320px 1fr;gap:20px;align-items:start}
+@media(max-width:900px){.layout{grid-template-columns:1fr}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px}
+.panel h2,.resultado h2{font-family:'Space Grotesk',sans-serif;font-size:.78rem;margin:0 0 10px;
+  text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.resultado h2{margin:24px 0 8px}
+.resultado h2:first-child{margin-top:0}
+.campo{margin-bottom:10px}
+.campo label{display:block;font-size:.7rem;color:var(--muted);margin-bottom:3px}
+.campo input[type=text],.campo input[type=number],.campo select{width:100%;border-radius:7px;padding:6px 8px;font-size:.83rem}
+.campo.chk label{display:flex;gap:8px;align-items:center;font-size:.83rem;color:var(--ink);margin:0}
+.campo .ayuda{font-size:.7rem;color:var(--muted);margin-top:3px;line-height:1.35}
+.nota{font-size:.78rem;color:var(--muted)}
+.aviso{padding:9px 12px;border-radius:8px;font-size:.8rem;margin-bottom:8px;line-height:1.4}
+.aviso.advertencia{background:rgba(226,163,61,.14);color:var(--amber)}
+.aviso.error{background:var(--danger-soft);color:var(--danger)}
+.aviso.info{background:rgba(91,155,209,.14);color:var(--blue)}
+.esquema{background:#fff;border-radius:8px;padding:6px;overflow-x:auto;margin-bottom:10px}
+.esquema svg{display:block;width:100%;height:auto;min-width:640px}
+table{width:100%;border-collapse:collapse;background:var(--panel);border-radius:8px;overflow:hidden;
+  border:1px solid var(--line);margin-bottom:8px}
+th{background:var(--slate-soft);text-align:left;font-size:.68rem;text-transform:uppercase;letter-spacing:.04em;
+  color:var(--muted);padding:7px 9px;font-weight:600}
+td{padding:7px 9px;font-size:.82rem;border-top:1px solid var(--line);vertical-align:top;line-height:1.35}
+td.ref{font-family:'IBM Plex Mono',monospace;font-weight:600;white-space:nowrap}
+.t-Obligatorio{color:var(--danger);font-weight:600}.t-Recomendado{color:var(--blue);font-weight:600}
+.t-Opcional{color:var(--amber);font-weight:600}
+ul{margin:0 0 8px;padding-left:20px} li{font-size:.84rem;line-height:1.45;margin-bottom:4px}
+.vacio{border:1px dashed var(--line);border-radius:var(--radius);padding:40px 20px;text-align:center;color:var(--muted)}
+#toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--navy-deep);
+  color:#fff;padding:11px 18px;border-radius:var(--radius);font-size:.83rem;display:none;z-index:60}
+</style>
+</head>
+<body>
+<header>
+  <div><h1>Automatizaciones</h1><div class="sub" id="h-sub">Cargando…</div></div>
+  <span id="autosaveTag"></span>
+  <div class="spacer"></div>
+  <button class="btn ghost" id="b-volver">Volver</button>
+</header>
+
+<main>
+  <div class="barra" id="barra"></div>
+  <div id="contenido"></div>
+</main>
+
+<div id="toast"></div>
+<script src="/latido.js"></script>
+<script src="/lock.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const OBRA_ID = new URLSearchParams(location.search).get('obra');
+fyLock.iniciar(OBRA_ID);
+
+const api = async (ruta, opts={}) => {
+  const r = await fetch(ruta, {headers:{'Content-Type':'application/json'}, ...opts});
+  const d = await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error(d.error || 'Error inesperado');
+  return d;
+};
+function toast(m){ const t=$('toast'); t.textContent=m; t.style.display='block';
+  clearTimeout(t._t); t._t=setTimeout(()=>t.style.display='none',3000); }
+const esc = s => (s==null?'':String(s)).replace(/[&<>"]/g,
+  c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+let catalogo = {}, lista = [], selId = null;
+$('b-volver').onclick = () => location.href = '/obra.html?obra=' + OBRA_ID;
+
+function aplicar(d){
+  catalogo = d.catalogo || catalogo;
+  lista = d.automatizaciones || [];
+  if(!lista.some(a => a.id === selId)) selId = lista.length ? lista[0].id : null;
+}
+async function cargar(){
+  if(!OBRA_ID){ toast('Falta el id de la obra en la URL.'); return; }
+  aplicar(await api('/api/obras/'+OBRA_ID+'/automatizaciones'));
+  $('h-sub').textContent = 'Obra ' + OBRA_ID;
+  pintar();
+}
+
+/* ---------------- guardado ---------------- */
+let timer = null, pendiente = null;
+function tag(t){ $('autosaveTag').textContent = t; }
+function guardar(){
+  clearTimeout(timer);
+  tag('Guardando…');
+  pendiente = new Promise(res => {
+    timer = setTimeout(async () => {
+      try{
+        const r = await api('/api/obras/'+OBRA_ID+'/automatizaciones', {method:'POST',
+          body: JSON.stringify({automatizaciones: lista.map(({resultado, ...a}) => a), guardar:true})});
+        // sólo se actualiza lo derivado: el formulario no se repinta (se perdería el foco)
+        const nuevas = new Map((r.automatizaciones||[]).map(a => [a.id, a.resultado]));
+        lista.forEach(a => { if(nuevas.has(a.id)) a.resultado = nuevas.get(a.id); });
+        pintarResultado();
+        tag('Guardado');
+      }catch(e){ toast('No se pudo guardar: ' + e.message); tag(''); }
+      res();
+    }, 350);
+  });
+  return pendiente;
+}
+
+/* ---------------- pantalla ---------------- */
+function actual(){ return lista.find(a => a.id === selId); }
+
+function pintar(){
+  const tipos = Object.entries(catalogo);
+  $('barra').innerHTML = lista.map(a =>
+      `<button class="chip ${a.id===selId?'on':''}" data-id="${a.id}">${esc((a.params||{}).nombre || 'Automatización')}</button>`).join('')
+    + (tipos.length === 1
+        ? `<button class="btn sm" id="b-nueva" data-tipo="${tipos[0][0]}">+ ${esc(tipos[0][1].nombre)}</button>`
+        : tipos.map(([k,v]) => `<button class="btn sm" id="b-nueva-${k}" data-tipo="${k}">+ ${esc(v.nombre)}</button>`).join(''));
+  $('barra').querySelectorAll('.chip').forEach(b => b.onclick = () => { selId = b.dataset.id; pintar(); });
+  $('barra').querySelectorAll('[data-tipo]').forEach(b => b.onclick = () => nueva(b.dataset.tipo));
+
+  const a = actual();
+  if(!a){
+    $('contenido').innerHTML = `<div class="vacio">Todavía no hay automatizaciones en esta obra.<br>
+      Agregá una con el botón de arriba: elegís los parámetros y el programa arma el esquema, la lista de
+      componentes, los cables y el informe.</div>`;
+    $('h-sub').textContent = 'Obra ' + OBRA_ID; return;
+  }
+  const cat = catalogo[a.tipo];
+  $('contenido').innerHTML = `<div class="layout">
+    <div class="panel" id="form"></div>
+    <div class="resultado" id="resultado"></div></div>`;
+  $('h-sub').textContent = cat ? cat.nombre : a.tipo;
+  pintarForm(a, cat);
+  pintarResultado();
+}
+
+function pintarForm(a, cat){
+  const p = a.params || {};
+  const visible = campo => !campo.mostrarSi || p[campo.mostrarSi];
+  $('form').innerHTML = `<h2>Parámetros</h2>` + (cat ? cat.params.filter(visible).map(c => {
+    const v = p[c.id];
+    if(c.tipo === 'bool') return `<div class="campo chk"><label><input type="checkbox" data-p="${c.id}" ${v?'checked':''}>
+      ${esc(c.label)}</label>${c.ayuda?`<div class="ayuda">${esc(c.ayuda)}</div>`:''}</div>`;
+    let input;
+    if(c.tipo === 'opciones') input = `<select data-p="${c.id}">${c.opciones.map(([k,t]) =>
+      `<option value="${esc(k)}" ${String(v)===k?'selected':''}>${esc(t)}</option>`).join('')}</select>`;
+    else if(c.tipo === 'numero') input = `<input type="number" data-p="${c.id}" value="${v}" min="${c.min??''}"
+      max="${c.max??''}" step="${c.paso??'any'}">`;
+    else input = `<input type="text" data-p="${c.id}" value="${esc(v)}">`;
+    return `<div class="campo"><label>${esc(c.label)}</label>${input}${c.ayuda?`<div class="ayuda">${esc(c.ayuda)}</div>`:''}</div>`;
+  }).join('') : '<div class="nota">Tipo desconocido.</div>') + `
+    <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+      <button class="btn primary sm" id="b-pdf">Informe (PDF)</button>
+      <button class="btn sm danger" id="b-borrar">Borrar</button></div>
+    <div class="nota" style="margin-top:10px">Se guarda solo. Todo lo de la derecha se recalcula con estos
+      parámetros; las tablas de selección son reglas de diseño del programa: revisalas antes de usar el
+      resultado en obra.</div>`;
+  $('form').querySelectorAll('[data-p]').forEach(el => el.onchange = () => {
+    const id = el.dataset.p, c = cat.params.find(x => x.id === id);
+    p[id] = c.tipo === 'bool' ? el.checked : c.tipo === 'numero' ? (parseFloat(el.value) || 0) : el.value;
+    a.params = p;
+    if(c.tipo === 'bool') pintarForm(a, cat);                  // puede mostrar u ocultar otros campos
+    if(id === 'nombre') $('barra').querySelector('.chip.on').textContent = p.nombre || 'Automatización';
+    guardar();
+  });
+  $('b-pdf').onclick = async () => {
+    await (pendiente || Promise.resolve());
+    window.open('/api/obras/'+OBRA_ID+'/automatizaciones/'+a.id+'.pdf', '_blank');
+  };
+  $('b-borrar').onclick = () => {
+    if(!confirm('¿Borrar "' + (p.nombre || 'esta automatización') + '"?')) return;
+    lista = lista.filter(x => x.id !== a.id); selId = null;
+    guardar().then(() => {}); pintar();
+  };
+}
+
+function nueva(tipo){
+  const cat = catalogo[tipo];
+  const params = {}; cat.params.forEach(c => params[c.id] = c.default);
+  const n = lista.filter(a => a.tipo === tipo).length + 1;
+  if(n > 1) params.nombre = (params.nombre || cat.nombre) + ' ' + n;
+  const a = {id:'auto_' + Date.now().toString(36), tipo, params};
+  lista.push(a); selId = a.id;
+  pintar(); guardar();
+}
+
+function pintarResultado(){
+  const a = actual(), cont = $('resultado');
+  if(!a || !cont) return;
+  const r = a.resultado;
+  if(!r || r.error){ cont.innerHTML = `<div class="aviso error">${esc((r||{}).error || 'Sin resultado todavía.')}</div>`; return; }
+  const tabla = (cols, filas, fn) => `<table><thead><tr>${cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead><tbody>${
+    filas.map(fn).join('')}</tbody></table>`;
+  cont.innerHTML = `
+    ${(r.avisos||[]).map(x => `<div class="aviso ${x.gravedad}">${esc(x.texto)}</div>`).join('')}
+    <h2>Supuestos</h2><ul>${r.supuestos.map(t => `<li>${esc(t)}</li>`).join('')}</ul>
+    <h2>Cómo funciona</h2><ul>${r.funcionamiento.map(f => `<li><b>${esc(f.t)}:</b> ${esc(f.d)}</li>`).join('')}</ul>
+    <h2>Esquemas</h2>
+    <div class="nota" style="margin-bottom:6px">Circuito de potencia</div><div class="esquema">${r.svg.potencia}</div>
+    <div class="nota" style="margin-bottom:6px">Circuito de comando</div><div class="esquema">${r.svg.comando}</div>
+    <h2>Notas de conexión</h2><ul>${r.notas.map(t => `<li>${esc(t)}</li>`).join('')}</ul>
+    ${r.conexionPotencia.length ? `<h2>Conexión de potencia</h2>${tabla(['Desde','Hasta','Qué es'], r.conexionPotencia,
+        f => `<tr><td><b>${esc(f[0])}</b></td><td>${esc(f[1])}</td><td>${esc(f[2])}</td></tr>`)}` : ''}
+    <h2>Componentes</h2>
+    ${tabla(['Ref.','Componente','Especificación','Tipo','Criterio'], r.componentes,
+        c => `<tr><td class="ref">${esc(c.ref || '-')}${c.cantidad>1?' ×'+c.cantidad:''}</td><td><b>${esc(c.nombre)}</b></td>
+          <td>${esc(c.especificacion)}</td><td class="t-${esc(c.tipo)}">${esc(c.tipo)}</td>
+          <td class="nota">${esc(c.criterio)}</td></tr>`)}
+    <h2>Cables y caída de tensión</h2>
+    ${tabla(['Tramo','Cable','Largo','Resultado'], r.cables,
+        c => `<tr><td><b>${esc(c.tramo)}</b></td><td>${esc(c.cable)}</td><td>${esc(c.largo)}</td><td>${esc(c.resultado)}</td></tr>`)}
+    <h2>Prueba antes de dejarlo en servicio</h2><ul>${r.pruebas.map(t => `<li>${esc(t)}</li>`).join('')}</ul>`;
+}
+
+cargar().catch(e => toast('No se pudo cargar: ' + e.message));
+</script>
+</body>
+</html>

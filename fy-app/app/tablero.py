@@ -71,13 +71,46 @@ def tablero_nuevo(nombre: str, tipo: str, preset_id: str, fases: int) -> dict:
         "fases": fases, "bocas": bocas, "pisos": pisos,
         "bocasPorPiso": bocas_por_piso(bocas, pisos),
         "alimentaDesde": None,           # {tableroId, dispositivoId} si es seccional
+        "vivoIzquierda": True,           # convención del instalador: vivo a la izquierda de
+                                          # cada protección bipolar, neutro a la derecha (o al
+                                          # revés) -- afecta todo el tablero, no dispositivo
+                                          # por dispositivo
         "dispositivos": dispositivos,
-        "conexiones": [],                # peines (bus por piso) y puentes (entre pisos)
-        "grillaPx": 8,                    # separación de la grilla para rutear cables, editable
-        "canos": [],                      # entradas de circuito/acometida/tierra, se van agregando
-        "cables": [],                     # conexión entre dos puntos: caño, peine o nodo de un dispositivo
+        "canos": [],                     # entradas de caño (acometida/circuito/tierra), se agregan a mano
+        "peines": [],                    # barras que unen varias térmicas de un mismo riel
+        "conectoresPeine": [],           # patitas clipadas sobre un peine, para cablear a mano
+        "conexiones": [],                # cables sueltos entre dos pines/caños/peines/conectores
         "notas": [],
     }
+
+
+# Mismo criterio que canalizacion.KIND_DE_TIPO ("tomas"/"especial" = 3
+# cables, con tierra; "iluminacion" = 2 cables, sin tierra) -- pero acá sólo
+# nos importa si hace falta o no el conductor de protección.
+TIPOS_CON_TIERRA = ("TUG", "TUE", "ACU", "OCE")
+
+POLARIDADES = ("fase", "neutro", "tierra")
+
+
+TERMINALES_BORNERA = 6  # bornes a tornillo que dibuja svgBornera/_bornera, todos el mismo bus de tierra
+
+
+def polaridad_de_polo(d: dict, polo: int, vivo_izquierda: bool = True) -> str | None:
+    """Fase, neutro o tierra de un polo puntual, según la convención del
+    tablero (vivo a la izquierda o a la derecha). La bornera no tiene
+    "polos" como una térmica -- todos sus terminales son el mismo bus de
+    tierra, así que cualquier polo pedido da tierra."""
+    if d["tipo"] == "bornera":
+        return "tierra"
+    polos = d.get("polos", 1)
+    if polo < 0 or polo >= polos:
+        return None
+    if polos == 2:
+        es_primero = polo == 0
+        return "fase" if es_primero == vivo_izquierda else "neutro"
+    if polos == 4:
+        return "fase" if polo < 3 else "neutro"
+    return "fase"
 
 
 TIPOS_CANO = ("acometida", "circuito", "tierra")
@@ -85,21 +118,20 @@ TIPOS_CANO = ("acometida", "circuito", "tierra")
 
 def agregar_entrada_cano(tablero: dict, lado: str, tipo: str,
                         circuito_id=None, circuito_tipo=None):
-    """Una boca de caño ya no es un lugar fijo entre N posibles: se agrega
-    una entrada por vez, en el orden en que se van creando los circuitos, y
-    se puede reordenar después. Así entran tantos circuitos como haga falta
-    por el mismo lado, sin un tope artificial.
+    """Una boca de caño se agrega una por vez, en el orden en que se van
+    creando, y se puede reordenar arrastrando después -- no hay un tope
+    artificial de cuántas entran por un mismo lado.
 
-    circuito_tipo (IUG/TUG/TUE/...) se guarda junto al caño para saber si ese
-    circuito necesita también un conductor de tierra (TUG y TUE sí; el resto,
-    por ahora, no) sin tener que volver a consultar la lista de circuitos.
-    """
+    circuito_tipo (IUG/TUG/TUE/...) se guarda junto al caño para saber si
+    ese circuito necesita también un conductor de tierra (ver
+    TIPOS_CON_TIERRA) sin tener que volver a consultar la lista de
+    circuitos cada vez que se dibuja."""
     if lado not in ("arriba", "abajo"):
         return None, "El caño entra por arriba o por abajo del tablero."
     if tipo not in TIPOS_CANO:
         return None, "Ese tipo de caño no existe."
     canos = tablero.setdefault("canos", [])
-    orden = sum(1 for c in canos if c["lado"] == lado)   # se agrega al final de esa fila
+    orden = sum(1 for c in canos if c["lado"] == lado)
     c = {"id": _id("cano"), "tipo": tipo, "lado": lado, "orden": orden,
         "circuitoId": circuito_id if tipo == "circuito" else None,
         "circuitoTipo": circuito_tipo if tipo == "circuito" else None}
@@ -109,7 +141,7 @@ def agregar_entrada_cano(tablero: dict, lado: str, tipo: str,
 
 def editar_entrada_cano(tablero: dict, cano_id: str, tipo: str,
                         circuito_id=None, circuito_tipo=None):
-    """Cambia qué es una entrada ya puesta, sin tocar su posición ni sus cables."""
+    """Cambia qué es una entrada ya puesta, sin tocar su posición."""
     cano = next((c for c in tablero.get("canos") or [] if c["id"] == cano_id), None)
     if cano is None:
         return None, "Esa entrada no existe."
@@ -121,51 +153,20 @@ def editar_entrada_cano(tablero: dict, cano_id: str, tipo: str,
     return cano, ""
 
 
-def mover_entrada_cano(tablero: dict, cano_id: str, direccion: int) -> tuple[bool, str]:
-    """Reordena de izquierda a derecha dentro de su mismo lado. direccion es
-    -1 (una posición a la izquierda) o +1 (a la derecha)."""
+def reordenar_entrada_cano(tablero: dict, cano_id: str, nuevo_orden: int) -> tuple[bool, str]:
+    """Mueve la entrada directamente a la posición `nuevo_orden` dentro de
+    su mismo lado (arrastre con el mouse, de a cualquier distancia)."""
     canos = tablero.get("canos") or []
     objetivo = next((c for c in canos if c["id"] == cano_id), None)
     if objetivo is None:
         return False, "Esa entrada no existe."
     hermanos = sorted([c for c in canos if c["lado"] == objetivo["lado"]], key=lambda c: c["orden"])
-    idx = hermanos.index(objetivo)
-    vecino_idx = idx + (1 if direccion > 0 else -1)
-    if not (0 <= vecino_idx < len(hermanos)):
-        return False, "Ya está en la punta."
-    vecino = hermanos[vecino_idx]
-    objetivo["orden"], vecino["orden"] = vecino["orden"], objetivo["orden"]
+    hermanos.remove(objetivo)
+    destino = max(0, min(int(nuevo_orden), len(hermanos)))
+    hermanos.insert(destino, objetivo)
+    for i, c in enumerate(hermanos):
+        c["orden"] = i
     return True, ""
-
-
-TIPOS_CON_TIERRA = ("TUG", "TUE")   # a estos circuitos se les suma el conductor de tierra
-
-
-def polaridades_cano(cano: dict) -> set[str]:
-    """Qué conductores salen de esta boca: fase/neutro, o sólo tierra."""
-    if cano["tipo"] == "tierra":
-        return {"tierra"}
-    if cano["tipo"] == "acometida":
-        return {"fase", "neutro"}
-    base = {"fase", "neutro"}
-    if cano.get("circuitoTipo") in TIPOS_CON_TIERRA:
-        base.add("tierra")
-    return base
-
-
-def polaridad_de_polo(d: dict, polo: int) -> str:
-    """Convención del estudio: en un dispositivo bipolar, el polo 0 (el de la
-    izquierda) siempre es fase y el polo 1 es neutro. Un tetrapolar con corte
-    de neutro tiene el neutro en el último polo. Un tripolar sin neutro es
-    todo fase. La bornera de tierra es tierra en todos sus terminales."""
-    if d["tipo"] == "bornera":
-        return "tierra"
-    polos = d.get("polos", 1)
-    if polos == 2:
-        return "fase" if polo == 0 else "neutro"
-    if polos == 4:
-        return "fase" if polo < 3 else "neutro"
-    return "fase"
 
 
 def eliminar_entrada_cano(tablero: dict, cano_id: str) -> bool:
@@ -175,38 +176,41 @@ def eliminar_entrada_cano(tablero: dict, cano_id: str) -> bool:
         return False
     lado, orden_borrado = objetivo["lado"], objetivo["orden"]
     tablero["canos"] = [c for c in canos if c["id"] != cano_id]
-    for c in tablero["canos"]:                    # se corre el orden de los que quedaron atrás
+    for c in tablero["canos"]:
         if c["lado"] == lado and c["orden"] > orden_borrado:
             c["orden"] -= 1
-    tablero["cables"] = [cb for cb in tablero.get("cables") or []
-                         if not _endpoint_es_cano(cb.get("origen"), cano_id)
-                         and not _endpoint_es_cano(cb.get("destino"), cano_id)]
+    tablero["conexiones"] = [cx for cx in tablero.get("conexiones") or []
+                             if not _endpoint_es_cano(cx.get("origen"), cano_id)
+                             and not _endpoint_es_cano(cx.get("destino"), cano_id)]
     return True
 
 
-
-def _endpoint_es_cano(ep, cano_id) -> bool:
+def _endpoint_es_cano(ep, cano_id: str) -> bool:
     return isinstance(ep, dict) and ep.get("tipo") == "cano" and ep.get("id") == cano_id
 
 
-BOCAS_BORNERA = 6   # cantidad de terminales laterales que dibuja svgBornera en el frontend
+def polaridades_cano(cano: dict) -> tuple[str, ...]:
+    """Qué conductores trae esta boca: la acometida es fase+neutro, la
+    jabalina es sólo tierra, y un circuito es fase+neutro (+tierra si es de
+    los tipos que la necesitan -- TUG, TUE, ACU, OCE)."""
+    if cano["tipo"] == "tierra":
+        return ("tierra",)
+    if cano["tipo"] == "acometida":
+        return ("fase", "neutro")
+    base = ["fase", "neutro"]
+    if cano.get("circuitoTipo") in TIPOS_CON_TIERRA:
+        base.append("tierra")
+    return tuple(base)
 
 
-def _cantidad_polos_nodo(tablero: dict, d: dict) -> int | None:
-    """Cuántos nodos tiene ese lado del dispositivo. None si el tipo no aplica."""
-    if d["tipo"] == "bornera":
-        return BOCAS_BORNERA
-    return d.get("polos", 1)
+def _dispositivo(tablero: dict, disp_id: str) -> dict | None:
+    return next((x for x in tablero["dispositivos"] if x["id"] == disp_id), None)
 
 
-def _endpoint_valido(tablero: dict, ep: dict) -> bool:
-    return _polaridad_endpoint(tablero, ep) is not None
-
-
-def _polaridad_endpoint(tablero: dict, ep: dict) -> str | None:
-    """Fase, neutro o tierra de ese punto. None si el punto no es válido.
-    Es la base tanto para validar el extremo como para impedir el
-    cortocircuito: dos extremos sólo se pueden unir si son de la misma."""
+def _polaridad_endpoint(tablero: dict, circuitos: list[dict], ep: dict) -> str | None:
+    """Fase, neutro o tierra de un extremo de conexión. None si no es válido.
+    Es la base tanto para validar el extremo como para el DRC: dos extremos
+    sólo se pueden unir si dan la misma polaridad."""
     if not isinstance(ep, dict):
         return None
     tipo = ep.get("tipo")
@@ -216,63 +220,46 @@ def _polaridad_endpoint(tablero: dict, ep: dict) -> str | None:
             return None
         pol = ep.get("polaridad")
         return pol if pol in polaridades_cano(cano) else None
-    if tipo == "dispositivo":
-        d = next((x for x in tablero["dispositivos"] if x["id"] == ep.get("id")), None)
+    if tipo == "pin":
+        d = _dispositivo(tablero, ep.get("dispositivoId"))
         if d is None or d.get("piso") is None:
             return None
-        lado, polo = ep.get("lado"), ep.get("polo")
-        if not isinstance(polo, int):
+        polo, lado = ep.get("polo"), ep.get("lado")
+        if not isinstance(polo, int) or lado not in ("arriba", "abajo"):
             return None
         if d["tipo"] == "bornera":
-            if lado != "costado" or not (0 <= polo < BOCAS_BORNERA):
-                return None
-            return "tierra"
-        if lado not in ("arriba", "abajo") or not (0 <= polo < _cantidad_polos_nodo(tablero, d)):
-            return None
-        return polaridad_de_polo(d, polo)
+            return "tierra" if 0 <= polo < TERMINALES_BORNERA else None
+        return polaridad_de_polo(d, polo, tablero.get("vivoIzquierda", True))
     if tipo == "peine":
-        peine = next((c for c in tablero.get("conexiones") or []
-                     if c["id"] == ep.get("id") and c["tipo"] == "peine"), None)
-        if peine is None:
+        pe = next((p for p in tablero.get("peines") or [] if p["id"] == ep.get("id")), None)
+        if pe is None:
             return None
         pol = ep.get("polaridad")
         return pol if pol in ("fase", "neutro") else None
     if tipo == "conectorPeine":
-        con = next((c for c in tablero.get("conexiones") or []
-                    if c["id"] == ep.get("id") and c["tipo"] == "conectorPeine"), None)
-        if con is None:
-            return None
-        return con.get("polaridad", "fase")
+        c = next((x for x in tablero.get("conectoresPeine") or [] if x["id"] == ep.get("id")), None)
+        return c["polaridad"] if c else None
     return None
 
 
-def crear_cable(tablero: dict, origen: dict, destino: dict,
-                ruta: list | None = None) -> tuple[dict | None, str]:
-    """Un cable conecta dos puntos cualquiera: un caño, un peine, o el nodo de
-    un polo puntual de un dispositivo. Así se arma la serie real: acometida ->
-    general -> diferencial -> peine -> cada térmica, en vez de que todo tenga
-    que pasar por un solo tipo de conexión.
-
-    Antes de crear el cable se verifica que los dos extremos sean de la misma
-    polaridad (fase, neutro o tierra): conectar fase con neutro es un
-    cortocircuito y se rechaza acá, no se detecta después.
-
-    `ruta` son puntos intermedios opcionales (coordenadas del propio lienzo)
-    para que el cable no tenga que ir siempre recto: el que lo dibuja elige
-    por dónde pasa.
-    """
-    pol_o = _polaridad_endpoint(tablero, origen)
+def crear_conexion(tablero: dict, circuitos: list[dict], origen: dict, destino: dict,
+                   ruta: list | None = None) -> tuple[dict | None, str]:
+    """Conexión entre dos pines, entradas o peines. La polaridad no se
+    elige a mano: se calcula de cada extremo, y si no coinciden (fase con
+    neutro, por ejemplo) se rechaza acá -- es el DRC de cortocircuito.
+    `ruta` son puntos intermedios opcionales (coordenadas del lienzo del
+    editor) para que el que cablea elija por dónde pasa el cable."""
+    pol_o = _polaridad_endpoint(tablero, circuitos, origen)
     if pol_o is None:
         return None, "El primer punto no es válido, o el dispositivo no está en el riel."
-    pol_d = _polaridad_endpoint(tablero, destino)
+    pol_d = _polaridad_endpoint(tablero, circuitos, destino)
     if pol_d is None:
         return None, "El segundo punto no es válido, o el dispositivo no está en el riel."
     if origen == destino:
         return None, "El origen y el destino no pueden ser el mismo punto."
     if pol_o != pol_d:
-        nombres = {"fase": "fase", "neutro": "neutro", "tierra": "tierra"}
-        return None, (f"Eso conecta {nombres[pol_o]} con {nombres[pol_d]}: es un "
-                      "cortocircuito. Fase, neutro y tierra no se unen entre sí.")
+        return None, (f"Eso conecta {pol_o} con {pol_d}: es un cortocircuito. "
+                      "Fase, neutro y tierra no se unen entre sí.")
     ruta_limpia = []
     for p in (ruta or []):
         if isinstance(p, (list, tuple)) and len(p) == 2:
@@ -280,16 +267,16 @@ def crear_cable(tablero: dict, origen: dict, destino: dict,
                 ruta_limpia.append([float(p[0]), float(p[1])])
             except (TypeError, ValueError):
                 pass
-    cable = {"id": _id("cable"), "origen": origen, "destino": destino,
-            "ruta": ruta_limpia, "polaridad": pol_o}
-    tablero.setdefault("cables", []).append(cable)
-    return cable, ""
+    con = {"id": _id("con"), "origen": origen, "destino": destino,
+          "polaridad": pol_o, "ruta": ruta_limpia}
+    tablero.setdefault("conexiones", []).append(con)
+    return con, ""
 
 
-def eliminar_cable(tablero: dict, cable_id: str) -> bool:
-    n = len(tablero.get("cables") or [])
-    tablero["cables"] = [cb for cb in tablero.get("cables") or [] if cb["id"] != cable_id]
-    return len(tablero.get("cables") or []) < n
+def eliminar_conexion(tablero: dict, con_id: str) -> bool:
+    n = len(tablero.get("conexiones") or [])
+    tablero["conexiones"] = [c for c in tablero.get("conexiones") or [] if c["id"] != con_id]
+    return len(tablero["conexiones"]) < n
 
 
 def _dispositivos_en(tablero: dict, piso: int, desde: int, hasta: int) -> list[dict]:
@@ -300,56 +287,92 @@ def _dispositivos_en(tablero: dict, piso: int, desde: int, hasta: int) -> list[d
 
 
 def crear_peine(tablero: dict, piso: int, desde: int, hasta: int) -> tuple[dict | None, str]:
-    """Un peine junta en paralelo todas las térmicas contiguas de un mismo
-    riel que caen dentro del rango [desde, hasta] (en bocas)."""
+    """Un peine junta en paralelo (fase con fase, neutro con neutro) todas
+    las térmicas contiguas de un mismo riel que caen dentro de [desde,
+    hasta] (en bocas) -- para no tener que cablear una por una cuando varias
+    comparten el mismo origen."""
     if not (0 <= piso < tablero["pisos"]):
         return None, "Ese piso no existe."
     lo, hi = min(desde, hasta), max(desde, hasta)
     alcanzados = _dispositivos_en(tablero, piso, lo, hi)
     if len(alcanzados) < 2:
         return None, "Un peine necesita al menos dos térmicas colocadas en ese tramo."
-    for c in tablero["conexiones"]:
-        if c["tipo"] == "peine" and c["piso"] == piso and not (hi < c["desde"] or lo > c["hasta"]):
+    for p in tablero.get("peines") or []:
+        if p["piso"] == piso and not (hi < p["desde"] or lo > p["hasta"]):
             return None, "Ya hay un peine que se superpone en ese tramo."
-    peine = {"id": _id("peine"), "tipo": "peine", "piso": piso, "desde": lo, "hasta": hi}
-    tablero["conexiones"].append(peine)
+    peine = {"id": _id("peine"), "piso": piso, "desde": lo, "hasta": hi}
+    tablero.setdefault("peines", []).append(peine)
     return peine, ""
 
 
-CARGAS_CONECTOR = ("superior", "lateral")
+def _endpoint_es_peine(ep, peine_id: str) -> bool:
+    return isinstance(ep, dict) and ep.get("tipo") == "peine" and ep.get("id") == peine_id
 
 
-def crear_conector_peine(tablero: dict, peine_id: str, posicion: float,
-                         polaridad: str = "fase", carga: str = "superior") -> tuple[dict | None, str]:
-    """Un conector que se apoya sobre un peine, en la posición que el
-    usuario elija a lo largo de él (no necesariamente en el centro) -- tal
-    como los conectores reales de peine, que se enchufan en cualquier boca
-    libre de la barra. Queda disponible como extremo de cable: desde ahí se
-    rutea a mano el conductor hacia donde haga falta (a otro conector en
-    otro peine, a una térmica, a un caño...), en vez de bajar un conductor
-    recto y fijo como antes. Hay dos tipos, según de dónde entra el cable
-    real: "superior" (por arriba, como el peine de alimentación de techo) o
-    "lateral" (por el costado, como el borne de alimentación lateral)."""
-    peine = next((c for c in tablero.get("conexiones") or []
-                  if c["id"] == peine_id and c["tipo"] == "peine"), None)
+def eliminar_peine(tablero: dict, peine_id: str) -> bool:
+    n = len(tablero.get("peines") or [])
+    huerfanos = {c["id"] for c in tablero.get("conectoresPeine") or [] if c["peineId"] == peine_id}
+    tablero["peines"] = [p for p in tablero.get("peines") or [] if p["id"] != peine_id]
+    tablero["conectoresPeine"] = [c for c in tablero.get("conectoresPeine") or []
+                                  if c["peineId"] != peine_id]
+    tablero["conexiones"] = [c for c in tablero.get("conexiones") or []
+                             if not _endpoint_es_peine(c.get("origen"), peine_id)
+                             and not _endpoint_es_peine(c.get("destino"), peine_id)
+                             and not _endpoint_es_conector_peine(c.get("origen"), huerfanos)
+                             and not _endpoint_es_conector_peine(c.get("destino"), huerfanos)]
+    return len(tablero["peines"]) < n
+
+
+TIPOS_CONECTOR_PEINE = ("superior", "lateral")
+
+
+def agregar_conector_peine(tablero: dict, peine_id: str, polaridad: str,
+                           posicion: float, tipo: str) -> tuple[dict | None, str]:
+    """Una patita clipada sobre la barra de un peine, en la posición exacta
+    (en bocas, puede ser fraccionaria) donde el usuario clickeó -- no se
+    centra solo, y dos patitas pueden convivir separadas en la misma barra.
+    La polaridad no se elige a mano: es la de la barra que toca (fase o
+    neutro). `tipo` es sólo la forma física de la patita -- 'superior'
+    (hacia arriba, cable que entra por encima) o 'lateral' (hacia el
+    costado) -- y no afecta la polaridad ni el cableado."""
+    peine = next((p for p in tablero.get("peines") or [] if p["id"] == peine_id), None)
     if peine is None:
         return None, "Ese peine no existe."
-    if not (peine["desde"] <= posicion <= peine["hasta"] + 1):
-        return None, "El conector tiene que quedar dentro del propio peine."
     if polaridad not in ("fase", "neutro"):
-        return None, "Un conector es de fase o de neutro."
-    if carga not in CARGAS_CONECTOR:
-        return None, "La carga de un conector es superior o lateral."
-    conector = {"id": _id("conpe"), "tipo": "conectorPeine", "peineId": peine_id,
-               "piso": peine["piso"], "posicion": posicion, "polaridad": polaridad, "carga": carga}
-    tablero["conexiones"].append(conector)
-    return conector, ""
+        return None, "La polaridad tiene que ser fase o neutro."
+    if tipo not in TIPOS_CONECTOR_PEINE:
+        return None, "Ese tipo de conector no existe."
+    posicion = max(float(peine["desde"]), min(float(peine["hasta"]) + 1, float(posicion)))
+    con = {"id": _id("cpeine"), "peineId": peine_id, "polaridad": polaridad,
+          "posicion": posicion, "tipo": tipo}
+    tablero.setdefault("conectoresPeine", []).append(con)
+    return con, ""
 
 
-def eliminar_conexion(tablero: dict, con_id: str) -> bool:
-    n = len(tablero["conexiones"])
-    tablero["conexiones"] = [c for c in tablero["conexiones"] if c["id"] != con_id]
-    return len(tablero["conexiones"]) < n
+def _endpoint_es_conector_peine(ep, conector_ids) -> bool:
+    if isinstance(conector_ids, str):
+        conector_ids = (conector_ids,)
+    return isinstance(ep, dict) and ep.get("tipo") == "conectorPeine" and ep.get("id") in conector_ids
+
+
+def eliminar_conector_peine(tablero: dict, conector_id: str) -> bool:
+    n = len(tablero.get("conectoresPeine") or [])
+    tablero["conectoresPeine"] = [c for c in tablero.get("conectoresPeine") or []
+                                  if c["id"] != conector_id]
+    tablero["conexiones"] = [c for c in tablero.get("conexiones") or []
+                             if not _endpoint_es_conector_peine(c.get("origen"), conector_id)
+                             and not _endpoint_es_conector_peine(c.get("destino"), conector_id)]
+    return len(tablero["conectoresPeine"]) < n
+
+
+def _endpoint_es_dispositivo(ep, disp_id: str) -> bool:
+    return isinstance(ep, dict) and ep.get("tipo") == "pin" and ep.get("dispositivoId") == disp_id
+
+
+def _quitar_conexiones_de(tablero: dict, disp_id: str) -> None:
+    tablero["conexiones"] = [c for c in tablero.get("conexiones") or []
+                             if not _endpoint_es_dispositivo(c.get("origen"), disp_id)
+                             and not _endpoint_es_dispositivo(c.get("destino"), disp_id)]
 
 
 def agregar_dispositivo(tablero: dict, tipo: str, extra: dict | None = None) -> dict:
@@ -396,8 +419,16 @@ def sincronizar_circuitos(tablero: dict, circuitos: list[dict], fases: int,
                 ligados.add(c["id"])
     existentes = {d["circuitoId"] for d in tablero["dispositivos"] if d.get("circuitoId")}
 
+    # Sólo las térmicas están ligadas a un circuito y se podan si el
+    # circuito ya no existe -- un diferencial, bornera o protector agregado
+    # a mano (que nace con circuitoId=None y rol "seccional" por defecto,
+    # salvo la general/la de tierra) no tiene que desaparecer nunca acá.
+    # Antes se filtraba sólo por rol "general"/"tierra" y cualquier
+    # diferencial o protector extra que el usuario agregaba se borraba solo
+    # la próxima vez que esto corría (al sincronizar, o al editar bocas/pisos).
     tablero["dispositivos"] = [d for d in tablero["dispositivos"]
-                               if d.get("rol") in ("general", "tierra")
+                               if d["tipo"] != "termica"
+                               or d.get("rol") == "general"
                                or d.get("circuitoId") in ligados]
 
     por_id = {c["id"]: c for c in circuitos}
@@ -418,6 +449,7 @@ def mover_dispositivo(tablero: dict, disp_id: str, piso, posicion) -> tuple[bool
         return False, "No existe ese dispositivo."
     if piso is None:
         d["piso"], d["posicion"] = None, None
+        _quitar_conexiones_de(tablero, disp_id)
         return True, ""
     if not (0 <= piso < tablero["pisos"]):
         return False, "Ese piso no existe en este tablero."
@@ -448,6 +480,7 @@ def etiqueta_corta(d: dict) -> str:
 def eliminar_dispositivo(tablero: dict, disp_id: str) -> bool:
     n = len(tablero["dispositivos"])
     tablero["dispositivos"] = [d for d in tablero["dispositivos"] if d["id"] != disp_id]
+    _quitar_conexiones_de(tablero, disp_id)
     return len(tablero["dispositivos"]) < n
 
 

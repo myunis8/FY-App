@@ -82,6 +82,9 @@ def _circuito_de(obra: dict, elemento_id: str) -> dict | None:
     return None
 
 
+NOTA_CAJA_COMPARTIDA = "⚠ Caja compartida:"
+
+
 def nodos_para_canaliza(obra: dict, zoom: float = ZOOM_PLANO) -> list[dict]:
     """Los elementos ya extraídos del plano (cajas de luz, tomas, llaves),
     traducidos a nodos de Canaliza en la misma posición real sobre el plano
@@ -98,23 +101,57 @@ def nodos_para_canaliza(obra: dict, zoom: float = ZOOM_PLANO) -> list[dict]:
     """
     salida = []
     contador: dict[str, int] = {}
+    # varias "llave" (teclas) de una misma caja física comparten posicionPdfPt
+    # y cajaId (ver circuitos.html: "misma posicionPdfPt para todas") -- tienen
+    # que ser UN SOLO nodo de Canaliza, no uno por tecla, o el caño que llega
+    # a esa caja sólo conecta una de ellas y las demás quedan "sin ningún
+    # caño conectado" para siempre, aunque sea la misma caja física.
+    nodo_por_caja: dict[str, dict] = {}
+    circuitos_por_caja: dict[str, list[str]] = {}
+    nombres_circuito: dict[str, str] = {}
     for e in obra.get("elementos") or []:
         par = KIND_DE_ELEMENTO.get(e.get("tipo"))
         pos = e.get("posicionPdfPt")
         if not par or not pos:
             continue
         kind, device = par
+        caja_id = e.get("cajaId") if e.get("tipo") == "llave" else None
+        if caja_id and caja_id in nodo_por_caja:
+            letra = (e.get("letra") or "").strip()
+            nodo = nodo_por_caja[caja_id]
+            otro = _circuito_de(obra, e["id"])
+            if otro and otro["id"] not in circuitos_por_caja[caja_id]:
+                circuitos_por_caja[caja_id].append(otro["id"])
+                nombres_circuito[otro["id"]] = otro.get("nombre") or otro["id"]
+            letras = nodo["label"].split("+")
+            if letra and letra not in letras:
+                nodo["label"] = "+".join(letras + [letra])
+            continue
         etiqueta = (e.get("nombre") or e.get("letra") or "").strip()
         if not etiqueta:
             contador[device] = contador.get(device, 0) + 1
             etiqueta = PREFIJO_ETIQUETA.get(device, device[:1].upper()) + str(contador[device])
         circ = _circuito_de(obra, e["id"])
-        salida.append({
+        nodo = {
             "id": f"fy_{e['id']}", "kind": kind, "device": device,
             "x": round(pos["x"] * zoom, 1), "y": round(pos["y"] * zoom, 1),
             "label": etiqueta, "circuitId": circ["id"] if circ else None,
             "note": "", "zAuto": True,
-        })
+        }
+        salida.append(nodo)
+        if caja_id:
+            nodo_por_caja[caja_id] = nodo
+            circuitos_por_caja[caja_id] = [circ["id"]] if circ else []
+            if circ:
+                nombres_circuito[circ["id"]] = circ.get("nombre") or circ["id"]
+    # una caja con teclas de circuitos distintos necesita un caño por cada
+    # uno: se deja señalizado en la nota de la caja (y en circuitIds)
+    for caja_id, ids in circuitos_por_caja.items():
+        if len(ids) > 1:
+            nodo = nodo_por_caja[caja_id]
+            nodo["circuitIds"] = ids
+            nodo["note"] = (NOTA_CAJA_COMPARTIDA + " " + " + ".join(nombres_circuito[i] for i in ids)
+                            + " -- tienen que llegar los caños de todos esos circuitos.")
     return salida
 
 

@@ -5,9 +5,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
-from . import (almacen, config as cfgmod, contrato as C, canalizacion as canal_mod, extraccion, github as gh,
-               materiales as mat_mod, pdf_informe, pdf_materiales, pdf_presupuesto, pdf_routeo, pdf_tablero,
-               precios as precios_mod, presupuesto as pres_mod, red as red_mod, sync, tablero as tablero_mod,
+from . import (almacen, automatizaciones as aut_mod, config as cfgmod, contrato as C, canalizacion as canal_mod, extraccion, github as gh,
+               materiales as mat_mod, pdf_automatizacion, pdf_informe, pdf_materiales, pdf_presupuesto, pdf_routeo, pdf_tablero,
+               precios as precios_mod, presupuesto as pres_mod, red as red_mod, stock as stock_mod, sync, tablero as tablero_mod,
                vinculos)
 
 if getattr(sys, "frozen", False):
@@ -62,6 +62,7 @@ class Handler(BaseHTTPRequestHandler):
     _MODULOS_POR_PAGINA = {
         "circuitos.html": "Circuitos", "revisor.html": "Revisor", "tablero.html": "Tablero",
         "canaliza.html": "Routeo", "presupuesto.html": "Presupuesto", "materiales.html": "Materiales",
+        "automatizaciones.html": "Automatizaciones",
     }
 
     def _modulo_origen(self) -> str:
@@ -109,18 +110,18 @@ class Handler(BaseHTTPRequestHandler):
                 return self._mover_dispositivo(partes[2], partes[4])
             if len(partes) == 6 and partes[:2] == ["api", "obras"] and partes[3] == "tableros" and partes[5] == "dispositivos":
                 return self._agregar_dispositivo(partes[2], partes[4])
+            if len(partes) == 6 and partes[:2] == ["api", "obras"] and partes[3] == "tableros" and partes[5] == "conexiones":
+                return self._crear_conexion(partes[2], partes[4])
             if len(partes) == 6 and partes[:2] == ["api", "obras"] and partes[3] == "tableros" and partes[5] == "peine":
                 return self._crear_peine(partes[2], partes[4])
-            if len(partes) == 6 and partes[:2] == ["api", "obras"] and partes[3] == "tableros" and partes[5] == "conector-peine":
-                return self._crear_conector_peine(partes[2], partes[4])
+            if len(partes) == 6 and partes[:2] == ["api", "obras"] and partes[3] == "tableros" and partes[5] == "conectorPeine":
+                return self._agregar_conector_peine(partes[2], partes[4])
             if len(partes) == 6 and partes[:2] == ["api", "obras"] and partes[3] == "tableros" and partes[5] == "canos":
                 return self._agregar_entrada_cano(partes[2], partes[4])
             if len(partes) == 7 and partes[:2] == ["api", "obras"] and partes[3] == "tableros" and partes[5] == "canos":
                 return self._editar_entrada_cano(partes[2], partes[4], partes[6])
-            if len(partes) == 8 and partes[:2] == ["api", "obras"] and partes[3] == "tableros" and partes[5] == "canos" and partes[7] == "mover":
-                return self._mover_entrada_cano(partes[2], partes[4], partes[6])
-            if len(partes) == 6 and partes[:2] == ["api", "obras"] and partes[3] == "tableros" and partes[5] == "cables":
-                return self._crear_cable(partes[2], partes[4])
+            if len(partes) == 8 and partes[:2] == ["api", "obras"] and partes[3] == "tableros" and partes[5] == "canos" and partes[7] == "reordenar":
+                return self._reordenar_entrada_cano(partes[2], partes[4], partes[6])
             if len(partes) == 5 and partes[:2] == ["api", "obras"] and partes[3] == "tableros":
                 return self._sincronizar_tablero(partes[2], partes[4])
             return self._api_post(ruta)
@@ -148,6 +149,11 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_DELETE(self):
         partes = [p for p in urlparse(self.path).path.split("/") if p]
+        if len(partes) == 4 and partes[:3] == ["api", "stock", "movimientos"]:
+            datos = stock_mod.leer()
+            ok = stock_mod.borrar(datos, partes[3])
+            stock_mod.guardar(datos)
+            return self._json({"ok": ok, **stock_mod.payload(datos)})
         if len(partes) == 3 and partes[:2] == ["api", "obras"]:
             return self._json({"ok": almacen.borrar_obra(partes[2])})
         if len(partes) == 7 and partes[:2] == ["api", "obras"] and partes[3] == "tableros" and partes[5] == "dispositivos":
@@ -171,6 +177,28 @@ class Handler(BaseHTTPRequestHandler):
             ok = tablero_mod.eliminar_conexion(t, partes[6])
             almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
             return self._json({"ok": ok})
+        if len(partes) == 7 and partes[:2] == ["api", "obras"] and partes[3] == "tableros" and partes[5] == "peines":
+            obra = almacen.leer_obra(partes[2])
+            if obra is None:
+                return self._error("Esa obra no está en este equipo.", 404)
+            t = next((x for x in obra.get("tableros") or [] if x["id"] == partes[4]), None)
+            if t is None:
+                return self._error("Ese tablero no existe.", 404)
+            t.setdefault("peines", [])
+            ok = tablero_mod.eliminar_peine(t, partes[6])
+            almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
+            return self._json({"ok": ok})
+        if len(partes) == 7 and partes[:2] == ["api", "obras"] and partes[3] == "tableros" and partes[5] == "conectoresPeine":
+            obra = almacen.leer_obra(partes[2])
+            if obra is None:
+                return self._error("Esa obra no está en este equipo.", 404)
+            t = next((x for x in obra.get("tableros") or [] if x["id"] == partes[4]), None)
+            if t is None:
+                return self._error("Ese tablero no existe.", 404)
+            t.setdefault("conectoresPeine", [])
+            ok = tablero_mod.eliminar_conector_peine(t, partes[6])
+            almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
+            return self._json({"ok": ok})
         if len(partes) == 7 and partes[:2] == ["api", "obras"] and partes[3] == "tableros" and partes[5] == "canos":
             obra = almacen.leer_obra(partes[2])
             if obra is None:
@@ -178,19 +206,8 @@ class Handler(BaseHTTPRequestHandler):
             t = next((x for x in obra.get("tableros") or [] if x["id"] == partes[4]), None)
             if t is None:
                 return self._error("Ese tablero no existe.", 404)
-            t.setdefault("canos", []); t.setdefault("cables", [])
+            t.setdefault("canos", [])
             ok = tablero_mod.eliminar_entrada_cano(t, partes[6])
-            almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
-            return self._json({"ok": ok})
-        if len(partes) == 7 and partes[:2] == ["api", "obras"] and partes[3] == "tableros" and partes[5] == "cables":
-            obra = almacen.leer_obra(partes[2])
-            if obra is None:
-                return self._error("Esa obra no está en este equipo.", 404)
-            t = next((x for x in obra.get("tableros") or [] if x["id"] == partes[4]), None)
-            if t is None:
-                return self._error("Ese tablero no existe.", 404)
-            t.setdefault("cables", [])
-            ok = tablero_mod.eliminar_cable(t, partes[6])
             almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
             return self._json({"ok": ok})
         if len(partes) == 5 and partes[:2] == ["api", "obras"] and partes[3] == "tableros":
@@ -229,6 +246,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(precios_mod.leer())
         if ruta == "/api/materiales":
             return self._json(mat_mod.leer())
+        if ruta == "/api/stock":
+            return self._json(stock_mod.payload())
         if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "canalizacion":
             obra = almacen.leer_obra(partes[2])
             if obra is None:
@@ -310,6 +329,14 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(sync.estado_lock(cfgmod.leer_config(), partes[2]))
         if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "plano.png":
             return self._render_plano(partes[2], urlparse(self.path).query)
+        if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "automatizaciones":
+            obra = almacen.leer_obra(partes[2])
+            if obra is None:
+                return self._error("Esa obra no está en este equipo.", 404)
+            return self._json(self._respuesta_automatizaciones(obra))
+        if (len(partes) == 5 and partes[:2] == ["api", "obras"] and partes[3] == "automatizaciones"
+                and partes[4].endswith(".pdf")):
+            return self._pdf_automatizacion(partes[2], partes[4][:-4])
         if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "presupuesto.pdf":
             return self._pdf_presupuesto(partes[2], urlparse(self.path).query)
         if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "informe.pdf":
@@ -356,6 +383,17 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(precios_mod.guardar(cuerpo))
         if ruta == "/api/materiales":
             return self._json(mat_mod.guardar(cuerpo))
+        if ruta == "/api/stock/movimientos" or (len(partes) == 4 and partes[:3] == ["api", "stock", "movimientos"]):
+            datos = stock_mod.leer()
+            try:
+                if ruta == "/api/stock/movimientos":
+                    stock_mod.agregar(datos, cuerpo, cfg.get("usuario", ""))
+                else:
+                    stock_mod.actualizar(datos, partes[3], cuerpo)
+            except ValueError as e:
+                return self._error(str(e))
+            stock_mod.guardar(datos)
+            return self._json({"ok": True, **stock_mod.payload(datos)})
 
         if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "presupuesto":
             obra = almacen.leer_obra(partes[2])
@@ -396,21 +434,34 @@ class Handler(BaseHTTPRequestHandler):
                                    if i.get("origen") != "computo_extra"]
                 obra["presupuesto"]["extras"] = extras_manuales + sug_extra
                 obra["presupuesto"]["avisosPreciosExtra"] = avisos_extra
+            cambios_precios = None
+            if cuerpo.get("actualizarPrecios"):
+                cambios_precios = pres_mod.actualizar_precios(obra)
+                if obra["presupuesto"].get("congeladoEl"):
+                    # estaba congelado: se vuelve a congelar, ahora con los precios de hoy
+                    pres_mod.congelar(obra, cfg.get("usuario", ""))
+                    for seccion in ("items", "extras", "diferencia"):
+                        for it in obra["presupuesto"].get(seccion) or []:
+                            it["congelado"] = True
             if cuerpo.get("congelar"):
                 pres_mod.congelar(obra, cfg.get("usuario", ""))
                 for it in obra["presupuesto"].get("items") or []:
                     it["congelado"] = True
             if cuerpo.get("guardar"):
                 almacen.guardar_obra(obra, cfg.get("usuario", ""), modulo="Presupuesto",
-                                     resumen="Congeló precios" if cuerpo.get("congelar") else "Guardó cambios")
+                                     resumen="Congeló precios" if cuerpo.get("congelar") else
+                                     "Actualizó precios a la lista de hoy" if cuerpo.get("actualizarPrecios")
+                                     else "Guardó cambios")
             return self._json({
                 "ok": True,
+                "preciosActualizados": cambios_precios,
                 "presupuesto": obra.get("presupuesto") or {},
                 "cantidades": pres_mod.cantidades(obra),
                 "cantidadesExtra": pres_mod.cantidades(obra, extra=True),
                 "totales": pres_mod.totales(obra.get("presupuesto") or {}, obra.get("red")),
                 "comparacion": precios_mod.comparar(
-                    (obra.get("presupuesto") or {}).get("items") or []),
+                    [i for sec in ("items", "extras", "diferencia")
+                     for i in (obra.get("presupuesto") or {}).get(sec) or []]),
             })
 
         if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "materiales":
@@ -455,6 +506,21 @@ class Handler(BaseHTTPRequestHandler):
                 "verificaciones": red_mod.verificar(obra, px_por_m),
             })
 
+        if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "automatizaciones":
+            obra = almacen.leer_obra(partes[2])
+            if obra is None:
+                return self._error("Esa obra no está en este equipo.", 404)
+            lista = cuerpo.get("automatizaciones")
+            if lista is not None:
+                obra["automatizaciones"] = [
+                    {**{k: v for k, v in a.items() if k != "resultado"}, "tipo": a.get("tipo", "bomba_agua"),
+                     "params": aut_mod.normalizar_params(a.get("tipo", "bomba_agua"), a.get("params"))}
+                    for a in lista if a.get("tipo", "bomba_agua") in aut_mod.CATALOGO]
+            if cuerpo.get("guardar"):
+                almacen.guardar_obra(obra, cfg.get("usuario", ""), modulo="Automatizaciones",
+                                     resumen="Guardó cambios")
+            return self._json({"ok": True, **self._respuesta_automatizaciones(obra)})
+
         if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "routeo.pdf":
             return self._pdf_routeo(partes[2], cuerpo)
 
@@ -481,7 +547,18 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"ok": True, "obra": obra})
 
         if ruta == "/api/sync/bajar":
-            return self._json(sync.bajar_todo(cfg))
+            res = sync.bajar_todo(cfg)
+            try:                                        # el stock con el celular no debe frenar la bajada de obras
+                res["stock"] = sync.sincronizar_stock(cfg)
+            except Exception as e:
+                res["stockError"] = str(e)
+            return self._json(res)
+
+        if ruta == "/api/stock/sync":
+            try:
+                return self._json({"ok": True, **sync.sincronizar_stock(cfg), **stock_mod.payload()})
+            except gh.ErrorSync as e:
+                return self._error(e.mensaje)
 
         if len(partes) == 4 and partes[:3] == ["api", "sync", "traer"]:
             return self._json({"ok": True, "obra": sync.traer_obra(cfg, partes[3])})
@@ -700,6 +777,23 @@ class Handler(BaseHTTPRequestHandler):
         almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
         return self._json({"ok": True, "dispositivo": d, "tablero": t})
 
+    def _crear_conexion(self, obra_id, tablero_id):
+        obra = almacen.leer_obra(obra_id)
+        if obra is None:
+            return self._error("Esa obra no está en este equipo.", 404)
+        t = next((x for x in obra.get("tableros") or [] if x["id"] == tablero_id), None)
+        if t is None:
+            return self._error("Ese tablero no existe.", 404)
+        t.setdefault("conexiones", [])
+        cuerpo = self._cuerpo()
+        con, msg = tablero_mod.crear_conexion(t, obra.get("circuitos") or [],
+                                              cuerpo.get("origen"), cuerpo.get("destino"),
+                                              cuerpo.get("ruta"))
+        if con is None:
+            return self._error(msg)
+        almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
+        return self._json({"ok": True, "conexion": con, "tablero": t})
+
     def _crear_peine(self, obra_id, tablero_id):
         obra = almacen.leer_obra(obra_id)
         if obra is None:
@@ -707,7 +801,7 @@ class Handler(BaseHTTPRequestHandler):
         t = next((x for x in obra.get("tableros") or [] if x["id"] == tablero_id), None)
         if t is None:
             return self._error("Ese tablero no existe.", 404)
-        t.setdefault("conexiones", [])
+        t.setdefault("peines", [])
         cuerpo = self._cuerpo()
         peine, msg = tablero_mod.crear_peine(t, cuerpo.get("piso"), cuerpo.get("desde"), cuerpo.get("hasta"))
         if peine is None:
@@ -715,22 +809,21 @@ class Handler(BaseHTTPRequestHandler):
         almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
         return self._json({"ok": True, "peine": peine, "tablero": t})
 
-    def _crear_conector_peine(self, obra_id, tablero_id):
+    def _agregar_conector_peine(self, obra_id, tablero_id):
         obra = almacen.leer_obra(obra_id)
         if obra is None:
             return self._error("Esa obra no está en este equipo.", 404)
         t = next((x for x in obra.get("tableros") or [] if x["id"] == tablero_id), None)
         if t is None:
             return self._error("Ese tablero no existe.", 404)
-        t.setdefault("conexiones", [])
+        t.setdefault("conectoresPeine", [])
         cuerpo = self._cuerpo()
-        conector, msg = tablero_mod.crear_conector_peine(
-            t, cuerpo.get("peineId"), cuerpo.get("posicion"),
-            cuerpo.get("polaridad", "fase"), cuerpo.get("carga", "superior"))
-        if conector is None:
+        con, msg = tablero_mod.agregar_conector_peine(t, cuerpo.get("peineId"), cuerpo.get("polaridad"),
+                                                      cuerpo.get("posicion"), cuerpo.get("tipo"))
+        if con is None:
             return self._error(msg)
         almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
-        return self._json({"ok": True, "conector": conector, "tablero": t})
+        return self._json({"ok": True, "conector": con, "tablero": t})
 
     def _agregar_entrada_cano(self, obra_id, tablero_id):
         obra = almacen.leer_obra(obra_id)
@@ -739,7 +832,7 @@ class Handler(BaseHTTPRequestHandler):
         t = next((x for x in obra.get("tableros") or [] if x["id"] == tablero_id), None)
         if t is None:
             return self._error("Ese tablero no existe.", 404)
-        t.setdefault("canos", []); t.setdefault("cables", [])
+        t.setdefault("canos", [])
         cuerpo = self._cuerpo()
         circ = next((c for c in obra.get("circuitos") or [] if c["id"] == cuerpo.get("circuitoId")), None)
         cano, msg = tablero_mod.agregar_entrada_cano(t, cuerpo.get("lado"), cuerpo.get("tipo"),
@@ -767,7 +860,7 @@ class Handler(BaseHTTPRequestHandler):
         almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
         return self._json({"ok": True, "cano": cano, "tablero": t})
 
-    def _mover_entrada_cano(self, obra_id, tablero_id, cano_id):
+    def _reordenar_entrada_cano(self, obra_id, tablero_id, cano_id):
         obra = almacen.leer_obra(obra_id)
         if obra is None:
             return self._error("Esa obra no está en este equipo.", 404)
@@ -775,27 +868,11 @@ class Handler(BaseHTTPRequestHandler):
         if t is None:
             return self._error("Ese tablero no existe.", 404)
         cuerpo = self._cuerpo()
-        ok, msg = tablero_mod.mover_entrada_cano(t, cano_id, int(cuerpo.get("direccion", 1)))
+        ok, msg = tablero_mod.reordenar_entrada_cano(t, cano_id, int(cuerpo.get("orden", 0)))
         if not ok:
             return self._error(msg)
         almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
         return self._json({"ok": True, "tablero": t})
-
-    def _crear_cable(self, obra_id, tablero_id):
-        obra = almacen.leer_obra(obra_id)
-        if obra is None:
-            return self._error("Esa obra no está en este equipo.", 404)
-        t = next((x for x in obra.get("tableros") or [] if x["id"] == tablero_id), None)
-        if t is None:
-            return self._error("Ese tablero no existe.", 404)
-        t.setdefault("cables", [])
-        cuerpo = self._cuerpo()
-        cable, msg = tablero_mod.crear_cable(t, cuerpo.get("origen"), cuerpo.get("destino"),
-                                            cuerpo.get("ruta"))
-        if cable is None:
-            return self._error(msg)
-        almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
-        return self._json({"ok": True, "cable": cable, "tablero": t})
 
     def _mover_dispositivo(self, obra_id, tablero_id):
         obra = almacen.leer_obra(obra_id)
@@ -812,6 +889,34 @@ class Handler(BaseHTTPRequestHandler):
         avisos = tablero_mod.validar(t, obra.get("circuitos") or [])
         almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
         return self._json({"ok": True, "tablero": t, "avisos": avisos})
+
+    @staticmethod
+    def _respuesta_automatizaciones(obra):
+        """Lista guardada + todo lo derivado de cada una (se recalcula siempre)."""
+        lista = obra.get("automatizaciones") or []
+        return {
+            "catalogo": aut_mod.CATALOGO,
+            "automatizaciones": [{**a, "resultado": aut_mod.resultado(a)} for a in lista],
+        }
+
+    def _pdf_automatizacion(self, obra_id, auto_id):
+        obra = almacen.leer_obra(obra_id)
+        if obra is None:
+            return self._error("Esa obra no está en este equipo.", 404)
+        a = next((x for x in obra.get("automatizaciones") or [] if x.get("id") == auto_id), None)
+        if a is None:
+            return self._error("Esa automatización no existe.", 404)
+        try:
+            datos = pdf_automatizacion.generar(a, obra)
+        except Exception as e:
+            return self._error(f"No pude generar el PDF: {e}", 500)
+        nombre = ((a.get("params") or {}).get("nombre") or "automatizacion").replace(" ", "_")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/pdf")
+        self.send_header("Content-Length", str(len(datos)))
+        self.send_header("Content-Disposition", f'inline; filename="{nombre}.pdf"')
+        self.end_headers()
+        self.wfile.write(datos)
 
     def _pdf_tablero(self, obra_id, tablero_id):
         obra = almacen.leer_obra(obra_id)

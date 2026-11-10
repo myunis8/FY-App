@@ -36,7 +36,7 @@ ALTURA_DEFAULT_M = 1.2  # media altura por defecto para route == "altura" (ver c
 Z0 = {"ceiling": 2.60, "tablero": 1.80, "luminaria": 2.60, "interruptor": 1.20,
       "toma": 0.30, "especial": 1.20, "paso": 2.60, "medidor": 1.50, "jabalina": 0}
 
-RULES0 = {"maxOct": 4, "maxRect": 3, "longRun": 25, "waste": 10, "spare": 15}
+RULES0 = {"maxOct": 8, "maxRect": 3, "longRun": 25, "waste": 10, "spare": 15}
 INSP_MAX_DEFAULT = 10                       # caños en una caja de inspección (== INSP_SIZES 20x20)
 
 CROSS_CLEARANCE_M = 0.08                    # separación mínima para "resuelto en altura"
@@ -65,7 +65,13 @@ RS_SHADES = ["#c7c7c7", "#aeaeae", "#767676"]
 RC_SHADES = ["#e8c93a", "#c79a2a", "#96701a"]
 
 DEV_KIND = {"iluminacion": "Iluminación", "tomas": "Tomacorrientes", "especial": "Especial",
-            "exterior": "Exterior", "acometida": "Acometida", "tierra": "Puesta a tierra"}
+            "exterior": "Exterior", "acometida": "Acometida", "tierra": "Puesta a tierra",
+            "bomba": "Automático de bomba"}
+
+# circuitos cuyo cableado se traza conductor por conductor (F, N, retornos) en
+# vez de llevar una cantidad fija de cables por tramo -- ver KINDS_CON_TRAZADO
+# en web/canaliza.html, misma idea en los dos lados
+KINDS_CON_TRAZADO = {"iluminacion", "bomba"}
 
 
 def dia_of(did):
@@ -445,7 +451,7 @@ class Proyecto:
             c = self.circuit(r.get("circuit"))
             if not c:
                 continue
-            if c.get("kind") == "iluminacion":
+            if c.get("kind") in KINDS_CON_TRAZADO:
                 ws = [w for w in self.wires
                       if w.get("circuit") == c["id"] and r.get("id") in (w.get("runIds") or [])]
                 ws.sort(key=order)
@@ -569,7 +575,7 @@ class Proyecto:
             cable_color.setdefault(sec, {})
             cab = 0.0
 
-            if c.get("kind") == "iluminacion":
+            if c.get("kind") in KINDS_CON_TRAZADO:
                 wires = [w for w in self.wires if w.get("circuit") == c["id"] and (w.get("runIds") or [])]
                 for w in wires:
                     wl = 0.0

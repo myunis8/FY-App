@@ -186,6 +186,7 @@ main{max-width:1360px;margin:0 auto;padding:26px 22px 60px;display:grid;
   <button class="btn ghost" id="b-sync">Sincronizar</button>
   <button class="btn ghost" onclick="location.href='/precios.html'">Valor de Mano de obra</button>
   <button class="btn ghost" onclick="location.href='/materiales_catalogo.html'">Materiales típicos</button>
+  <button class="btn ghost" onclick="location.href='/stock.html'">Movimiento de stock</button>
   <button class="btn ghost" id="b-historial">Historial</button>
   <button class="btn ghost" id="b-config">Configuración</button>
   <button class="btn primary" id="b-nueva">Nueva obra</button>
@@ -402,6 +403,8 @@ async function sincronizar(){
       toast(`Bajadas ${r.nuevas} nuevas y ${r.actualizadas} actualizadas`);
     else
       toast('No había nada nuevo');
+    if(r.stock && r.stock.nuevosDelCelular)
+      setTimeout(() => toast(`Stock: ingresados ${r.stock.nuevosDelCelular} movimiento(s) cargados desde el celular`), 3300);
   }catch(e){
     pintarSync('mal', e.message);
     toast(e.message);

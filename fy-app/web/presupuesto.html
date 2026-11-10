@@ -194,6 +194,9 @@ tr.opcional{opacity:.72;background:repeating-linear-gradient(45deg,transparent,t
 
     <h2>Estado</h2>
     <div id="estado-precios"></div>
+    <button class="btn sm" id="b-refrescar" style="margin-top:9px;width:100%">
+      ↻ Actualizar a precios de hoy</button>
+    <div class="nota" style="margin-top:4px" id="n-refrescar"></div>
     <button class="btn sm primary" id="b-congelar" style="margin-top:9px;width:100%">
       Congelar precios</button>
     <div class="nota" style="margin-top:6px">Al congelar, este presupuesto deja de
@@ -328,10 +331,11 @@ $('sel-precio-dif').onchange = async () => {
   pres.diferencia.push(nuevoDeLista(it, 'df'));
   await sincronizar({});
 };
+let ultimoRefresh = null;
 async function sincronizar(op){
   const r = await api('/api/obras/'+OBRA_ID+'/presupuesto',
     {method:'POST', body:JSON.stringify({presupuesto: pres, ...op})});
-  pres = r.presupuesto; totales = r.totales;
+  pres = r.presupuesto; totales = r.totales; ultimoRefresh = r.preciosActualizados;
   comparacion = r.comparacion; cantidades = r.cantidades; cantidadesExtra = r.cantidadesExtra;
   pres.items = pres.items || []; pres.extras = pres.extras || []; pres.diferencia = pres.diferencia || [];
   pintar();
@@ -447,6 +451,10 @@ function pintar(){
   $('b-congelar').textContent = cong ? 'Volver a congelar con precios de hoy' : 'Congelar precios';
 
   const movidos = comparacion.filter(c => c.variacion && Math.abs(c.variacion) >= 1);
+  const difHoy = pendientesDeRefresh();
+  $('n-refrescar').textContent = difHoy
+    ? `${difHoy} línea(s) con precio distinto al de la lista de hoy.`
+    : 'Todas las líneas de la lista ya están a precio de hoy.';
   $('aviso-precios').innerHTML = (cong && movidos.length)
     ? `<div class="aviso">Desde que congelaste, ${movidos.length} ítems cambiaron de
         precio en la lista. El presupuesto sigue con los valores viejos, como
@@ -506,6 +514,21 @@ $('b-recalcular').onclick = async () => {
     + 'Los extras y los precios que tocaste a mano se conservan. ¿Seguimos?')) return;
   await sincronizar({recalcularCantidades:true});
   toast('Cantidades actualizadas');
+};
+// líneas que vienen de la lista de precios y hoy valen otra cosa
+function pendientesDeRefresh(){
+  return comparacion.filter(c => c.existe && c.vigente != null
+    && Math.abs(c.vigente - c.congelado) > 0.005).length;
+}
+$('b-refrescar').onclick = async () => {
+  const n = pendientesDeRefresh();
+  if(!n){ toast('Ya está todo a precio de hoy'); return; }
+  if(!confirm(`Actualiza ${n} línea(s) al precio de la lista de hoy (mano de obra actual), `
+    + 'incluso las que hayas tocado a mano. Las líneas que cargaste sin ítem de la lista no cambian. '
+    + '¿Seguimos?')) return;
+  await sincronizar({actualizarPrecios:true, guardar:true});
+  const c = ultimoRefresh || [];
+  toast(c.length ? `${c.length} precio(s) actualizado(s)` : 'Sin cambios');
 };
 $('b-congelar').onclick = async () => {
   await sincronizar({congelar:true, guardar:true});

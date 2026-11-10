@@ -142,7 +142,7 @@ def _stroke(pg, pts, color, width, *, dash=None, close=False, opacity=1.0):
 
 
 # --------------------------------------------------------------- dibujo del plano
-def _draw_conduit(pg, T, P, grp, bad, vis, detailed):
+def _draw_conduit(pg, T, P, grp, bad, vis, detailed, *, solo_cano=False):
     base_w = grp["runs"][0].get("pts") or []        # polilínea en coords del plano
     if len(base_w) < 2:
         return
@@ -189,6 +189,11 @@ def _draw_conduit(pg, T, P, grp, bad, vis, detailed):
     _stroke(pg, base, (1, 1, 1), 11 * u, opacity=0.9)
     _stroke(pg, base, _rgb("#b3261e") if bad else _rgb("#9aa4ad"), pipe_w * u)
     _stroke(pg, base, (1, 1, 1), 5.5 * u)
+    if solo_cano:
+        # plano de caños: sólo el caño físico, sin el color de cada circuito
+        # adentro -- es para antes de pasar los cables, no importa todavía de
+        # qué circuito es cada uno (eso se ve en las otras hojas)
+        return
     n = len(grp["runs"])
     for i, r in enumerate(grp["runs"]):
         if r not in vis:
@@ -217,11 +222,11 @@ def _draw_device(pg, T, dev, cx, cy, R, color):
         _stroke(pg, [pymupdf.Point(cx + ax, cy + ay), pymupdf.Point(cx + bx, cy + by)], color, 1.6 * u)
 
 
-def _draw_node(pg, T, P, n, bad=False):
+def _draw_node(pg, T, P, n, bad=False, *, solo_cano=False):
     u, R = T.u, 7 * T.u
     ctr = T.p(n)
     cx, cy = ctr.x, ctr.y
-    ci = P.circuit(n.get("circuitId")) if n.get("circuitId") else None
+    ci = None if solo_cano else (P.circuit(n.get("circuitId")) if n.get("circuitId") else None)
     stroke = _rgb("#b3261e") if bad else (_rgb(ci["color"]) if ci else (15 / 255, 18 / 255, 20 / 255))
     kind = n.get("kind")
     sh = pg.new_shape()
@@ -238,6 +243,17 @@ def _draw_node(pg, T, P, n, bad=False):
         sh.finish(color=stroke, fill=(1, 1, 1), width=2 * u)
         sh.commit()
         _stroke(pg, [ctr, pymupdf.Point(cx - R * .55, cy - R * .35)], stroke, 2 * u)
+        return
+    if kind == "automatico":
+        sh.draw_circle(ctr, R * 1.15)
+        sh.finish(color=stroke, fill=(1, 1, 1), width=2 * u)
+        sh.commit()
+        _stroke(pg, [pymupdf.Point(cx, cy - R * .7), pymupdf.Point(cx, cy + R * .1)], stroke, 2 * u)
+        sh2 = pg.new_shape()
+        sh2.draw_polyline([pymupdf.Point(cx, cy + R * .1), pymupdf.Point(cx - R * .42, cy + R * .78),
+                           pymupdf.Point(cx + R * .42, cy + R * .78), pymupdf.Point(cx, cy + R * .1)])
+        sh2.finish(color=stroke, fill=stroke, width=0.6 * u, closePath=True)
+        sh2.commit()
         return
     if kind == "jabalina":
         _stroke(pg, [pymupdf.Point(cx, cy - R * 1.15), pymupdf.Point(cx, cy + R * .05)], stroke, 2 * u)
@@ -305,11 +321,13 @@ def _codigo_badge(pg, T, x, y, numero):
 
 
 def _draw_scene(pg, T, P, *, only=None, detailed=False, labels=True, lens=True, codigo=False,
-                crossings=None, problems=None):
+                solo_cano=False, solo_dia=None, crossings=None, problems=None):
     problems = problems if problems is not None else P.drc_error_targets()
     groups = P.conduit_groups()
 
     def _es_relevante(grp):
+        if solo_dia and grp.get("dia") != solo_dia:
+            return False
         return (any(r.get("circuit") == only for r in grp["runs"]) if only
                 else any(P.is_ci_visible(r.get("circuit")) for r in grp["runs"]))
 
@@ -341,7 +359,7 @@ def _draw_scene(pg, T, P, *, only=None, detailed=False, labels=True, lens=True, 
         if not vis:
             continue
         bad = any(r.get("id") in problems for r in grp["runs"])
-        _draw_conduit(pg, T, P, grp, bad, vis, detailed)
+        _draw_conduit(pg, T, P, grp, bad, vis, detailed, solo_cano=solo_cano)
 
     # etiquetas del caño (horizontales, con fondo -- ver nota del módulo)
     if lens and P.px_per_m:
@@ -392,12 +410,21 @@ def _draw_scene(pg, T, P, *, only=None, detailed=False, labels=True, lens=True, 
             m = T.p({"x": mid["x"] + dx, "y": mid["y"] + dy})
             _codigo_badge(pg, T, m.x, m.y, numero)
 
+    nodos_con_cano = None
+    if solo_dia:
+        nodos_con_cano = set()
+        for grp in groups.values():
+            if grp["key"] in relevant_keys:
+                nodos_con_cano.add(grp.get("a"))
+                nodos_con_cano.add(grp.get("b"))
     for n in P.nodes:
         if not P.node_visible(n, only):
             continue
-        _draw_node(pg, T, P, n, n.get("id") in problems)
+        if solo_dia and n.get("id") not in nodos_con_cano:
+            continue
+        _draw_node(pg, T, P, n, n.get("id") in problems, solo_cano=solo_cano)
         if labels:
-            ci = P.circuit(n.get("circuitId")) if n.get("circuitId") else None
+            ci = None if solo_cano else (P.circuit(n.get("circuitId")) if n.get("circuitId") else None)
             t = (n.get("label") or "") + (f' · {ci["name"]}' if ci else "")
             c = T.p(n)
             _label(pg, T, c.x + 14 * T.u, c.y - 10 * T.u, t, 11 * T.u)
@@ -584,6 +611,23 @@ def generar(obra: dict, proyecto: dict, hojas: dict, *, formato="a4",
                           "blanco/gris = retorno simple, amarillo/ocre = combinada.",
                           fontsize=7.5, fontname="helv", color=INK, lineheight=1.3)
         _footer(pg, W, H, base_name, "Cableado detallado")
+
+    if hojas.get("canos"):
+        # plano de caños, una hoja por diámetro -- sin colores por circuito y
+        # sin texto de largo/altura/sección (eso ya se ve en las otras hojas);
+        # acá sólo importa por dónde va cada diámetro de caño, para colocarlos
+        # en la obra antes de pasar los cables
+        diametros = sorted({g["dia"] for g in P.conduit_groups().values() if g.get("dia")},
+                           key=lambda d: dia_of(d)["mm"])
+        for dia in diametros:
+            titulo = f"Routeo — plano de caños · {dia_lbl(dia)}"
+            pg, _, _ = _plan_page(doc, W, H, titulo, None, plano_png, base_w, base_h, 46,
+                                  lambda p, T, _d=dia: _draw_scene(p, T, P, labels=True, lens=False,
+                                                                   solo_cano=True, solo_dia=_d,
+                                                                   crossings=crossings, problems=problems))
+            pg.insert_text((MARGEN, H - 34), "Sin diferenciar por circuito -- colocar antes de pasar los cables.",
+                           fontsize=7.5, fontname="helv", color=INK)
+            _footer(pg, W, H, base_name, f"Plano de caños · {dia_lbl(dia)}")
 
     for cid in (hojas.get("circuitos") or []):
         _hoja_circuito(doc, W, H, P, base_name, plano_png, base_w, base_h, cid, crossings, problems)

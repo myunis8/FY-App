@@ -3,6 +3,294 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
+## 1.14.0 — Automatizaciones, Stock propio, FY Manager Lite (celular), Tablero y Routeo
+
+`contrato`: sin cambios incompatibles; `obra.json` suma la clave opcional `automatizaciones`
+(vacía por defecto). El stock propio es global (`stock.json`), no va dentro de las obras.
+
+- **Tablero:** la grilla de ruteo es mucho más fina y está alineada con los pines de cada
+  térmica; los cables que comparten tramo se escalonan por orden de creación; ahora sólo el
+  cuerpo de cada térmica bloquea el ruteo (el hueco entre dos térmicas sí se puede usar --
+  corrige lo dicho en 1.13.0 sobre el riel completo); más espacio para rutear arriba y abajo
+  de los rieles; el diferencial y el protector de tensión usan los mismos tornillos que la
+  térmica y la lectura del protector queda dentro de su recuadro.
+- **PDF del tablero:** se dibuja con la misma geometría del editor, así que pines, caños,
+  peines, conectores y cables van donde corresponde.
+- **Circuitos:** una caja con varias llaves es un solo marcador, con un menú para asignar cada
+  tecla a su circuito (una caja puede quedar repartida entre circuitos); las descripciones de
+  los circuitos nuevos arrancan con la base del tipo (IUG "Iluminación", TUG
+  "Tomacorrientes", TUE "Tomas de Uso Especial"...). Revisor: se cargan varias teclas por caja
+  escribiéndolas separadas por `,` o `-`; el extractor también separa las rotuladas así.
+- **Presupuesto:** botón "Actualizar a precios de hoy" (vuelve a tomar de la lista de precios
+  las líneas que vienen de ella).
+- **Routeo:** una caja compartida entre circuitos lleva una nota que avisa que tienen que
+  llegar los caños de todos.
+- **Celular -- FY Manager Lite 1.0.0 (página `docs/index.html`)**: una página estática, sin datos ni claves, que se
+  abre desde GitHub Pages y lee/escribe directo en el repositorio privado de obras con un
+  token que se pega una vez en el celular (queda en ese navegador). *Obras*: sólo
+  consulta y descarga de PDF (resumen, plano y PDF publicados). *Stock*: se ven los
+  saldos y se pueden agregar movimientos. Cada movimiento del celular va a su propio
+  archivo `stock/movil/<id>.json` (nunca chocan con la PC); al sincronizar, la PC los
+  ingresa a su stock, los borra de esa bandeja y publica `stock/estado.json` (catálogo +
+  movimientos) para que el celular lo lea. Botón "Sincronizar con el celular" en Stock;
+  "Sincronizar" del inicio también lo hace.
+- Celular: apartado **Configuración** (engranaje): nombre de usuario, instrucciones para ponerla
+  en la pantalla de inicio (Android e iPhone), cambiar el token y desconectar. Con ícono y manifiesto
+  para instalarla como app. **Sin nombre no se puede cargar nada** (el nombre es obligatorio al conectar,
+  y una sesión sin nombre arranca en Configuración con el botón de nuevo movimiento bloqueado).
+- En el celular se elige **quién sos** (lista con los nombres ya usados, o uno nuevo): queda en
+  cada movimiento de stock (`creadoPor`) y la PC lo muestra con "desde el celular".
+- La página del celular se llama **FY Manager Lite** y tiene versión propia (1.0.0, visible en
+  Configuración), independiente de la del programa.
+- Al **subir una obra** se publican además sus PDF de consulta (`obras/<id>/pdf/`:
+  presupuesto, informe general, lista de materiales y tableros), compactados (pasan de
+  ~19 MB a ~1,5 MB) y sólo si su contenido cambió.
+- Stock: el ítem se elige de una lista desplegable de Materiales típicos (también se
+  filtra escribiendo), sin tipearlo entero.
+- **Stock propio** (módulo global, no por obra; botón "Movimiento de stock" en el
+  inicio): material guardado para imprevistos de obra. Se cargan movimientos de
+  *reposición* (compra o sobrante) y de *consumo*, sobre los ítems de la lista de
+  materiales, con fecha, cantidad (con decimales: media bobina, 12,5 m), precio,
+  obra y nota opcionales. El stock se calcula siempre de los movimientos. Costo =
+  último precio de reposición: sin precio cargado se usa el último, y si no hay
+  ninguno queda marcado "falta precio" (nunca es un error; se completa después
+  desde la tabla). Un sobrante no cambia el último precio. La lista de materiales
+  de las obras NO toca el stock. Se guarda en `stock.json` (junto a `precios.json`).
+- **Routeo:** el clic derecho con cualquier herramienta activa vuelve a
+  "Seleccionar" (arrastrar con el derecho sigue desplazando el plano); las
+  etiquetas de cajas y la longitud de los caños arrancan desmarcadas.
+- **Módulo nuevo: Automatizaciones** (primera versión: bomba de agua monofásica con
+  tanque y cisterna). Se cargan sólo parámetros (corriente de chapa, tensión de
+  comando 24/220 V, con o sin cisterna, selector MAN-0-AUTO, pilotos, térmico o
+  guardamotor, distancias) y el programa deriva: esquemas de potencia y de
+  comando, lista de componentes (con el criterio de cada uno: requisito
+  normativo / buena práctica / decisión de diseño), cables y caída de tensión,
+  notas de conexión, pruebas y un informe PDF. Nada derivado se guarda: se
+  recalcula con las tablas de selección de `app/automatizaciones.py`, que son
+  reglas de diseño del programa y hay que revisarlas antes de usarlas en obra.
+  `obra.json` suma la clave `automatizaciones` (vacía por defecto; las obras
+  viejas no se tocan). Todavía no entra a Presupuesto/Materiales/Routeo.
+- **Routeo: herramienta "Tramo directo (recto)"** (tecla D): une un punto A con
+  un punto B en línea recta, sin codos a 90°; los clics en el vacío agregan
+  quiebres libres. La herramienta "Tramo de caño" sigue siendo en escuadra.
+- **Caja octogonal: 8 caños, uno por cada lado.** Cada caño se engancha al
+  lado que mira hacia donde va (pasos de 45°), sin repetir lado mientras haya
+  uno libre; se puede fijar a mano desde el panel del tramo. El tope por
+  defecto de caños por octogonal pasa de 4 a 8 (los proyectos guardados que
+  tenían el 4 de antes se actualizan a 8; se puede cambiar en Reglas).
+
+## 1.13.0 — Tablero: caños centrados, grilla de ruteo, bornera de 6 bornes
+
+- **Los caños quedan centrados**, arriba y abajo, y se recentran solos cada
+  vez que se agrega, se quita o se reordena uno -- antes quedaban pegados
+  al margen izquierdo. El arrastre para cambiar el orden entre ellos ya
+  existía; sigue andando igual sobre la nueva posición centrada.
+- **Grilla de ruteo**: mientras se traza un cable a mano, se ve una grilla
+  punteada tenue (al paso de la distancia entre los dos pines de una
+  térmica bipolar) y una guía de eje vertical/horizontal gris punteada que
+  sigue al cursor, para ayudar a alinear el trazo a simple vista. Los
+  puntos intermedios que se tocan a mano ajustan a esa grilla; los
+  extremos (pin, caño, peine, conector) siguen siendo exactos.
+- **El bloqueo de "no pasar por encima de otra térmica" ahora cubre todo
+  el riel**, no sólo el cuerpo de cada dispositivo puntual -- ni siquiera
+  el hueco vacío entre dos térmicas sirve de paso; sólo la columna de la
+  propia térmica de origen o destino de esa conexión queda libre. Así el
+  cable siempre se ve, nunca corre "por debajo" del riel.
+- **Bug corregido: a la bornera de tierra le faltaban 5 bornes.** El dibujo
+  siempre mostró 6 terminales a tornillo, pero sólo el primero aceptaba
+  una conexión -- los otros cinco no servían para nada. Ahora los 6 son
+  puntos de conexión válidos, todos del mismo bus de tierra.
+- Renombrado: la franja de caños ya no dice "Entradas de caño"/"Salidas de
+  caño" (un caño de cualquier lado puede ser acometida, circuito o
+  jabalina, no hay una dirección fija) -- ahora dice "Conexiones de caño"
+  en los dos lados.
+
+## 1.12.0 — Tablero: ruteo que evita térmicas, conectores de peine, estética
+
+- **El ruteo manual de un cable no puede pasar por encima de otra térmica**:
+  mientras se traza, la vista previa muestra en rojo el tramo que cruzaría un
+  dispositivo que no es ninguno de los dos extremos, y tanto agregar un punto
+  intermedio ahí como terminar la conexión ahí se rechaza -- hay que rodear la
+  térmica por el espacio libre arriba/abajo del riel (pensado para esto desde
+  siempre, `BANDA`). La vista previa, además, ya se muestra en escuadra
+  (horizontal/vertical) tal cual va a quedar la conexión final, no como una
+  línea libre hasta el cursor.
+- **El tramo final de un cable, el que cae dentro de su propia térmica de
+  destino, se ve**: antes quedaba tapado por el dibujo del dispositivo (que
+  se pinta encima del cableado) y sólo se notaba el puntito del pin. Ahora
+  ese tramo se redibuja por encima, en el editor y en el PDF, para que se vea
+  cómo el cable llega de verdad al tornillo.
+- **Conector de peine**: una patita que se clipa sobre la barra de fase o de
+  neutro de un peine, en el punto exacto donde se toca (no se centra solo) --
+  la polaridad es automática, la de esa barra. Dos formas físicas, sólo
+  visuales: superior (la pata sube) o lateral (sale en diagonal al costado).
+  Es un extremo más para la herramienta de Conectar, igual que un pin o un
+  caño.
+- **El peine se ve como un busbar real**: la barra es mucho más gruesa, con
+  un filo más claro para dar relieve metálico -- antes era una línea fina,
+  difícil de distinguir de un cable cualquiera.
+- **Estética sutil más realista**: degradé metálico en el riel DIN, sombra
+  suave bajo cada dispositivo (para que se note que está montado, no pegado
+  al fondo) y un brillito en cada tornillo -- sin cambiar la claridad del
+  esquema, que sigue siendo la prioridad.
+
+## 1.11.0 — Tablero: caños de entrada/salida independientes, ubicación por clic
+
+- **Corrección de diseño**: la "entrada por circuito" de la 1.10.0 (el
+  cablecito de colores dibujado automáticamente arriba de cada térmica)
+  estaba mal pensada -- quedaba pegada a la térmica, no se podía agregar,
+  quitar ni ordenar, y mezclaba el cable del circuito con el tornillo de
+  la térmica como si fueran lo mismo. Se reemplaza por **caños**: nodos
+  independientes, agregados a mano en una franja arriba o abajo del
+  tablero (acometida, jabalina, o un circuito), que después se cablean al
+  tornillo que corresponda con la misma herramienta de conexión -- igual
+  que se cablearía un caño real en una obra. Mismo criterio de colores y
+  grosor por sección (`seccionMm2`) que la versión anterior.
+- **Bug corregido**: un protector o diferencial agregado a mano (sin
+  `circuitoId`) se borraba solo la próxima vez que se sincronizaban los
+  circuitos (al tocar bocas/pisos, o con "Sincronizar circuitos") --
+  `sincronizar_circuitos` sólo protegía a la térmica general y a la
+  bornera de tierra, no a cualquier otro dispositivo agregado aparte.
+  Ahora sólo se podan las térmicas ligadas a un circuito que ya no existe.
+- **Ubicación de protecciones por clic, no arrastre**: se selecciona la
+  protección (en la bandeja o ya puesta en el riel) y después se hace
+  clic en el riel y boca de destino -- sin drag-and-drop.
+
+## 1.10.0 — Tablero: pines reales, DRC de polaridad, entrada por circuito, peines
+
+- **Convención de polaridad configurable por tablero** (vivo a la izquierda
+  o a la derecha de cada protección bipolar) -- un tetrapolar sigue
+  teniendo el neutro fijo en el último polo, ahí no hay "izquierda o
+  derecha" que elegir.
+- **El nodo de conexión ahora es el tornillo real**, arriba y abajo de
+  cada térmica/diferencial/bornera -- en el mismo lugar donde el símbolo
+  ya los dibuja, no un punto genérico en el medio del dispositivo.
+- **DRC de cortocircuito**: una conexión sólo se puede crear si los dos
+  extremos son la misma polaridad (fase con fase, neutro con neutro,
+  tierra con tierra). Conectar fase con neutro se rechaza al momento, con
+  el motivo.
+- **Entrada por circuito, importada de Circuitos**: cada térmica que
+  protege un circuito (y la general, con la acometida) muestra un
+  cablecito de colores arriba -- fase y neutro siempre, más tierra si el
+  circuito es de los que la necesitan (TUG, TUE, ACU, OCE) -- con el
+  grosor de línea proporcional a la sección real del conductor
+  (`seccionMm2`). No se agrega ni se ubica a mano: aparece solo en cuanto
+  la térmica está en el riel.
+- **Peines**: nueva herramienta para unir en paralelo (fase con fase,
+  neutro con neutro) varias térmicas contiguas de un mismo riel, en vez
+  de cablear una por una.
+- El PDF de conexionado dibuja lo mismo que el editor: los pines reales,
+  las entradas por circuito con su grosor, y los peines.
+
+## 1.9.1 — Tablero: ruteo manual de vuelta, y color por polaridad
+
+Ajuste sobre la 1.9.0, después de probarla: la línea recta automática
+resultaba poco práctica, y sin un color por polaridad no se podía saber
+qué cable era fase, neutro o tierra con sólo mirarlo.
+
+- **Se puede volver a rutear el cable a mano**: después de tocar el
+  origen, cada clic en el lienzo agrega un punto intermedio por donde
+  pasa, y el clic en el destino termina la conexión -- el extremo en
+  cada dispositivo lo sigue eligiendo el sistema (arriba o abajo, según
+  corresponda), pero el camino del medio lo elige el que cablea.
+- **Cada conexión tiene una polaridad** (fase, neutro o tierra) elegida
+  con un selector en la herramienta "Conectar", y se dibuja con el color
+  correspondiente -- el mismo criterio de colores que usa el resto de la
+  app (fase marrón, neutro azul, tierra verde). Se puede cambiar después
+  desde el panel de detalle, sin tener que borrar y re-crear la conexión.
+- El PDF de conexionado usa la ruta manual y el color real de cada
+  conexión, en vez de un trazo recto único.
+
+## 1.9.0 — Tablero: cableado simple, sin rutear nada a mano
+
+Después de varias vueltas tratando de arreglar el ruteo manual de cables
+(caños con posición exacta, peines, conectores, grilla de pines) el
+problema de fondo no eran los bugs puntuales sino el modelo en sí: era
+poco práctico. Se rehace el cableado desde cero, mucho más simple:
+
+- **Una conexión ahora dice sólo "esto alimenta a esto otro"** -- se
+  elige el origen y el destino (una térmica, el diferencial, la bornera,
+  o la Acometida) y el sistema dibuja una línea esquemática automática.
+  Ya no hay que rutear nada a mano, ni elegir por qué pin exacto entra
+  cada cable.
+- **Desaparecen los caños, los peines y los conectores de peine** como
+  conceptos del editor -- no hacía falta ubicar una entrada de caño con
+  posición y orden propios para decir que algo viene de la acometida.
+  Ahora la Acometida es un único punto fijo que siempre existe, sin
+  crearlo ni organizarlo.
+- Dos herramientas nada más: **Mover** y **Conectar**.
+- Se conservan, sin tocar, los símbolos de las protecciones (térmica,
+  diferencial, protector, bornera) y el riel DIN -- lo único que cambió
+  es cómo se conectan entre sí, no cómo se ven ni cómo se colocan.
+- El PDF de conexionado usa el mismo modelo nuevo; la guía de tapa no
+  cambió (nunca dependió del cableado).
+- Compatibilidad: los tableros guardados con el sistema viejo (caños,
+  peines, conectores, cables con ruta manual) abren igual que antes --
+  esos datos quedan en el archivo pero el editor nuevo no los dibuja ni
+  los usa. Si un tablero tenía cableado armado con el sistema anterior,
+  hay que volver a conectarlo con la herramienta "Conectar" (un par de
+  clics por conexión).
+
+## 1.8.2 — Tablero: la grilla vertical, el zigzag de caños y el punto de clic
+
+Causas reales de lo que seguía mal después de la 1.8.1:
+
+- **La grilla vertical nunca fue realmente una grilla.** `BANDA` (78), `FRANJA_CANO`
+  (58) y el cálculo del pin (`alto * 0.13`, un porcentaje) no eran múltiplos de
+  la unidad de grilla -- sólo el eje X se había corregido. Ahora todas las
+  medidas verticales (`BANDA`, `FRANJA_CANO`, `ALTO_DISP`, `MARGEN_PISO`, el
+  inset del pin) son múltiplos fijos de la misma unidad, en los dos ejes.
+- **El zigzag que alternaba la altura de los caños para que no se pisaran
+  lograba lo contrario**: con la franja chica y nombres de circuito largos,
+  las etiquetas se superponían o quedaban tapadas por el título de la franja.
+  Se eliminó el zigzag, se agrandó la franja y las etiquetas ahora se acortan
+  con "…" si no entran en el espacio fijo que les toca.
+- **El clic para conectar un cable a un caño sólo se aceptaba en la puntita
+  del cablecito de color, no en el ícono** (que es lo que se ve y se clickea
+  naturalmente) -- por eso "no detectaba". Ahora se acepta en todo el
+  trayecto, desde el ícono hasta la punta.
+
+## 1.8.1 — Tablero: más lugar entre térmicas, cables rectos, caños arrastrables
+
+- **Más aire entre térmicas** (la boca se agrandó para dejar un canal real a
+  los dos lados de cada dispositivo) -- ese canal es por donde pasan los
+  cables que van de un piso a otro o de un caño hacia un circuito, sin tapar
+  el dibujo de la térmica de al lado.
+- **Todo pin, caño y tramo de cable vive en la misma grilla fija.** Cualquier
+  cable sale siempre derecho (un tramo recto fijo) desde el pin, la bornera,
+  el caño o el peine al que se conecta, antes de poder doblar -- ya no puede
+  quedar "ladeado" justo al salir de un punto de conexión.
+- **Las entradas de caño se arrastran con el mouse para reordenarlas**, en
+  vez de borrarlas y volver a crearlas. También dejaron de superponerse
+  entre sí sea cual sea la cantidad: tienen una separación fija que alcanza
+  para el ícono y la etiqueta.
+
+## 1.8.0 — Tablero: rediseño a canvas
+
+- **El editor de Tablero pasa de SVG/DOM a un `<canvas>` real, con cámara
+  tipo Routeo** (paneo y zoom), herramientas a la izquierda con atajo de
+  teclado y un cartel de ayuda fijo con el paso actual. Buscaba resolver
+  las cuatro quejas del usuario sobre el entorno anterior: no se parecía a
+  un tablero real, conectar cosas era confuso, no se veía qué estaba
+  conectado a qué, y mover dispositivos era incómodo.
+- **Los bornes de cada dispositivo (polos de térmica, terminales de
+  bornera) ahora se ven siempre**, no sólo mientras la herramienta "Cable"
+  está activa -- se agrandan al activarla, pero nunca desaparecen.
+- **Mover una térmica es con el mouse (pointerdown/move/up), ya no con el
+  drag-and-drop nativo del navegador.** Incluye arrastrar desde la bandeja
+  de "sin colocar" directo a un riel.
+- **Cualquier selección (térmica, cable, peine o conector) muestra su
+  detalle en el panel derecho**, no sólo los dispositivos como antes --
+  con botón para borrar cada uno.
+- El dibujo de los dispositivos (térmica, diferencial, protector, bornera)
+  sigue siendo el mismo SVG detallado de siempre; sólo cambió cómo se pinta
+  (se cachea como imagen y se dibuja sobre el canvas, en vez de insertarse
+  como HTML). El modelo de datos de tablero no cambió: los tableros ya
+  guardados se abren igual que antes.
+- Pendiente para una próxima etapa: revisar `app/pdf_tablero.py` contra el
+  nuevo modelo de interacción, y el esquema unifilar editable (todavía no
+  implementado).
+
 ## 1.7.0 — Nuevo módulo Red
 
 - **Nuevo módulo "Red"** (instalación de red/datos), con tres partes:
@@ -24,6 +312,26 @@ El formato es una línea por cambio, agrupadas por versión.
 - **`obra.red`**: bloque nuevo en el contrato de `obra.json`
   (`ofertas`/`dispositivos`/`tramos`); las obras existentes sin este bloque
   lo reciben vacío al abrir, sin perder nada de lo que ya tenían.
+- **Nuevo circuito "Automático de bomba"** en Routeo, con su propio elemento
+  de plano "Automático de tanque" (tanque principal o cisterna, con
+  Común/NC/NA) y la posibilidad de marcar un tablero como principal,
+  seccional o auxiliar.
+- **Fix: una caja de interruptores con más de una tecla (ej. A y B) ya no
+  genera un nodo de Routeo por tecla.** Antes, al compartir la misma caja,
+  la segunda tecla quedaba como un nodo duplicado y sin caño conectado
+  -- ahora se fusionan en un solo nodo. Los proyectos ya guardados antes de
+  este fix no se corrigen solos: hay que borrar a mano el nodo duplicado
+  sobrante la próxima vez que se abra Routeo.
+- **Fix: el aviso de "tramo largo, revisar caída de tensión" medía el tramo
+  más largo entre cajas, no la distancia real tablero → toma/lámpara** (esa
+  cuenta, que sí usa el camino completo, ya se calculaba bien en las
+  Verificaciones técnicas). Se separó en un aviso propio ("tramo individual
+  largo, considerá una caja de paso") para no confundirlo con la caída de
+  tensión real.
+- **Nuevo PDF "plano de caños"** en Routeo: un plano neutro, sin colores
+  por circuito, para llevar a la obra y colocar la cañería antes de pasar
+  los cables -- una hoja por cada diámetro de caño usado.
+- Routeo recuerda si la última exportación de PDF fue vertical u horizontal.
 
 ## 1.6.1 — Lista de materiales: sidebar de colores, cable tipo taller/Sintenax
 

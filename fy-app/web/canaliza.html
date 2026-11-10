@@ -234,6 +234,9 @@ table.t input:focus{outline:none;border-color:var(--accent);background:var(--pan
         <button class="btn sm" data-newci="ACO" title="Acometida: medidor → tablero · 6mm² · 3 cond. · 25A">+ ACO (acometida)</button>
         <button class="btn sm" data-newci="PAT" title="Puesta a tierra: tablero → jabalina · 16mm² · 1 cond.">+ PAT (tierra)</button>
       </div>
+      <div class="f3" style="margin-top:4px">
+        <button class="btn sm" data-newci="BOM" title="Automático de bomba: tablero → automático de tanque → toma de la bomba · 2.5mm² · 16A">+ BOM (bomba)</button>
+      </div>
       <button class="btn sm" id="bAddCi" style="width:100%;margin-top:6px">+ Circuito personalizado</button>
     </div>
     <div class="sect">
@@ -256,8 +259,8 @@ table.t input:focus{outline:none;border-color:var(--accent);background:var(--pan
     </div>
     <div class="sect">
       <h3>Vista</h3>
-      <label class="chk"><input type="checkbox" id="vLbl" checked> Etiquetas de cajas y bocas</label>
-      <label class="chk"><input type="checkbox" id="vLen" checked> Longitud sobre cada caño</label>
+      <label class="chk"><input type="checkbox" id="vLbl"> Etiquetas de cajas y bocas</label>
+      <label class="chk"><input type="checkbox" id="vLen"> Longitud sobre cada caño</label>
       <label class="chk"><input type="checkbox" id="vZ"> Altura de cada caja</label>
       <label class="chk"><input type="checkbox" id="vCodeEdit"> Editar etiquetas de código (arrastrar, 2 clics = girar 90°)</label>
       <label class="chk"><input type="checkbox" id="vGrid" checked> Grilla (tecla G)</label>
@@ -341,7 +344,7 @@ table.t input:focus{outline:none;border-color:var(--accent);background:var(--pan
 
   <h2 style="margin-top:20px;font-size:13px">Límites y cómputo</h2>
   <div class="f3" style="margin-top:8px">
-    <div><label class="f" for="rOct">Caños máx. por caja octogonal</label><input class="f mono" id="rOct" type="number" min="1" value="4"></div>
+    <div><label class="f" for="rOct">Caños máx. por caja octogonal</label><input class="f mono" id="rOct" type="number" min="1" value="8"></div>
     <div><label class="f" for="rRec">Caños máx. por caja rectangular</label><input class="f mono" id="rRec" type="number" min="1" value="3"></div>
     <div><label class="f" for="rLen">Aviso de tramo largo (m)</label><input class="f mono" id="rLen" type="number" min="1" value="25"></div>
   </div>
@@ -429,6 +432,16 @@ function mergeCircuitosExtraidos(proyecto, circuitosExtraidos){
 // propósito. Devuelve cuántas cajas nuevas sumó.
 function mergeCajasExtraidas(proyecto, nodosExtraidos){
   const existentes = new Set((proyecto.nodes||[]).map(n=>n.id));
+  // la señal de "caja compartida entre circuitos" se mantiene al día en las
+  // cajas ya guardadas, sin pisar una nota que el usuario haya escrito
+  const MARCA = '⚠ Caja compartida:';
+  for(const ext of nodosExtraidos||[]){
+    const ya = (proyecto.nodes||[]).find(n=>n.id===ext.id);
+    if(!ya) continue;
+    const nota = ya.note || '';
+    if(ext.circuitIds){ ya.circuitIds = ext.circuitIds; if(!nota || nota.startsWith(MARCA)) ya.note = ext.note; }
+    else if(ya.circuitIds){ delete ya.circuitIds; if(nota.startsWith(MARCA)) ya.note = ''; }
+  }
   const nuevas = (nodosExtraidos||[]).filter(n=>!existentes.has(n.id));
   if(nuevas.length) proyecto.nodes = [...(proyecto.nodes||[]), ...nuevas];
   return nuevas.length;
@@ -608,7 +621,7 @@ const CAP0 = {                       // conductores por caño segun seccion
 };
 const MAXPROT = {1.5:10, 2.5:20, 4:25, 6:32, 10:40, 16:63};
 
-const Z0 = {ceiling:2.60, tablero:1.80, luminaria:2.60, interruptor:1.20, toma:0.30, especial:1.20, paso:2.60, medidor:1.50, jabalina:0};
+const Z0 = {ceiling:2.60, tablero:1.80, luminaria:2.60, interruptor:1.20, toma:0.30, especial:1.20, paso:2.60, medidor:1.50, jabalina:0, automatico:1.20};
 
 const KINDS = {
   tablero:{n:"Tablero",     ab:"TS"},
@@ -616,8 +629,22 @@ const KINDS = {
   rect:   {n:"Caja rectangular", ab:"CR"},
   medidor:{n:"Medidor",     ab:"MD"},
   jabalina:{n:"Jabalina",   ab:"JB"},
-  insp:   {n:"Caja de inspección", ab:"CI"}
+  insp:   {n:"Caja de inspección", ab:"CI"},
+  automatico:{n:"Automático de tanque", ab:"AT"}
 };
+// tablero principal / seccional / auxiliar: por ahora es sólo un dato del
+// nodo (para distinguirlos en el plano) -- cómo se resuelve cada uno por
+// dentro (térmicas, relés, etc.) queda para más adelante
+const TABLERO_SUBTIPOS = {principal:"Principal", seccional:"Seccional", auxiliar:"Auxiliar"};
+const TABLERO_SUBTIPO_DEFAULT = "principal";
+// a qué tanque atiende el automático, y qué contacto de él se usa para esta
+// bomba -- Común siempre va de entrada; NC corta al llenarse (normalmente
+// cerrado), NA arranca al llenarse (normalmente abierto), según la lógica
+// de arranque/parada que se quiera
+const TANQUES = {principal:"Tanque principal", cisterna:"Tanque cisterna"};
+const TANQUE_DEFAULT = "principal";
+const TERMINALES_AUTOMATICO = {NC:"Común + NC (normalmente cerrado)", NA:"Común + NA (normalmente abierto)"};
+const TERMINAL_DEFAULT = "NC";
 
 // tamaños típicos de caja de inspección plástica cuadrada (de referencia — ajustalos si tu
 // proveedor da otras medidas o capacidades; también se puede dejar en "Personalizada")
@@ -648,8 +675,14 @@ const CIRCUIT_TYPES = {
   TUG:{label:"TUG · Tomacorrientes",    kind:"tomas",       section:2.5, cables:3, prot:16},
   TUE:{label:"TUE · Especiales",        kind:"especial",    section:2.5, cables:3, prot:16},
   ACO:{label:"ACO · Acometida (medidor→tablero)", kind:"acometida", section:6,  cables:3, prot:25},
-  PAT:{label:"PAT · Puesta a tierra (tablero→jabalina)", kind:"tierra", section:16, cables:1, prot:0}
+  PAT:{label:"PAT · Puesta a tierra (tablero→jabalina)", kind:"tierra", section:16, cables:1, prot:0},
+  BOM:{label:"BOM · Automático de bomba", kind:"bomba",      section:2.5, cables:2, prot:16}
 };
+// circuitos cuyo cableado se traza conductor por conductor (F, N, retornos),
+// en vez de llevar una cantidad fija de cables por tramo -- "bomba" funciona
+// igual que "iluminacion": el automático de tanque interrumpe la fase, igual
+// que lo haría un interruptor de pared (ver KINDS.automatico más abajo)
+const KINDS_CON_TRAZADO = new Set(["iluminacion", "bomba"]);
 
 // colores de conductor según el tipo de circuito (para desglosar el cómputo de cable,
 // ya que cada conductor se compra por separado). Si el circuito tiene más o menos
@@ -737,7 +770,7 @@ function conduitConductors(vis){
   const order = w => w.kind==="F"?-2 : w.kind==="N"?-1 : (LIGHT_LETTERS.indexOf(w.light)*10 + (w.kind==="RC"?w.branch:0.5));
   for(const r of vis){
     const c = ciById(r.circuit); if(!c) continue;
-    if(c.kind==="iluminacion"){
+    if(KINDS_CON_TRAZADO.has(c.kind)){
       const ws = S.wires.filter(w=>w.circuit===c.id && w.runIds.includes(r.id));
       ws.sort((a,b)=>order(a)-order(b));
       for(const w of ws) items.push({color:wireHex(w), section:c.section, code:wireCode(w), circuit:c.name});
@@ -799,9 +832,9 @@ const S = {
   tool:"select",
   view:{x:0,y:0,z:1},
   draft:null, calib:null,
-  rules:{cap:JSON.parse(JSON.stringify(CAP0)), maxOct:4, maxRect:3, longRun:25, boxRun:5, waste:10, spare:15},
+  rules:{cap:JSON.parse(JSON.stringify(CAP0)), maxOct:8, maxRect:3, longRun:25, boxRun:5, waste:10, spare:15},
   z:Object.assign({}, Z0),
-  show:{labels:true, lens:true, z:false},
+  show:{labels:false, lens:false, z:false},
   hiddenCircuits:new Set(),                  // ids de circuitos ocultos en el plano
   viewGroups:[],                             // [{id,name,circuits:[ids]}]
   grid:{on:true, size:40, snap:true},        // grilla de alineación (tamaño en px del plano)
@@ -841,9 +874,10 @@ function nextLabel(kind){
 
 /* ============================ cableado de retornos (IUG) ============================ */
 
-// asegura que un circuito de iluminación tenga sus conductores de fase y neutro
+// asegura que un circuito de trazado (iluminación o bomba) tenga sus
+// conductores de fase y neutro
 function ensureBaseWires(ciId){
-  const c = ciById(ciId); if(!c || c.kind!=="iluminacion") return;
+  const c = ciById(ciId); if(!c || !KINDS_CON_TRAZADO.has(c.kind)) return;
   if(!S.wires.some(w=>w.circuit===ciId && w.kind==="F"))
     S.wires.push({id:uid("w"), circuit:ciId, kind:"F", light:null, branch:null, runIds:[]});
   if(!S.wires.some(w=>w.circuit===ciId && w.kind==="N"))
@@ -876,7 +910,7 @@ function deleteWire(id){
 // recalcula, para un circuito de iluminación, cuántos conductores pasan por cada uno
 // de sus tramos según los conductores (wires) trazados sobre ellos
 function recalcCablesFor(ciId){
-  const c = ciById(ciId); if(!c || c.kind!=="iluminacion") return;
+  const c = ciById(ciId); if(!c || !KINDS_CON_TRAZADO.has(c.kind)) return;
   const runs = S.runs.filter(r=>r.circuit===ciId);
   for(const r of runs){
     r.cables = S.wires.filter(w=>w.circuit===ciId && w.runIds.includes(r.id)).length;
@@ -1060,12 +1094,14 @@ function resolveZ(n){
   if(n.kind==="tablero") return S.z.tablero;
   if(n.kind==="medidor") return S.z.medidor;
   if(n.kind==="jabalina") return S.z.jabalina;
+  if(n.kind==="automatico") return S.z.automatico;
   return S.z[n.device] != null ? S.z[n.device] : S.z.ceiling;
 }
 function defaultZ(kind, device){
   if(kind==="tablero") return S.z.tablero;
   if(kind==="medidor") return S.z.medidor;
   if(kind==="jabalina") return S.z.jabalina;
+  if(kind==="automatico") return S.z.automatico;
   return S.z[device] != null ? S.z[device] : S.z.ceiling;
 }
 
@@ -1456,6 +1492,87 @@ function offsetPoly(pts, d){
   return out;
 }
 
+/* ---- caja octogonal: 8 lados = 8 puntos de conexión (uno por caño) ----
+   Un caño que llega a una octogonal se engancha al LADO que mira hacia donde
+   va (ángulos de 45°: 0 = derecha, 1 = abajo-derecha, 2 = abajo ... 7 =
+   arriba-derecha). Dos caños no comparten lado mientras haya uno libre. Los
+   datos de los tramos siguen terminando en el centro de la caja -- el lado se
+   calcula al dibujar (la caja se dibuja de tamaño fijo en pantalla, así que
+   su tamaño en el plano depende del zoom) o se fija a mano con r.portA/portB. */
+const OCT_LADOS = ["Derecha","Abajo-derecha","Abajo","Abajo-izquierda","Izquierda","Arriba-izquierda","Arriba","Arriba-derecha"];
+function octApotema(z){ return (7/z)*1.15*Math.cos(Math.PI/8); }
+function octLadoPunto(n, k, z){
+  const a = k*Math.PI/4, ap = octApotema(z);
+  return {x:n.x+Math.cos(a)*ap, y:n.y+Math.sin(a)*ap};
+}
+function difAngulo(a, b){
+  let d = (a-b) % (2*Math.PI);
+  if(d > Math.PI) d -= 2*Math.PI;
+  if(d < -Math.PI) d += 2*Math.PI;
+  return Math.abs(d);
+}
+// extremos de un caño físico (grupo) que terminan en una octogonal
+function extremosOct(grp){
+  const r0 = grp.runs[0], p = r0.pts, out = [];
+  if(p.length<2) return out;
+  [[r0.a,0],[r0.b,1]].forEach(([nid,end])=>{
+    const n = nid ? nodeById(nid) : null;
+    if(!n || n.kind!=="oct") return;
+    const adj = end===0 ? p[1] : p[p.length-2];
+    let manual = null;
+    for(const x of grp.runs){
+      const v = x.a===nid ? x.portA : (x.b===nid ? x.portB : null);
+      if(v!=null){ manual = v; break; }
+    }
+    out.push({key:grp.key+"|"+end, nid, end, ang:Math.atan2(adj.y-n.y, adj.x-n.x), manual});
+  });
+  return out;
+}
+function asignarPuertos(groups){
+  const porNodo = new Map();
+  for(const grp of groups.values())
+    for(const e of extremosOct(grp)){
+      if(!porNodo.has(e.nid)) porNodo.set(e.nid, []);
+      porNodo.get(e.nid).push(e);
+    }
+  const out = new Map();
+  for(const lista of porNodo.values()){
+    const libres = new Set([0,1,2,3,4,5,6,7]);
+    for(const e of lista) if(e.manual!=null){ out.set(e.key, e.manual); libres.delete(e.manual); }
+    const pend = lista.filter(e=>e.manual==null);
+    const pares = [];
+    pend.forEach((e,i)=>{ for(let k=0;k<8;k++) pares.push({d:difAngulo(e.ang, k*Math.PI/4), i, k}); });
+    pares.sort((a,b)=> a.d-b.d || a.i-b.i || a.k-b.k);
+    const hecho = new Set();
+    for(const q of pares){
+      if(hecho.has(q.i) || !libres.has(q.k)) continue;
+      hecho.add(q.i); libres.delete(q.k); out.set(pend[q.i].key, q.k);
+    }
+    // más de 8 caños en una misma caja: los que sobran comparten el lado más cercano
+    pend.forEach((e,i)=>{
+      if(hecho.has(i)) return;
+      let mk=0, md=Infinity;
+      for(let k=0;k<8;k++){ const d=difAngulo(e.ang,k*Math.PI/4); if(d<md){ md=d; mk=k; } }
+      out.set(e.key, mk);
+    });
+  }
+  return out;
+}
+// trazado de un caño físico tal como se DIBUJA: sus extremos en octogonales
+// salen del lado que les toca, no del centro de la caja
+function puntosDeDibujo(grp, puertos, z){
+  const r0 = grp.runs[0], p = r0.pts.map(q=>({x:q.x, y:q.y}));
+  if(p.length<2 || !puertos) return p;
+  [[r0.a,0],[r0.b,1]].forEach(([nid,end])=>{
+    const n = nid ? nodeById(nid) : null;
+    if(!n || n.kind!=="oct") return;
+    const k = puertos.get(grp.key+"|"+end);
+    if(k==null) return;
+    p[end ? p.length-1 : 0] = octLadoPunto(n, k, z);
+  });
+  return p;
+}
+
 function condWidth(section){
   if(section>=10) return 4.4;
   if(section>=6)  return 3.7;
@@ -1464,8 +1581,8 @@ function condWidth(section){
   return 1.4;
 }
 
-function drawConduit(g, grp, bad, z, vis, detailed){
-  let base = grp.runs[0].pts;
+function drawConduit(g, grp, bad, z, vis, detailed, puertos){
+  let base = puntosDeDibujo(grp, puertos, z);
   let items, n0, pipeW;
   if(detailed){
     items = conduitConductors(vis);
@@ -1545,6 +1662,7 @@ function drawScene(g, opt){
 
   // --- caños (agrupados) y cables
   const groups = conduitGroups();
+  const puertos = asignarPuertos(groups);
   for(const grp of groups.values()){
     // en las hojas detalladas por circuito, si el caño es compartido con otros
     // circuitos mostramos también SUS conductores (son los tramos más congestionados)
@@ -1554,7 +1672,7 @@ function drawScene(g, opt){
       : grp.runs.filter(r=> only ? r.circuit===only : isCiVisible(r.circuit));
     if(!vis.length) continue;
     const bad = vis.some(r=>problems.has(r.id)) || problems.has(grp.key);
-    drawConduit(g, grp, bad, z, vis, detailed);
+    drawConduit(g, grp, bad, z, vis, detailed, puertos);
   }
 
   // --- etiquetas sobre el caño
@@ -1617,7 +1735,7 @@ function drawScene(g, opt){
   }
 
   // --- nodos
-  const enRuteo = S.tool==="run" ? activeCi() : null;
+  const enRuteo = (S.tool==="run" || S.tool==="directo") ? activeCi() : null;
   for(const n of S.nodes){
     if(!nodeVisible(n, only)) continue;
     const bad = problems.has(n.id);
@@ -1649,6 +1767,11 @@ function drawScene(g, opt){
       g.moveTo(-R*.55,R*.45); g.lineTo(R*.55,R*.45);
       g.moveTo(-R*.25,R*.85); g.lineTo(R*.25,R*.85);
       g.stroke();
+    } else if(n.kind==="automatico"){
+      g.beginPath(); g.arc(0,0,R*1.15,0,7); g.fill(); g.stroke();
+      g.beginPath(); g.moveTo(0,-R*.7); g.lineTo(0,R*.1); g.stroke();
+      g.beginPath(); g.moveTo(0,R*.1); g.lineTo(-R*.42,R*.78); g.lineTo(R*.42,R*.78); g.closePath();
+      g.fillStyle = bad ? "#b3261e" : (ci ? ci.color : "#15181b"); g.fill();
     } else if(n.kind==="insp"){
       g.beginPath(); g.rect(-R*1.15,-R*1.15,R*2.3,R*2.3); g.fill(); g.stroke();
       g.beginPath();
@@ -1664,6 +1787,16 @@ function drawScene(g, opt){
       }
       g.closePath(); g.fill(); g.stroke();
       drawDevice(g, n.device, R, z);
+      // los 8 lados son los 8 puntos de conexión: se marcan mientras se rutea
+      // o con la caja seleccionada (no en las hojas exportadas)
+      if(opt.z==null && (S.tool==="run" || S.tool==="directo" || (S.sel && S.sel.t==="node" && S.sel.id===n.id))){
+        const ap = octApotema(z);
+        g.save(); g.fillStyle = "#a9552a";
+        for(let k=0;k<8;k++){
+          g.beginPath(); g.arc(Math.cos(k*Math.PI/4)*ap, Math.sin(k*Math.PI/4)*ap, 1.8/z, 0, 7); g.fill();
+        }
+        g.restore();
+      }
     } else {
       g.beginPath(); g.rect(-R,-R*.78,R*2,R*1.56); g.fill(); g.stroke();
       drawDevice(g, n.device, R, z);
@@ -1857,7 +1990,7 @@ function render(){
   }
 
   // snap highlight
-  if((S.tool==="run") && S.hoverNode){
+  if((S.tool==="run" || S.tool==="directo") && S.hoverNode){
     ctx.save(); ctx.strokeStyle="#a9552a"; ctx.lineWidth=2/S.view.z;
     ctx.beginPath(); ctx.arc(S.hoverNode.x,S.hoverNode.y,14/S.view.z,0,7); ctx.stroke(); ctx.restore();
   }
@@ -1875,7 +2008,9 @@ const TOOLS = [
   {id:"medidor",n:"Medidor",    k:"M", g:'<svg width="14" height="14" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 8L5.7 5.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>'},
   {id:"jabalina",n:"Jabalina",  k:"J", g:'<svg width="14" height="14" viewBox="0 0 16 16"><path d="M8 2v6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M3.5 10h9M4.7 12h6.6M5.9 14h3.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>'},
   {id:"insp",   n:"Caja de inspección", k:"I", g:'<svg width="14" height="14" viewBox="0 0 16 16"><rect x="2" y="2" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>'},
+  {id:"automatico",n:"Automático de tanque", k:"A", g:'<svg width="14" height="14" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 4.5v3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M8 7.5l-2 3.5h4z" fill="currentColor"/></svg>'},
   {id:"run",    n:"Tramo de caño", k:"C", g:'<svg width="14" height="14" viewBox="0 0 16 16"><path d="M2 12h5V4h7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>'},
+  {id:"directo", n:"Tramo directo (recto)", k:"D", g:'<svg width="14" height="14" viewBox="0 0 16 16"><path d="M2.5 13.5L13.5 2.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="2.5" cy="13.5" r="1.6" fill="currentColor"/><circle cx="13.5" cy="2.5" r="1.6" fill="currentColor"/></svg>'},
   {id:"calib",  n:"Calibrar escala", k:"K", g:'<svg width="14" height="14" viewBox="0 0 16 16"><path d="M2 8h12M2 5.5v5M14 5.5v5M6 6.5v3M10 6.5v3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>'}
 ];
 
@@ -1887,7 +2022,9 @@ const HINTS = {
   medidor:"Clic para ubicar el <b>medidor</b> de la compañía eléctrica. Después conectalo al tablero con un tramo del circuito ACO (Acometida).",
   jabalina:"Clic para ubicar la <b>jabalina</b> de puesta a tierra. Después conectala al tablero con un tramo del circuito PAT (Puesta a tierra).",
   insp:"Clic para ubicar una <b>caja de inspección</b>, para derivaciones grandes donde conviene dejar tapa accesible. Elegí el tamaño desde el panel derecho.",
+  automatico:"Clic para ubicar el <b>automático</b> (flotante) del tanque. Elegí qué tanque y qué contacto (NC/NA) usa desde el panel derecho, y conectalo con un tramo de un circuito BOM.",
   run:"Clic en una caja para arrancar, clic para cada quiebre (siempre en escuadra), y clic en otra caja para cerrar. <b>Esc</b> cancela · <b>Enter</b> corta suelto.",
+  directo:"Clic en una caja para arrancar y clic en otra para cerrar: el caño va <b>en línea recta</b> (en diagonal si hace falta), sin codos a 90°. Clics en el vacío agregan quiebres libres. En una octogonal se engancha al lado que mira hacia el otro extremo. <b>Esc</b> cancela · <b>Enter</b> corta suelto.",
   calib:"Marcá los <b>dos extremos de una cota conocida</b> del plano. Después ingresás cuánto mide en la realidad."
 };
 
@@ -1914,9 +2051,15 @@ function buildTools(){
 
 let panning=null, dragging=null;
 
+// clic derecho con una herramienta activa = volver a "Seleccionar" (si había un
+// tramo a medio trazar se corta suelto, como siempre). Arrastrar con el botón
+// derecho sigue siendo desplazar el plano y no cambia de herramienta.
+let derechoArrastro = false;
 cv.addEventListener("contextmenu", e=>{
   e.preventDefault();
+  if(derechoArrastro){ derechoArrastro = false; return; }
   if(S.draft) finishRun(null);
+  if(S.tool!=="select") setTool("select");
 });
 
 cv.addEventListener("wheel", e=>{
@@ -1931,7 +2074,8 @@ cv.addEventListener("pointerdown", e=>{
   const w = mouse(e);
 
   if(e.button===1 || e.button===2 || (e.button===0 && e.altKey)){
-    panning={x:e.clientX,y:e.clientY,vx:S.view.x,vy:S.view.y}; return;
+    if(e.button===2) derechoArrastro = false;
+    panning={x:e.clientX,y:e.clientY,vx:S.view.x,vy:S.view.y,boton:e.button}; return;
   }
   if(e.button!==0) return;
 
@@ -1963,7 +2107,7 @@ cv.addEventListener("pointerdown", e=>{
     render(); return;
   }
 
-  if(S.tool==="tablero"||S.tool==="oct"||S.tool==="rect"||S.tool==="medidor"||S.tool==="jabalina"||S.tool==="insp"){
+  if(S.tool==="tablero"||S.tool==="oct"||S.tool==="rect"||S.tool==="medidor"||S.tool==="jabalina"||S.tool==="insp"||S.tool==="automatico"){
     const dev = S.tool==="oct" ? "luminaria" : (S.tool==="rect" ? "toma" : null);
     const p0 = snapToGrid(w);
     pushUndo();
@@ -1976,22 +2120,29 @@ cv.addEventListener("pointerdown", e=>{
     if(S.tool==="jabalina"){
       n.jabSeccion = JAB_SECCION_DEFAULT; n.jabLargoM = JAB_LARGO_M_DEFAULT;
     }
+    if(S.tool==="tablero"){
+      n.subtipo = TABLERO_SUBTIPO_DEFAULT;
+    }
+    if(S.tool==="automatico"){
+      n.tanque = TANQUE_DEFAULT; n.terminal = TERMINAL_DEFAULT;
+    }
     S.nodes.push(n); S.sel={t:"node",id:n.id};
     refreshAll(); return;
   }
 
-  if(S.tool==="run"){
+  if(S.tool==="run" || S.tool==="directo"){
+    const libre = S.tool==="directo";
     const c = activeCi();
     if(!c){ alert("Creá al menos un circuito antes de dibujar."); return; }
     const hit = findNode(w);
     if(!S.draft){
-      const p = hit ? {x:hit.x,y:hit.y} : orthoPoint(w);
-      S.draft = {circuit:c.id, pts:[p], a:hit?hit.id:null, cursor:null};
+      const p = hit ? {x:hit.x,y:hit.y} : (libre ? snapToGrid(w) : orthoPoint(w));
+      S.draft = {circuit:c.id, pts:[p], a:hit?hit.id:null, cursor:null, libre};
     } else if(hit){
-      S.draft.pts.push(...draftHopTo({x:hit.x,y:hit.y}));
+      S.draft.pts.push(...(libre ? [{x:hit.x,y:hit.y}] : draftHopTo({x:hit.x,y:hit.y})));
       finishRun(hit.id); return;
     } else {
-      S.draft.pts.push(orthoPoint(w));
+      S.draft.pts.push(libre ? snapToGrid(w) : orthoPoint(w));
     }
     render(); return;
   }
@@ -2047,6 +2198,7 @@ cv.addEventListener("pointermove", e=>{
   const w = mouse(e);
 
   if(panning){
+    if(panning.boton===2 && Math.hypot(e.clientX-panning.x, e.clientY-panning.y) > 4) derechoArrastro = true;
     S.view.x = panning.vx + (e.clientX-panning.x);
     S.view.y = panning.vy + (e.clientY-panning.y);
     render(); return;
@@ -2073,10 +2225,14 @@ cv.addEventListener("pointermove", e=>{
     }
     render(); scheduleRefresh(); return;
   }
-  if(S.tool==="run"){
+  if(S.tool==="run" || S.tool==="directo"){
     const hit = findNode(w);
     S.hoverNode = hit;
-    if(S.draft) S.draft.cursor = hit ? draftHopTo({x:hit.x,y:hit.y}) : [orthoPoint(w)];
+    if(S.draft){
+      S.draft.cursor = S.tool==="directo"
+        ? [hit ? {x:hit.x,y:hit.y} : snapToGrid(w)]
+        : (hit ? draftHopTo({x:hit.x,y:hit.y}) : [orthoPoint(w)]);
+    }
     render(); return;
   }
   if(S.tool==="calib" && S.calib && S.calib.a && !S.calib.b){
@@ -2128,8 +2284,8 @@ function finishRun(bId){
   pushUndo();
   const c = ciById(d.circuit);
   const r = {id:uid("r"), circuit:d.circuit, pts:d.pts.map(p=>({x:p.x,y:p.y})),
-    a:d.a, b:bId, route:"techo", share:true, dia:DEF_DIA,
-    cables: c.kind==="iluminacion" ? 0 : c.cables, note:""};
+    a:d.a, b:bId, route:"techo", share:true, dia:DEF_DIA, ...(d.libre ? {libre:true} : {}),
+    cables: KINDS_CON_TRAZADO.has(c.kind) ? 0 : c.cables, note:""};
   S.runs.push(r);
   // si se suma a un caño existente, adopta su medida actual -- pero no la
   // agranda sola: la sección del caño la cambia el usuario a mano (panel de
@@ -2262,7 +2418,7 @@ function paintCircuits(){
         <div class="f3" style="margin-bottom:6px">
           <div><label class="f">Sección</label><select class="f" data-k="section">${
             SECTIONS.map(s=>`<option value="${s}"${s==c.section?" selected":""}>${s} mm²</option>`).join("")}</select></div>
-          <div><label class="f">Conduct.</label>${c.kind==="iluminacion"
+          <div><label class="f">Conduct.</label>${KINDS_CON_TRAZADO.has(c.kind)
             ? `<div class="f mono" style="background:var(--panel-2);color:var(--ink-3);height:29px;display:flex;align-items:center;justify-content:center" title="Se calcula según los conductores trazados abajo">según cableado</div>`
             : `<input class="f" type="number" min="1" max="30" data-k="cables" value="${c.cables}">`}</div>
           <div><label class="f">Protec.</label><input class="f" type="number" min="1" data-k="prot" value="${c.prot}"></div>
@@ -2275,6 +2431,7 @@ function paintCircuits(){
             <option value="exterior"${c.kind==="exterior"?" selected":""}>Exterior</option>
             <option value="acometida"${c.kind==="acometida"?" selected":""}>Acometida</option>
             <option value="tierra"${c.kind==="tierra"?" selected":""}>Puesta a tierra</option>
+            <option value="bomba"${c.kind==="bomba"?" selected":""}>Automático de bomba</option>
           </select></div>
           <div><label class="f">Trazo</label><select class="f" data-k="dash">
             <option value="0"${!c.dash?" selected":""}>Continuo</option>
@@ -2282,7 +2439,7 @@ function paintCircuits(){
           </select></div>
         </div>
         <div><label class="f">Detalle / ayuda-memoria</label><input class="f" data-k="detail" value="${esc(c.detail||"")}" placeholder="ej: dormitorios y baño"></div>
-        ${c.kind==="iluminacion" ? renderWiringPanel(c) : ""}
+        ${KINDS_CON_TRAZADO.has(c.kind) ? renderWiringPanel(c) : ""}
         <button class="btn sm" data-del="${c.id}" style="width:100%;margin-top:8px">Eliminar circuito</button>
       </div></div>`;
   }).join("") || `<p class="msg">Todavía no hay circuitos.</p>`;
@@ -2308,7 +2465,7 @@ function paintCircuits(){
       if(k==="cables"||k==="prot"||k==="dash") v=parseInt(v)||0;
       c[k]=v;
       if(k==="cables"||k==="section"){
-        if(k==="cables" && c.kind!=="iluminacion")
+        if(k==="cables" && !KINDS_CON_TRAZADO.has(c.kind))
           S.runs.filter(r=>r.circuit===id).forEach(r=>{
             // si este tramo alimenta un troncal de tierra compartido, sigue sin contar
             // su propio conductor de tierra al recalcular
@@ -2497,6 +2654,27 @@ function paintProp(){
         </div>
         <p class="msg" style="margin:5px 0 0">Va a la Lista de materiales.</p>
       </div>` : ""}
+      ${n.kind==="tablero" ? `
+      <div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--line-2)">
+        <label class="f">Tipo de tablero</label>
+        <select class="f" id="pTabSub">${
+          Object.entries(TABLERO_SUBTIPOS).map(([k,v])=>`<option value="${k}"${(n.subtipo||TABLERO_SUBTIPO_DEFAULT)===k?" selected":""}>${v}</option>`).join("")
+        }</select>
+        <p class="msg" style="margin:5px 0 0">Por ahora es sólo para distinguirlos en el plano -- qué lleva adentro cada uno (térmicas, relés, etc.) se resuelve más adelante.</p>
+      </div>` : ""}
+      ${n.kind==="automatico" ? `
+      <div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--line-2)">
+        <label class="f" style="margin-bottom:5px">Automático de tanque</label>
+        <div class="f2">
+          <div><label class="f">Tanque</label><select class="f" id="pAutoTanque">${
+            Object.entries(TANQUES).map(([k,v])=>`<option value="${k}"${(n.tanque||TANQUE_DEFAULT)===k?" selected":""}>${v}</option>`).join("")
+          }</select></div>
+          <div><label class="f">Contacto usado</label><select class="f" id="pAutoTerminal">${
+            Object.entries(TERMINALES_AUTOMATICO).map(([k,v])=>`<option value="${k}"${(n.terminal||TERMINAL_DEFAULT)===k?" selected":""}>${v}</option>`).join("")
+          }</select></div>
+        </div>
+        <p class="msg" style="margin:5px 0 0">Común va del tablero (fase). El contacto elegido sigue hacia la toma de la bomba -- trazalo como retorno del circuito BOM.</p>
+      </div>` : ""}
       <div style="margin-top:6px"><label class="f">Nota</label><input class="f" id="pNote" value="${esc(n.note||"")}" placeholder="opcional"></div>
       ${canConvertInsp?`<button class="btn sm" id="pToInsp" style="width:100%;margin-top:8px">Convertir en caja de inspección</button>`:""}
       <button class="btn sm" id="pDel" style="width:100%;margin-top:8px">Eliminar</button>`;
@@ -2511,6 +2689,9 @@ function paintProp(){
       if(n.zAuto) n.z = defaultZ(n.kind, n.device);
       refreshAll();
     };
+    if($("#pTabSub")) $("#pTabSub").onchange = e=>{ pushUndo(); n.subtipo=e.target.value; refreshAll(); };
+    if($("#pAutoTanque")) $("#pAutoTanque").onchange = e=>{ pushUndo(); n.tanque=e.target.value; refreshAll(); };
+    if($("#pAutoTerminal")) $("#pAutoTerminal").onchange = e=>{ pushUndo(); n.terminal=e.target.value; refreshAll(); };
     $("#pZ").oninput = e=>{
       const v=parseFloat(e.target.value);
       if(isFinite(v)){ n.z=v; n.zAuto=false; const cb=$("#pZa"); if(cb) cb.checked=false; drcInvalidate(); render(); paintDrc(); paintBom(); }
@@ -2557,7 +2738,7 @@ function paintProp(){
   const over = fill>1;
   const pct = isFinite(fill) ? Math.round(fill*100)+"%" : "no entra";
   const shared = g && g.runs.length>1;
-  const wiresHere = c.kind==="iluminacion" ? S.wires.filter(w=>w.circuit===c.id && w.runIds.includes(r.id)) : [];
+  const wiresHere = KINDS_CON_TRAZADO.has(c.kind) ? S.wires.filter(w=>w.circuit===c.id && w.runIds.includes(r.id)) : [];
 
   el.innerHTML = `
     <div class="kv"><span>Circuito</span><span>${esc(c.name)}</span></div>
@@ -2571,7 +2752,7 @@ function paintProp(){
     <div style="margin-top:10px" class="f2">
       <div><label class="f">Caño</label><select class="f" id="pDia">${
         DIAS.map(d=>`<option value="${d.id}"${d.id===r.dia?" selected":""}>${d.lbl} · ${d.mm} mm</option>`).join("")}</select></div>
-      <div><label class="f">Conductores</label>${c.kind==="iluminacion"
+      <div><label class="f">Conductores</label>${KINDS_CON_TRAZADO.has(c.kind)
         ? `<div class="f mono" style="background:var(--panel-2);color:var(--ink-3);height:29px;display:flex;align-items:center;padding:0 7px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(wiresHere.map(wireCode).join(', ')||'ninguno')}">${r.cables} (${esc(wiresHere.map(wireCode).join(', ')||'—')})</div>`
         : `<input class="f mono" id="pCab" type="number" min="1" max="40" value="${r.cables}">`}</div>
     </div>
@@ -2581,6 +2762,14 @@ function paintProp(){
       <div><label class="f">Circuito</label><select class="f" id="pCi">${
         S.circuits.map(x=>`<option value="${x.id}"${x.id===r.circuit?" selected":""}>${esc(x.name)}</option>`).join("")}</select></div>
     </div>
+    ${[["a", r.a, "portA"],["b", r.b, "portB"]].map(([ext, nid, campo])=>{
+      const nn = nid ? nodeById(nid) : null;
+      if(!nn || nn.kind!=="oct") return "";
+      const auto = g ? asignarPuertos(conduitGroups()).get(g.key+"|"+(g.runs[0].a===nid ? 0 : 1)) : null;
+      return `<div style="margin-top:6px"><label class="f">Lado de la caja ${esc(nn.label)}</label>
+        <select class="f" data-lado="${campo}"><option value="">Automático (${OCT_LADOS[auto!=null?auto:0].toLowerCase()})</option>${
+          OCT_LADOS.map((l,k)=>`<option value="${k}"${r[campo]===k?" selected":""}>${l}</option>`).join("")}</select></div>`;
+    }).join("")}
     ${(r.route||"techo")==="altura"?`<div style="margin-top:6px"><label class="f">Altura del caño (m)</label>
       <input class="f mono" id="pAltura" type="text" inputmode="decimal" value="${fmt(r.alturaM!=null?r.alturaM:ALTURA_DEFAULT_M,2)}"></div>`:""}
     <label class="chk" style="margin-top:8px"><input type="checkbox" id="pSh"${r.share!==false?" checked":""}>
@@ -2613,6 +2802,18 @@ function paintProp(){
     };
     $("#pCab").onblur = refreshAll;
   }
+  el.querySelectorAll("[data-lado]").forEach(sel=> sel.onchange = e=>{
+    // el lado vale para todo el caño físico (todos los tramos que comparten caño)
+    const campo = e.target.dataset.lado, v = e.target.value==="" ? null : parseInt(e.target.value,10);
+    const nid = campo==="portA" ? r.a : r.b;
+    pushUndo();
+    for(const x of (g ? g.runs : [r])){
+      const c2 = x.a===nid ? "portA" : (x.b===nid ? "portB" : null);
+      if(!c2) continue;
+      if(v==null) delete x[c2]; else x[c2] = v;
+    }
+    refreshAll();
+  });
   $("#pRt").onchange  = e=>{ r.route=e.target.value; if(r.route==="altura" && r.alturaM==null) r.alturaM=ALTURA_DEFAULT_M; refreshAll(); };
   if($("#pAltura")){
     // acepta "2.7" y "2,7" (coma decimal); mismo motivo que #pCab arriba
@@ -2744,7 +2945,12 @@ function drcRun(){
       push("w", `Tramo de ${esc(c.name)} sin cerrar en ${!r.a&&!r.b?"ninguno de los dos extremos":"un extremo"}. Enganchalo a una caja.`, r.id, "tramos", "tramo-abierto");
     const L = runLenM(r);
     if(S.pxPerM && L>S.rules.longRun)
-      push("w", `Tramo de ${esc(c.name)} de ${fmt(L,1)} m supera los ${S.rules.longRun} m. Verificá caída de tensión.`, r.id, "caida", "caida");
+      // esto es sólo "este tramo individual es largo, revisalo" -- NO es el
+      // cálculo de caída de tensión del circuito (eso usa el camino completo
+      // desde el tablero hasta el punto más lejano, ver caidaMasLarga() más
+      // abajo). Categoría y texto separados a propósito para no mezclar los
+      // dos avisos bajo "Caída de tensión".
+      push("w", `Tramo de ${esc(c.name)} de ${fmt(L,1)} m supera los ${S.rules.longRun} m. Considerá dividirlo con una caja de paso.`, r.id, "tramos", "tramo-largo");
     if(S.pxPerM && L>S.rules.boxRun)
       push("w", `Tramo de ${esc(c.name)} de ${fmt(L,1)} m sin caja intermedia (supera los ${S.rules.boxRun} m). Considerá agregar una caja de paso en el medio para facilitar el tendido del cable.`, r.id, "tramos", "tramo-sin-caja");
     const bends = runBends(r);
@@ -2832,6 +3038,7 @@ const DRC_TIPOS = {
   "tierra":               "Tierra compartida",
   "tramo-abierto":        "Tramo sin cerrar en una caja",
   "caida":                "Caída de tensión",
+  "tramo-largo":          "Tramo individual largo",
   "tramo-sin-caja":       "Tramo largo sin caja intermedia",
   "codos":                "Codos de 90°",
   "caja-max":             "Demasiados caños en una caja",
@@ -3024,8 +3231,8 @@ function computeBom(){
     cableColor[c.section] = cableColor[c.section] || {};
     let cab = 0;
 
-    if(c.kind==="iluminacion"){
-      // en iluminación, el cable se desglosa por conductor trazado (F, N, RS-A, RC-B1...)
+    if(KINDS_CON_TRAZADO.has(c.kind)){
+      // en circuitos de trazado, el cable se desglosa por conductor trazado (F, N, RS-A, RC-B1...)
       const wires = S.wires.filter(w=>w.circuit===c.id && w.runIds.length);
       for(const w of wires){
         let wl = 0;
@@ -3274,7 +3481,7 @@ Object.keys(ZMAP).forEach(id=>{
 });
 $("#rulesReset").onclick=()=>{
   S.rules.cap=JSON.parse(JSON.stringify(CAP0));
-  S.rules.maxOct=4; S.rules.maxRect=3; S.rules.longRun=25; S.rules.boxRun=5; S.rules.waste=10; S.rules.spare=15;
+  S.rules.maxOct=8; S.rules.maxRect=3; S.rules.longRun=25; S.rules.boxRun=5; S.rules.waste=10; S.rules.spare=15;
   S.z=Object.assign({}, Z0);
   S.nodes.forEach(n=>{ if(n.zAuto) n.z = defaultZ(n.kind, n.device); });
   buildCapTable(); refreshAll();
@@ -3292,6 +3499,8 @@ function buildProjectData(){
 async function applyProjectData(d){
   S.circuits=d.circuits||[]; S.nodes=d.nodes||[]; S.runs=d.runs||[];
   S.pxPerM=d.pxPerM||null; S.rules=Object.assign(S.rules,d.rules||{});
+  // el tope viejo (4) era el valor por defecto de antes: la caja octogonal tiene 8 lados, uno por caño
+  if(d.rules && d.rules.maxOct===4) S.rules.maxOct = 8;
   S.z=Object.assign({}, Z0, d.z||{});
   S.runs.forEach(r=>{ if(r.route==null) r.route="techo"; if(r.share==null) r.share=true;
     if(!DIAS.some(x=>x.id===r.dia)) r.dia=DEF_DIA; });
@@ -3409,6 +3618,18 @@ function dl(blob, name){
 
 /* ============================ exportar PDF ============================ */
 
+// orientación elegida -- por navegador, no por obra (mismo criterio que
+// DRC_HIDDEN_KEY), para no tener que elegirla de nuevo cada vez
+const PDF_ORI_KEY = "canaliza_pdf_orientacion";
+try{
+  const guardada = localStorage.getItem(PDF_ORI_KEY);
+  if(guardada) $("#pdfOri").value = guardada;
+}catch(err){}
+function guardarOrientacionPdf(v){
+  try{ localStorage.setItem(PDF_ORI_KEY, v); }catch(err){}
+}
+$("#pdfOri").onchange = e=> guardarOrientacionPdf(e.target.value);
+
 let pdfMode = "planos";
 
 $("#bPdfPlanos").onclick = ()=>{
@@ -3420,6 +3641,7 @@ $("#bPdfPlanos").onclick = ()=>{
   l.innerHTML =
     `<label class="chk"><input type="checkbox" id="pxAll" checked> Hoja con todos los circuitos juntos</label>` +
     `<label class="chk"><input type="checkbox" id="pxDetail" checked> Hoja de cableado detallado (todos los circuitos, cables adentro de cada caño)</label>` +
+    `<label class="chk"><input type="checkbox" id="pxCanos"> Plano de caños, una hoja por diámetro (sin colores por circuito -- para ir a la obra, colocar los caños, y después pasar los cables mirando las otras hojas)</label>` +
     S.circuits.map(c=>`<label class="chk"><input type="checkbox" class="pxC" value="${c.id}" checked>
       <span class="sw" style="background:${c.color};margin-top:2px"></span> Hoja de ${esc(c.name)}</label>`).join("");
   open$("#mPdf");
@@ -3465,6 +3687,7 @@ async function makePdf(){
     : {
         general:   $("#pxAll")   ? $("#pxAll").checked   : true,
         detallado: $("#pxDetail")? $("#pxDetail").checked: false,
+        canos:     $("#pxCanos") ? $("#pxCanos").checked  : false,
         bom:       false,
         circuitos: Array.from(document.querySelectorAll(".pxC:checked")).map(i=>i.value),
         circuitosCodigo: [],
@@ -3501,6 +3724,7 @@ function mostrarVistaPreviaPdf(blob, nombreArchivo){
   $("#pdfPOri").value = $("#pdfOri").value;
   $("#pdfPOri").onchange = async () => {
     $("#pdfOri").value = $("#pdfPOri").value;
+    guardarOrientacionPdf($("#pdfPOri").value);
     busy(true);
     try{ await makePdf(); }catch(e){ alert("Error al generar el PDF: "+e.message); }
     busy(false);
