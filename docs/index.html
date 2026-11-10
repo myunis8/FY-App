@@ -177,6 +177,8 @@ $('b-conectar').onclick = async () => {
   try{
     const r = await fetch(`https://api.github.com/repos/${c.repo}`, {headers:{Authorization:'Bearer '+c.token}});
     if(!r.ok) throw new Error(r.status===404 ? 'No encuentro ese repositorio con ese token.' : 'El token no es válido.');
+    const rb = await fetch(`https://api.github.com/repos/${c.repo}/branches/${encodeURIComponent(c.rama)}`, {headers:{Authorization:'Bearer '+c.token}});
+    if(!rb.ok) throw new Error(`El repositorio existe pero no tiene la rama "${c.rama}". Revisá la rama (en la PC: Configuración).`);
     localStorage.setItem('fy_movil', JSON.stringify(c));
     $('l-token').value = '';
     iniciar();
@@ -207,6 +209,12 @@ async function cargarObras(){
   $('o-cards').innerHTML = '<div class="muted">Cargando…</div>';
   try{
     const dirs = await gh('obras');
+    if(dirs === null){
+      $('o-cards').innerHTML = `<div class="aviso error">No encuentro la carpeta <b>obras</b> en <b>${esc(cfg.repo)}</b>, rama <b>${esc(cfg.rama)}</b>.
+        Puede ser que la rama sea otra (en la PC mirá Configuración) o que todavía no hayas subido ninguna obra
+        (en la PC: abrí la obra y tocá <b>Subir al repositorio</b>).</div>`;
+      return;
+    }
     const ids = (dirs || []).filter(d => d.type === 'dir').map(d => d.name);
     const res = await Promise.all(ids.map(async id => {
       const r = await gh(`obras/${id}/resumen.json`, {raw:true});
@@ -225,7 +233,8 @@ function pintarObras(){
   $('o-cards').innerHTML = lista.length ? lista.map(o => `<div class="card tap" data-id="${esc(o.id)}">
       <div class="fila"><b>${esc(o.nombre)}</b><span class="muted">${esc(ESTADOS[o.estado] || o.estado || '')}</span></div>
       <div class="muted">${esc(o.cliente || 'Sin cliente')}</div></div>`).join('')
-    : '<div class="muted">No hay obras en el repositorio.</div>';
+    : (obras.length ? '<div class="muted">Ninguna obra coincide con la búsqueda.</div>'
+      : `<div class="aviso">El repositorio <b>${esc(cfg.repo)}</b> (rama ${esc(cfg.rama)}) no tiene obras subidas. En la PC, abrí cada obra y tocá <b>Subir al repositorio</b>.</div>`);
   $('o-cards').querySelectorAll('.card').forEach(c => c.onclick = () => abrirObra(c.dataset.id));
 }
 $('o-buscar').oninput = pintarObras;
