@@ -57,6 +57,7 @@ WIRE_COLOR_MAP = {
 WIRE_HEX = {
     "Marrón (fase)": "#7a4a25",
     "Celeste (neutro)": "#49a9d8",
+    "Blanco (retorno)": "#c7c7c7",         # (para el cómputo de compra: un solo retorno blanco)
     "Blanco (retorno simple)": "#c7c7c7",  # gris claro, no blanco puro -- si no se pierde contra el caño blanco
     "Amarillo (retorno combinado)": "#e8c93a",
     "Verde-amarillo (tierra)": "#6a9a2e",
@@ -589,8 +590,10 @@ class Proyecto:
                     # todos los retornos simples de esta sección suman a un
                     # mismo renglón, e ídem los combinados
                     k = w.get("kind")
+                    # el retorno simple y el combinado son sólo una diferencia gráfica de Routeo:
+                    # el cable que se compra es el mismo (blanco)
                     label = ("Marrón (fase)" if k == "F" else "Celeste (neutro)" if k == "N"
-                             else "Blanco (retorno simple)" if k == "RS" else "Amarillo (retorno combinado)")
+                             else "Blanco (retorno)")
                     cable_color[sec][label] = cable_color[sec].get(label, 0.0) + wl
                     cab += wl
             else:

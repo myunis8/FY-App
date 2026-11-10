@@ -262,9 +262,9 @@ function pintarLista(){
 }
 
 /* ---------------- rollos ---------------- */
-const COLORES = {fase:'#8a5a2b', neutro:'#5bb0e0', tierra:'#4caf82', retorno:'#d8d8d8', combinado:'#e8c93a'};
+const COLORES = {fase:'#8a5a2b', neutro:'#5bb0e0', tierra:'#4caf82', retorno:'#d8d8d8'};
 const colorDe = c => { const t = (c||'').toLowerCase();
-  return t.includes('combinado') ? COLORES.combinado : t.includes('retorno') ? COLORES.retorno : t.includes('tierra') ? COLORES.tierra
+  return t.includes('retorno') ? COLORES.retorno : t.includes('tierra') ? COLORES.tierra
     : t.includes('neutro') ? COLORES.neutro : t.includes('fase') ? COLORES.fase : '#888'; };
 const secTxt = s => (typeof s === 'number' ? dec(s) : s) + ' mm²';
 function pintarRollos(){
@@ -283,7 +283,7 @@ function pintarRollos(){
   });
   const tiene = new Set(R.map(r => r.clave));
   const opciones = [];
-  for(const s of [1.5, 2.5, 4, 6, 10, 16]) for(const c of ['Marrón (fase)','Celeste (neutro)','Verde-amarillo (tierra)','Blanco (retorno simple)','Amarillo (retorno combinado)'])
+  for(const s of [1.5, 2.5, 4, 6, 10, 16]) for(const c of ['Marrón (fase)','Celeste (neutro)','Verde-amarillo (tierra)','Blanco (retorno)'])
     if(!tiene.has(s + '|' + c)) opciones.push([s + '|' + c, secTxt(s) + ' · ' + c]);
   $('agregar-rollo').innerHTML = `<span class="nota">Otro tipo de cable:</span><select id="a-tipo">${opciones.map(([k, t]) =>
     `<option value="${esc(k)}">${esc(t)}</option>`).join('')}</select><button class="btn sm" id="a-btn">+ Agregar un rollo</button>`;

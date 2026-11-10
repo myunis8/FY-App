@@ -738,6 +738,7 @@ function wireLabel(w){
 const WIRE_HEX = {
   "Marrón (fase)": "#7a4a25",
   "Celeste (neutro)": "#49a9d8",
+  "Blanco (retorno)": "#c7c7c7",         // (cómputo de compra: un solo retorno blanco)
   "Blanco (retorno simple)": "#c7c7c7",  // gris claro, no blanco puro -- si no se pierde contra el caño blanco
   "Amarillo (retorno combinado)": "#e8c93a",
   "Verde-amarillo (tierra)": "#6a9a2e"
@@ -3244,8 +3245,8 @@ function computeBom(){
         // se agrupa por tipo de conductor, no por luz/instancia -- todos los
         // retornos simples de esta sección suman a un mismo renglón, e ídem
         // los combinados (el detalle por luz ya se ve en "Retornos y cableado")
-        const label = w.kind==="F" ? "Marrón (fase)" : w.kind==="N" ? "Celeste (neutro)"
-          : w.kind==="RS" ? "Blanco (retorno simple)" : "Amarillo (retorno combinado)";
+        // retorno simple y combinado son sólo una diferencia gráfica: el cable que se compra es el mismo (blanco)
+        const label = w.kind==="F" ? "Marrón (fase)" : w.kind==="N" ? "Celeste (neutro)" : "Blanco (retorno)";
         cableColor[c.section][label] = (cableColor[c.section][label]||0) + wl;
         cab += wl;
       }

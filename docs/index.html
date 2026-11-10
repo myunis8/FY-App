@@ -228,7 +228,7 @@ const num = v => { let t=String(v).trim(); if(t==='') return null;
   const n=parseFloat(t); return isFinite(n)?n:null; };
 
 /* ------------------------------------------------------------ conexión */
-const VERSION_LITE = '1.1.0';        // versión de FY Manager Lite (sube con los cambios de esta página)
+const VERSION_LITE = '1.1.1';        // versión de FY Manager Lite (sube con los cambios de esta página)
 let cfg = null;
 try{ cfg = JSON.parse(localStorage.getItem('fy_movil') || 'null'); }catch(e){}
 const encRuta = r => r.split('/').map(encodeURIComponent).join('/');
@@ -438,7 +438,7 @@ async function abrirObra(id){
 
 /* ------------------------------------------------------------ jornadas */
 // mismas categorías que app/jornadas.py (CATEGORIAS_GASTO): si cambian allá, cambiarlas acá
-const CATEGORIAS_GASTO = ['Almuerzo','Combustible','Yerba y mate','Peajes y estacionamiento','Insumos y herramientas','Otro'];
+const CATEGORIAS_GASTO = ['Almuerzo','Combustible','Peajes y estacionamiento','Insumos y herramientas','Otro'];
 let jorObra = null, jorPublicadas = [], jorPendientes = [], gastosJ = [];
 const horasHombre = j => (j.horas || []).reduce((a, b) => a + b, 0);
 const gastoJ = j => (j.gastos || []).reduce((a, g) => a + (g.monto || 0), 0);

@@ -20,7 +20,7 @@ import math, re, time
 from datetime import date
 from . import contrato as C
 
-CATEGORIAS_GASTO = ["Almuerzo", "Combustible", "Yerba y mate", "Peajes y estacionamiento",
+CATEGORIAS_GASTO = ["Almuerzo", "Combustible", "Peajes y estacionamiento",
                     "Insumos y herramientas", "Otro"]
 ROLLO_M = 100.0            # metros de un rollo de cable (supuesto: rollo estándar de 100 m)
 MAX_PERSONAS = 30
@@ -118,7 +118,8 @@ def resumen_obra(obra: dict) -> dict:
     por_cat: dict[str, float] = {}
     for j in jornadas:
         for g in j.get("gastos") or []:
-            por_cat[g["categoria"]] = round(por_cat.get(g["categoria"], 0.0) + g["monto"], 2)
+            cat = g["categoria"] if g["categoria"] in CATEGORIAS_GASTO else "Otro"
+            por_cat[cat] = round(por_cat.get(cat, 0.0) + g["monto"], 2)
     pago = (obra.get("seguimiento") or {}).get("pago") or {}
     cob = cobrado(obra)
     total = C.total_presupuesto(obra)
@@ -139,18 +140,33 @@ def resumen_obra(obra: dict) -> dict:
 
 
 # ------------------------------------------------------------------ rollos
+def color_de_compra(color: str) -> str:
+    """En la instalación el cable de retorno es SIEMPRE blanco: la diferencia entre
+    "retorno simple" y "retorno combinado" es sólo gráfica (para distinguirlos en
+    Routeo). Para comprar y contar rollos son un único tipo."""
+    return "Blanco (retorno)" if "retorno" in (color or "").lower() else color
+
+
 def rollos_vista(obra: dict) -> list[dict]:
     """Un renglón por tipo de cable (sección + color/función), con lo que
     estimó Routeo y lo que se usó realmente. Los tipos salen de la estimación;
     los que tienen rollos usados pero ya no están en ella se conservan."""
     from . import materiales as mat_mod
-    usados = obra.get("rollosUsados") or {}
+    usados: dict[str, int] = {}
+    for clave, n in (obra.get("rollosUsados") or {}).items():      # claves viejas con retorno simple/combinado -> un solo tipo
+        sec, _, color = clave.partition("|")
+        k = f"{sec}|{color_de_compra(color)}"
+        usados[k] = usados.get(k, 0) + int(n or 0)
     est = mat_mod.computar_canalizacion(obra)
     filas: dict[str, dict] = {}
     for sec, colores in (est.get("cableColor") or {}).items():
         for color, metros in colores.items():
+            color = color_de_compra(color)
             clave = f"{sec}|{color}"
-            filas[clave] = {"clave": clave, "seccion": sec, "color": color, "estimadoM": float(metros)}
+            if clave in filas:
+                filas[clave]["estimadoM"] += float(metros)
+            else:
+                filas[clave] = {"clave": clave, "seccion": sec, "color": color, "estimadoM": float(metros)}
     for clave in usados:
         if clave not in filas:
             sec, _, color = clave.partition("|")
