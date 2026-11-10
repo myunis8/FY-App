@@ -3,8 +3,33 @@
 El formato es una línea por cambio, agrupadas por versión.
 `contrato` indica la versión del esquema de `obra.json`.
 
-## Sin publicar
+## 1.15.0 — Jornadas y gastos, estadística por hora, rollos usados, FY Manager Lite 1.1.1
 
+`contrato`: sin cambios incompatibles; `obra.json` suma las claves opcionales `jornadas` y `rollosUsados`
+(vacías por defecto; las obras viejas no se tocan).
+
+- **Jornadas y gastos por obra** (módulo nuevo en cada obra, `jornadas.html`): se carga cada jornada con la
+  cantidad de personas y las horas de cada una (por defecto "todos trabajaron las mismas horas"), los gastos del
+  día (almuerzo, combustible, yerba, peajes, insumos, otro) con entre cuántas personas se dividen (por defecto
+  todas) y una nota. La obra suma `jornadas` y `rollosUsados` en `obra.json` (vacíos por defecto; obras viejas
+  intactas).
+- **Estadística por hora:** sin ningún costo por hora cargado a mano. Cuando la obra está pagada:
+  *(cobrado − gastos) ÷ horas-hombre* = lo que quedó por hora trabajada (provisorio mientras no esté pagada).
+  Página **Estadísticas de obras** (botón en el inicio) para comparar entre obras, con el promedio ponderado de
+  las pagadas.
+- **Rollos de cable usados:** un contador por tipo de cable (sección + color/función: 1,5 mm² fase, neutro,
+  retorno blanco...) con botones − / + para sumar cada rollo terminado, comparado con lo que estimó Routeo
+  (rollo = 100 m).
+- **Cable de retorno:** el retorno simple y el combinado son sólo una diferencia gráfica de Routeo; para
+  comprar y contar rollos (Lista de materiales, cómputo de Routeo y rollos usados) ahora es un único tipo,
+  "Blanco (retorno)". El dibujo de Routeo no cambia.
+- Gastos: se quitó la categoría "Yerba y mate" (se carga como "Otro"; los que ya tuvieran esa categoría
+  pasan a "Otro").
+- **FY Manager Lite 1.1.0 / 1.1.1:** carga de jornadas desde el celular (en el detalle de cada obra: personas, horas
+  iguales o por persona, gastos con "dividir entre"). Cada jornada va a su archivo
+  `obras/<id>/jornadas_movil/<id>.json`; al sincronizar, la PC las ingresa a la obra, las saca de la bandeja y
+  publica `obras/<id>/jornadas.json` para que el celular vea la lista al día. Los rollos de cable se cargan sólo
+  en la PC.
 - **FY Manager Lite 1.0.2:** en una obra, tocar el cuadro de un documento lo abre (ya no hay botón "Ver");
   a la derecha queda un botón con el símbolo de descarga.
 - **FY Manager Lite 1.0.1:** logo nuevo (sin fondo, PNG transparente) en la pantalla de conexión y en

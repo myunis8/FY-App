@@ -37,6 +37,9 @@ def obra_vacia(nombre: str = "", cliente: str = "", usuario: str = "") -> dict:
         # circuitos de automatización (bomba de agua, etc.): sólo los parámetros;
         # lo derivado se recalcula siempre -- ver app/automatizaciones.py
         "automatizaciones": [],
+        # jornadas de trabajo (personas, horas, gastos) y rollos de cable realmente
+        # usados -- ver app/jornadas.py
+        "jornadas": [], "rollosUsados": {},
         "canalizacion": None,   # el proyecto tal cual lo produce buildProjectData() de Canaliza
         "computo": None,
         "materiales": {"extras": [], "cables": []},
@@ -346,5 +349,8 @@ def resumen(obra: dict) -> dict:
         "progreso": progreso(obra),
         "pendientes": len(val.get("errores") or []) + len(val.get("advertencias") or []),
         "planoRevision": plano.get("revision") if plano else None,
+        "jornadas": len(obra.get("jornadas") or []),
+        "horasHombre": round(sum(sum(j.get("horas") or []) for j in obra.get("jornadas") or []), 2),
+        "gastos": round(sum(g.get("monto") or 0 for j in obra.get("jornadas") or [] for g in j.get("gastos") or []), 2),
         "ultimaActividad": hist[-1] if hist else None,
     }

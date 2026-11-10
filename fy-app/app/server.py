@@ -5,7 +5,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
-from . import (almacen, automatizaciones as aut_mod, config as cfgmod, contrato as C, canalizacion as canal_mod, extraccion, github as gh,
+from . import (almacen, automatizaciones as aut_mod, config as cfgmod, jornadas as jor_mod, contrato as C, canalizacion as canal_mod, extraccion, github as gh,
                materiales as mat_mod, pdf_automatizacion, pdf_informe, pdf_materiales, pdf_presupuesto, pdf_routeo, pdf_tablero,
                precios as precios_mod, presupuesto as pres_mod, red as red_mod, stock as stock_mod, sync, tablero as tablero_mod,
                vinculos)
@@ -248,6 +248,13 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(mat_mod.leer())
         if ruta == "/api/stock":
             return self._json(stock_mod.payload())
+        if ruta == "/api/estadisticas":
+            return self._json(self._estadisticas())
+        if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "jornadas":
+            obra = almacen.leer_obra(partes[2])
+            if obra is None:
+                return self._error("Esa obra no está en este equipo.", 404)
+            return self._json(self._respuesta_jornadas(obra))
         if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "canalizacion":
             obra = almacen.leer_obra(partes[2])
             if obra is None:
@@ -506,6 +513,20 @@ class Handler(BaseHTTPRequestHandler):
                 "verificaciones": red_mod.verificar(obra, px_por_m),
             })
 
+        if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "jornadas":
+            obra = almacen.leer_obra(partes[2])
+            if obra is None:
+                return self._error("Esa obra no está en este equipo.", 404)
+            usuario = cfg.get("usuario", "")
+            if cuerpo.get("jornadas") is not None:
+                obra["jornadas"] = [jor_mod.normalizar_jornada(j, usuario) for j in cuerpo["jornadas"]]
+            if isinstance(cuerpo.get("rollosUsados"), dict):
+                obra["rollosUsados"] = {k: int(v) for k, v in cuerpo["rollosUsados"].items()
+                                        if isinstance(v, (int, float)) and int(v) > 0}
+            if cuerpo.get("guardar"):
+                almacen.guardar_obra(obra, usuario, modulo="Jornadas", resumen="Guardó cambios")
+            return self._json({"ok": True, **self._respuesta_jornadas(obra)})
+
         if len(partes) == 4 and partes[:2] == ["api", "obras"] and partes[3] == "automatizaciones":
             obra = almacen.leer_obra(partes[2])
             if obra is None:
@@ -552,6 +573,10 @@ class Handler(BaseHTTPRequestHandler):
                 res["stock"] = sync.sincronizar_stock(cfg)
             except Exception as e:
                 res["stockError"] = str(e)
+            try:                                        # jornadas cargadas desde el celular
+                res["jornadas"] = sync.sincronizar_jornadas(cfg)
+            except Exception as e:
+                res["jornadasError"] = str(e)
             return self._json(res)
 
         if ruta == "/api/stock/sync":
@@ -889,6 +914,33 @@ class Handler(BaseHTTPRequestHandler):
         avisos = tablero_mod.validar(t, obra.get("circuitos") or [])
         almacen.guardar_obra(obra, cfgmod.leer_config().get("usuario", ""))
         return self._json({"ok": True, "tablero": t, "avisos": avisos})
+
+    @staticmethod
+    def _respuesta_jornadas(obra):
+        jornadas = sorted(obra.get("jornadas") or [], key=lambda j: (j.get("fecha") or "", j.get("creadoEl") or 0),
+                          reverse=True)
+        return {"categorias": jor_mod.CATEGORIAS_GASTO, "rolloM": jor_mod.ROLLO_M,
+                "jornadas": jornadas, "resumen": jor_mod.resumen_obra(obra),
+                "rollos": jor_mod.rollos_vista(obra), "nombre": (obra.get("obra") or {}).get("nombre") or ""}
+
+    @staticmethod
+    def _estadisticas():
+        """Una fila por obra de este equipo, para comparar entre obras."""
+        filas = []
+        for r in almacen.listar_resumenes():
+            obra = almacen.leer_obra(r.get("id"))
+            if obra is None:
+                continue
+            res = jor_mod.resumen_obra(obra)
+            if not res["jornadas"] and not res["gastos"]:
+                continue
+            filas.append({"id": r.get("id"), "nombre": r.get("nombre"), "cliente": r.get("cliente"), **res})
+        pagadas = [f for f in filas if f["pagada"] and f["pesosPorHora"] is not None]
+        promedio = None
+        horas = sum(f["horasHombre"] for f in pagadas)
+        if horas > 0:
+            promedio = round(sum(f["neto"] for f in pagadas) / horas, 2)      # ponderado por horas
+        return {"obras": filas, "promedioPagadas": promedio, "nPagadas": len(pagadas)}
 
     @staticmethod
     def _respuesta_automatizaciones(obra):

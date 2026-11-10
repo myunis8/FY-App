@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jornadas y gastos</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+:root{
+  color-scheme:dark;
+  --navy:#16283f; --navy-deep:#0a121d; --paper:#10161e; --panel:#1a2330; --line:#2c3846;
+  --ink:#dde3ea; --muted:#8896a8; --amber:#e2a33d; --amber-deep:#c07f1f; --slate-soft:#212c39;
+  --green:#4caf82; --danger:#e0685a; --blue:#5b9bd1;
+  --radius:10px; font-family:'IBM Plex Sans',system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink)}
+button{font:inherit;cursor:pointer} input,select,textarea{font:inherit;background:var(--panel);color:var(--ink);border:1px solid var(--line)}
+header{background:var(--navy);color:#fff;padding:14px 22px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+header h1{font-size:1.05rem;margin:0;font-weight:600;font-family:'Space Grotesk',sans-serif}
+header .sub{font-size:.72rem;color:#9db2c7;margin-top:2px}
+.spacer{flex:1} #autosaveTag{font-size:.72rem;color:#9db2c7}
+.btn{border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:8px 14px;border-radius:var(--radius);font-size:.83rem;font-weight:500}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--amber);border-color:var(--amber-deep);color:#2a1e07;font-weight:600}
+.btn.ghost{background:transparent;border-color:#33506e;color:#cfe0f0}
+.btn.sm{padding:4px 9px;font-size:.74rem}
+main{max-width:1000px;margin:0 auto;padding:20px 22px 60px}
+h2{font-family:'Space Grotesk',sans-serif;font-size:.78rem;margin:28px 0 10px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+h2:first-child{margin-top:0}
+.nota{font-size:.78rem;color:var(--muted);line-height:1.4}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:10px}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.tile b{display:block;font-size:.68rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:600;margin-bottom:4px}
+.tile .v{font-size:1.35rem;font-weight:700;font-family:'Space Grotesk',sans-serif}
+.tile small{display:block;color:var(--muted);font-size:.7rem;margin-top:2px}
+.tile.grande{border-color:var(--amber);grid-column:span 2}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+@media(max-width:800px){.grid{grid-template-columns:1fr 1fr}}
+.campo label{display:block;font-size:.7rem;color:var(--muted);margin-bottom:3px}
+.campo input,.campo select{width:100%;border-radius:7px;padding:7px 9px;font-size:.86rem}
+.chk{display:flex;gap:8px;align-items:center;font-size:.85rem;margin:12px 0}
+.chk input{width:auto}
+.horas{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+.horas .campo{width:110px}
+.gasto{display:grid;grid-template-columns:1.2fr 1fr 1fr 1.6fr auto;gap:8px;margin-bottom:8px;align-items:end}
+@media(max-width:800px){.gasto{grid-template-columns:1fr 1fr}}
+table{width:100%;border-collapse:collapse;background:var(--panel);border-radius:8px;overflow:hidden;border:1px solid var(--line)}
+th{background:var(--slate-soft);text-align:left;font-size:.68rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);padding:7px 9px;font-weight:600}
+td{padding:8px 9px;font-size:.83rem;border-top:1px solid var(--line);vertical-align:middle}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+tr.fila{cursor:pointer} tr.fila:hover td{background:rgba(255,255,255,.03)}
+.tag{display:inline-block;font-size:.66rem;font-weight:600;padding:1px 7px;border-radius:99px;margin-left:5px;background:rgba(226,163,61,.18);color:var(--amber)}
+.tag.ok{background:rgba(76,175,130,.16);color:var(--green)} .tag.mal{background:rgba(224,104,90,.16);color:var(--danger)}
+.vacio{padding:22px;text-align:center;color:var(--muted);font-size:.84rem}
+.rollos{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px}
+.rollo{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.rollo .nom{display:flex;gap:8px;align-items:center;font-weight:600;font-size:.9rem}
+.sw{width:14px;height:14px;border-radius:4px;border:1px solid rgba(255,255,255,.25);flex:none}
+.cont{display:flex;align-items:center;gap:12px}
+.cont button{width:40px;height:40px;font-size:1.3rem;font-weight:700;border-radius:10px;border:1px solid var(--line);background:var(--slate-soft);color:var(--ink)}
+.cont button:hover{border-color:var(--amber)}
+.cont .n{font-size:1.6rem;font-weight:700;min-width:34px;text-align:center;font-family:'Space Grotesk',sans-serif}
+.agregar{display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap}
+.agregar select{border-radius:7px;padding:6px 9px;font-size:.82rem}
+#toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--navy-deep);color:#fff;padding:11px 18px;border-radius:var(--radius);font-size:.83rem;display:none;z-index:60}
+</style>
+</head>
+<body>
+<header>
+  <div><h1>Jornadas y gastos</h1><div class="sub" id="h-sub">Cargando…</div></div>
+  <span id="autosaveTag"></span>
+  <div class="spacer"></div>
+  <button class="btn ghost" onclick="location.href='/estadisticas.html'">Comparar entre obras</button>
+  <button class="btn ghost" id="b-volver">Volver</button>
+</header>
+
+<main>
+  <h2>Resumen de la obra</h2>
+  <div class="tiles" id="tiles"></div>
+  <div class="nota" id="n-stat" style="margin-top:8px"></div>
+
+  <h2 id="t-form">Nueva jornada</h2>
+  <div class="panel">
+    <div class="grid">
+      <div class="campo"><label for="f-fecha">Fecha</label><input id="f-fecha" type="date"></div>
+      <div class="campo"><label for="f-personas">Personas</label><input id="f-personas" type="number" min="1" max="30" value="2"></div>
+      <div class="campo" id="c-cada"><label for="f-cada">Horas por persona</label><input id="f-cada" type="text" inputmode="decimal" placeholder="ej. 5"></div>
+    </div>
+    <label class="chk"><input type="checkbox" id="f-iguales" checked> Todos trabajaron las mismas horas</label>
+    <div class="horas" id="horas"></div>
+
+    <div class="nota" style="margin:14px 0 6px"><b>Gastos de la jornada</b> (monto total de cada uno)</div>
+    <div id="gastos"></div>
+    <button class="btn sm" id="b-gasto">+ Agregar gasto</button>
+
+    <div class="campo" style="margin-top:14px"><label for="f-nota">Nota (opcional)</label>
+      <input id="f-nota" placeholder="ej. llovió, trabajamos hasta las 14"></div>
+    <div style="margin-top:14px;display:flex;gap:10px;align-items:center">
+      <button class="btn primary" id="b-guardar">Registrar jornada</button>
+      <button class="btn" id="b-cancelar" style="display:none">Cancelar edición</button>
+      <span class="nota" id="n-form"></span>
+    </div>
+  </div>
+
+  <h2>Jornadas</h2>
+  <div id="lista"></div>
+
+  <h2>Rollos de cable usados</h2>
+  <div class="nota" style="margin-bottom:10px">Tocá <b>+</b> cada vez que termines un rollo. Se compara con lo que había estimado Routeo
+    (rollo = <span id="rollo-m">100</span> m).</div>
+  <div class="rollos" id="rollos"></div>
+  <div class="agregar" id="agregar-rollo"></div>
+  <div class="nota" id="n-rollos" style="margin-top:10px"></div>
+</main>
+
+<div id="toast"></div>
+<script src="/latido.js"></script>
+<script src="/lock.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const OBRA_ID = new URLSearchParams(location.search).get('obra');
+fyLock.iniciar(OBRA_ID);
+const esc = s => (s==null?'':String(s)).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const api = async (r, o={}) => { const res = await fetch(r, {headers:{'Content-Type':'application/json'}, ...o});
+  const d = await res.json().catch(()=>({})); if(!res.ok) throw new Error(d.error || 'Error'); return d; };
+function toast(m){ const t=$('toast'); t.textContent=m; t.style.display='block'; clearTimeout(t._t); t._t=setTimeout(()=>t.style.display='none',3000); }
+const plata = n => n==null ? '—' : '$ ' + Math.round(n).toLocaleString('es-AR');
+const dec = (n, d=2) => Number(n).toLocaleString('es-AR', {maximumFractionDigits:d});
+const hoy = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); };
+const num = v => { let t = String(v).trim(); if(t === '') return null;
+  if(t.includes(',')) t = t.replace(/\./g,'').replace(',','.'); else if(/^[1-9]\d{0,2}(\.\d{3})+$/.test(t)) t = t.replace(/\./g,'');
+  const n = parseFloat(t); return isFinite(n) ? n : null; };
+$('b-volver').onclick = () => location.href = '/obra.html?obra=' + OBRA_ID;
+
+let D = {jornadas:[], resumen:{}, rollos:[], categorias:[], rolloM:100};
+let rollosUsados = {};
+let editando = null;                    // id de la jornada que se está editando
+let gastosForm = [];                    // [{categoria, monto, entre, nota}]
+
+function aplicar(d){
+  D = d;
+  rollosUsados = {}; (d.rollos||[]).forEach(r => { if(r.usados) rollosUsados[r.clave] = r.usados; });
+  $('h-sub').textContent = d.nombre || ('Obra ' + OBRA_ID);
+  $('rollo-m').textContent = d.rolloM || 100;
+  pintar();
+}
+async function cargar(){
+  if(!OBRA_ID){ toast('Falta el id de la obra.'); return; }
+  aplicar(await api('/api/obras/' + OBRA_ID + '/jornadas'));
+  gastosForm = []; pintarForm();
+}
+let guardando = null;
+async function guardar(extra){
+  $('autosaveTag').textContent = 'Guardando…';
+  try{
+    const r = await api('/api/obras/' + OBRA_ID + '/jornadas', {method:'POST', body: JSON.stringify({guardar:true, ...extra})});
+    aplicar(r); $('autosaveTag').textContent = 'Guardado';
+  }catch(e){ toast('No se pudo guardar: ' + e.message); $('autosaveTag').textContent = ''; }
+}
+
+/* ---------------- resumen ---------------- */
+function pintar(){
+  const r = D.resumen || {};
+  const pph = r.pesosPorHora;
+  $('tiles').innerHTML = `
+    <div class="tile"><b>Jornadas</b><div class="v">${r.jornadas||0}</div><small>~${dec(r.personasPromedio||0,1)} personas por jornada</small></div>
+    <div class="tile"><b>Horas-hombre</b><div class="v">${dec(r.horasHombre||0)}</div></div>
+    <div class="tile"><b>Gastos</b><div class="v">${plata(r.gastos)}</div></div>
+    <div class="tile"><b>Cobrado</b><div class="v">${plata(r.cobrado)}</div><small>de ${plata(r.presupuesto)} · ${esc(r.pagoEstado||'')}</small></div>
+    <div class="tile grande"><b>Quedó por hora trabajada ${r.pagada ? '' : '<span class="tag">provisorio</span>'}</b>
+      <div class="v">${pph==null ? '—' : plata(pph) + ' / h'}</div>
+      <small>(cobrado ${plata(r.cobrado)} − gastos ${plata(r.gastos)}) ÷ ${dec(r.horasHombre||0)} h-h</small></div>`;
+  $('n-stat').innerHTML = r.pagada ? 'La obra está pagada: este es el valor final de la hora, para comparar con otras obras.'
+    : `La obra todavía no está pagada completa: el valor es provisorio (sólo cuenta lo cobrado hasta ahora).${
+        r.pesosPorHoraPresupuesto!=null ? ' Si cobraran todo el presupuesto serían <b>' + plata(r.pesosPorHoraPresupuesto) + ' / h</b>.' : ''}`;
+  pintarLista(); pintarRollos();
+}
+
+/* ---------------- formulario ---------------- */
+function pintarForm(){
+  const n = Math.max(1, Math.min(30, parseInt($('f-personas').value) || 1));
+  const iguales = $('f-iguales').checked;
+  $('c-cada').style.display = iguales ? '' : 'none';
+  const previas = [...document.querySelectorAll('#horas input')].map(i => i.value);
+  $('horas').innerHTML = iguales ? '' : Array.from({length:n}, (_, i) =>
+    `<div class="campo"><label>Persona ${i+1} (horas)</label><input data-h="${i}" type="text" inputmode="decimal" value="${esc(previas[i]||'')}"></div>`).join('');
+  $('gastos').innerHTML = gastosForm.map((g, i) => `<div class="gasto">
+    <div class="campo"><label>Gasto</label><select data-g="${i}" data-c="categoria">${(D.categorias||[]).map(c =>
+      `<option ${c===g.categoria?'selected':''}>${esc(c)}</option>`).join('')}</select></div>
+    <div class="campo"><label>Monto ($)</label><input data-g="${i}" data-c="monto" type="text" inputmode="decimal" value="${esc(g.monto??'')}"></div>
+    <div class="campo"><label>Dividir entre</label><select data-g="${i}" data-c="entre"><option value="">Todos (${n})</option>${
+      Array.from({length:n}, (_, k) => k+1).map(k => `<option value="${k}" ${String(g.entre)===String(k)?'selected':''}>${k}</option>`).join('')}</select></div>
+    <div class="campo"><label>Nota</label><input data-g="${i}" data-c="nota" value="${esc(g.nota||'')}" placeholder="opcional"></div>
+    <button class="btn sm" data-del="${i}" style="color:var(--danger)">×</button></div>`).join('');
+  $('gastos').querySelectorAll('[data-g]').forEach(el => el.onchange = () => {
+    const g = gastosForm[+el.dataset.g]; g[el.dataset.c] = el.value; });
+  $('gastos').querySelectorAll('[data-del]').forEach(b => b.onclick = () => { gastosForm.splice(+b.dataset.del, 1); pintarForm(); });
+  $('b-guardar').textContent = editando ? 'Guardar cambios' : 'Registrar jornada';
+  $('b-cancelar').style.display = editando ? '' : 'none';
+  $('t-form').textContent = editando ? 'Editar jornada' : 'Nueva jornada';
+}
+$('f-personas').oninput = pintarForm; $('f-iguales').onchange = pintarForm;
+$('b-gasto').onclick = () => { gastosForm.push({categoria:(D.categorias||['Otro'])[0], monto:'', entre:'', nota:''}); pintarForm(); };
+$('f-fecha').value = hoy();
+
+function leerForm(){
+  const personas = Math.max(1, Math.min(30, parseInt($('f-personas').value) || 1));
+  const iguales = $('f-iguales').checked;
+  const gastos = gastosForm.filter(g => num(g.monto) != null).map(g => ({categoria:g.categoria, monto:num(g.monto),
+    entre: g.entre ? parseInt(g.entre) : null, nota:g.nota}));
+  const j = {fecha:$('f-fecha').value || hoy(), personas, horasIguales:iguales, gastos, nota:$('f-nota').value};
+  if(iguales) j.horasCada = num($('f-cada').value) ?? 0;
+  else j.horas = [...document.querySelectorAll('#horas input')].map(i => num(i.value) ?? 0);
+  return j;
+}
+function limpiar(){
+  editando = null; gastosForm = []; $('f-cada').value = ''; $('f-nota').value = ''; $('f-iguales').checked = true;
+  $('f-fecha').value = hoy(); pintarForm();
+}
+$('b-guardar').onclick = async () => {
+  const j = leerForm();
+  if(j.horasIguales ? !(j.horasCada > 0) : !j.horas.some(h => h > 0)){ toast('Poné las horas trabajadas.'); return; }
+  const lista = D.jornadas.slice();
+  if(editando){ const i = lista.findIndex(x => x.id === editando); if(i >= 0) lista[i] = {...lista[i], ...j}; }
+  else lista.push(j);
+  const eraEdicion = !!editando;
+  await guardar({jornadas: lista});
+  limpiar(); toast(eraEdicion ? 'Jornada actualizada' : 'Jornada registrada');
+};
+$('b-cancelar').onclick = limpiar;
+
+/* ---------------- lista ---------------- */
+function pintarLista(){
+  const L = D.jornadas || [];
+  $('lista').innerHTML = L.length ? `<table><thead><tr><th>Fecha</th><th class="num">Personas</th><th class="num">Horas-hombre</th>
+    <th class="num">Gastos</th><th>Detalle</th><th></th></tr></thead><tbody>${L.map(j => {
+      const hh = (j.horas||[]).reduce((a,b) => a+b, 0), g = (j.gastos||[]).reduce((a,x) => a + x.monto, 0);
+      const horas = j.horasIguales ? `${dec(j.horasCada)} h c/u` : (j.horas||[]).map(h => dec(h)).join(' · ') + ' h';
+      return `<tr class="fila" data-id="${esc(j.id)}"><td>${esc(j.fecha)}${j.origen==='celular'?'<span class="tag">celular</span>':''}</td>
+        <td class="num">${j.personas}</td><td class="num">${dec(hh)} <span class="nota">(${esc(horas)})</span></td><td class="num">${plata(g)}</td>
+        <td class="nota">${esc([...(j.gastos||[]).map(x => x.categoria + ' ' + plata(x.monto) + (x.entre ? ' ÷' + x.entre : '')), j.nota].filter(Boolean).join(' · '))}${j.creadoPor ? ' · por ' + esc(j.creadoPor) : ''}</td>
+        <td><button class="btn sm" data-del="${esc(j.id)}" style="color:var(--danger)">×</button></td></tr>`; }).join('')}</tbody></table>
+    <div class="nota" style="margin-top:6px">Tocá una jornada para editarla.</div>`
+    : '<div class="vacio">Todavía no hay jornadas cargadas en esta obra.</div>';
+  $('lista').querySelectorAll('tr.fila').forEach(tr => tr.onclick = ev => {
+    if(ev.target.dataset.del) return;
+    const j = D.jornadas.find(x => x.id === tr.dataset.id); if(!j) return;
+    editando = j.id; $('f-fecha').value = j.fecha; $('f-personas').value = j.personas; $('f-iguales').checked = j.horasIguales;
+    $('f-cada').value = j.horasCada != null ? String(j.horasCada).replace('.', ',') : ''; $('f-nota').value = j.nota || '';
+    gastosForm = (j.gastos||[]).map(g => ({categoria:g.categoria, monto:String(g.monto).replace('.', ','), entre:g.entre||'', nota:g.nota||''}));
+    pintarForm();
+    if(!j.horasIguales) document.querySelectorAll('#horas input').forEach((i, k) => i.value = String(j.horas[k] ?? '').replace('.', ','));
+    window.scrollTo({top:0, behavior:'smooth'});
+  });
+  $('lista').querySelectorAll('[data-del]').forEach(b => b.onclick = async ev => {
+    ev.stopPropagation();
+    if(!confirm('¿Borrar esta jornada?')) return;
+    await guardar({jornadas: D.jornadas.filter(x => x.id !== b.dataset.del)}); toast('Jornada borrada');
+  });
+}
+
+/* ---------------- rollos ---------------- */
+const COLORES = {fase:'#8a5a2b', neutro:'#5bb0e0', tierra:'#4caf82', retorno:'#d8d8d8'};
+const colorDe = c => { const t = (c||'').toLowerCase();
+  return t.includes('retorno') ? COLORES.retorno : t.includes('tierra') ? COLORES.tierra
+    : t.includes('neutro') ? COLORES.neutro : t.includes('fase') ? COLORES.fase : '#888'; };
+const secTxt = s => (typeof s === 'number' ? dec(s) : s) + ' mm²';
+function pintarRollos(){
+  const R = D.rollos || [];
+  $('rollos').innerHTML = R.length ? R.map(r => `<div class="rollo"><div class="nom"><span class="sw" style="background:${colorDe(r.color)}"></span>
+      ${esc(secTxt(r.seccion))} · ${esc(r.color)}</div>
+      <div class="nota">${r.estimadoM ? `Estimado: ${dec(r.estimadoRollos)} rollos (${dec(r.estimadoM, 0)} m)` : 'Sin estimación de Routeo'}
+        ${r.usados && r.estimadoM ? (r.diferencia > 0.5 ? `<span class="tag mal">+${dec(r.diferencia)} de más</span>` : r.diferencia < -0.5 ? `<span class="tag ok">${dec(r.diferencia)}</span>` : '') : ''}</div>
+      <div class="cont"><button data-r="${esc(r.clave)}" data-d="-1" aria-label="Restar un rollo">−</button><span class="n">${r.usados}</span>
+        <button data-r="${esc(r.clave)}" data-d="1" aria-label="Sumar un rollo">+</button><span class="nota">rollos usados</span></div></div>`).join('')
+    : '<div class="vacio" style="grid-column:1/-1">No hay tipos de cable estimados todavía. Agregá uno abajo.</div>';
+  $('rollos').querySelectorAll('[data-r]').forEach(b => b.onclick = async () => {
+    const k = b.dataset.r, v = Math.max(0, (rollosUsados[k] || 0) + parseInt(b.dataset.d));
+    if(v) rollosUsados[k] = v; else delete rollosUsados[k];
+    await guardar({rollosUsados});
+  });
+  const tiene = new Set(R.map(r => r.clave));
+  const opciones = [];
+  for(const s of [1.5, 2.5, 4, 6, 10, 16]) for(const c of ['Marrón (fase)','Celeste (neutro)','Verde-amarillo (tierra)','Blanco (retorno)'])
+    if(!tiene.has(s + '|' + c)) opciones.push([s + '|' + c, secTxt(s) + ' · ' + c]);
+  $('agregar-rollo').innerHTML = `<span class="nota">Otro tipo de cable:</span><select id="a-tipo">${opciones.map(([k, t]) =>
+    `<option value="${esc(k)}">${esc(t)}</option>`).join('')}</select><button class="btn sm" id="a-btn">+ Agregar un rollo</button>`;
+  $('a-btn').onclick = async () => { const k = $('a-tipo').value; if(!k) return; rollosUsados[k] = (rollosUsados[k] || 0) + 1; await guardar({rollosUsados}); };
+  const usados = R.reduce((a, r) => a + r.usados, 0), est = R.reduce((a, r) => a + r.estimadoRollos, 0);
+  $('n-rollos').textContent = R.length ? `Total: ${usados} rollos usados · ${dec(est)} estimados por Routeo.` : '';
+}
+
+cargar().catch(e => toast('No se pudo cargar: ' + e.message));
+</script>
+</body>
+</html>
